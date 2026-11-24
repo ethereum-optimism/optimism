@@ -18,18 +18,17 @@ import (
 //
 // Use packages/contracts-bedrock/src/libraries/DevFeatures.sol as the full checklist.
 var (
-	// OptimismPortalInteropFlag enables interop features in OptimismPortal2.
-	OptimismPortalInteropFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
-
 	// DeployV2DisputeGamesFlag enables deployment of V2 dispute game contracts.
 	DeployV2DisputeGamesFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000100")
 
-	// ZKDisputeGameFlag enables the ZK dispute game system.
-	// TODO(#19432): Use this flag in the OPCM/OPD integration pipeline.
-	ZKDisputeGameFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000001000000")
-
 	// SuperRootGamesMigrationFlag enables the super root games migration path in OPCM upgrade.
 	SuperRootGamesMigrationFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000010000000")
+
+	// BridgeHookFlag enables bridge hook configuration on OptimismPortal2.
+	BridgeHookFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000100000000")
+
+	// OPPrivateFlag enables OP Private.
+	OPPrivateFlag = common.HexToHash("0x0000000000000000000000000000000000000000000000000000001000000000")
 )
 
 // IsDevFeatureEnabled checks if a specific development feature is enabled in a feature bitmap.

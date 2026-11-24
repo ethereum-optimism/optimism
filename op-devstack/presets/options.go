@@ -3,6 +3,7 @@ package presets
 import (
 	"time"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -323,6 +324,37 @@ func WithMessageExpiryWindow(window uint64) Option {
 	}
 }
 
+// WithL2ToL2MessageExpiryPeriod sets the L2ToL2CrossDomainMessenger's expiry period, in seconds,
+// in every L2 genesis, so a test can watch an undelivered message expire. Production networks use
+// 8 days. It requires interop at genesis and a dependency-set message expiry window
+// (WithMessageExpiryWindow) shorter than the period, which keeps an expired message unrelayable.
+func WithL2ToL2MessageExpiryPeriod(seconds uint64) Option {
+	return option{
+		kinds: optionKindL2ToL2MessageExpiryPeriod,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.L2ToL2MessageExpiryPeriod = seconds
+		},
+	}
+}
+
+// WithAltDA runs the L2 chain on alt-DA with keccak commitments: the batcher writes inputs to a DA
+// server that keeps them in store, and the sequencer node reads them back. Only
+// NewMinimalNoFaultProofs supports it, since no other node is wired to the DA server and the
+// fault-proof stack cannot read alt-DA inputs.
+func WithAltDA(store altda.KVStore) Option {
+	return option{
+		kinds: optionKindAltDA,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.AltDAStore = store
+		},
+	}
+}
+
+// WithL1BlockTime configures the L1 block time (in seconds) via the deployer.
+func WithL1BlockTime(seconds uint64) Option {
+	return WithDeployerOptions(sysgo.WithL1BlockTime(seconds))
+}
+
 // WithL2BlockTimes configures per-chain L2 block times via the deployer.
 // The blockTimes map keys are L2 chain IDs and values are the desired block
 // time in seconds for that chain.
@@ -369,6 +401,18 @@ func WithoutHonestChallenger() Option {
 		kinds: optionKindSkipHonestChallenger,
 		applyFn: func(cfg *sysgo.PresetConfig) {
 			cfg.SkipHonestChallenger = true
+		},
+	}
+}
+
+// WithFollowSourceCLKind starts the two-verifiers preset's sequencer and deriving verifier
+// L2CLB on kind, while the follow-source verifier L2CLC keeps the kind DEVSTACK_L2CL_KIND
+// selects. A test uses it to check that one CL follows the other.
+func WithFollowSourceCLKind(kind sysgo.MixedL2CLKind) Option {
+	return option{
+		kinds: optionKindFollowSourceCLKind,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.FollowSourceCLKind = kind
 		},
 	}
 }

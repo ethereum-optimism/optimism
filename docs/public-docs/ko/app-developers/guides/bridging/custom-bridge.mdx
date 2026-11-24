@@ -1,0 +1,40 @@
+---
+title: 커스텀 브리지
+description: OP Mainnet용 커스텀 브리지를 구축할 때 고려해야 할 중요 사항을 설명합니다.
+diataxis: explanation
+---
+
+커스텀 토큰 브리지는 [Standard Bridge](./standard-bridge) 이외의 모든 브리지를 말합니다.
+Standard Bridge가 사용 사례를 완전히 지원하지 않아 커스텀 토큰 브리지를 구축해야 하는 상황이 생길 수 있습니다.
+이 가이드는 커스텀 브리지를 구축할 때 알아야 할 중요한 정보를 제공합니다.
+
+<Info>
+  커스텀 브리지는 모든 프로젝트에 상당한 복잡성과 위험을 초래할 수 있습니다.
+  커스텀 브리지를 도입하기 전에 [Standard Bridge](./standard-bridge)가 사용 사례를 확실히 지원하지 않는지 반드시 확인하십시오.
+  더 많은 유연성이 필요한 프로젝트라면 [커스텀 브리지 토큰을 구축](/ko/app-developers/tutorials/bridging/standard-bridge-standard-token)하는 것으로 충분한 경우가 많습니다.
+</Info>
+
+## 가이드라인
+
+커스텀 브리지는 생각할 수 있는 어떤 설계 패턴이든 사용할 수 있습니다.
+하지만 복잡성이 증가하면 위험도 증가합니다.
+자체 브리지 컨트랙트를 처음부터 구축하기 전에 [`StandardBridge`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/StandardBridge.sol) 컨트랙트를 직접 확장하거나 수정하는 방안을 고려하십시오.
+그렇게 하면 감사(audit)를 거친 기반 위에 추가 로직을 더할 수 있습니다.
+
+`StandardBridge` 컨트랙트를 확장하지 않기로 하더라도, `StandardBridge`가 제공하는 인터페이스는 따르는 것이 좋습니다.
+이 인터페이스를 확장하는 브리지는 [Superchain Bridges UI](https://app.optimism.io/bridge?utm_source=op-docs&utm_medium=docs)와 호환됩니다.
+Standard Bridge의 설계에 대한 자세한 내용은 [Standard Bridge 사용하기](./standard-bridge) 가이드를 참고하십시오.
+
+## Superchain Token List
+
+[Superchain Token List](/ko/app-developers/reference/tokens/tokenlist)는 사용자와 개발자가 다른 블록체인에 고유한 토큰의 올바른 브리지 표현을 찾을 수 있도록 돕기 위해 존재합니다.
+커스텀 브리지를 구축하고 테스트한 후에는 [Superchain Token List 저장소에 pull request를 생성](https://github.com/ethereum-optimism/ethereum-optimism.github.io#adding-a-token-to-the-list)하여 이 브리지를 통해 이동할 토큰을 반드시 등록하십시오.
+Superchain Token List에 추가되려면 **반드시** 먼저 OP Sepolia에 브리지를 배포해야 합니다.
+
+## 다음 단계
+
+OP Mainnet용 커스텀 브리지의 여러 예시를 살펴볼 수 있습니다.
+
+*   [NFT Bridge](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol)
+*   [L2 DAI Token Bridge](https://optimistic.etherscan.io/address/0x467194771dae2967aef3ecbedd3bf9a310c76c65#code) 및 [배포된 주소](https://github.com/ethereum-optimism/ethereum-optimism.github.io/blob/master/data/DAI/data.json)
+*   [SNX Bridge](https://github.com/ethereum-optimism/ethereum-optimism.github.io/blob/master/data/SNX/data.json)

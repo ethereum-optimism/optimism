@@ -32,7 +32,7 @@ func withdrawalOpts(gameType gameTypes.GameType, extra ...presets.Option) []pres
 	}
 	if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
 		opts = append(opts, presets.WithDeployerOptions(
-			sysgo.WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+			sysgo.WithUseInterop(),
 			sysgo.WithDevFeatureEnabled(devfeatures.SuperRootGamesMigrationFlag),
 		))
 	}
@@ -87,10 +87,6 @@ func newWithdrawalTestEnv(t devtest.T, gameType gameTypes.GameType, extra ...pre
 
 func TestWithdrawal(gt *testing.T, gameType gameTypes.GameType, extra ...presets.Option) {
 	t := devtest.ParallelT(gt)
-	if gameType == gameTypes.SuperPermissionedGameType || gameType == gameTypes.SuperCannonKonaGameType {
-		// TODO(#21861): Enable this when kona-node supports superroot_atTimestamp
-		sysgo.SkipOnKonaNode(t, "super-root proposals require op-node superroot RPC")
-	}
 	env := newWithdrawalTestEnv(t, gameType, extra...)
 	bridge := env.bridge
 	bridge.VerifyRespectedGameType(gameType)

@@ -600,6 +600,35 @@ contract ETHLockbox_AuthorizeLockbox_Test is ETHLockbox_TestInit {
 /// @title ETHLockbox_MigrateLiquidity_Test
 /// @notice Test contract for the migrateLiquidity function.
 contract ETHLockbox_MigrateLiquidity_Test is ETHLockbox_TestInit {
+    /// @notice Tests the `migrateLiquidity` function reverts when the lockbox is paused.
+    function test_migrateLiquidity_paused_reverts() public {
+        deal(address(ethLockbox), 1 ether);
+
+        // Mock a destination lockbox that accepts the liquidity.
+        address destinationLockbox = makeAddr("destinationLockbox");
+        vm.etch(destinationLockbox, hex"00");
+        vm.mockCall(
+            destinationLockbox, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
+        );
+        vm.mockCall(destinationLockbox, abi.encodeCall(IETHLockbox.receiveLiquidity, ()), "");
+
+        // Pause the lockbox.
+        vm.mockCall(
+            address(superchainConfig),
+            abi.encodeCall(ISuperchainConfig.isLocalOrGlobalPaused, (address(ethLockbox))),
+            abi.encode(true)
+        );
+
+        // Expect the revert with `Paused` selector
+        vm.expectRevert(IETHLockbox.ETHLockbox_Paused.selector);
+
+        // Call the `migrateLiquidity` function as the proxy admin owner
+        vm.prank(proxyAdminOwner);
+        ethLockbox.migrateLiquidity(IETHLockbox(destinationLockbox));
+
+        assertEq(address(ethLockbox).balance, 1 ether);
+    }
+
     /// @notice Tests the `migrateLiquidity` function reverts when the caller is not the proxy
     ///         admin.
     function testFuzz_migrateLiquidity_unauthorized_reverts(address _caller) public {

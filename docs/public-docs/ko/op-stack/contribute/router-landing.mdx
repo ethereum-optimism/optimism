@@ -1,0 +1,119 @@
+---
+title: "콘텐츠 유형: 라우터/랜딩"
+description: 라우터 및 랜딩 페이지에 대해 공개된 계약으로, 목적, 어조, 필수 구성 요소, 제목 문법, 복사해 쓸 수 있는 템플릿을 다룹니다.
+diataxis: reference
+---
+
+**라우터/랜딩 페이지(router/landing page)**는 독자를 다른 곳으로 빠르게 보내기 위해 존재합니다. 네 가지
+페르소나를 안내하는 사이트 루트, 탭 랜딩 페이지, 목표 바로가기 페이지 등은
+모두 라우터입니다. 목적지마다 한 줄의 약속만 담은 순수한 내비게이션이며,
+그 자체로 읽을 내용은 없습니다.
+
+이 페이지는 이 유형에 대한 계약입니다. 새 라우터는 이 계약을 기준으로 리뷰되며,
+리뷰 시 다시 논쟁하는 대신 관련 섹션을 인용합니다.
+
+## 목적
+
+*   도착한 모든 독자를 **한 번의 결정으로 올바른 경로에** 올려놓습니다:
+    페르소나별(앱 개발자, 체인 운영자, 노드 운영자, 프로토콜
+    학습자) 또는 목표별("체인 배포하기", "자산 브리지하기").
+*   목적지는 내부 조직 구조가 아니라 대상 독자 규모 순으로 정렬합니다.
+    가장 큰 독자층의 경로가 먼저 옵니다.
+*   작게 유지합니다: 설명하거나 지시하기 시작한 라우터는 더 이상
+    라우터가 아닙니다.
+
+## 구성
+
+순수 라우터는 **`diataxis:` 키가 없는** 유일한 구성 유형입니다.
+분류할 자체 문서화 방식이 없고, 그런 방식을 가진 페이지로 안내만 하기
+때문입니다. 대신 `content-type: router-landing`을 포함하여
+기계적으로 분류할 수 있게 합니다. 페이지가 안내 기능에 실질적인
+설명이나 지침 콘텐츠를 섞는 순간 더 이상 라우터가 아닙니다. 그 페이지가 가르치는
+내용에 따라 분류하고, 안내 부분은 카드나 "next steps"
+섹션으로 옮깁니다.
+
+구성된 유형들이 `diataxis:` 분류 체계와 어떻게 연관되는지는
+[콘텐츠 유형 선택](/ko/op-stack/contribute/choose-a-content-type)을 참고하세요.
+
+## 어조
+
+*   2인칭, 이점 우선: 모든 목적지는 섹션에 무엇이 들어 있는지가 아니라
+    독자가 무엇을 달성할지로 표현합니다("OP Stack 체인에 첫 컨트랙트
+    배포하기"이지, "컨트랙트에 관한 문서"가 아닙니다).
+*   목적지마다 한 줄. 목적지를 정당화하는 데 두 문장이 필요하다면
+    목적지가 잘못되었거나 라우터가 설명을 하고 있는 것입니다.
+*   마케팅 어투는 쓰지 않습니다. 라우터는 길 안내이지 홍보가 아닙니다.
+
+## 필수 구성 요소
+
+모든 라우터/랜딩 페이지에는 다음이 있어야 합니다.
+
+1.  **프런트매터**: `title`, `description`,
+    `content-type: router-landing`, `last-reviewed: YYYY-MM-DD`
+    (라우터는 큐레이션 산출물이며 병합 시 리뷰 점검 대상에 들어갑니다).
+    `diataxis:` 키는 없습니다. 구성 섹션을 참고하세요. 레이아웃에 필요한 경우
+    `mode: wide`를 사용할 수 있습니다.
+2.  경로 앞에 **최대 하나의 짧은 안내 단락**(또는 히어로 블록).
+    개념, 역사, 기능 소개는 넣지 않습니다.
+3.  **`<Card>`/`<CardGroup>` 블록으로 된 경로**(또는 시각적으로 훑어보기 쉬운
+    동등한 패턴). 각 경로에는 독자나 목표를 나타내는 제목,
+    `href`, 한 줄의 이점이 있어야 합니다.
+4.  **대상 독자 구분의 완전한 커버리지**: 페르소나 라우터는 자신이 다룬다고 밝힌
+    모든 페르소나를 안내하며, 구분에 속하지 않는 독자에게는 포괄 경로
+    (검색, 용어집, 또는 지원)를 제공합니다.
+5.  **정상적으로 연결되는 링크만** — 라우터는 링크의 연쇄일 뿐 그 외에는 아무것도
+    아니므로 모든 링크가 연결되어야 합니다. 죽은 경로는 정리 대상이 아니라
+    릴리스 차단 요인입니다.
+
+## 제목 문법
+
+*   **목표 라우터**는 목표를 sentence case의 명령형 구문으로
+    표현합니다: "Deploy the OP Stack".
+*   **페르소나/섹션 랜딩 페이지**는 대상 독자나 섹션의
+    평이한 이름을 사용합니다: "App developers".
+*   "Welcome", "Home", "Overview", "Getting started"를 제목 전체로 사용하지 않습니다.
+    제목은 독자가 어디에 있는지 또는 무엇을 하러 왔는지를 말해야
+    합니다.
+
+## 템플릿
+
+새 라우터/랜딩 페이지에 다음 템플릿을 복사해 사용합니다.
+
+```mdx
+---
+title: <Goal phrase or audience name>
+description: <One sentence naming who this page routes and to what.>
+content-type: router-landing
+last-reviewed: <YYYY-MM-DD>
+---
+
+<At most one short orienting paragraph: who this page serves and how to
+choose a path. Omit it entirely if the cards are self-evident.>
+
+<CardGroup cols={2}>
+  <Card title="<Persona or goal, largest audience first>" href="</path>">
+    <One line: what this reader will accomplish there.>
+  </Card>
+  <Card title="<Persona or goal>" href="</path>">
+    <One line: what this reader will accomplish there.>
+  </Card>
+  <Card title="<Persona or goal>" href="</path>">
+    <One line: what this reader will accomplish there.>
+  </Card>
+  <Card title="<Catch-all: everything else>" href="</path>">
+    <One line: where readers outside the split find their footing.>
+  </Card>
+</CardGroup>
+```
+
+## 모범 사례
+
+*   [사이트 루트](/ko) — 현재는 단일 페르소나 랜딩 페이지("Deploy the
+    OP Stack")이며, 네 가지 페르소나 라우터로 다시 작성될 예정으로, 이 스펙을
+    통과해야 하는 첫 페이지입니다.
+*   [OP Stack](/ko/op-stack/introduction/op-stack) — 경계를 이해하는 데
+    살펴볼 가치가 있는 혼합형입니다. 카드로 안내하면서 *동시에* 설명도 하기 때문에
+    `content-type: router-landing`이 아니라
+    `diataxis: explanation`으로 분류됩니다.
+*   Cloudflare의 [문서 콘텐츠 전략](https://developers.cloudflare.com/style-guide/documentation-content-strategy/)
+    — 이 계약이 따르는 공개 콘텐츠 유형 패턴입니다.

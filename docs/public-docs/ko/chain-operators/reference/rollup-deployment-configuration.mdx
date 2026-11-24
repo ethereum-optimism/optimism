@@ -1,0 +1,229 @@
+---
+title: 롤업 배포 구성
+description: OP Stack 롤업 배포 구성 값에 대한 레퍼런스입니다.
+diataxis: reference
+---
+
+import DeployConfigSchema from '/ko/snippets/generated/deploy-config-schema.mdx';
+import { Unreleased } from "/ko/snippets/unreleased.mdx"
+
+이 페이지는 `DeployConfig`에 포함된 값에 대한 레퍼런스입니다. `DeployConfig`는
+OP Stack 체인을 배포할 때 L1 컨트랙트 파라미터와 L2 제네시스 상태를 설정하는
+평면(flat) JSON 구성입니다.
+
+아래 스키마 표는 확정된 op-deployer 릴리스 시점의 모노레포(`op-chain-ops/genesis`)에 있는
+`DeployConfig` Go 구조체 트리에서 직접 생성됩니다. 따라서 필드 목록, JSON 키, 타입,
+설명이 소스 코드와 모르는 사이에 어긋날 수 없습니다. 권장 값과 표준 구성 요구 사항은
+코드가 아니라 정책이므로, 아래 [가이드 섹션](#guidance-and-standard-configuration-requirements)에서
+수동으로 관리됩니다.
+
+<Info>
+  **OP Stack 체인을 배포하는 권장 방법은 [OP Deployer](/ko/chain-operators/tools/op-deployer/overview)입니다.**
+  OP Deployer는 직접 작성한 `DeployConfig` JSON 대신 선언형 [intent 파일](/ko/chain-operators/tools/op-deployer/usage/init)(`intent.toml`)을
+  입력으로 받으며, 배포 파이프라인의 일부로 해당 intent에서 이 페이지에 설명된
+  `DeployConfig`를 도출합니다. 대부분의 체인 운영자(chain operator)는 intent 파일만 설정하며
+  `DeployConfig`를 직접 편집하지 않습니다.
+
+  이 페이지는 그 기반이 되는 `DeployConfig` 항목, 즉 배포가 최종적으로 결정하는 값의
+  전체 집합을 설명합니다. 이 페이지를 활용하면 intent 설정이 어떤 값에 매핑되는지 이해하거나,
+  OP Deployer가 적용된 배포에 대해 출력할 수 있는 `DeployConfig`(`op-deployer inspect deploy-config` 사용)를
+  해석하거나, OP Deployer가 지원하는 저수준의
+  [커스텀 배포](/ko/chain-operators/tools/op-deployer/usage/custom-deployments)에 대한 배경지식을 얻을 수 있습니다.
+</Info>
+
+<Info>
+  배포 구성 값은 체인이 배포된 후에는 대부분 변경할 수 없으므로, 이 페이지는 제네시스 시점에 설정하는 값을 대상으로 합니다.
+  output oracle 제안 필드([`l2OutputOracle*` 값](#legacy-output-oracle))는 레거시 `L2OutputOracle` 제안 시스템을 설명하며, 여전히 해당 시스템을 사용하는 체인에만 적용됩니다. 신규 OP Stack 체인의 표준 구성인 [무허가형 결함 증명(permissionless fault proofs)](/ko/op-stack/fault-proofs/explainer)을 사용하는 체인은 대신 [결함 증명 배포 값](#fault-proofs)을 설정합니다. 즉, `useFaultProofs`와 함께 `faultGame*`, `preimageOracle*`, `proofMaturityDelaySeconds`, `disputeGameFinalityDelaySeconds`, `respectedGameType` 필드를 설정합니다.
+</Info>
+
+<Info>
+  표준 구성(standard configuration)은 OP Stack 체인이 OP Stack 내에서 Standard Chain으로
+  인정받기 위한 요구 사항의 집합입니다. 이 요구 사항은 현재 초안 상태이며
+  거버넌스 승인을 기다리고 있습니다. 자세한 내용은
+  이 [거버넌스 스레드](https://gov.optimism.io/t/season-6-draft-standard-rollup-charter/8135)와
+  [OP Stack Configurability Specification](https://specs.optimism.io/protocol/configurability.html?utm_source=op-docs&utm_medium=docs)의 실제 요구 사항을 참고하십시오.
+</Info>
+
+## 구성 값
+
+<DeployConfigSchema />
+
+## 가이드 및 표준 구성 요구 사항
+
+위의 표는 전체 스키마입니다. 이 섹션에서는 체인 운영자가 가장 자주 검토해야 하는
+값에 대해 수동으로 관리되는 가이드를 제공합니다. 권장 값, 검증 제약 조건, 그리고
+초안 [Standard Rollup Charter](https://gov.optimism.io/t/season-6-draft-standard-rollup-charter/8135)의
+표준 구성 요구 사항이 포함됩니다.
+
+### 하드포크 활성화 가이드
+
+*   표준 구성에서는 네트워크 업그레이드(하드포크)가 활성화되어야 합니다.
+    신규 체인은 각 `l2Genesis<Fork>TimeOffset`을 `"0x0"`으로 설정하여
+    거버넌스가 승인한 모든 업그레이드가 제네시스에서 활성화되도록 합니다. nil(생략된)
+    오프셋은 해당 포크를 비활성화합니다.
+*   나중 포크는 이전 포크보다 먼저 활성화될 수 없으며, 두 포크가 제네시스 이후
+    동일한 시점에 활성화될 수 없습니다.
+*   상호운용성(interoperability) 하드포크 활성화 오프셋은 비표준 기능입니다.
+    상호운용성은 아직 [실험적](https://specs.optimism.io/interop/overview.html?utm_source=op-docs&utm_medium=docs) 기능입니다.
+
+### 역할 및 소유권 요구 사항
+
+*   `finalSystemOwner`: `address(0)`이어서는 안 됩니다. 공통 보안 모델을 유지하기 위해
+    단일 관리자 주소를 사용하는 것을 권장합니다. 표준 구성: Chain Governor 또는
+    Servicer여야 합니다. 단, L1 ProxyAdmin 소유자는 Optimism Security Council이
+    보유해야 합니다. 현재 L1 ProxyAdmin 소유자는 Chain Governor 또는 Servicer로부터
+    [0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A)로 이전됩니다.
+*   `proxyAdminOwner`: L2의 `ProxyAdmin` predeploy를 소유합니다. 이 predeploy는
+    `0x42...0000`부터 `0x42...2048`까지 범위의 모든 predeploy 컨트랙트에 대한 Proxy
+    컨트랙트를 소유하므로 predeploy를 업그레이드할 수 있게 합니다. `address(0)`이어서는
+    안 되며, 단일 관리자 주소를 권장합니다.
+*   `superchainConfigGuardian`: 표준 구성에서는
+    [0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2](https://etherscan.io/address/0x09f7150D8c019BeF34450d6920f6B3608ceFdAf2)가 필요합니다.
+    이는 Security Council Safe가 소유한 1/1 Safe로, Optimism Foundation이 Pause Deputy
+    역할을 수행할 수 있도록
+    [Deputy Pause Module](https://specs.optimism.io/protocol/deputy-pause-module.html?utm_source=op-docs&utm_medium=docs)이
+    활성화되어 있습니다.
+*   `p2pSequencerAddress` 및 `batchSenderAddress`: 사용자가 제어하는 hot key 주소입니다.
+    각각 sequencer의 블록 서명 키와, batch inbox로 보낸 트랜잭션이 유효한 것으로
+    간주되는 batcher 계정입니다. 둘 다 `address(0)`일 수 없습니다. `batchSenderAddress`는
+    나중에 L1의 `SystemConfig` 컨트랙트를 통해 업데이트할 수 있습니다. 표준 요구 사항은 없습니다.
+*   [L1 의존성 주소](#l1-dependency-addresses)
+    (`l1StandardBridgeProxy`, `l1CrossDomainMessengerProxy`,
+    `l1ERC721BridgeProxy`, `systemConfigProxy`, `optimismPortalProxy`): 수동으로 구성하지 않고
+    L1 배포에서 채워지며, 어느 것도 `address(0)`일 수 없습니다. 표준 구성에서는
+    구현 컨트랙트가 거버넌스가 승인한 OP Stack 코드베이스의 최신 버전이어야 하며,
+    체인이 과거에 업그레이드된 적이 있다면 이전 버전도 코드베이스의 표준 릴리스여야 합니다.
+
+### 시퀀싱 및 배칭 가이드
+
+*   `l2BlockTime`: 0이 아닌 정수여야 하며 L1 블록 시간(Ethereum mainnet과 Sepolia에서는
+    12초)보다 작아야 합니다. 표준 구성: 1초 또는 2초.
+*   `maxSequencerDrift`: 0이 아니어야 합니다. 1800(30분)은
+    [Fjord 활성화](/ko/op-stack/protocol/network-upgrades#activations)와 함께 적용되는
+    상수입니다.
+*   `sequencerWindowSize`: 0이 아니어야 합니다. 표준 구성: 기반 레이어 블록 3\_600개
+    (L1 블록 시간을 12초로 가정할 때 Ethereum 위의 L2 기준 12시간). 이 값은
+    sequencer가 트랜잭션 순서를 재정렬하는 능력을 제한하는 데 중요한 값이며,
+    값이 더 크면 사용자 보호에 위험이 될 수 있습니다.
+*   `channelTimeout`: 기본값 50은
+    [Granite 네트워크 업그레이드](/ko/op-stack/protocol/network-upgrades#activations)에서 도입되었습니다.
+*   `batchInboxAddress`: 표준 구성 규칙은
+    `versionByte || keccak256(bytes32(chainId))[:19]`입니다. 여기서 `||`는
+    연결(concatenation)을 의미하고, `versionByte`는 `0x00`이며, `chainId`는 `uint256`입니다.
+    이 규칙은 `uint256` 전체 크기까지 모든 범위의 chain ID를 포괄합니다.
+
+    ```solidity
+    bytes32 hash = keccak256(abi.encodePacked(bytes32(uint256(chainId))));
+    // take the first 19 bytes of the hash, then prepend a version byte of 0x00
+    // batchInboxAddress = 0x00{hash[:19]}
+    ```
+*   `systemConfigStartBlock`: 표준 구성: `SystemConfig`가 초기화된 블록입니다.
+*   `l1StartingBlockTag`: reorg로 인한 문제를 피하기 위해 일반적으로 최종 확정된(finalized)
+    L1 블록을 사용하는 것을 권장합니다.
+
+### Chain ID 요구 사항
+
+*   `l1ChainID`: 0이 아니어야 합니다. Ethereum mainnet은 1, Sepolia 테스트 네트워크는
+    11155111입니다. 다른 네트워크는 [chainlist](https://chainlist.org/?testnets=true)를
+    참고하십시오. 표준 구성: 1(Ethereum).
+*   `l2ChainID`: 0이 아니어야 하며, 보안상의 이유로 고유해야 합니다. 표준 구성:
+    Foundation이 승인한 전역적으로 고유한 값. 체인은 자신의 chain ID를
+    [ethereum-lists/chains](https://github.com/ethereum-lists/chains)에 추가해야 합니다.
+
+### Gas 및 수수료 가이드
+
+*   `l2GenesisBlockGasLimit`: 0이 아니어야 하며
+    `MaxResourceLimit + SystemTxMaxGas`(입금(디파짓) 하나와 시스템 트랜잭션이 사용할 수 있는
+    gas)보다 커야 합니다. 표준 구성: 200\_000\_000 gas 이하. 체인 운영자는 안정적이고
+    신뢰할 수 있는 체인을 유지해야 하므로, 변경을 고려할 때는 신중한 검토가 필요합니다.
+*   `l2GenesisBlockBaseFeePerGas`: nil일 수 없습니다.
+*   `gasPriceOracleBaseFeeScalar` 및 `gasPriceOracleBlobBaseFeeScalar`: 0이어서는
+    안 됩니다. 표준 구성: 수수료 마진이 0%에서 50% 사이가 되도록 설정합니다. 이 scalar가
+    수수료 계산에 어떻게 반영되는지는 [트랜잭션 수수료](/ko/op-stack/transactions/fees)를 참고하십시오.
+*   `eip1559Elasticity` 및 `eip1559Denominator`: 0이 아니어야 합니다.
+    Canyon이 활성화된 경우 `eip1559DenominatorCanyon`은 0이 아니어야 하며, 권장 값은
+    250입니다.
+*   `minBaseFee`: priority fee 경매 기간을 단축하는 데 도움이 되는 wei 단위의 절대
+    최소 base fee입니다. 0이면 비활성화됩니다(기본값). 권장 값은 100000 wei이며,
+    최솟값을 너무 높게 설정하면 사용자의 트랜잭션이 포함되기 어려워질 수 있습니다.
+    표준 구성: 10000000000 wei보다 높게 설정해서는 안 됩니다. 자세한 내용은
+    [최소 base fee 명세](https://specs.optimism.io/protocol/jovian/exec-engine.html#minimum-base-fee)를
+    참고하십시오.
+*   `daFootprintGasScalar`: DA 사용량 추정치에 곱해져 블록에 들어갈 수 있는 압축된
+    트랜잭션 데이터의 총 추정량을 제한합니다. 권장 값은 400입니다. Jovian부터 base fee
+    업데이트 계산은 `gasUsed` 대신 `gasMetered := max(gasUsed, blobGasUsed)`를 사용하므로,
+    DA 사용량이 높은 블록은 이후 블록의 base fee를 증가시킬 수 있습니다. 자세한 내용은
+    [DA footprint 블록 한도 명세](https://specs.optimism.io/protocol/jovian/exec-engine.html#da-footprint-block-limit)를
+    참고하십시오.
+
+### Fee vault 가이드
+
+*   `*FeeVaultRecipient` 주소는 `address(0)`이어서는 안 됩니다. 공통 보안 모델을
+    유지하기 위해 단일 관리자 주소를 권장합니다.
+*   `*FeeVaultWithdrawalNetwork` 값은 각 vault가 출금할 위치를 선택합니다.
+    `"remote"`는 수수료를 L1의 수령인 주소로, `"local"`은 L2로 보냅니다.
+    L1으로의 출금이 더 비쌉니다. 구성이 다시 출력될 때(예: `op-deployer inspect deploy-config`)
+    이 값들은 레거시 숫자 형식으로 마샬링됩니다. `"remote"`는 `0`, `"local"`은 `1`입니다.
+*   `*FeeVaultMinimumWithdrawalAmount` 값은 L1으로의 출금 비용이 비싸기 때문에 존재합니다.
+    최솟값은 반환되는 금액보다 실행 비용이 더 큰 소액 출금이 계속 발생하는 오버헤드 비용을
+    방지합니다.
+
+### 출금 최종성 가이드
+
+*   `finalizationPeriodSeconds`: 0이 아니어야 합니다. 테스트 네트워크에서는 12초,
+    프로덕션 네트워크에서는 7일을 권장합니다. 표준 구성: 7일. 이는 보안성이 높고
+    지나칠 정도로 안전한 상한값으로, 필요한 경우 해킹에 대한 사회적 계층(social-layer)
+    해결책을 검토할 시간을 충분히 확보하고, 다른 네트워크 참여자가 해당 output root의
+    무결성에 이의를 제기할 수 있도록 합니다.
+
+### 레거시 output oracle 가이드
+
+다음 항목은 레거시 `L2OutputOracle` 제안 시스템을 여전히 사용하는 체인에만 적용됩니다.
+신규 체인은 대신 [결함 증명](#fault-proofs)을 사용합니다.
+
+*   `l2OutputOracleSubmissionInterval`: 0이 아니어야 하며, 120 블록(4분)을 권장합니다.
+*   `l2OutputOracleStartingBlockNumber`: 신규 체인에서는 0이어야 합니다. 레거시 시스템에서
+    업그레이드된 네트워크(예: OP Mainnet)에서는 0이 아닐 수 있습니다.
+*   `l2OutputOracleStartingTimestamp`: 반드시 `l1StartingBlockTag`로 정의된 블록에 해당하는
+    타임스탬프여야 합니다(MUST).
+*   `l2OutputOracleProposer`: `address(0)`이어서는 안 됩니다. 표준 요구 사항은 없습니다.
+    이 역할은 `OptimismPortal`의 respected game type이 `PERMISSIONED_CANNON`일 때만
+    활성화됩니다. L1 ProxyAdmin은 `PERMISSIONED_CANNON` 게임 타입의 구현을 설정하므로,
+    허가형 분쟁 게임(dispute game)의 proposer 구성을 결정합니다.
+*   `l2OutputOracleChallenger`: `address(0)`이어서는 안 됩니다. 공통 보안 모델을
+    유지하기 위해 단일 관리자 주소를 권장합니다.
+
+### 결함 증명 값 가이드
+
+`useFaultProofs`를 설정하기 전에 결함 증명(fault proof) 체인을 운영하는 것의 의미를
+이해해야 합니다. [결함 증명 설명](/ko/op-stack/fault-proofs/explainer)을 참고하십시오.
+`proofMaturityDelaySeconds`, `disputeGameFinalityDelaySeconds`,
+`faultGameWithdrawalDelay`는 0이어서는 안 됩니다. `faultGameMaxDepth`는 전체 Cannon
+trace를 위한 공간이 항상 충분하도록 보수적으로 설정해야 합니다.
+
+<Unreleased component="op-deployer" />
+
+`op-deployer`를 사용하면 세 가지 지연 값은 체인별로 설정되며 구현 컨트랙트의 허용 범위
+내에 있어야 합니다. 배포 후에는 L1 `ProxyAdmin` 소유자가 동일한 범위 내에서 이 값을
+변경할 수 있습니다.
+
+### Alt-DA 가이드
+
+Alt-DA 모드는 비표준 기능입니다. 이 모드를 사용하면 commitment 타입과 관계없이
+데이터 가용성(Data Availability) 레이어를 OP Stack에 통합할 수 있습니다.
+[Alt-DA 모드](/ko/op-stack/features/experimental/alt-da-mode)를 참고하십시오.
+
+*   `daCommitmentType`: `KeccakCommitment` 또는 `GenericCommitment`(권장) 중 하나여야
+    합니다. `KeccakCommitment`는 지원 중단(deprecated)될 예정입니다.
+*   `daChallengeWindow` 및 `daResolveWindow`: Keccak commitment로 Alt-DA 모드를 사용할 때
+    0이 아니어야 합니다.
+*   `daChallengeProxy`: Keccak commitment로 Alt-DA 모드를 사용할 때 `address(0)`이어서는
+    안 되며, generic commitment를 사용할 때는 `address(0)`이어야 합니다.
+
+### 거버넌스 및 개발 설정
+
+*   `enableGovernance`: false를 권장합니다. 거버넌스 토큰 predeploy는 OP Mainnet 및
+    OP Mainnet과 유사한 체인의 테스트 전용입니다.
+*   `fundDevAccounts`와 [개발용 L1 제네시스](#development-l1-genesis) 값은 devnet 배포
+    전용입니다. 프로덕션 L2 배포에서는 `l1BlockTime` 유효성 검사(Ethereum의 경우 12)를
+    제외하고 이 값들을 사용하지 않습니다.

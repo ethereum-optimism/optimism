@@ -128,15 +128,17 @@ where
             .map(|(k, v)| (*k, v.clone()))
             .collect();
 
-        // Derive the message graph from the non-replaced block headers.
-        let graph = MessageGraph::derive(
-            &heads_to_check,
-            &self.interop_provider,
-            &self.boot_info.rollup_configs,
-            &self.boot_info.dependency_set,
-            self.boot_info.dependency_set.get_message_expiry_window(),
-        )
-        .await?;
+        // Derive the message graph from the non-replaced blocks.
+        let graph = {
+            let blocks = self.interop_provider.blocks_with_receipts(&heads_to_check).await?;
+            MessageGraph::derive(
+                &blocks,
+                &self.interop_provider,
+                &self.boot_info.rollup_configs,
+                &self.boot_info.dependency_set,
+                self.boot_info.dependency_set.get_message_expiry_window(),
+            )
+        };
 
         // Attempt to resolve the message graph. If there were any invalid messages or cyclic
         // dependencies found, re-execute the affected chains with deposit-only transactions.

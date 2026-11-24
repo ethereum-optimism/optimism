@@ -1,6 +1,7 @@
 //! The internal state of the engine controller.
 
 use crate::Metrics;
+use alloy_eips::BlockNumHash;
 use alloy_rpc_types_engine::ForkchoiceState;
 use kona_protocol::L2BlockInfo;
 use serde::{Deserialize, Serialize};
@@ -54,6 +55,12 @@ impl EngineSyncState {
         self.finalized_head
     }
 
+    /// Returns the id of the finalized head once finality is established. The default finalized
+    /// head means it is not yet, so no block pins finality.
+    pub fn established_finalized_head(&self) -> Option<BlockNumHash> {
+        (self.finalized_head != L2BlockInfo::default()).then(|| self.finalized_head.block_info.id())
+    }
+
     /// Creates a `ForkchoiceState`
     ///
     /// - `head_block` = `unsafe_head`
@@ -105,7 +112,7 @@ impl EngineSyncState {
     /// Updates a block label metric, keyed by the label.
     #[inline]
     fn update_block_label_metric(label: &'static str, number: u64) {
-        kona_macros::set!(gauge, Metrics::BLOCK_LABELS, "label", label, number as f64);
+        metrics::gauge!(Metrics::BLOCK_LABELS, "label" => label).set(number as f64);
     }
 }
 
@@ -127,8 +134,10 @@ pub struct EngineSyncStateUpdate {
 /// The chain state viewed by the engine controller.
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct EngineState {
-    /// The sync state of the engine.
-    pub sync_state: EngineSyncState,
+    /// Whether the execution layer answered `VALID` to the last forkchoice update the engine sent,
+    /// so its canonical chain is the engine's. Unlike `el_sync_finished`, a later `SYNCING` answer
+    /// clears it.
+    pub el_applied_last_forkchoice: bool,
 
     /// Whether or not the EL has finished syncing.
     pub el_sync_finished: bool,
@@ -139,6 +148,9 @@ pub struct EngineState {
     /// because engine may forgot backupUnsafeHead or backupUnsafeHead is not part
     /// of the chain.
     pub need_fcu_call_backup_unsafe_reorg: bool,
+
+    /// The sync state of the engine.
+    pub sync_state: EngineSyncState,
 }
 
 impl EngineState {
@@ -201,7 +213,6 @@ mod test {
     #[case::set_local_safe(EngineState::set_local_safe_head, Metrics::LOCAL_SAFE_BLOCK_LABEL, 3)]
     #[case::set_safe_head(EngineState::set_safe_head, Metrics::SAFE_BLOCK_LABEL, 4)]
     #[case::set_finalized_head(EngineState::set_finalized_head, Metrics::FINALIZED_BLOCK_LABEL, 5)]
-    #[cfg(feature = "metrics")]
     fn test_chain_label_metrics(
         #[case] set_fn: impl Fn(&mut EngineState, L2BlockInfo),
         #[case] label_name: &str,

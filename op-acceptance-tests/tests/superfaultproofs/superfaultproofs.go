@@ -1124,6 +1124,60 @@ func RunConsolidateValidCrossChainMessageTest(t devtest.T, sys *presets.SimpleIn
 	}, runners...)
 }
 
+// RunConsolidateBelowHeadMessageTest proves a timestamp whose executing message on chain B
+// references a block of chain A below A's block at that timestamp. The SP1 consolidation checks
+// such a message against a log commitment of the initiating block.
+func RunConsolidateBelowHeadMessageTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
+	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
+	rng := rand.New(rand.NewSource(1234))
+
+	chains := orderedChains(sys)
+	t.Require().Len(chains, 2, "expected exactly 2 interop chains")
+
+	aliceA := sys.FunderA.NewFundedEOA(eth.OneEther)
+	aliceB := aliceA.AsEL(sys.L2ELB)
+	sys.FunderB.Fund(aliceB, eth.OneEther)
+
+	eventLogger := aliceA.DeployEventLogger()
+	initMsg := aliceA.SendRandomInitMessage(rng, eventLogger, 2, 10)
+	initBlock := bigs.Uint64Strict(initMsg.BlockNumber())
+	// The margin keeps the initiating block below A's block at B's exec timestamp if B lags.
+	sys.L2ELA.WaitForBlockNumber(initBlock + 3)
+	execMsg := aliceB.SendExecMessage(initMsg)
+
+	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
+	startTimestamp := endTimestamp - 1
+	headA, err := sys.L2ChainA.Escape().RollupConfig().TargetBlockNumber(endTimestamp)
+	t.Require().NoError(err, "chain A block at the executing timestamp")
+	t.Require().Less(initBlock, headA, "the initiating block must be below chain A's block at the executing timestamp")
+
+	sys.SuperRoots.AwaitValidatedTimestamp(endTimestamp)
+	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
+
+	start := superRootAtTimestamp(t, chains, startTimestamp)
+	end := superRootAtTimestamp(t, chains, endTimestamp)
+
+	firstOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[0].ID, endTimestamp)
+	secondOptimistic := optimisticBlockAtTimestamp(t, sys.SuperRoots.QueryAPI(), chains[1].ID, endTimestamp)
+	tests := []*transitionTest{
+		{
+			Name:               "ConsolidateBelowHead-Valid",
+			AgreedClaim:        marshalTransition(start, consolidateStep, firstOptimistic, secondOptimistic),
+			DisputedClaim:      end.Marshal(),
+			DisputedTraceIndex: consolidateStep,
+			ExpectValid:        true,
+			L1Head:             l1HeadCurrent,
+			ClaimTimestamp:     endTimestamp,
+		},
+	}
+
+	runScenarioProofs(t, &sys.SingleChainInterop, chains, &scenarioProofData{
+		fpvmTransitions:    tests,
+		fpvmStartTimestamp: startTimestamp,
+		zkCheckpoint:       newZKCheckpointForRunners(t, &sys.SingleChainInterop, endTimestamp, false, runners),
+	}, runners...)
+}
+
 func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop, runners ...ProofRunner) {
 	t.Require().NotNil(sys.SuperRoots, "supernode is required for this test")
 	rng := rand.New(rand.NewSource(1234))
@@ -1135,11 +1189,15 @@ func RunInvalidBlockTest(t devtest.T, sys *presets.SimpleInterop, runners ...Pro
 	aliceB := aliceA.AsEL(sys.L2ELB)
 	sys.FunderB.Fund(aliceB, eth.OneEther)
 
-	l1BlockBeforeBatches := sys.L1EL.BlockRefByLabel(eth.Unsafe)
-
 	eventLogger := aliceA.DeployEventLogger()
 	initMsg := aliceA.SendRandomInitMessage(rng, eventLogger, 2, 10)
+	// Pause interop below the executing block so the receipt read precedes its replacement.
+	sys.Supernode().EnsureInteropPaused(10, sys.L2CLA, sys.L2CLB)
+	// Capture the L1 head after the pause, so the start blocks' L1 origins are at or below it,
+	// and before sending, so the batches for the blocks at endTimestamp land after it.
+	l1BlockBeforeBatches := sys.L1EL.BlockRefByLabel(eth.Unsafe)
 	execMsg := aliceB.SendInvalidExecMessage(initMsg)
+	sys.Supernode().ResumeInterop()
 
 	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
 	startTimestamp := endTimestamp - 1
@@ -1329,7 +1387,7 @@ func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop, msgExpiryWind
 	sys.L2BatcherB.Stop()
 
 	// Build the exec tx without submitting to the mempool.
-	// InteropMempoolFiltering would reject the expired message, so we
+	// The mempool's interop filter would reject the expired message, so we
 	// bypass the mempool by injecting the raw tx via the test sequencer.
 	// This models a malicious sequencer force-including an invalid tx.
 	rawExecTx, execTxHash := aliceB.PrepareExecTx(initMsg)
@@ -1349,7 +1407,7 @@ func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop, msgExpiryWind
 	execBlockNum := newHeadB.Number
 
 	// Verify the expired exec tx is actually in the injected block before consolidation.
-	sys.L2ELB.AssertTxInBlock(execBlockNum, execTxHash)
+	sys.L2ELB.AssertUserTxInBlock(execBlockNum, execTxHash)
 
 	// Restart batcher B so batch data gets submitted to L1.
 	sys.L2BatcherB.Start()
@@ -1365,7 +1423,7 @@ func RunMessageExpiryTest(t devtest.T, sys *presets.SimpleInterop, msgExpiryWind
 	sys.L2CLB.Reached(safety.CrossSafe, execBlockNum, 30)
 
 	// Verify the expired exec tx was reorged out during consolidation.
-	sys.L2ELB.AssertTxNotInBlock(execBlockNum, execTxHash)
+	sys.L2ELB.AssertUserTxNotInBlock(execBlockNum, execTxHash)
 
 	l1HeadCurrent := latestRequiredL1(sys.SuperRoots.SuperRootAtTimestamp(endTimestamp))
 
@@ -1494,7 +1552,10 @@ func RunDepositMessageInvalidExecutionTest(t devtest.T, sys *presets.SimpleInter
 	eventLogger := aliceA.DeployEventLogger()
 	depositEOA := aliceA.ViaDepositTx(aliceL1, sys.L2ELA, sys.L2ChainA)
 	initMsg := depositEOA.SendRandomInitMessage(rng, eventLogger)
+	// Pause interop below the executing block so the receipt read precedes its replacement.
+	sys.Supernode().EnsureInteropPaused(10, sys.L2CLA, sys.L2CLB)
 	execMsg := aliceB.SendInvalidExecMessage(initMsg)
+	sys.Supernode().ResumeInterop()
 
 	endTimestamp := sys.L2ChainB.TimestampForBlockNum(bigs.Uint64Strict(execMsg.BlockNumber()))
 	startTimestamp := endTimestamp - 1

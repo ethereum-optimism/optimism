@@ -54,7 +54,7 @@ run_scenario() {
   echo "${json_seed}" > "${OUTPUT}"
   TRIGGER_SOURCE="${trigger}" BRANCH="${branch}" TAG="${tag}" SCHEDULE_NAME="${schedule}" \
     CIRCLE_PROJECT_USERNAME="${repo%%/*}" CIRCLE_PROJECT_REPONAME="${repo#*/}" \
-    bash "${ROUTING_SCRIPT}" >/dev/null || true
+    bash "${ROUTING_SCRIPT}" > /dev/null || true
 
   local _json
   _json=$(cat "${OUTPUT}")
@@ -201,7 +201,7 @@ REPO="ethereum-optimism/other" run_scenario \
 REPO="ethereum-optimism/other" run_scenario \
   "API: publish_contract_artifacts_dispatch, outside the public repo" \
   "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true}' \
   release \
   --not publish_contract_artifacts
 
@@ -215,14 +215,14 @@ run_scenario \
   "Scheduled: build_daily" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
-  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke circleci_schedule_trigger_check
+  scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_shipped_binaries scheduled_sp1_elf_smoke scheduled_rust_advisories circleci_schedule_trigger_check
 
 REPO="ethereum-optimism/other" run_scenario \
   "Scheduled: build_daily, outside the public repo" \
   "scheduled_pipeline" "" "" "build_daily" \
   '{}' \
   scheduled_preimage_reproducibility scheduled_stale_check scheduled_heavy_fuzz_tests scheduled_daily_tests scheduled_sp1_elf_smoke \
-  --not circleci_schedule_trigger_check
+  --not circleci_schedule_trigger_check scheduled_shipped_binaries
 
 run_scenario \
   "Scheduled: build_weekly" \
@@ -231,34 +231,34 @@ run_scenario \
   scheduled_rust_nightly_bump
 
 run_scenario \
-  "API: main_dispatch (no github event)" \
+  "API: main_dispatch" \
   "api" "" "" "" \
-  '{"c-main_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": true}' \
   release main contracts_feature_tests
 
 run_scenario \
   "API: rust_ci_dispatch" \
   "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-rust_ci_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-rust_ci_dispatch": true}' \
   release rust_ci
 
 run_scenario \
   "API: rust_nightly_bump_dispatch" \
   "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-rust_nightly_bump_dispatch": true}' \
   release scheduled_rust_nightly_bump
+
+run_scenario \
+  "API: rust_advisories_dispatch" \
+  "api" "" "" "" \
+  '{"c-main_dispatch": false, "c-rust_advisories_dispatch": true}' \
+  release scheduled_rust_advisories
 
 run_scenario \
   "API: publish_contract_artifacts_dispatch" \
   "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true, "c-github-event-type": "__not_set__"}' \
+  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true}' \
   release publish_contract_artifacts
-
-run_scenario \
-  "API: github event labeled PR" \
-  "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-github-event-type": "pull_request", "c-github-event-action": "labeled"}' \
-  release close_issue
 
 # --- Summary ---
 echo ""

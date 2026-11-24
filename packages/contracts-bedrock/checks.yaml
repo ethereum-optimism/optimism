@@ -84,8 +84,11 @@ phases:
         command: just nut-bundle-check-no-build
 
   # Phase 4: Dev build checks - needs test artifacts
+  # A plain lite build, without forge-build-dev's script cache warm-up: these checks need no scripts.
+  # It is also the compiler-warning gate. Forge skips its compile cache when denying warnings, so
+  # this build compiles everything.
   - name: dev
-    build: just forge-build-dev
+    build: FOUNDRY_PROFILE=lite forge build --deny warnings
     checks:
       - name: forge-test-names
         description: Validate forge test conventions

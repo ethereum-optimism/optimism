@@ -41,17 +41,12 @@ func NewForgeVerifier(opts ForgeVerifierOpts) (*ForgeVerifier, error) {
 		return nil, fmt.Errorf("unsupported verifier type: %s (must be 'etherscan', 'blockscout', or 'custom')", opts.VerifierType)
 	}
 
-	forgeTomlPath := filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "foundry.toml")
-	if _, err := os.Stat(forgeTomlPath); err != nil {
-		opts.Logger.Warn("foundry.toml not found, checking parent directory", "path", forgeTomlPath)
-		forgeTomlPath = filepath.Join(fmt.Sprintf("%v", opts.ArtifactsFS), "..", "foundry.toml")
-		if _, err := os.Stat(forgeTomlPath); err != nil {
-			return nil, fmt.Errorf("foundry.toml not found in any of the possible directories: %w", err)
-		}
-	}
-	forgeClient, err := forge.NewStandardClient(forgeTomlPath)
+	forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", opts.ArtifactsFS))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create forge client: %w", err)
+	}
+	if _, err := os.Stat(filepath.Join(forgeClient.Wd, "foundry.toml")); err != nil {
+		return nil, fmt.Errorf("the contracts bundle is not a forge project: %w", err)
 	}
 
 	var apiChecker APIChecker

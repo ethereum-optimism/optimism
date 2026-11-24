@@ -33,11 +33,9 @@ contract Burn_GasBurner is StdUtils {
         // cache the remaining gas post burn
         uint256 postBurnGas = gasleft();
 
-        // check that at least value gas was burnt (and that there was no underflow)
-        unchecked {
-            if (postBurnGas - preBurnGas <= value && preBurnGas - value > preBurnGas) {
-                failedGasBurn = true;
-            }
+        // check that at least value gas was burnt
+        if (preBurnGas - postBurnGas < value) {
+            failedGasBurn = true;
         }
     }
 }
@@ -63,7 +61,7 @@ contract Burn_BurnGas_Invariant is StdInvariant, InvariantTest {
     ///                   Asserts that when `Burn.gas(uint256)` is called, it always burns
     ///                   at least the amount of gas passed to the function.
     function invariant_burn_gas() external view {
-        // ASSERTION: The amount burned should always match the amount passed exactly
+        // ASSERTION: The amount burned should always be at least the amount passed
         assertEq(actor.failedGasBurn(), false);
     }
 }

@@ -1,6 +1,7 @@
 package attributes
 
 import (
+	"math/big"
 	"math/rand" // nosemgrep
 	"testing"
 
@@ -9,11 +10,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -623,34 +626,37 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 }
 
 func TestGetMissingTxnHashes(t *testing.T) {
-	depositTxs := make([]*types.Transaction, 5)
+	depositTxs := make([]*optypes.DepositTx, 5)
 
 	for i := 0; i < len(depositTxs); i++ {
 		rng := rand.New(rand.NewSource(1234 + int64(i)))
-		safeDeposit := testutils.GenerateDeposit(testutils.RandomHash(rng), rng)
-		depositTxs[i] = testutils.TxFromDeposit(safeDeposit)
+		depositTxs[i] = testutils.GenerateDeposit(testutils.RandomHash(rng), rng)
 	}
+	userTx := testutils.RandomDynamicFeeTx(rand.New(rand.NewSource(1239)), types.NewPragueSigner(big.NewInt(901)))
+	userTxBytes, err := userTx.MarshalBinary()
+	require.NoError(t, err)
+	// op-alloy's build_post_exec_tx(42, [{3,7}]), whose hash op-alloy pins for TxPostExec::tx_hash.
+	postExecTxBytes := hexutil.MustDecode("0x7dc6012ac3c20307")
+	postExecTxHash := common.HexToHash("0xcbc64a9665039744307b562634bf760d96f3bed235fecd9e09a1f1276a1823c7")
+	malformedTx := hexutil.Bytes{1, 2, 3}
 
 	tests := []struct {
 		safeTransactions            []hexutil.Bytes
 		unsafeTransactions          []hexutil.Bytes
 		expectedSafeMissingHashes   []common.Hash
 		expectedUnsafeMissingHashes []common.Hash
-		expectErr                   bool
 	}{
 		{
 			safeTransactions:            []hexutil.Bytes{},
 			unsafeTransactions:          []hexutil.Bytes{depositTxToBytes(t, depositTxs[0])},
 			expectedSafeMissingHashes:   []common.Hash{depositTxs[0].Hash()},
 			expectedUnsafeMissingHashes: []common.Hash{},
-			expectErr:                   false,
 		},
 		{
 			safeTransactions:            []hexutil.Bytes{depositTxToBytes(t, depositTxs[0])},
 			unsafeTransactions:          []hexutil.Bytes{},
 			expectedSafeMissingHashes:   []common.Hash{},
 			expectedUnsafeMissingHashes: []common.Hash{depositTxs[0].Hash()},
-			expectErr:                   false,
 		},
 		{
 			safeTransactions: []hexutil.Bytes{
@@ -666,7 +672,6 @@ func TestGetMissingTxnHashes(t *testing.T) {
 				depositTxs[2].Hash(),
 			},
 			expectedUnsafeMissingHashes: []common.Hash{},
-			expectErr:                   false,
 		},
 		{
 			safeTransactions: []hexutil.Bytes{
@@ -682,7 +687,6 @@ func TestGetMissingTxnHashes(t *testing.T) {
 				depositTxs[1].Hash(),
 				depositTxs[2].Hash(),
 			},
-			expectErr: false,
 		},
 		{
 			safeTransactions: []hexutil.Bytes{
@@ -703,42 +707,29 @@ func TestGetMissingTxnHashes(t *testing.T) {
 				depositTxs[0].Hash(),
 				depositTxs[1].Hash(),
 			},
-			expectErr: false,
 		},
 		{
-			safeTransactions:            []hexutil.Bytes{{1, 2, 3}},
-			unsafeTransactions:          []hexutil.Bytes{},
-			expectedSafeMissingHashes:   []common.Hash{},
+			// The hash of a raw transaction is the transaction hash for every type, and bytes that
+			// do not decode are hashed as they are.
+			safeTransactions:            []hexutil.Bytes{depositTxToBytes(t, depositTxs[0])},
+			unsafeTransactions:          []hexutil.Bytes{depositTxToBytes(t, depositTxs[0]), userTxBytes, postExecTxBytes, malformedTx},
+			expectedSafeMissingHashes:   []common.Hash{userTx.Hash(), postExecTxHash, crypto.Keccak256Hash(malformedTx)},
 			expectedUnsafeMissingHashes: []common.Hash{},
-			expectErr:                   true,
-		},
-		{
-			safeTransactions:            []hexutil.Bytes{},
-			unsafeTransactions:          []hexutil.Bytes{{1, 2, 3}},
-			expectedSafeMissingHashes:   []common.Hash{},
-			expectedUnsafeMissingHashes: []common.Hash{},
-			expectErr:                   true,
 		},
 	}
 
 	for _, test := range tests {
-		missingSafeHashes, missingUnsafeHashes, err := getMissingTxnHashes(
+		missingSafeHashes, missingUnsafeHashes := getMissingTxnHashes(
 			testlog.Logger(t, log.LevelError),
 			test.safeTransactions,
 			test.unsafeTransactions,
 		)
-
-		if test.expectErr {
-			require.Error(t, err)
-		} else {
-			require.NoError(t, err)
-			require.ElementsMatch(t, test.expectedSafeMissingHashes, missingSafeHashes)
-			require.ElementsMatch(t, test.expectedUnsafeMissingHashes, missingUnsafeHashes)
-		}
+		require.ElementsMatch(t, test.expectedSafeMissingHashes, missingSafeHashes)
+		require.ElementsMatch(t, test.expectedUnsafeMissingHashes, missingUnsafeHashes)
 	}
 }
 
-func depositTxToBytes(t *testing.T, tx *types.Transaction) hexutil.Bytes {
+func depositTxToBytes(t *testing.T, tx *optypes.DepositTx) hexutil.Bytes {
 	txBytes, err := tx.MarshalBinary()
 	require.NoError(t, err)
 

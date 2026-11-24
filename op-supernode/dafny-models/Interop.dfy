@@ -1725,7 +1725,7 @@ module Interop {
       }
 
       // Activation invariant: interop must be active for at least one full block on
-      // the executing chain. Matches kona and op-program.
+      // the executing chain. Matches kona.
       if executingTimestamp < activationTimestamp + chains[executingChain].BlockTime() {
         valid := false;  // ErrExecutedTooEarly
         return;

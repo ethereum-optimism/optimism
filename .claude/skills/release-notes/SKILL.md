@@ -79,7 +79,7 @@ op-challenger and cannon binaries plus the Rust kona-host, so a kona-only change
 not `--`.
 
 If every Go row comes back `?`, `go list` failed. In a fresh worktree the usual cause is the
-missing generated `op-core/superchain/superchain-configs.zip`; run
+missing generated `op-core/superchain/bundle/superchain-configs.zip`; run
 `mise exec -- just build-superchain-go` and run the script again.
 
 ## 4. Triage

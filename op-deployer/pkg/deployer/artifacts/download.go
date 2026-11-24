@@ -80,13 +80,9 @@ func Download(ctx context.Context, loc *Locator, progressor ioutil.Progressor, t
 			return nil, fmt.Errorf("failed to download artifacts: %w", err)
 		}
 	case "file":
-		// Check the path has forge-artifacts directory
-		forgeArtifactsDir := path.Join(u.Path, "forge-artifacts")
-		if _, err := os.Stat(forgeArtifactsDir); err != nil {
-			// TODO(#18346): Accept this for now but in the future we should error
-			artifactsFS = os.DirFS(u.Path)
-		} else {
-			artifactsFS = os.DirFS(forgeArtifactsDir)
+		artifactsFS, err = openLocal(u.Path, targetDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open local artifacts: %w", err)
 		}
 	case "embedded":
 		artifactsFS, err = ExtractEmbedded(targetDir)
@@ -115,21 +111,13 @@ func downloadHTTP(ctx context.Context, u *url.URL, progressor ioutil.Progressor,
 
 	// Register for automatic cleanup on process exit
 	RegisterForCleanup(tmpDir)
-	if strings.HasSuffix(tarballPath, ".tzst") {
-		_, err := ExtractFromFile(tmpDir, tarballPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract embedded artifacts: %w", err)
-		}
-	} else {
-		extractor := &TarballExtractor{
-			checker: checker,
-		}
-		if err := extractor.Extract(tarballPath, tmpDir); err != nil {
-			return nil, fmt.Errorf("failed to extract tarball: %w", err)
-		}
+	extractor := &TarballExtractor{checker: checker}
+	if err := extractor.Extract(tarballPath, tmpDir); err != nil {
+		return nil, fmt.Errorf("failed to extract tarball: %w", err)
 	}
-	// TODO(#18346): Change this to provide the parent directory of the forge-artifacts directory
-	return os.DirFS(path.Join(tmpDir, "forge-artifacts")), nil
+	// A bundle that an earlier mktar packed has the AST. Its bundle stays in a directory of this
+	// process: the key of a bundle does not cover the artifacts, which the tarball can change.
+	return openProject(tmpDir, targetDir, false)
 }
 
 type HTTPDownloader struct{}

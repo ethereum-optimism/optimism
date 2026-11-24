@@ -1,6 +1,6 @@
 [package]
 name = "reth-optimism-payload-builder"
-version = "1.11.3"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -24,11 +24,14 @@ reth-payload-builder-primitives.workspace = true
 reth-payload-util.workspace = true
 reth-payload-primitives.workspace = true
 reth-basic-payload-builder.workspace = true
+reth-tasks.workspace = true
 reth-payload-validator.workspace = true
 reth-metrics.workspace = true
+reth-engine-primitives = { workspace = true, features = ["std"] }
 
 # op-reth
-reth-optimism-evm.workspace = true
+reth-optimism-evm = { workspace = true, features = ["std"] }
+reth-optimism-chainspec.workspace = true
 reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }
 reth-optimism-txpool.workspace = true
@@ -45,6 +48,7 @@ alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-debug.workspace = true
 alloy-consensus.workspace = true
 alloy-evm.workspace = true
+alloy-op-evm.workspace = true
 
 # misc
 derive_more.workspace = true
@@ -59,5 +63,9 @@ metrics-exporter-prometheus.workspace = true
 metrics-util.workspace = true
 reth-node-metrics.workspace = true
 reth-optimism-chainspec = { workspace = true, features = ["superchain-configs"] }
+reth-provider = { workspace = true, features = ["test-utils"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
+reth-transaction-pool = { workspace = true, features = ["test-utils"] }
+proptest.workspace = true
 rstest.workspace = true
+tokio = { workspace = true, features = ["rt"] }

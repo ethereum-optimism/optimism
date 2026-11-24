@@ -348,12 +348,11 @@ impl OpReceiptBuilder {
             mapped_receipt.into_with_bloom()
         });
 
-        // In jovian, we're using the blob gas used field to store the current da
-        // footprint's value.
-        // We're computing the jovian blob gas used before building the receipt since the inputs get
-        // consumed by the `build_receipt` function.
+        // From Jovian, the blob gas used field holds the transaction's DA footprint.
         if chain_spec.is_jovian_active_at_timestamp(timestamp) {
             // Estimate the transaction's DA footprint from its encoded size and footprint scalar.
+            // It is zero for a deposit or post-exec transaction, so the receipts of a block sum to
+            // the header's `blobGasUsed`.
             // Jovian specs: <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/jovian/exec-engine.md#da-footprint-block-limit>
             let tx_da_footprint = tx_da_footprint(
                 tx_signed,

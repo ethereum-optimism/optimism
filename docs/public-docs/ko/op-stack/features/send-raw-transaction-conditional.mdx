@@ -1,0 +1,59 @@
+---
+title: SendRawTransactionConditional 설명
+description: OP Stack에서 조건부 트랜잭션 포함을 위한 eth_sendRawTransactionConditional RPC 메서드에 대해 알아봅니다.
+diataxis: reference
+---
+
+sequencer RPC 메서드인 `eth_sendRawTransactionConditional`을 사용하면 호출자가 제공된 옵션 집합에 따라 트랜잭션을 조건부로 포함시킬 수 있습니다.
+
+이 기능은 원자적 포함(atomic inclusion)이 필요한 사용 사례를 가능하게 하기 위한 것으로, Ethereum에서는 Flashbots와 같은 특화된 블록 빌더를 통해 구현할 수 있습니다. 몇 가지 예는 다음과 같습니다.
+
+*   UserOperation의 공유 mempool을 활용하는 4337 Bundler. 충돌하는 UserOperation으로 인해 되돌려진(reverted) 트랜잭션이 발생하면 bundler가 L2에서 운영하기에 비용이 너무 커지므로, 프라이빗 mempool을 사용할 수밖에 없게 됩니다.
+
+## 사양
+
+이 엔드포인트는 `eth_sendRawTransaction`의 확장으로, 다음 구조를 가진 "options"라는 추가 파라미터를 받습니다.
+
+```
+{
+    "knownAccounts": [optional] A map of accounts with expected storage. The key is account address
+                                If the value is hex string, it is the known storage root hash of that account.
+                                If the value is an object, then each member is in the format of "slot": "value", which are explicit slot values within that account storage.
+    "blockNumberMin": [optional] minimal block number for inclusion
+    "blockNumberMax": [optional] maximum block number for inclusion
+    "timestampMin": [optional] minimum block timestamp for inclusion
+    "timestampMax": [optional] maximum block timestamp for inclusion
+}
+```
+
+주어진 조건의 "비용"은 해당 조건을 검증할 때 발생하는 스토리지 조회 횟수에 따라 *대략적으로* 결정됩니다. DoS를 방지하기 위해 허용되는 최대값은 `1000`으로 미리 정의되어 있습니다.
+
+<Info>
+  sequencer는 트랜잭션의 GAS 외에는 추가적인 상태 검사에 대한 보상을 받지 않으므로, 이 비용에는 구성된 속도 제한(rate limit)이 적용됩니다.
+
+  또한 `eth_sendRawTransaction`과 비교하여 이 엔드포인트를 MEV 용도로 사용하는 것을 억제하기 위해, 조건은 최신 블록의 부모 블록을 기준으로 검사됩니다.
+</Info>
+
+이 조건은 mempool 제출 전에 RPC 계층에서 한 번 검사됩니다. 체인 상태에 대해 거부되면 RPC는 다음 사양에 따라 오류를 반환합니다.
+
+*   오류 코드 `-32003`(트랜잭션 거부): 실패한 특정 검사에 대한 사유 문자열을 포함합니다
+*   오류 코드 `-32005`(조건 비용): 조건 비용이 최대값을 초과했거나 네트워크 상황으로 인해 비용이 속도 제한된 경우 사유 문자열을 포함합니다.
+
+제출에 성공했다고 해서 포함이 보장되는 것은 **아닙니다**! 호출자는 일정 시간 제한을 두고 체인에서 영수증을 관찰하여 미포함 여부를 판단해야 합니다. 블록 내 충돌을 처리하기 위해 블록 구축 단계에서도 조건이 다시 검사됩니다.
+
+<Info>
+  조건부 트랜잭션은 제출된 블록 빌더에 묶여 있습니다. 즉, 이러한 트랜잭션은 **구성된 피어 간에 gossip되지 않습니다!!!**
+
+  활성 sequencer로 트랜잭션을 gossip하는 복제본(replica)이 있는 active/passive 구성을 운영하는 경우, 이 엔드포인트 앞에 모든 복제본에 요청을 브로드캐스트할 수 있는 프록시를 두어야 합니다.
+</Info>
+
+## 활성화 방법
+
+이 기능은 op-geth에 플래그를 추가하여 활성화할 수 있습니다.
+
+*   `--rollup.sequencertxconditionalenabled`(기본값: false): rpc를 활성화하는 boolean 플래그입니다.
+*   `--rollup.sequencertxconditionalcostratelimit`(기본값: 5000): 초당 관찰 가능한 비용에 대한 속도 제한을 설정하는 정수 플래그입니다. 
+
+<Info>
+  DoS 우려로 인해 이 sequencer 엔드포인트를 공개적으로 노출하는 것은 권장되지 않습니다. 보조 프록시인 [op-txproxy](/ko/chain-operators/tools/op-txproxy)를 사용하여 sequencer로 전달하기 전에 이 엔드포인트에 추가 제약 조건을 적용해야 합니다.
+</Info>

@@ -1,0 +1,99 @@
+---
+title: Tools & SDKs 지원 매트릭스
+description: OP Stack SDK와 개발자 도구를 한 페이지에서 구분합니다. 각 도구의 용도, 소유자, 정식 문서 위치, 지원 상태를 확인할 수 있습니다.
+diataxis: reference
+---
+
+import ThirdPartyContent from "/ko/snippets/third-party-content.mdx"
+
+<ThirdPartyContent />
+
+이 페이지는 OP Stack을 둘러싼 도구와 SDK를 위한 정식(canonical) 허브입니다.
+[콘텐츠 가이드](/ko/op-stack/contribute/content-guide)에 따라 각 등재 항목은
+정확히 하나의 정식 문서 홈으로 연결됩니다. 이 페이지는 안내만 할 뿐
+내용을 다시 서술하지 않습니다. 여기에 무엇이 등재되고 무엇이 삭제되는지는
+[등재 기준](/ko/app-developers/tools-sdks/listing-criteria)에 따라 결정됩니다.
+
+## 지원 상태 수준
+
+| 상태 | 의미 |
+| --- | --- |
+| **Production** | 안정적이며 소유자가 프로덕션 사용을 권장합니다. |
+| **Developer preview** | 현재 사용할 수 있지만, 소유자가 아직 프로덕션 준비가 되지 않았다고 선언했습니다. API가 변경될 수 있습니다. |
+| **Experimental** | 시험 단계입니다. 기능이 변경되거나 이동하거나 다른 곳으로 업스트림될 수 있습니다. |
+
+## 매트릭스
+
+| 도구 | 용도 | 소유자 | 정식 문서 | 지원 상태 |
+| --- | --- | --- | --- | --- |
+| [`viem/op-stack`](https://viem.sh/op-stack) | viem에 내장된 OP Stack 체인용 범용 TypeScript 클라이언트: 입금(디파짓), 출금, L1 gas 추정 및 모든 표준 체인 상호작용 | [wevm](https://github.com/wevm/viem) (서드파티) | [viem.sh/op-stack](https://viem.sh/op-stack) | Production |
+| [`@eth-optimism/viem`](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem) | 아직 viem에 업스트림되지 않은 OP Stack 기능을 위한 viem 확장 — Superchain 상호운용성 액션 및 유틸리티. 이 사이트의 bridge 및 상호운용성 튜토리얼에서 사용됩니다 | Optimism ([`ecosystem`](https://github.com/ethereum-optimism/ecosystem) 저장소) | [패키지 README 및 SDK 참조](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem#readme) | Experimental |
+| [Actions SDK](https://github.com/ethereum-optimism/actions) (`@eth-optimism/actions-sdk`) | 온체인 앱 구축을 위한 상위 수준 추상화 — Superchain 프로토콜 위의 wallet, lend, swap 네임스페이스 | Optimism ([`actions`](https://github.com/ethereum-optimism/actions) 저장소) | 이 사이트의 [Actions 빠른 시작](/ko/app-developers/quickstarts/actions) 및 [참조](/ko/app-developers/reference/actions/integrating-wallets) | Developer preview |
+| [wagmi](https://wagmi.sh) | Ethereum 앱용 React hook. 다른 EVM 체인과 마찬가지로 OP Stack 체인에서도 작동합니다 | [wevm](https://github.com/wevm/wagmi) (서드파티) | [wagmi.sh](https://wagmi.sh) | Production |
+| [supersim](/ko/app-developers/tools-sdks/supersim) | 로컬 Superchain 시뮬레이터: 하나의 L1과 여러 OP Stack L2로 구성되어, 라이브 네트워크에 배포하지 않고도 L1↔L2 및 L2↔L2 메시지 전달을 테스트할 수 있습니다 | Optimism ([`supersim`](https://github.com/ethereum-optimism/supersim) 저장소) | [Supersim 문서](https://supersim.pages.dev) | Developer preview (모든 릴리스는 알파 프리릴리스이며, 상호운용성 기능은 활발히 개발 중) |
+| [super-cli](https://github.com/ethereum-optimism/super-cli) (`sup`) | 멀티체인 워크플로를 위한 Foundry 보조 CLI: 여러 체인에 컨트랙트를 한 번에 배포 및 검증하고, 자금을 bridge하며, 연결된 지갑을 사용합니다 | Optimism ([`super-cli`](https://github.com/ethereum-optimism/super-cli) 저장소) | [저장소 README](https://github.com/ethereum-optimism/super-cli#readme) | Experimental |
+| [superchain-registry](https://github.com/ethereum-optimism/superchain-registry) 도구 | SDK가 아닙니다 — OP Stack 소프트웨어(예: `op-node` 및 `op-geth`)가 사용하는 체인 구성의 신뢰할 수 있는 단일 정보 출처 라이브러리와, 체인을 추가하고 검증하는 데 사용되는 `just` 작업 및 검증 검사입니다 | Optimism ([`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry) 저장소) | [Registry 운영 문서](https://github.com/ethereum-optimism/superchain-registry/tree/main/docs) | Production |
+| [op-alloy](/ko/app-developers/tools-sdks/op-alloy/intro) | OP Stack 체인과 상호작용하기 위한 Rust crate: [Alloy](https://github.com/alloy-rs/alloy) 생태계 기반의 consensus, RPC, engine, network 타입. kona와 op-reth가 사용하는 타입 계층입니다 | Optimism (monorepo의 [`rust/op-alloy`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-alloy)) | 이 사이트의 [op-alloy 문서](/ko/app-developers/tools-sdks/op-alloy/intro) | Developer preview (소유자가 아직 프로덕션 준비가 되지 않았다고 선언함. API가 변경될 수 있음) |
+| [op-revm](/ko/app-developers/tools-sdks/op-revm) | OP Stack의 EVM을 구현하는 Rust crate: 입금 트랜잭션, L1 및 operator 수수료 계산, OP 전용 precompile을 갖춘 revm 변형. op-reth와 kona 내부의 EVM입니다 | Optimism (monorepo의 [`rust/op-revm`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/op-revm), 업스트림 [`bluealloy/revm`](https://github.com/bluealloy/revm)에서 vendoring) | 이 사이트의 [op-revm 문서](/ko/app-developers/tools-sdks/op-revm) | Production (대부분의 사용자는 op-reth 또는 kona를 통해 간접적으로 사용) |
+
+## SDK 선택하기
+
+위의 행 중 세 개는 혼동하기 쉬운 TypeScript SDK입니다.
+차이점은 다음과 같습니다.
+
+*   **[`viem/op-stack`](https://viem.sh/op-stack)으로 시작하십시오.** viem은
+    핵심 라이브러리에서 OP Stack을 정식으로 지원합니다. `viem/op-stack`에서 가져온
+    `publicActionsL2()`(및 관련 함수)로 viem 클라이언트를 확장하면
+    입금, 출금, L1 gas 추정을 사용할 수 있습니다. 어떤 기능을 여기에서 사용할 수 있다면,
+    이곳이 해당 기능의 프로덕션 홈입니다. Super Root 출금 증명에는
+    `viem` `2.51.0` 이상이 필요합니다.
+*   **viem에 아직 없는 기능이 필요할 때는 [`@eth-optimism/viem`](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/viem)을
+    사용하십시오.** 이 패키지의 명시된 목표는 가능한 한 많은 기능을
+    viem 자체에 업스트림하는 것입니다. 그때까지는 Superchain 상호운용성 액션 및 기타 프로덕션 이전 기능의
+    홈입니다. 이 사이트의
+    [상호운용성 튜토리얼](/ko/app-developers/tutorials/interoperability/manual-relay)
+    및 [bridge 튜토리얼](/ko/app-developers/tutorials/bridging/cross-dom-bridge-erc20)에서
+    이 패키지를 사용합니다.
+*   **체인 배관 작업이 아닌 앱 수준의 구성 요소에는 [Actions SDK](/ko/app-developers/quickstarts/actions)를
+    사용하십시오.** 두 viem SDK가 프로토콜 작업을 노출하는 반면,
+    Actions SDK는 최종 사용자 앱 구축을 위한 wallet, lend, swap
+    네임스페이스를 제공합니다. Developer preview 단계이며 아직
+    프로덕션에서 사용할 준비가 되지 않았습니다.
+
+TypeScript 대신 Rust로 빌드하십니까? OP Stack 타입과 RPC를 위해서는
+[op-alloy](/ko/app-developers/tools-sdks/op-alloy/intro)에서, 실행을 위해서는
+[op-revm](/ko/app-developers/tools-sdks/op-revm)에서 시작하십시오. Rust 클라이언트 자체(op-reth, kona-node, kona-client)에
+대해서는 [Stack Components 색인](/ko/op-stack/components/index)을 참조하십시오.
+
+## OP Stack에서 wagmi 사용하기
+
+React로 빌드한다면 wagmi로 시작할 가능성이 높으며, wagmi는 OP Stack 체인에서
+별도 설정 없이 작동합니다. OP Stack 체인은 표준 EVM 체인이며,
+`wagmi/chains`에 해당 정의(`optimism`, `base`, `zora` 및 `viem/chains`의
+다른 모든 체인)가 포함되어 있습니다. 읽기, 쓰기, 지갑 연결에는
+OP 전용 설정이 필요하지 않습니다.
+
+입금, 출금, 상호운용성과 같은 OP Stack 전용 작업에는
+wagmi가 viem의 래퍼라는 점을 활용하십시오.
+
+1.  wagmi 자체의
+    [viem 가이드](https://wagmi.sh/react/guides/viem)에 따라
+    [`useClient`](https://wagmi.sh/react/api/hooks/useClient) 또는
+    [`useConnectorClient`](https://wagmi.sh/react/api/hooks/useConnectorClient)
+    hook으로 wagmi에서 viem 클라이언트를 가져옵니다.
+2.  해당 클라이언트를 [`viem/op-stack`](https://viem.sh/op-stack)
+    액션으로 확장하고 직접 호출합니다.
+
+특히 Superchain 상호운용성의 경우, 실험적인
+[`@eth-optimism/wagmi`](https://github.com/ethereum-optimism/ecosystem/tree/main/packages/wagmi)
+패키지가 `@eth-optimism/viem` 위에서 React hook(예: `useSendL2ToL2Message`)을
+제공합니다. 하위 패키지와 마찬가지로 실험적인 것으로 취급하십시오.
+
+## 다음 단계
+
+*   이 페이지를 관리하는 [등재 기준 및 정기 점검 정책](/ko/app-developers/tools-sdks/listing-criteria)을
+    읽어 보십시오.
+*   앱을 구축하는 대신 체인을 추가하려고 하십니까?
+    [Superchain Registry에 참여하기](/ko/chain-operators/guides/join-superchain-registry)를 참조하십시오.
+*   일반적으로 콘텐츠가 어디에 속해야 하는지에 대해서는
+    [콘텐츠 가이드](/ko/op-stack/contribute/content-guide)를 참조하십시오.

@@ -3,6 +3,7 @@
 use alloy_primitives::{Address, U256};
 use reth_optimism_evm::{
     PostExecExecutedTx, PostExecRefundInspector, PostExecRefundPolicyFactory, PostExecTxContext,
+    RevertToCheckpointError,
 };
 use revm::{
     context_interface::ContextTr,
@@ -49,7 +50,7 @@ impl PostExecRefundPolicyFactory for FixedRefundPolicyFactory {
 }
 
 impl PostExecRefundInspector for FixedRefundPolicy {
-    type Snapshot = ();
+    type Checkpoint = ();
 
     fn begin_tx(&mut self, ctx: PostExecTxContext) {
         self.current_refund = u64::from(ctx.kind.claims_refunds());
@@ -109,9 +110,14 @@ impl PostExecRefundInspector for FixedRefundPolicy {
 
     fn inspect_selfdestruct(&mut self, _contract: Address, _target: Address, _value: U256) {}
 
-    fn snapshot(&self) -> Self::Snapshot {}
+    fn checkpoint(&mut self) -> Self::Checkpoint {}
 
-    fn restore(&mut self, _snapshot: Self::Snapshot) {}
+    fn revert_to_checkpoint(
+        &mut self,
+        _checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -134,13 +140,13 @@ mod tests {
     }
 
     #[test]
-    fn fixed_policy_factory_uses_unit_snapshots() {
-        fn assert_unit_snapshot<
-            F: alloy_op_evm::post_exec::PostExecEvmFactoryHooks<Snapshot = ()>,
+    fn fixed_policy_factory_uses_unit_checkpoints() {
+        fn assert_unit_checkpoint<
+            F: alloy_op_evm::post_exec::PostExecEvmFactoryHooks<Checkpoint = ()>,
         >() {
         }
         type Factory = OpEvmFactory<OpTx, FixedRefundPolicyFactory>;
-        assert_unit_snapshot::<Factory>();
+        assert_unit_checkpoint::<Factory>();
         let _ = Factory::new(FixedRefundPolicyFactory::new(None));
     }
 

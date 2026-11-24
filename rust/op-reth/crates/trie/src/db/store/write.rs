@@ -30,8 +30,12 @@ use reth_trie::{
     updates::TrieUpdatesSorted,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use tracing::debug;
 
-use super::NUM_OF_INDICES_IN_SHARD;
+use super::{
+    NUM_OF_INDICES_IN_SHARD,
+    phase::{self, PhaseStats, TableStats},
+};
 
 /// Collector for batched history bitmap appends.
 ///
@@ -184,51 +188,6 @@ fn append_storage_trie_entry(
     Ok(())
 }
 
-/// Snapshot all existing storage-trie nodes for `hashed_address` into the changeset and
-/// collector, then delete them from the state table.
-///
-/// Returns the set of nibble subkeys that were snapshotted so the caller can avoid
-/// double-recording changeset entries for those nodes in the subsequent per-node loop.
-///
-/// Used for the `is_deleted` (full-wipe) path in [`MdbxProofsProvider::write_storage_trie`].
-fn snapshot_and_wipe_storage_trie(
-    state_cursor: &mut (
-             impl DbCursorRO<V2StoragesTrie>
-             + DbDupCursorRO<V2StoragesTrie>
-             + DbDupCursorRW<V2StoragesTrie>
-         ),
-    cs_cursor: &mut impl DbDupCursorRW<V2StorageTrieChangeSets>,
-    cs_key: BlockNumberHashedAddress,
-    collector: &mut HistoryCollector,
-) -> OpProofsStorageResult<BTreeSet<StoredNibblesSubKey>> {
-    let hashed_address = cs_key.0.1;
-    let mut wiped_nibbles = BTreeSet::new();
-    if let Some((_key, first_entry)) = state_cursor.seek_exact(hashed_address)? {
-        wiped_nibbles.insert(first_entry.nibbles.clone());
-        append_storage_trie_entry(
-            cs_cursor,
-            cs_key,
-            first_entry.nibbles,
-            Some(first_entry.node),
-            collector,
-        )?;
-        while let Some((_, entry)) = state_cursor.next_dup()? {
-            wiped_nibbles.insert(entry.nibbles.clone());
-            append_storage_trie_entry(
-                cs_cursor,
-                cs_key,
-                entry.nibbles,
-                Some(entry.node),
-                collector,
-            )?;
-        }
-        if state_cursor.seek_exact(hashed_address)?.is_some() {
-            state_cursor.delete_current_duplicates()?;
-        }
-    }
-    Ok(wiped_nibbles)
-}
-
 /// Write a single storage-trie node update: snapshot the old node into the changeset,
 /// record in the history collector, then apply the new value (upsert or delete).
 ///
@@ -271,36 +230,6 @@ fn append_hashed_storage_entry(
     cs_cursor.append_dup(cs_key, entry)?;
     collector.hashed_storages.entry((hashed_address, entry.key)).or_default().push(block_number);
     Ok(())
-}
-
-/// Snapshot all existing hashed-storage slots for `hashed_address` into the changeset and
-/// collector, delete them from the state table, and return the set of slot keys that were wiped.
-///
-/// Used for the `is_wiped` (full-wipe) path in [`MdbxProofsProvider::write_hashed_storages`].
-fn snapshot_and_wipe_hashed_storage(
-    state_cursor: &mut (
-             impl DbCursorRO<V2HashedStorages>
-             + DbDupCursorRO<V2HashedStorages>
-             + DbDupCursorRW<V2HashedStorages>
-         ),
-    cs_cursor: &mut impl DbDupCursorRW<V2HashedStorageChangeSets>,
-    cs_key: BlockNumberHashedAddress,
-    collector: &mut HistoryCollector,
-) -> OpProofsStorageResult<alloy_primitives::map::B256Set> {
-    let hashed_address = cs_key.0.1;
-    let mut wiped_slots = alloy_primitives::map::B256Set::default();
-    if let Some(entry) = state_cursor.seek_by_key_subkey(hashed_address, B256::ZERO)? {
-        append_hashed_storage_entry(cs_cursor, cs_key, entry, collector)?;
-        wiped_slots.insert(entry.key);
-        while let Some(entry) = state_cursor.next_dup_val()? {
-            append_hashed_storage_entry(cs_cursor, cs_key, entry, collector)?;
-            wiped_slots.insert(entry.key);
-        }
-        if state_cursor.seek_exact(hashed_address)?.is_some() {
-            state_cursor.delete_current_duplicates()?;
-        }
-    }
-    Ok(wiped_slots)
 }
 
 /// Write a single hashed-storage slot update: snapshot the old value into the changeset,
@@ -356,6 +285,47 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
     ) -> OpProofsStorageResult<()> {
         let mut cursor = self.tx.cursor_write::<V2ProofWindow>()?;
         cursor.upsert(ProofWindowKey::LatestBlock, &BlockNumberHash::new(block_number, hash))?;
+        Ok(())
+    }
+
+    /// Remove a suffix of a logical key's history, starting at its actual last shard.
+    ///
+    /// Walk backwards so that deleting the entire last shard also promotes the
+    /// preceding survivor to the sentinel. Reinsert only after finding the surviving
+    /// boundary: moving the cursor to the sentinel during a forward scan would skip
+    /// shards that still need removal.
+    ///
+    /// Histories written before this fix can lack a sentinel tail: the old forward
+    /// prune deleted the sentinel and left the boundary shard under a finite key.
+    /// Start from the key's actual last shard so its suffix is still removed and the
+    /// survivor is moved back to the sentinel. Stale keys below the unwind boundary
+    /// are left as they are.
+    fn unwind_history_for_key<T>(
+        cursor: &mut (impl DbCursorRO<T> + DbCursorRW<T>),
+        first_removed_block: BlockNumber,
+        last_shard_key: T::Key,
+        same_logical_key: impl Fn(&T::Key) -> bool,
+    ) -> OpProofsStorageResult<()>
+    where
+        T: Table<Value = BlockNumberList>,
+        T::Key: Clone,
+    {
+        let mut entry = cursor.seek(last_shard_key.clone())?;
+        if !entry.as_ref().is_some_and(|(key, _)| same_logical_key(key)) {
+            entry = if entry.is_some() { cursor.prev()? } else { cursor.last()? };
+        }
+        while let Some((key, list)) = entry &&
+            same_logical_key(&key)
+        {
+            cursor.delete_current()?;
+            let remaining: Vec<u64> =
+                list.iter().take_while(|&block| block < first_removed_block).collect();
+            if !remaining.is_empty() {
+                cursor.upsert(last_shard_key, &BlockNumberList::new_pre_sorted(remaining))?;
+                break;
+            }
+            entry = cursor.prev()?;
+        }
         Ok(())
     }
 
@@ -685,9 +655,6 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
     }
 
     /// Write storage trie branch-node updates for one block.
-    ///
-    /// Handles the `is_deleted` wipe path (snapshot all existing nodes into
-    /// the changeset before clearing) as well as per-node updates.
     fn write_storage_trie(
         block_number: BlockNumber,
         updates: &TrieUpdatesSorted,
@@ -700,48 +667,16 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
 
         for (hashed_address, nodes) in updates.storage_tries_ref() {
             let cs_key = BlockNumberHashedAddress((block_number, *hashed_address));
-
-            if nodes.is_deleted {
-                let wiped_nibbles =
-                    snapshot_and_wipe_storage_trie(state_cursor, cs_cursor, cs_key, collector)?;
+            for (nibbles, maybe_node) in nodes.storage_nodes_ref() {
+                write_storage_trie_node(
+                    state_cursor,
+                    cs_cursor,
+                    cs_key,
+                    StoredNibblesSubKey(*nibbles),
+                    maybe_node,
+                    collector,
+                )?;
                 count += 1;
-
-                // After a wipe the state table is empty for this address, so there is no
-                // old node to seek or delete.  Nodes whose nibbles were already snapshotted
-                // above must not be recorded again (that would create conflicting duplicate
-                // changeset entries).  Brand-new nibbles get a `None` old-value entry so
-                // that unwind knows to delete them.
-                for (nibbles, maybe_node) in nodes.storage_nodes_ref() {
-                    let subkey = StoredNibblesSubKey(*nibbles);
-                    if !wiped_nibbles.contains(&subkey) {
-                        append_storage_trie_entry(
-                            cs_cursor,
-                            cs_key,
-                            subkey.clone(),
-                            None,
-                            collector,
-                        )?;
-                    }
-                    if let Some(node) = maybe_node {
-                        state_cursor.upsert(
-                            *hashed_address,
-                            &StorageTrieEntry { nibbles: subkey, node: node.clone() },
-                        )?;
-                    }
-                    count += 1;
-                }
-            } else {
-                for (nibbles, maybe_node) in nodes.storage_nodes_ref() {
-                    write_storage_trie_node(
-                        state_cursor,
-                        cs_cursor,
-                        cs_key,
-                        StoredNibblesSubKey(*nibbles),
-                        maybe_node,
-                        collector,
-                    )?;
-                    count += 1;
-                }
             }
         }
         Ok(count)
@@ -787,9 +722,6 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
     }
 
     /// Write hashed-storage updates for one block.
-    ///
-    /// Handles the `is_wiped` path (snapshot all existing slots into the
-    /// changeset before clearing) as well as per-slot updates.
     fn write_hashed_storages(
         block_number: BlockNumber,
         post_state: &HashedPostStateSorted,
@@ -802,44 +734,16 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
 
         for (hashed_address, storage) in &post_state.storages {
             let cs_key = BlockNumberHashedAddress((block_number, *hashed_address));
-
-            if storage.is_wiped() {
-                // Snapshot + wipe existing slots; track what was wiped so the
-                // new-slots loop below doesn't double-append changeset entries.
-                let wiped_slots =
-                    snapshot_and_wipe_hashed_storage(state_cursor, cs_cursor, cs_key, collector)?;
-
-                // Write new slots. Slots not seen during the wipe get a zero
-                // old-value entry in the changeset.
-                for (storage_key, value) in storage.storage_slots_ref() {
-                    if !wiped_slots.contains(storage_key) {
-                        append_hashed_storage_entry(
-                            cs_cursor,
-                            cs_key,
-                            StorageEntry { key: *storage_key, value: U256::ZERO },
-                            collector,
-                        )?;
-                    }
-                    if *value != U256::ZERO {
-                        state_cursor.upsert(
-                            *hashed_address,
-                            &StorageEntry { key: *storage_key, value: *value },
-                        )?;
-                    }
-                    count += 1;
-                }
-            } else {
-                for (storage_key, value) in storage.storage_slots_ref() {
-                    write_hashed_storage_slot(
-                        state_cursor,
-                        cs_cursor,
-                        cs_key,
-                        *storage_key,
-                        *value,
-                        collector,
-                    )?;
-                    count += 1;
-                }
+            for (storage_key, value) in storage.storage_slots_ref() {
+                write_hashed_storage_slot(
+                    state_cursor,
+                    cs_cursor,
+                    cs_key,
+                    *storage_key,
+                    *value,
+                    collector,
+                )?;
+                count += 1;
             }
         }
         Ok(count)
@@ -851,56 +755,137 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
     /// push-all-block-numbers + re-encode + `upsert` instead of doing
     /// that per-entry.  The `BTreeMap` iteration order ensures cursor
     /// seeks are sequential within each table.
+    ///
+    /// Returns the unique keys flushed and the time spent per table.
     pub(super) fn flush_collected_history(
         &self,
         collector: HistoryCollector,
-    ) -> OpProofsStorageResult<()> {
+    ) -> OpProofsStorageResult<PhaseStats> {
         macro_rules! flush {
-            ($table:ty, $entries:expr, $key_fn:expr) => {
-                if !$entries.is_empty() {
-                    let mut cursor = self.tx.cursor_write::<$table>()?;
-                    for (key, blocks) in $entries {
-                        append_history_indices_batched::<$table>(
-                            &mut cursor,
-                            &blocks,
-                            |highest| $key_fn(key.clone(), highest),
-                        )?;
+            ($table:ty, $entries:expr, $key_fn:expr) => {{
+                let keys = $entries.len();
+                let (result, cost) = phase::timed(|| -> OpProofsStorageResult<()> {
+                    if !$entries.is_empty() {
+                        let mut cursor = self.tx.cursor_write::<$table>()?;
+                        for (key, blocks) in $entries {
+                            append_history_indices_batched::<$table>(
+                                &mut cursor,
+                                &blocks,
+                                |highest| $key_fn(key.clone(), highest),
+                            )?;
+                        }
                     }
-                }
-            };
+                    Ok(())
+                });
+                result?;
+                TableStats { keys, cost }
+            }};
         }
 
-        flush!(V2AccountsTrieHistory, collector.account_trie, |path, highest| {
-            AccountTrieShardedKey::new(path, highest)
-        });
-        flush!(V2StoragesTrieHistory, collector.storage_trie, |(addr, path), highest| {
-            StorageTrieShardedKey::new(addr, path, highest)
-        });
-        flush!(V2HashedAccountsHistory, collector.hashed_accounts, |addr, highest| {
-            HashedAccountShardedKey::new(addr, highest)
-        });
-        flush!(V2HashedStoragesHistory, collector.hashed_storages, |(addr, slot), highest| {
-            HashedStorageShardedKey {
-                hashed_address: addr,
-                sharded_key: ShardedKey::new(slot, highest),
-            }
-        });
+        let stats = PhaseStats {
+            account_trie: flush!(V2AccountsTrieHistory, collector.account_trie, |path, highest| {
+                AccountTrieShardedKey::new(path, highest)
+            }),
+            storage_trie: flush!(
+                V2StoragesTrieHistory,
+                collector.storage_trie,
+                |(addr, path), highest| StorageTrieShardedKey::new(addr, path, highest)
+            ),
+            hashed_accounts: flush!(
+                V2HashedAccountsHistory,
+                collector.hashed_accounts,
+                HashedAccountShardedKey::new
+            ),
+            hashed_storages: flush!(
+                V2HashedStoragesHistory,
+                collector.hashed_storages,
+                |(addr, slot), highest| HashedStorageShardedKey {
+                    hashed_address: addr,
+                    sharded_key: ShardedKey::new(slot, highest),
+                }
+            ),
+        };
 
-        Ok(())
+        Ok(stats)
     }
 
     /// Unwind all 4 data types in `range`: restore state, collect affected keys,
     /// delete changesets, then remove the affected block numbers from history bitmaps.
+    /// The range must be a suffix ending at the current proof window's latest block.
     pub(super) fn unwind_changesets_and_history(
         &self,
         range: &std::ops::RangeInclusive<u64>,
     ) -> OpProofsStorageResult<()> {
+        debug_assert!(
+            self.get_proof_window_inner().is_ok_and(|window| *range.end() == window.latest.number),
+            "unwind range {range:?} must end at the proof window's latest block"
+        );
         let acct_trie_keys = self.unwind_and_collect_account_trie(range)?;
         let stor_trie_keys = self.unwind_and_collect_storage_trie(range)?;
         let acct_keys = self.unwind_and_collect_hashed_accounts(range)?;
         let stor_keys = self.unwind_and_collect_hashed_storages(range)?;
 
-        self.prune_all_history(range, &acct_trie_keys, &stor_trie_keys, &acct_keys, &stor_keys)
+        self.unwind_all_history(
+            *range.start(),
+            &acct_trie_keys,
+            &stor_trie_keys,
+            &acct_keys,
+            &stor_keys,
+        )
+    }
+
+    /// Remove a suffix from all four history tables without changing retention pruning.
+    fn unwind_all_history(
+        &self,
+        first_removed_block: BlockNumber,
+        acct_trie_keys: &BTreeSet<StoredNibbles>,
+        stor_trie_keys: &BTreeSet<(B256, StoredNibbles)>,
+        acct_keys: &BTreeSet<B256>,
+        stor_keys: &BTreeSet<(B256, B256)>,
+    ) -> OpProofsStorageResult<()> {
+        let mut cursor = self.tx.cursor_write::<V2AccountsTrieHistory>()?;
+        for nibbles in acct_trie_keys {
+            Self::unwind_history_for_key(
+                &mut cursor,
+                first_removed_block,
+                AccountTrieShardedKey::new(nibbles.clone(), u64::MAX),
+                |key| key.key == *nibbles,
+            )?;
+        }
+
+        let mut cursor = self.tx.cursor_write::<V2StoragesTrieHistory>()?;
+        for (address, nibbles) in stor_trie_keys {
+            Self::unwind_history_for_key(
+                &mut cursor,
+                first_removed_block,
+                StorageTrieShardedKey::new(*address, nibbles.clone(), u64::MAX),
+                |key| key.hashed_address == *address && key.key == *nibbles,
+            )?;
+        }
+
+        let mut cursor = self.tx.cursor_write::<V2HashedAccountsHistory>()?;
+        for address in acct_keys {
+            Self::unwind_history_for_key(
+                &mut cursor,
+                first_removed_block,
+                HashedAccountShardedKey::new(*address, u64::MAX),
+                |key| key.0.key == *address,
+            )?;
+        }
+
+        let mut cursor = self.tx.cursor_write::<V2HashedStoragesHistory>()?;
+        for (address, slot) in stor_keys {
+            Self::unwind_history_for_key(
+                &mut cursor,
+                first_removed_block,
+                HashedStorageShardedKey {
+                    hashed_address: *address,
+                    sharded_key: ShardedKey::new(*slot, u64::MAX),
+                },
+                |key| key.hashed_address == *address && key.sharded_key.key == *slot,
+            )?;
+        }
+        Ok(())
     }
 
     /// Prune changesets for all 4 data types in `range`, then remove the
@@ -910,32 +895,67 @@ impl<TX: DbTxMut + DbTx> MdbxProofsProvider<TX> {
         range: &std::ops::RangeInclusive<u64>,
     ) -> OpProofsStorageResult<WriteCounts> {
         let mut counts = WriteCounts::default();
+        let mut changesets = PhaseStats::default();
+        let mut history = PhaseStats::default();
 
-        let acct_trie_keys = self.prune_account_trie_changesets(range, &mut counts)?;
-        let stor_trie_keys = self.prune_storage_trie_changesets(range, &mut counts)?;
-        let acct_keys = self.prune_hashed_account_changesets(range, &mut counts)?;
-        let stor_keys = self.prune_hashed_storage_changesets(range, &mut counts)?;
+        /// Runs one prune step and returns its result with the stats for `keys` unique keys.
+        fn step<T>(
+            keys: impl FnOnce(&T) -> usize,
+            f: impl FnOnce() -> OpProofsStorageResult<T>,
+        ) -> OpProofsStorageResult<(T, TableStats)> {
+            let (result, cost) = phase::timed(f);
+            let result = result?;
+            let stats = TableStats { keys: keys(&result), cost };
+            Ok((result, stats))
+        }
 
-        self.prune_all_history(range, &acct_trie_keys, &stor_trie_keys, &acct_keys, &stor_keys)?;
+        // Phase A: delete the changesets in `range`, a contiguous scan per table.
+        let (acct_trie_keys, stats) =
+            step(BTreeSet::len, || self.prune_account_trie_changesets(range, &mut counts))?;
+        changesets.account_trie = stats;
+        let (stor_trie_keys, stats) =
+            step(BTreeSet::len, || self.prune_storage_trie_changesets(range, &mut counts))?;
+        changesets.storage_trie = stats;
+        let (acct_keys, stats) =
+            step(BTreeSet::len, || self.prune_hashed_account_changesets(range, &mut counts))?;
+        changesets.hashed_accounts = stats;
+        let (stor_keys, stats) =
+            step(BTreeSet::len, || self.prune_hashed_storage_changesets(range, &mut counts))?;
+        changesets.hashed_storages = stats;
+
+        // Phase B: remove `range` from each affected key's history bitmap, one seek per key.
+        let n = acct_trie_keys.len();
+        history.account_trie =
+            step(|_| n, || self.prune_account_trie_history(range, &acct_trie_keys))?.1;
+        let n = stor_trie_keys.len();
+        history.storage_trie =
+            step(|_| n, || self.prune_storage_trie_history(range, &stor_trie_keys))?.1;
+        let n = acct_keys.len();
+        history.hashed_accounts =
+            step(|_| n, || self.prune_hashed_account_history(range, &acct_keys))?.1;
+        let n = stor_keys.len();
+        history.hashed_storages =
+            step(|_| n, || self.prune_hashed_storage_history(range, &stor_keys))?.1;
+
+        changesets.record_cost("prune", "changesets");
+        history.record_cost("prune", "history");
+        history.record_unique_keys("prune");
+        debug!(
+            target: "trie::db",
+            start_block = range.start(),
+            end_block = range.end(),
+            changesets_ms = changesets.total().as_millis(),
+            changesets_major_faults = changesets.major_faults(),
+            history_ms = history.total().as_millis(),
+            history_major_faults = history.major_faults(),
+            account_trie_keys = history.account_trie.keys,
+            storage_trie_keys = history.storage_trie.keys,
+            hashed_account_keys = history.hashed_accounts.keys,
+            hashed_storage_keys = history.hashed_storages.keys,
+            "Prune phase breakdown"
+        );
 
         Ok(counts)
-    }
-
-    /// Remove block numbers in `range` from all 4 history bitmap tables for the
-    /// given sets of affected keys.
-    fn prune_all_history(
-        &self,
-        range: &std::ops::RangeInclusive<u64>,
-        acct_trie_keys: &BTreeSet<StoredNibbles>,
-        stor_trie_keys: &BTreeSet<(B256, StoredNibbles)>,
-        acct_keys: &BTreeSet<B256>,
-        stor_keys: &BTreeSet<(B256, B256)>,
-    ) -> OpProofsStorageResult<()> {
-        self.prune_account_trie_history(range, acct_trie_keys)?;
-        self.prune_storage_trie_history(range, stor_trie_keys)?;
-        self.prune_hashed_account_history(range, acct_keys)?;
-        self.prune_hashed_storage_history(range, stor_keys)?;
-        Ok(())
     }
 
     /// Phase A: delete all account-trie changeset entries in `range`, returning the

@@ -49,12 +49,12 @@ impl BootNodes {
 lazy_static! {
     /// Default op bootnodes to use.
     static ref OP_BOOTNODES: Vec<BootNode> = OP_RAW_BOOTNODES.iter()
-        .map(|raw| BootNode::parse_bootnode(raw))
+        .map(|raw| BootNode::parse_bootnode(raw).expect("built-in bootnodes are valid"))
         .collect();
 
     /// Default op testnet bootnodes to use.
     static ref OP_TESTNET_BOOTNODES: Vec<BootNode> = OP_RAW_TESTNET_BOOTNODES.iter()
-        .map(|raw| BootNode::parse_bootnode(raw))
+        .map(|raw| BootNode::parse_bootnode(raw).expect("built-in bootnodes are valid"))
         .collect();
 }
 
@@ -114,7 +114,7 @@ mod tests {
     use enr::EnrPublicKey;
     use std::str::FromStr;
 
-    use kona_genesis::{BASE_MAINNET_CHAIN_ID, OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
+    use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
 
     use super::*;
 
@@ -126,12 +126,8 @@ mod tests {
 
     #[test]
     fn test_parse_raw_bootnodes() {
-        for raw in OP_RAW_BOOTNODES {
-            BootNode::parse_bootnode(raw);
-        }
-
-        for raw in OP_RAW_TESTNET_BOOTNODES {
-            BootNode::parse_bootnode(raw);
+        for raw in OP_RAW_BOOTNODES.iter().chain(OP_RAW_TESTNET_BOOTNODES) {
+            BootNode::parse_bootnode(raw).unwrap_or_else(|e| panic!("{raw}: {e}"));
         }
     }
 
@@ -154,11 +150,6 @@ mod tests {
 
         let unknown = BootNodes::from_chain_id(0);
         assert!(unknown.is_empty());
-
-        // Base was removed from the superchain registry, so its chain id no
-        // longer resolves to a known parent and yields no bootnodes.
-        let base = BootNodes::from_chain_id(BASE_MAINNET_CHAIN_ID);
-        assert!(base.is_empty());
     }
 
     #[test]

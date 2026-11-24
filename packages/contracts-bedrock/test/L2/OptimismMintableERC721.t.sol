@@ -7,7 +7,7 @@ import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { OptimismMintableERC721, IOptimismMintableERC721 } from "src/L2/OptimismMintableERC721.sol";
+import { OptimismMintableERC721 } from "src/L2/OptimismMintableERC721.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 
 /// @title OptimismMintableERC721_TestInit
@@ -151,11 +151,13 @@ contract OptimismMintableERC721_Burn_Test is OptimismMintableERC721_TestInit {
 /// @title OptimismMintableERC721_SupportsInterface_Test
 /// @notice Tests the `supportsInterface` function of the `OptimismMintableERC721` contract.
 contract OptimismMintableERC721_SupportsInterface_Test is OptimismMintableERC721_TestInit {
-    /// @notice Tests that the `supportsInterface` function returns true for
-    ///         IOptimismMintableERC721, IERC721Enumerable, IERC721 and IERC165 interfaces.
+    /// @notice Tests that the `supportsInterface` function returns true for both
+    ///         IOptimismMintableERC721 interface IDs, IERC721Enumerable, IERC721 and IERC165.
     function test_supportsInterface_supportedInterfaces_succeeds() external view {
-        // Checks if the contract supports the IOptimismMintableERC721 interface.
-        assertTrue(L2NFT.supportsInterface(type(IOptimismMintableERC721).interfaceId));
+        // Checks if the contract supports both IOptimismMintableERC721 interface IDs. Bridges
+        // check tokens against these IDs, so they must never change.
+        assertTrue(L2NFT.supportsInterface(0x74259ebf));
+        assertTrue(L2NFT.supportsInterface(0xaecafc23));
         // Checks if the contract supports the IERC721Enumerable interface.
         assertTrue(L2NFT.supportsInterface(type(IERC721Enumerable).interfaceId));
         // Checks if the contract supports the IERC721 interface.
@@ -167,7 +169,8 @@ contract OptimismMintableERC721_SupportsInterface_Test is OptimismMintableERC721
     /// @notice Tests that the `supportsInterface` function returns false for unsupported
     ///         interfaces.
     function testFuzz_supportsInterface_unsupportedInterface_fails(bytes4 _interfaceId) external view {
-        vm.assume(_interfaceId != type(IOptimismMintableERC721).interfaceId);
+        vm.assume(_interfaceId != 0x74259ebf);
+        vm.assume(_interfaceId != 0xaecafc23);
         vm.assume(_interfaceId != type(IERC721Enumerable).interfaceId);
         vm.assume(_interfaceId != type(IERC721).interfaceId);
         vm.assume(_interfaceId != type(IERC721Metadata).interfaceId);

@@ -26,8 +26,6 @@ func newUnsafePayloadSystem(t devtest.T) *presets.SingleChainMultiNode {
 // verifier.
 func TestPostedUnsafePayloadAdvancesVerifier(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node admin RPC compatibility is tracked by #21906")
-
 	sys := newUnsafePayloadSystem(t)
 	sys.L2CL.AdvancedUnsafe(2, 30)
 
@@ -40,8 +38,6 @@ func TestPostedUnsafePayloadAdvancesVerifier(gt *testing.T) {
 // rejected synchronously instead of being acknowledged and dropped later.
 func TestPostedUnsafePayloadRejectsBadBlockHash(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node admin RPC compatibility is tracked by #21906")
-
 	sys := newUnsafePayloadSystem(t)
 	sys.L2CL.AdvancedUnsafe(2, 30)
 

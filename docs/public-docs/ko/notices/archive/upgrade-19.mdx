@@ -1,0 +1,320 @@
+---
+title: Upgrade 19 - Karst 하드포크
+description: Karst 하드포크에 대비하는 방법을 알아봅니다.
+diataxis: reference
+content_type: notice
+date: 2026-07-08
+---
+
+Karst 하드포크는 OP Stack 체인을 위해 제안된 네트워크 업그레이드입니다. 이 업그레이드는 새로운 합의 계층 메커니즘을 통해 거버넌스가 승인한 L2 스마트 컨트랙트 업그레이드를 가능하게 하는 **L2 Contract Manager(L2CM)를 도입**하고, Rust 기반 `kona-client`를 출금에 사용되는 기본 결함 증명(fault proof) 프로그램으로 만드는 **`CANNON_KONA`의 respected game type 승격**을 수행하며, EIP-7825 트랜잭션 gas limit을 포함한 **L2에서의 Osaka EIP 활성화**를 진행하고, BN256 pairing precompile의 최대 입력 크기를 427쌍에서 300쌍으로 줄이는 **선제적 Glamsterdam Defense 변경 사항을 추가**합니다.
+
+<Warning>
+  **`op-geth`와 `op-program`은 Upgrade 19 / Karst를 지원하지 않습니다.** 활성화 전에 **`op-reth`**(결함 증명의 경우 **`kona-client`**)로 마이그레이션하십시오. 지원 종료일은 **2026년 5월 31일**입니다. [op-geth 및 op-program 지원 종료](/ko/notices/archive/op-geth-deprecation)를 참고하십시오.
+</Warning>
+
+<Info>
+  Optimism이 거버넌스를 담당하는 **Sepolia OP Stack 체인**의 Karst 하드포크는 **Wed, Jun 17, 2026 at 16:00:01 UTC**(`1781712001`)에 활성화됩니다. **Mainnet OP Stack 체인**에서는 Optimism 거버넌스의 승인에 따라 **Wed, Jul 8, 2026 at 16:00:01 UTC**(`1783526401`)에 낙관적으로(optimistically) 활성화될 예정입니다. 스마트 컨트랙트 업그레이드는 활성화 전 주에 진행될 예정입니다.
+  업그레이드는 다음 체인에서 실행됩니다: `OP`, `Soneium`, `Ink`, `Unichain`, `Mode`, `Metal`, `Zora`.
+</Info>
+
+## Upgrade 19에 포함된 내용
+
+Upgrade 19는 다음과 같은 변경 사항을 도입합니다.
+
+* **L2 Contract Manager(L2CM):** 네트워크 업그레이드의 일부로 L2 스마트 컨트랙트(predeploy)를 업그레이드하는 메커니즘을 도입합니다. L2CM은 구조화되고 감사 가능한 방식으로 L2 predeploy 업그레이드를 가능하게 하여, 개별 컨트랙트 변경마다 멀티시그 서명이 필요한 상황을 줄여 줍니다. 이는 interop과 L2 컨트랙트 수정이 필요한 향후 프로토콜 업그레이드의 전제 조건입니다. 자세한 내용은 [L2CM 기능 페이지](/ko/op-stack/features/l2-contract-manager), [설계 문서](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/l2-contract-upgrades.md), [FMA](https://github.com/ethereum-optimism/design-docs/blob/main/security/fma-l2cm.md)를 참고하십시오.
+
+* **L2에서의 Osaka:** L2에서 Osaka EIP의 일부를 활성화합니다. 여기에는 [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825)(트랜잭션당 gas limit 2^24 = 16,777,216 gas), [EIP-7883](https://eips.ethereum.org/EIPS/eip-7883)(MODEXP gas 하한 상향), [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823)(MODEXP 입력 크기 상한), [EIP-7951](https://eips.ethereum.org/EIPS/eip-7951)(P256VERIFY gas 비용 상향), [EIP-7939](https://eips.ethereum.org/EIPS/eip-7939)(CLZ opcode)가 포함됩니다. 자세한 내용은 [L2에서의 Osaka 기능 페이지](/ko/op-stack/features/osaka-on-l2), [설계 문서](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md), [Karst 사양](https://specs.optimism.io/protocol/karst/overview.html)을 참고하십시오.
+
+* **Glamsterdam Defense(BN256 pairing 입력 크기 축소):** Glamsterdam L1 하드포크에 앞선 선제적 조치로, Upgrade 19에는 BN256 pairing precompile 호출의 최대 입력 크기를 427쌍(81,984바이트)에서 300쌍(57,600바이트)으로 줄이는 하드포크 변경 사항이 포함됩니다. 이를 통해 [EIP-7904](https://eips.ethereum.org/EIPS/eip-7904)에서 막판에 gas 가격이 재조정되어 결함 증명 검증이 [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) L1 트랜잭션 gas limit을 초과하게 될 가능성에 대비한 추가 여유를 확보합니다. 자세한 내용은 [분석](https://github.com/ethereum-optimism/optimism/issues/20195)을 참고하십시오. 전체 Glamsterdam Defense 스마트 컨트랙트 변경 사항(absolute pre-state 업그레이드)은 연기되었으며, 최종 L1 gas 가격 값이 확정되면 반영될 예정입니다.
+
+* **`CANNON_KONA`를 respected game type으로 설정:** respected game type을 `CANNON`(0)에서 `CANNON_KONA`(8)로 변경하여 Rust 기반 `kona-client`를 출금에 사용되는 기본 결함 증명 프로그램으로 만듭니다. `CANNON`(0) 게임 유형은 업그레이드 이전에 생성되어 진행 중인 게임을 해결하기 위한 용도로만 유지됩니다. `op-program`은 더 이상 새로운 결함 증명에 지원되지 않습니다. 이는 [Upgrade 18](/ko/notices/archive/upgrade-18)에서 도입된 `CANNON_KONA` 게임 유형 지원을 기반으로 합니다.
+
+* **새로운 Kona absolute prestate:** 최신 체인 구성을 포함하는 업데이트된 `cannon64-kona` absolute prestate 해시를 제공합니다.
+
+* **OPCMv2:** Upgrade 19는 재설계된 OP Contracts Manager인 OPCMv2를 사용하는 첫 번째 업그레이드입니다. OPCMv2에는 새로운 인터페이스가 있으므로 자세한 내용은 [소스 코드](https://github.com/ethereum-optimism/optimism/blob/c332a1bafb206f18561173eb13c31f1747f9aea4/packages/contracts-bedrock/src/L1/opcm/OPContractsManagerV2.sol#L38)(`c332a1b` 기준)를 참고하십시오.
+
+<Info>
+  이번 업그레이드는 새로운 기본 OP Contracts Manager인 OPCMv2를 사용합니다. `OPCM.upgrade()`를 직접 호출하거나 `op-deployer`를 사용하는 체인 운영자는 올바른 OPCMv2 컨트랙트 버전을 대상으로 하고 있는지 확인해야 합니다.
+</Info>
+
+## 호환성을 깨는 변경 사항
+
+### L2에서의 Osaka: EIP-7825 트랜잭션 gas limit, MODEXP 및 P256VERIFY gas 비용 변경
+
+Upgrade 19 이후 L2 트랜잭션에는 [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825)의 트랜잭션당 gas limit인 2^24 = 16,777,216 gas가 적용됩니다. 이 한도를 초과하는 gas를 요청하는 트랜잭션은 유효하지 않습니다. 또한 L2에서의 Osaka는 `MODEXP`(`0x05`) precompile의 gas 비용을 높이고([EIP-7883](https://eips.ethereum.org/EIPS/eip-7883)) 새로운 입력 크기 상한을 도입하며([EIP-7823](https://eips.ethereum.org/EIPS/eip-7823)), `P256VERIFY`(`0x100`)의 gas 비용을 3,450 gas에서 6,900 gas로 높이고([EIP-7951](https://eips.ethereum.org/EIPS/eip-7951)), CLZ(Count Leading Zeros) opcode를 추가합니다([EIP-7939](https://eips.ethereum.org/EIPS/eip-7939)).
+
+* **입금(디파짓) 트랜잭션은 EIP-7825 한도에서 면제됩니다.** 입금은 이미 L1 블록당 총 20M gas로 제한되어 있으며, L1에서 수락된 입금을 L2에서 거부하면 영구적인 ETH 손실이 발생할 수 있습니다. 입금은 gas limit이 EIP-7825 임계값을 초과하더라도 계속 L2에 반영됩니다.
+* **앱 개발자:** 애플리케이션이 매우 높은 gas limit(EIP-7825 한도 초과)으로 L2 트랜잭션을 제출하는 경우, 이번 업그레이드 이후 해당 트랜잭션은 더 이상 유효하지 않습니다. 실제로 이 한도를 초과하는 트랜잭션은 매우 적을 것으로 예상됩니다. 컨트랙트가 `MODEXP` 또는 `P256VERIFY`를 호출한다면 gas 추정치에 업데이트된 비용이 반영되어 있는지 확인하십시오. 이러한 precompile에 하드코딩된 gas 값을 사용하는 컨트랙트는 업데이트해야 합니다. 또한 새로운 크기 한도를 초과하는 입력으로 `MODEXP`를 호출하면 실패합니다.
+* **노드 운영자:** 새로운 gas limit 규칙을 적용하려면 `op-reth` 실행 클라이언트를 업데이트해야 합니다. 시스템 입금 트랜잭션(예: 네트워크 업그레이드 트랜잭션)도 이 한도에서 면제됩니다.
+
+### Glamsterdam Defense: BN256 pairing 입력 크기 축소
+
+Upgrade 19는 `ecPairing`(BN256 pairing, `0x08`) precompile 호출의 최대 입력 크기를 427쌍(81,984바이트)에서 300쌍(57,600바이트)으로 줄입니다. 이는 향후 [Glamsterdam L1 하드포크(EIP-7904)](https://eips.ethereum.org/EIPS/eip-7904)에서 발생할 수 있는 gas 가격 재조정에 앞서 L1 결함 증명 재실행 가능성을 위한 충분한 여유를 유지하기 위한 선제적 변경입니다.
+
+*   **앱 개발자:** 컨트랙트가 300쌍을 초과하여 BN256 pairing precompile(`0x08`)을 호출하는 경우, 이번 업그레이드 이후 해당 호출은 실패합니다. 표준 ZK 증명 검증(예: Groth16)은 적은 수의 pairing을 사용하므로 영향을 받지 않습니다.
+
+<Info>
+  BN256 pairing(`0x08`)은 Glamsterdam gas 가격 재조정의 영향을 받는 가변 입력 precompile 중 입력 크기 한도 변경이 필요한 유일한 precompile입니다. 가격이 재조정되는 다른 precompile(KZG Point Evaluation, BLS12-381 G1Add, BLS12-381 G2Add)은 고정 크기 입력을 사용하므로 한도 조정이 필요하지 않습니다. 자세한 내용은 [precompile gas 비용 위험 분석](https://github.com/ethereum-optimism/optimism/issues/20195)과 [Karst exec-engine 사양](https://specs.optimism.io/protocol/karst/exec-engine.html)을 참고하십시오.
+</Info>
+
+### respected game type으로서의 `CANNON_KONA`: 출금 증명 변경
+
+Upgrade 19 이후 respected game type이 `CANNON`(0)에서 `CANNON_KONA`(8)로 변경됩니다. 출금은 `CANNON_KONA` 게임을 기준으로 증명해야 합니다.
+
+* **출금을 증명하는 사용자:** 조치가 필요하지 않습니다. 업그레이드 후 `OptimismPortal`이 자동으로 `CANNON_KONA`를 respected game type으로 인식합니다.
+* **무허가(permissionless) 결함 증명을 실행하는 체인 운영자:** 업그레이드 **이전에** `op-challenger`가 `cannon-kona` trace type을 지원하도록 구성해야 합니다. `op-challenger`를 업데이트하지 않으면 유효하지 않은 게임에 이의가 제기되지 않을 수 있습니다.
+
+### L2CM: 새로운 L2 predeploy 업그레이드 메커니즘
+
+L2CM은 L2 predeploy 컨트랙트를 업그레이드하기 위한 새로운 메커니즘을 도입합니다. OP Stack 체인에서 개발하는 앱 개발자는 이제 predeploy 컨트랙트가 L2CM 트랜잭션을 통해 업그레이드될 수 있다는 점을 알고 있어야 합니다. 애플리케이션이 predeploy 컨트랙트와 직접 상호작용한다면, 각 업그레이드의 변경 로그를 검토하여 새로운 기능을 파악하십시오.
+
+## 노드 운영자를 위한 안내: 하드포크 준비
+
+Upgrade 19에는 하드포크 변경 사항(L2에서의 Osaka 및 Glamsterdam Defense)이 포함되어 있으므로, 모든 노드 운영자는 활성화 타임스탬프 이전에 실행 클라이언트와 합의 클라이언트를 업데이트해야 합니다.
+
+<Steps>
+  <Step title="최신 릴리스로 업데이트">
+  `op-node`와 `op-reth`를 아래 구성 요소 표에 명시된 버전으로 업데이트하십시오. 새 버전에는 superchain-registry에 있는 체인의 Karst 하드포크 활성화에 대한 합의 규칙이 포함되어 있습니다.
+  </Step>
+
+  <Step title="Karst 활성화 타임스탬프 구성">
+  Karst 활성화 타임스탬프를 구성하는 방법은 체인이 superchain-registry에 있는지 여부에 따라 다릅니다.
+
+  **superchain-registry에 있는 체인**(예: `Soneium`, `Ink`, `Unichain`, `Mode`, `Metal`, `Zora`):
+  Karst 활성화 타임스탬프가 업데이트된 릴리스에 내장되어 있으므로 타임스탬프를 수동으로 구성할 필요가 없습니다. op-node와 op-reth가 superchain-registry에서 체인 구성을 로드하도록 네트워크 플래그를 사용하고 있는지 확인하십시오.
+  * `op-node`: [`--network <network>`](/ko/node-operators/reference/op-node-config#network-and-rollup-config)(예: `--network soneium-mainnet`, `--network op-sepolia`)
+  * `op-reth`: [`--chain <network>`](/ko/node-operators/op-reth/cli/op-reth/node)(예: `--chain soneium`, `--chain unichain`)
+
+  **superchain-registry에 없는 체인:**
+  각 클라이언트의 구성에서 활성화 타임스탬프를 수동으로 설정하십시오.
+  * `op-node`: 롤업 구성에서 `karst_time: <timestamp>` 설정
+  * `op-reth`: genesis 파일에서 `"karstTime": <timestamp>` 설정
+  </Step>
+
+  <Step title="활성화 구성 확인">
+  노드가 올바르게 구성되었는지 확인하려면 다음 사항을 점검하십시오.
+    * 구성은 시작 시 로그로 출력됩니다.
+    * Karst 시점이 올바른 활성화 타임스탬프로 설정되어 있는지 확인합니다.
+    * `op-node` 시작 로그에서 해당하는 경우 `keep_karst_upgrade_gas`가 true로 설정되어 있는지 확인합니다([이 섹션](#gas-limit-action-required-for-affected-chains) 참조).
+  </Step>
+</Steps>
+
+## 체인 운영자를 위한 안내
+
+다음 구성 요소를 업데이트하십시오.
+
+| 구성 요소        | 버전      | 참고 |
+| ---------------- | ------------ | ----- |
+| `op-node`        | `v1.19.1`    | 활성화 타임스탬프 **이전에** 반드시 업데이트해야 합니다. Karst gas limit 수정(`keep_karst_upgrade_gas`)이 포함되어 있습니다. 현재 지원 중단된 `v1.19.0`을 대체합니다. |
+| `op-reth`        | `v2.3.3`     | 활성화 타임스탬프 **이전에** 반드시 업데이트해야 합니다. `op-sepolia` 및 `op-mainnet`의 SCR 로딩 문제를 수정합니다. Karst를 위한 `engine_getPayloadV5` 지원을 추가합니다. 현재 지원 중단된 `v2.3.2`를 대체합니다. |
+| `op-challenger`  | `v1.9.3`     | *(변경 없음)* 업그레이드 **이전에** 반드시 업데이트해야 합니다. |
+| `op-dispute-mon` | `v1.5.2`     | *(변경 없음)* 업그레이드 **이전에** 반드시 업데이트해야 합니다. |
+| `op-contracts`   | `v7.0.0`     | *(변경 없음)* |
+| `rollup-boost`   | `v0.7.16`    | Flashblocks를 실행하는 경우에만 해당합니다. Karst를 위한 `engine_getPayloadV5` 지원을 추가합니다. `v0.7.15`를 대체합니다. |
+| `op-rbuilder`    | `v0.4.9`     | Flashblocks를 실행하는 경우에만 해당합니다. `op-sepolia`/`op-mainnet`의 SCR 로딩 문제를 수정합니다. `engine_getPayloadV5` 지원을 추가합니다. `v0.4.8`을 대체합니다. |
+
+<Warning>
+  **업그레이드 순서:** **아직 Karst를 활성화하지 않은** 네트워크(Karst 이전)에서는 `op-node`, `op-reth`, `op-rbuilder`를 순서에 관계없이 독립적으로 업그레이드할 수 있습니다. 이들은 포크 타임스탬프까지 이전 Engine API 버전을 계속 사용합니다. **이미 Karst를 활성화한** 네트워크(Karst 이후, 예: Sepolia 체인)에서는 Karst가 `engine_getPayloadV5`를 요구하며 버전이 맞지 않으면 다운타임이 발생하므로, 세 가지 모두를 조율된 배포를 통해 함께 업그레이드해야 합니다.
+</Warning>
+
+### Gas limit: 영향을 받는 체인은 조치 필요
+
+* 체인에 `keep_karst_upgrade_gas = true`가 설정되어 있다면 상향된 gas limit이 고정되므로, 활성화 후 `SystemConfig.setGasLimit()` 트랜잭션으로 의도한 한도를 복원해야 합니다(아래 참조).
+* 체인에 이 플래그가 없다면 최신 릴리스를 사용하는 한 영향을 받지 않으며 조치가 필요하지 않습니다.
+* 체인이 이미 Karst를 활성화했다면 **반드시** `keep_karst_upgrade_gas = true`를 사용해야 합니다. 아직 Karst를 활성화하지 않은 일부 체인(mainnet 체인 포함)에도 이 플래그가 설정되어 있으므로, 아래 목록에서 해당 체인이 영향을 받는지 확인하십시오.
+
+`keep_karst_upgrade_gas = true`가 설정된 체인은 다음과 같습니다.
+
+
+* **Mainnet:** `OP`, `Ink`, `Soneium (Minato)`, `Unichain`
+* **Sepolia:** `OP`, `Ink`, `Lisk`, `Metal`, `Mode`, `Soneium`, `Unichain`, `Zora`
+
+Metal, Mode, Zora Mainnet은 Karst 활성화 시점에 sequencer에 이 값이 구성되어 있지 않았습니다.
+따라서 이 체인들은 기본값인 `keep_karst_upgrade_gas = false`를 상속받았습니다.
+
+노드 운영자는 이러한 변경 사항이 superchain-registry에 [업데이트](https://github.com/ethereum-optimism/superchain-registry/pull/1281)된 후속 노드 릴리스가 나올 때까지 `op-node`에서 `--network` 플래그를 사용할 수 없습니다.
+
+
+#### Gas limit 복원
+
+활성화 후 체인의 `SystemConfig` 소유자가 `setGasLimit()` 트랜잭션을 제출하여 블록 gas limit을 의도한 값으로 되돌리십시오.
+
+<Steps>
+  <Step title="현재(상향된) gas limit 조회">
+  ```bash
+  cast call <SYSTEM_CONFIG_ADDRESS> "gasLimit()(uint64)" --rpc-url <L1_RPC_URL>
+  ```
+  </Step>
+
+  <Step title="SystemConfig 소유자로 setGasLimit() 제출">
+  트랜잭션은 `SystemConfig` 소유자(일반적으로 멀티시그)가 보내야 합니다. `<INTENDED_GAS_LIMIT>`을 Karst 활성화 이전에 체인이 사용하던 값으로 설정하십시오.
+
+  ```bash
+  cast send <SYSTEM_CONFIG_ADDRESS> "setGasLimit(uint64)" <INTENDED_GAS_LIMIT> \
+    --rpc-url <L1_RPC_URL> --private-key <SYSTEM_CONFIG_OWNER_KEY>
+  ```
+
+  소유자가 Safe 멀티시그인 경우, `cast send`를 직접 사용하는 대신 일반적인 멀티시그 절차를 통해 호출을 구성하고 실행하십시오.
+  </Step>
+
+  <Step title="새 gas limit 확인">
+  `SystemConfig`의 `gasLimit()`을 다시 조회하여 의도한 값과 일치하는지 확인하십시오. 이 변경 사항은 해당 `ConfigUpdate`가 파생(derivation)되면 L2에 적용됩니다.
+  </Step>
+</Steps>
+
+### 허가형(permissioned) 결함 증명 체인
+
+**허가형** 결함 증명(게임 유형 `PERMISSIONED`)을 실행하는 체인은 아래의 전체 무허가 설정이 필요하지 않습니다. 그러나 업그레이드 후 레거시 `CANNON`(0) prestate가 사용되지 않더라도 `op-challenger`는 여전히 시작 시 cannon prestate가 구성되어 있어야 합니다.
+
+현재 `--prestates-url=<YOUR_PRESTATE_URL>`을 전달하고 있다면, 이를 플레이스홀더 cannon prestate로 대체하십시오.
+
+```bash
+--cannon-prestate=any-string
+# or
+OP_CHALLENGER_CANNON_PRESTATE=any-string
+```
+
+<Info>
+  이 값은 플레이스홀더일 뿐입니다. 허가형 체인은 `CANNON`(0) trace 데이터를 생성하지 않으므로 prestate가 로드되지 않습니다. `cannon-kona` prestate 구성에는 영향이 없습니다.
+</Info>
+
+### 무허가 결함 증명이 활성화된 체인
+
+`CANNON_KONA`가 respected game type이 되므로, 무허가 결함 증명을 실행하는 체인은 오프체인 인프라가 Kona를 완전히 지원할 준비가 되어 있는지 확인해야 합니다. 이는 매우 중요합니다. 업그레이드 후에는 출금이 `CANNON_KONA` 게임을 기준으로 증명됩니다.
+
+<Info>
+  Optimism은 Optimism Security Council이 관리하는 체인에 대해 온체인 업그레이드를 완료합니다.
+  그러나 오프체인 구성 요소는 운영자가 직접 cannon-kona 게임을 지원하도록 구성해야 합니다.
+  준비된 체인 목록에 포함되지 않은 무허가 결함 증명 활성화 체인은 아래의 모든 단계를 직접 수행해야 합니다.
+</Info>
+
+[Upgrade 18](/ko/notices/archive/upgrade-18)의 일환으로 이미 `cannon-kona`를 구성한 체인은 `op-challenger`가 최신 버전으로 실행 중인지, 그리고 prestate가 최신 상태인지 확인하십시오.
+
+<Steps>
+  <Step title="새 kona-client absolute prestate 검증">
+
+  absolute prestate는 [`kona-client/v1.6.0-rc.2`](https://github.com/ethereum-optimism/optimism/releases/tag/kona-client%2Fv1.6.0-rc.2)로 생성됩니다. Upgrade 19부터 `kona-client` 소스는 [`ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism) monorepo 안에 있습니다.
+
+  체인에 맞는 검증 경로를 선택하십시오.
+
+  <Tabs>
+    <Tab title="superchain-registry에 있는 체인">
+      이 릴리스에는 두 가지 변형이 제공됩니다.
+
+      *   **`cannon64-kona`**(`0x0337ecb3604c0b40c352e0c7711beb17a212d583f4fe956fd8d66e29ad5f9025`): `CANNON_KONA`(게임 유형 8)를 respected game type으로 채택하는 체인을 위한 표준 변형입니다.
+      *   **`cannon64-kona-interop`**(`0x03e3a42cf9a1d116f414206c465c6cdb74556136090e7c9556329403da0f310f`): interop 결함 증명 변형도 함께 실행하는 체인을 위한 것입니다.
+
+      이 prestate는 다음 체인에 적용됩니다.
+
+      *   Mainnet 및 Sepolia: `OP`, `Ink`, `Soneium`, `Unichain`
+
+      `kona-client/v1.6.0-rc.2` 태그에서 monorepo 루트에 있는 상태로 다음 명령을 실행하여 두 absolute prestate를 모두 검증할 수 있습니다.
+
+      ```shell
+      just reproducible-prestate-kona
+      ```
+
+      그런 다음 다음 명령으로 각 해시를 추출합니다.
+
+      ```shell
+      jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json          # cannon64-kona
+      jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
+      ```
+
+      대상 prestate가 예상대로 계산되었는지, 그리고
+      [standard-prestates.toml](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)의 해당 항목과 일치하는지 확인하십시오.
+    </Tab>
+
+    <Tab title="커스텀 체인 구성을 사용하는 체인">
+      [커스텀 kona-client prestate 튜토리얼](/ko/chain-operators/tutorials/kona-custom-prestate)에 따라 커스텀 prestate를 생성했다면, 결과 해시는 해당 체인에 고유하며 `standard-prestates.toml`에 나타나지 않습니다. 다음 세 가지 점검으로 검증하십시오.
+
+      1. **입력 확인.** 빌드 시 사용한 `KONA_CUSTOM_CONFIGS_DIR` 안의 롤업 구성 파일을 열고 체인 ID, 포크 타임스탬프(`karst_time`이 반영된 경우 포함), L1/L2 컨트랙트 주소가 체인의 실제 상태와 일치하는지 확인하십시오. prestate의 정확성은 빌드에 입력한 구성의 정확성에 달려 있습니다. 입력이 올바르다면 빌드는 결정론적입니다.
+
+      2. **체인이 포함되어 있는지 확인(배포 전).** 체인 병합에 조용히 실패한 커스텀 빌드는 *표준* prestate 해시를 생성합니다. 무언가를 배포하기 전에 체인이 실제로 prestate 이미지 안에 포함되어 있는지 확인하십시오.
+
+         ```bash
+         gunzip -c rust/kona/prestate-artifacts-cannon/prestate.bin.gz | strings | grep "<your-chain-name>"
+         ```
+
+         `chainList.json`의 각 체인에 대해 한 번씩 실행하십시오. 모든 체인이 최소 한 번 이상 일치해야 합니다.
+
+      3. **온체인 일치 확인(배포 후).** 새 게임 유형이 등록된 후, 온체인 absolute prestate가 `jq -r .pre rust/kona/prestate-artifacts-cannon/prestate-proof.json`과 일치하는지 확인하십시오. 현재(v2.4+) 컨트랙트에서는 prestate가 `DisputeGameFactory`의 `gameArgs`(`gameArgs(<gameType>)`의 처음 32바이트)에 저장되므로, 그곳이나 *생성된 게임 인스턴스*에서 조회하십시오. 값이 생성자 immutable이 아니라 clone-with-immutable-args 인자이기 때문에, 구현체 자체에서 `absolutePrestate()`를 호출하면 0이 반환됩니다.
+    </Tab>
+  </Tabs>
+  </Step>
+
+  <Step title="새 preimage 파일 업로드">
+  다른 absolute preimage 파일을 보관하는 위치에 새 preimage 파일을 업로드합니다. 이 위치는 `--prestates-url`이 가리키는 위치여야 합니다. `op-challenger`는 게임에 이의를 제기해야 할 때 이 파일을 가져와 사용합니다.
+
+  파일 이름을 absolute prestate 해시로 변경하십시오(예: `0x<hash>.bin.gz`).
+  </Step>
+
+  <Step title="cannon-kona를 respected game type으로 사용하도록 op-challenger 구성">
+  `op-challenger`가 업데이트되어 Kona 게임을 지원하도록 구성되어 있는지 확인하십시오.
+  trace type에 `cannon-kona`를 포함합니다.
+
+  ```bash
+  OP_CHALLENGER_TRACE_TYPE="cannon,cannon-kona,permissioned"
+  # or
+  --trace-type=cannon,cannon-kona,permissioned
+  ```
+
+  새 preimage 파일을 업로드하고 challenger가 사용할 수 있는지 확인하십시오.
+  두 preimage 파일을 같은 위치에 업로드한 경우:
+
+  ```bash
+  --prestates-url=<PRESTATES_URL>
+  ```
+
+  별도로 저장한 경우:
+
+  ```bash
+  --cannon-prestates-url=<CANNON_PRESTATES_URL>
+  --cannon-kona-prestates-url=<CANNON_KONA_PRESTATES_URL>
+  ```
+
+  표준 OP Labs `op-challenger` Docker 이미지를 사용하지 않는 경우 `kona-host` 바이너리 경로를 설정하십시오.
+
+  ```bash
+  OP_CHALLENGER_CANNON_KONA_SERVER=/path/to/kona-host
+  # or
+  --cannon-kona-server=/path/to/kona-host
+  ```
+
+  구성된 cannon-kona prestate와 동일한 릴리스에서 `kona-host`를 빌드하십시오.
+  </Step>
+
+  <Step title="L1 컨트랙트 업그레이드 실행">
+  인프라가 준비되면 업그레이드 트랜잭션을 실행하십시오. 이는 [레지스트리](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-versions-mainnet.toml)에 나열될 주소의 OP Contracts Manager(OPCMv2)에서 `upgrade()` 함수에 delegatecall을 수행하는 방식으로 진행해야 합니다.
+
+  트랜잭션을 실행하기 전에 예상 출력을 시뮬레이션하고 검증하시기 바랍니다.
+  </Step>
+
+  <Step title="CANNON_KONA 게임 유형을 사용하도록 op-proposer 업데이트">
+  <Warning>
+    게임 유형을 업데이트하지 않으면 **컨트랙트 업그레이드가 실행되는 즉시 `op-proposer`가 실패하기 시작합니다.** 업그레이드 트랜잭션이 반영되는 순간 온체인에서 respected game type이 `CANNON_KONA`(8)로 변경되며, 그 이후 이전 게임 유형(0)으로 제출된 모든 제안은 거부됩니다. 컨트랙트 업그레이드 이전 또는 동시에 게임 유형을 업데이트하십시오.
+  </Warning>
+
+  L1 컨트랙트 업그레이드가 실행되면 온체인에서 respected game type이 `CANNON`(0)에서 `CANNON_KONA`(8)로 변경됩니다. `op-proposer`가 새 게임 유형으로 제안을 제출하도록 다시 구성해야 하며, 그렇지 않으면 업그레이드 직후 실패하기 시작합니다.
+
+  proposer 구성에서 게임 유형을 `8`로 설정하십시오.
+
+  ```bash
+  OP_PROPOSER_GAME_TYPE=8
+  # or
+  --game-type=8
+  ```
+
+  제안 제출에 공백이 생기지 않도록 컨트랙트 업그레이드 실행 이전 또는 직후에 이를 업데이트하십시오.
+  </Step>
+</Steps>
+
+## 앱 개발자를 위한 안내
+
+* **EIP-7825 트랜잭션 gas limit(L2에서의 Osaka):** L2 트랜잭션에는 이제 트랜잭션당 gas limit 2^24 = 16,777,216 gas가 적용됩니다. 애플리케이션이 매우 높은 gas limit으로 트랜잭션을 제출한다면 새 임계값 이내인지 확인하십시오. 입금 트랜잭션은 면제됩니다. 대부분의 애플리케이션은 영향을 받지 않습니다.
+* **MODEXP gas 변경([EIP-7883](https://eips.ethereum.org/EIPS/eip-7883) + [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823), L2에서의 Osaka):** `MODEXP`(`0x05`)의 gas 비용 하한이 높아지고 새로운 입력 크기 상한(1024바이트 modulus)이 적용됩니다. 컨트랙트가 `MODEXP`를 호출한다면 gas 추정치를 업데이트하고 입력이 새 크기 한도 이내인지 확인하십시오.
+* **P256VERIFY gas 변경([EIP-7951](https://eips.ethereum.org/EIPS/eip-7951), L2에서의 Osaka):** `P256VERIFY`(`0x100`)의 gas 비용이 3,450 gas에서 6,900 gas로 증가합니다. 컨트랙트가 `P256VERIFY`를 호출한다면 gas 추정치를 업데이트하십시오.
+* **CLZ opcode([EIP-7939](https://eips.ethereum.org/EIPS/eip-7939), L2에서의 Osaka):** 새로운 Count Leading Zeros opcode(0x1e)를 사용할 수 있습니다. 기존 컨트랙트는 영향을 받지 않습니다.
+* **BN256 pairing 입력 크기 한도(Glamsterdam Defense):** `ecPairing`(`0x08`)의 최대 입력이 427쌍에서 300쌍(57,600바이트)으로 줄어듭니다. 컨트랙트가 300쌍을 초과하여 BN256 pairing precompile을 호출하면 해당 호출은 실패합니다. 표준 ZK 증명 검증(예: Groth16)은 영향을 받지 않습니다.
+* **L2 predeploy 업그레이드:** 애플리케이션이 predeploy 컨트랙트(예: `L2ToL1MessagePasser`, `L2CrossDomainMessenger`, `L2StandardBridge`)와 직접 상호작용한다면, 새로운 함수나 동작 변경 사항에 대한 변경 로그를 검토하십시오.
+* **출금 증명:** respected game type이 `CANNON`(0)에서 `CANNON_KONA`(8)로 변경됩니다. 표준 SDK를 사용하는 경우 이를 자동으로 처리합니다.

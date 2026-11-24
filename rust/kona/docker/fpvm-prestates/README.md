@@ -26,3 +26,6 @@ To create a reproducible kona-client prestate build that supports custom or devn
 cd rust
 KONA_CUSTOM_CONFIGS_DIR=<custom_config_dir> just build-kona-reproducible-prestate
 ```
+
+`<custom_config_dir>` must contain `chainList.json`, `configs.json` and `depsets.json`; see the
+[`kona-registry` README](../../crates/protocol/registry/README.md#custom-chain-configurations).

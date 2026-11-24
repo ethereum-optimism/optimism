@@ -1,12 +1,13 @@
 use super::super::state::EngineState;
-use crate::{BlockStateDiff, OpProofsStore, engine::EngineError};
+use crate::{
+    BlockStateDiff, OpProofsStore,
+    engine::{CanonicalInMemoryStateProvider, EngineError},
+};
 use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::Sender;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::BlockTy;
-use reth_provider::{
-    BlockHashReader, BlockReader, DatabaseProviderFactory, StateProviderFactory, StateReader,
-};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StageCheckpointReader};
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use std::time::Instant;
 use tracing::{debug, info};
@@ -23,9 +24,9 @@ impl IndexBlockTask {
     where
         Evm: ConfigureEvm,
         Provider: BlockHashReader
-            + StateReader
+            + CanonicalInMemoryStateProvider
+            + StageCheckpointReader
             + DatabaseProviderFactory
-            + StateProviderFactory
             + BlockReader<Block = BlockTy<Evm::Primitives>>
             + Clone
             + 'static,
@@ -45,9 +46,9 @@ fn run<Evm, Provider, Store>(
 where
     Evm: ConfigureEvm,
     Provider: BlockHashReader
-        + StateReader
+        + CanonicalInMemoryStateProvider
+        + StageCheckpointReader
         + DatabaseProviderFactory
-        + StateProviderFactory
         + BlockReader<Block = BlockTy<Evm::Primitives>>
         + Clone
         + 'static,
@@ -87,7 +88,7 @@ where
         });
     }
 
-    state.memory.insert(block, BlockStateDiff { sorted_trie_updates, sorted_post_state });
+    state.buffer_block(block, BlockStateDiff { sorted_trie_updates, sorted_post_state });
 
     #[cfg(feature = "metrics")]
     state.metrics.index_block_duration_seconds.record(start.elapsed());

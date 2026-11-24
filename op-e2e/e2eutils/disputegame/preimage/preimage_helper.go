@@ -98,8 +98,9 @@ func (h *Helper) UploadLargePreimage(ctx context.Context, dataSize int, modifier
 		h.require.NoError(err)
 		// Can't use EstimateGas because all the transactions will be sent in a batch, and the contract checks the
 		// start block, which won't match subsequent transactions until the first one is processed. So set the gas limit
-		// to what EstimateGas was returning when this was written plus a bunch of headroom.
-		tx.GasLimit = 2000000 // 826536
+		// to what EstimateGas was returning when this was written (826536) plus a bunch of headroom, above
+		// the EIP-7623 calldata floor of about 2.05M gas for a full chunk.
+		tx.GasLimit = 3_000_000
 		txs = append(txs, tx)
 		startBlock = new(big.Int).Add(startBlock, big.NewInt(int64(len(inputData.Commitments))))
 		if inputData.Finalize {

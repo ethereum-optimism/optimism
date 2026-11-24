@@ -62,11 +62,12 @@ proposal is valid and who wins the bonds. Investigate and explain; never `move`,
      everything beyond it. Per **super-root game** (super-cannon-kona, super-permissioned, zk;
      `--superroot-rpc`): `superroot_atTimestamp` at the game's `l2SequenceNumber`, reported as
      `timestamp`, `superRoot` (absent when the node has no super root there, which makes the
-     proposal invalid; for super-cannon-kona and super-permissioned, the invalid-transition hash
-     when the root's `VerifiedRequiredL1` is past `l1Head`), `rootMatch`, and `nodeSynced`
-     (`current_l1 > l1Head`). When `nodeSynced` is false the node cannot judge the proposal yet,
-     so `superRoot` and `rootMatch` are omitted, the same way the challenger waits rather than
-     acting. Super-root records omit `l2BlockNumber`, `outputRoot` and the safe-head fields.
+     proposal invalid; the invalid-transition hash when the root's `VerifiedRequiredL1` is past
+     `l1Head`, where zk games always get `rootMatch=false` because no ZK proof can prove that
+     hash), `rootMatch`, and `nodeSynced` (`current_l1 > l1Head`). When `nodeSynced` is false
+     the node cannot judge the proposal yet, so `superRoot` and `rootMatch` are omitted, the same
+     way the challenger waits rather than acting. Super-root records omit `l2BlockNumber`,
+     `outputRoot` and the safe-head fields.
      Challengers dispute invalid super-cannon-kona and zk proposals; super-permissioned games
      resolve DEFENDER_WINS at creation, so `rootMatch=false` there needs a guardian blacklist in the
      `AnchorStateRegistry` (op-dispute-mon alerts on it). For zk games `rootMatch` covers only the

@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Testing
 import { Test } from "test/setup/Test.sol";
 import { FeatureFlags } from "test/setup/FeatureFlags.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Contracts
 import { OPContractsManagerUtils } from "src/L1/opcm/OPContractsManagerUtils.sol";
@@ -918,7 +917,6 @@ contract OPContractsManagerUtils_IsMatchingInstructionByKey_Test is OPContractsM
 contract OPContractsManagerUtils_GetGameImpl_Test is OPContractsManagerUtils_TestInit {
     /// @notice Tests that getGameImpl returns the ZK dispute game implementation.
     function test_getGameImpl_zkDisputeGame_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         address impl = address(utils.getGameImpl(GameTypes.ZK_DISPUTE_GAME));
         assertEq(impl, makeAddr("zkDisputeGameImpl"), "ZK game impl address mismatch");
         assertTrue(impl != address(0), "ZK game impl should not be zero");
@@ -936,7 +934,6 @@ contract OPContractsManagerUtils_GetGameImpl_Test is OPContractsManagerUtils_Tes
 contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_TestInit {
     /// @notice Tests that makeGameArgs encodes the correct CWIA layout for ZKDisputeGame.
     function test_makeGameArgs_zkDisputeGame_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         Claim absolutePrestate = Claim.wrap(bytes32(keccak256("zk prestate")));
         address verifier = implementations.sp1PlonkAdapterImpl;
         Duration maxChallengeDuration = Duration.wrap(uint64(7 days));
@@ -990,7 +987,6 @@ contract OPContractsManagerUtils_MakeGameArgs_Test is OPContractsManagerUtils_Te
 
     /// @notice Tests that trailing ZK configuration words are rejected.
     function test_makeGameArgs_zkDisputeGameInvalidLength_reverts() public {
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
         IOPContractsManagerUtils.DisputeGameConfig memory cfg = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0,

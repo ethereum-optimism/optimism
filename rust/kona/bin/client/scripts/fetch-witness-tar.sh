@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Download a preimage witness tar from chain-test-data releases with etag caching.
-# Mirrors op-program/scripts/run-compat.sh — skips redownload when the release asset
-# is unchanged so local re-runs are fast.
+# Skips the download when the release asset is unchanged, so local re-runs are fast.
 #
 # Usage: fetch-witness-tar.sh <tar_name> <base_url>
 #
@@ -22,5 +21,10 @@ TAR_PATH="${TESTDATA_DIR}/${TAR_NAME}"
 ETAG_PATH="${TESTDATA_DIR}/${TAR_NAME}.etag"
 
 mkdir -p "${TESTDATA_DIR}"
+# An etag without its tar would make the server answer 304 with no body and
+# leave no tar to extract.
+if [[ ! -f "${TAR_PATH}" ]]; then rm -f "${ETAG_PATH}"; fi
+# No --retry-delay: it replaces curl's exponential backoff (1, 2, 4, 8, 16 s)
+# with a fixed wait, which a longer release-CDN or redirect failure outlasts.
 curl --etag-save "${ETAG_PATH}" --etag-compare "${ETAG_PATH}" \
-  -L --fail -o "${TAR_PATH}" "${URL}"
+  -L --fail --retry 5 --retry-all-errors -o "${TAR_PATH}" "${URL}"

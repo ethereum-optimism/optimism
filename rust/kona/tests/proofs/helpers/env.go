@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -72,22 +73,28 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 
 	sd := e2eutils.Setup(t, dp, genesisAlloc)
 
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-
 	miner := helpers.NewL1Miner(t, log.New("role", "l1-miner"), sd.L1Cfg)
 
 	l1Cl, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
 	require.NoError(t, err)
-	engine := helpers.NewL2Engine(t, log.New("role", "sequencer-engine"), sd.L2Cfg, jwtPath, helpers.EngineWithP2P())
+	engine := helpers.NewL2Engine(t, log.New("role", "sequencer-engine"), sd.L2Cfg)
 	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	// Synthesise a one-chain depset when interop is scheduled; the sequencer's
+	// Synthesise a depset when interop is scheduled; the sequencer's
 	// FetchingAttributesBuilder constructor panics otherwise.
+	require.True(t, len(testCfg.DependencySetPeers) == 0 || sd.RollupCfg.LagoonTime != nil,
+		"DependencySetPeers needs Lagoon to be scheduled")
+	require.True(t, len(testCfg.DependencySetPeers) == 0 || sd.DependencySet == nil,
+		"DependencySetPeers needs the env to build the dependency set")
 	if sd.RollupCfg.LagoonTime != nil && sd.DependencySet == nil {
-		defaultDepSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+		deps := map[eth.ChainID]*depset.StaticConfigDependency{
 			eth.ChainIDFromBig(sd.RollupCfg.L2ChainID): {},
-		})
+		}
+		for _, peer := range testCfg.DependencySetPeers {
+			deps[peer] = &depset.StaticConfigDependency{}
+		}
+		defaultDepSet, err := depset.NewStaticConfigDependencySet(deps)
 		require.NoError(t, err)
 		sd.DependencySet = defaultDepSet
 	}
@@ -98,20 +105,22 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 
 	// Set the batcher key to the secret key of the batcher
 	batcherCfg.BatcherKey = dp.Secrets.Batcher
-	batcher := helpers.NewL2Batcher(log, sd.RollupCfg, batcherCfg, sequencer.RollupClient(), miner.EthClient(), engine.EthClient(), engCl)
+	batcher := helpers.NewL2Batcher(log, sd.RollupCfg, batcherCfg, sequencer.RollupClient(), miner.EthClient(), engCl)
 
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l1EthCl := miner.EthClient()
 	l2EthCl := engine.EthClient()
 	l1UserEnv := &helpers.BasicUserEnv[*helpers.L1Bindings]{
 		EthCl:          l1EthCl,
+		Receipts:       txplan.FromGethReceipts(l1EthCl),
 		Signer:         types.LatestSigner(sd.L1Cfg.Config),
 		AddressCorpora: addresses,
 		Bindings:       helpers.NewL1Bindings(t, l1EthCl, e2ecfg.DefaultAllocType),
 	}
 	l2UserEnv := &helpers.BasicUserEnv[*helpers.L2Bindings]{
 		EthCl:          l2EthCl,
-		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		Receipts:       engine.SourceClient(),
+		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       helpers.NewL2Bindings(t, l2EthCl, engine.GethClient()),
 	}
@@ -168,13 +177,6 @@ func WithL1Head(head common.Hash) FixtureInputParam {
 	}
 }
 
-// WithL2RPCTracker sets the L2RPCTracker to observe L2 JSON-RPC calls made by the program host.
-func WithL2RPCTracker(tracker *L2RPCTracker) FixtureInputParam {
-	return func(f *FixtureInputs) {
-		f.L2RPCTracker = tracker
-	}
-}
-
 // WithCorruptClaim instructs the SP1 super-range executor to corrupt the claim the guest sees,
 // after witness collection has run on the honest one, so the guest rejects it. Used for the
 // invalid-claim (soundness) test path. Has no effect on the native fault-proof program. Not
@@ -210,7 +212,7 @@ func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, f
 // RunFaultProofProgram runs the fault proof program for a single state transition, from the provided l2 block num - 1 to the provided l2 block num.
 func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	defaultParam := WithSuperDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
-	combinedParams := []FixtureInputParam{defaultParam}
+	combinedParams := []FixtureInputParam{defaultParam, WithDependencySet(env.Sd.DependencySet)}
 	combinedParams = append(combinedParams, fixtureInputParams...)
 	RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
 }
@@ -227,6 +229,7 @@ func (env *L2FaultProofEnv) RunSP1SuperRangeProgram(t helpers.Testing, l2ClaimBl
 	combinedParams := []FixtureInputParam{
 		WithSuperDefaults(t, l2ClaimBlockNum, l2, env.Engine),
 		WithSupernode(l2.StartSuperRootHTTPRPC(t)),
+		WithDependencySet(env.Sd.DependencySet),
 	}
 	combinedParams = append(combinedParams, fixtureInputParams...)
 	RunSP1SuperRangeProgram(t, env.log, env.Miner, checkResult, combinedParams...)
@@ -290,7 +293,7 @@ func (env *L2FaultProofEnv) RotateBatcher(t helpers.Testing, newBatcherKey *ecds
 	env.Batcher = helpers.NewL2Batcher(
 		env.log, env.Sd.RollupCfg, batcherCfg,
 		env.Sequencer.RollupClient(), env.Miner.EthClient(),
-		env.Engine.EthClient(), env.engCl,
+		env.engCl,
 	)
 }
 

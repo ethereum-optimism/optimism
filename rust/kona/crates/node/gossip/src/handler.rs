@@ -1,8 +1,8 @@
 //! Block Handler
 
 use crate::{
-    HandlerEncodeError,
-    config::snappy_decompressed_len_within_bound,
+    HandlerEncodeError, UnsafeBlockSigner,
+    config::{minimal_snappy_preamble, snappy_decompressed_len_within_bound},
     payload::{GossipPayloadVersion, SignedGossipPayload},
 };
 use alloy_primitives::{Address, B256, Signature};
@@ -32,7 +32,9 @@ pub struct BlockHandler {
     /// The rollup config used to validate the block.
     pub rollup_config: RollupConfig,
     /// A [`Receiver`] to monitor changes to the unsafe block signer.
-    pub signer_recv: Receiver<Address>,
+    pub(crate) signer_recv: Receiver<Address>,
+    /// Verifies signatures and owns the grace period for the previous unsafe block signer.
+    pub(crate) signer: UnsafeBlockSigner,
     /// The libp2p topic for pre Canyon/Shangai blocks.
     pub blocks_v1_topic: IdentTopic,
     /// The libp2p topic for Canyon/Delta blocks.
@@ -52,30 +54,33 @@ impl Handler for BlockHandler {
         // Reject frames whose Snappy header declares a decompressed size over MAX_GOSSIP_SIZE
         // before decoding. The decoder would otherwise pre-allocate the declared length (up to
         // roughly 4 GiB) from a tiny frame. This mirrors op-node's gossip topic validator.
-        if snappy_decompressed_len_within_bound(&msg.data).is_none() {
-            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "invalid_snappy_length");
+        let frame = minimal_snappy_preamble(&msg.data);
+        if snappy_decompressed_len_within_bound(&frame).is_none() {
+            metrics::counter!(crate::Metrics::INVALID_MESSAGE, "reason" => "invalid_snappy_length")
+                .increment(1);
             debug!(target: "gossip", len = msg.data.len(), "Rejecting Snappy frame with invalid declared length before decode");
             return (MessageAcceptance::Reject, None);
         }
 
         let Some(version) = self.payload_version(&msg.topic) else {
             // Unreachable in practice because the driver dispatches only known block topics.
-            kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "unknown_topic");
+            metrics::counter!(crate::Metrics::INVALID_MESSAGE, "reason" => "unknown_topic")
+                .increment(1);
             debug!(target: "gossip", topic = ?msg.topic, "Received block with unknown topic");
             return (MessageAcceptance::Reject, None);
         };
 
-        let signed = match SignedGossipPayload::decode_snappy(&msg.data) {
+        let signed = match SignedGossipPayload::decode_snappy(&frame) {
             Ok(signed) => signed,
             Err(err) => {
-                kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error");
+                metrics::counter!(crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error")
+                    .increment(1);
                 debug!(target: "gossip", ?err, "Failed to decode signed gossip payload");
                 return (MessageAcceptance::Reject, None);
             }
         };
         let payload_hash = signed.payload_hash();
-        #[cfg(feature = "metrics")]
-        kona_macros::inc!(counter, crate::Metrics::BLOCK_VALIDATION_TOTAL);
+        metrics::counter!(crate::Metrics::BLOCK_VALIDATION_TOTAL).increment(1);
 
         // Authenticate the exact envelope bytes before decoding the SSZ payload and transactions.
         if let Err(err) = self.validate_signature(&signed) {
@@ -86,9 +91,9 @@ impl Handler for BlockHandler {
         let envelope = match signed.into_envelope(version) {
             Ok(envelope) => envelope,
             Err(err) => {
-                kona_macros::inc!(counter, crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error");
-                #[cfg(feature = "metrics")]
-                kona_macros::inc!(counter, crate::Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_block");
+                metrics::counter!(crate::Metrics::INVALID_MESSAGE, "reason" => "decode_error")
+                    .increment(1);
+                metrics::counter!(crate::Metrics::BLOCK_VALIDATION_FAILED, "reason" => "invalid_block").increment(1);
                 debug!(target: "gossip", ?err, hash = ?payload_hash, "Failed to decode authenticated execution payload");
                 return (MessageAcceptance::Reject, None);
             }
@@ -122,15 +127,23 @@ impl BlockHandler {
     /// Requires the chain ID and a receiver channel for the unsafe block signer.
     pub fn new(rollup_config: RollupConfig, signer_recv: Receiver<Address>) -> Self {
         let chain_id = rollup_config.l2_chain_id.id();
+        let signer = UnsafeBlockSigner::new(*signer_recv.borrow());
         Self {
             rollup_config,
             signer_recv,
+            signer,
             blocks_v1_topic: IdentTopic::new(format!("/optimism/{chain_id}/0/blocks")),
             blocks_v2_topic: IdentTopic::new(format!("/optimism/{chain_id}/1/blocks")),
             blocks_v3_topic: IdentTopic::new(format!("/optimism/{chain_id}/2/blocks")),
             blocks_v4_topic: IdentTopic::new(format!("/optimism/{chain_id}/3/blocks")),
             seen_hashes: BTreeMap::new(),
         }
+    }
+
+    /// Applies the latest signer address without restarting grace on an unchanged value.
+    /// Watch notifications can coalesce; the handler only knows updates it has observed.
+    pub(crate) fn update_signer(&mut self) {
+        self.signer.new_signer(*self.signer_recv.borrow_and_update());
     }
 
     /// Returns the topic using the specified timestamp and optional [`RollupConfig`].
@@ -250,6 +263,44 @@ mod tests {
         assert!(matches!(payload, Some(OpExecutionPayloadEnvelope::V2(_))));
     }
 
+    /// Returns `frame` with its snappy length preamble re-encoded in `n` bytes, padded with
+    /// continuation bytes.
+    fn pad_snappy_length_preamble(frame: &[u8], n: usize) -> Vec<u8> {
+        let mut len = snap::raw::decompress_len(frame).unwrap();
+        let preamble_len = frame.iter().position(|&b| b < 0x80).unwrap() + 1;
+        let mut out = Vec::with_capacity(n + frame.len() - preamble_len);
+        for _ in 1..n {
+            out.push(len as u8 | 0x80);
+            len >>= 7;
+        }
+        out.push(len as u8);
+        out.extend_from_slice(&frame[preamble_len..]);
+        out
+    }
+
+    /// A signed block whose snappy length preamble is padded to ten bytes is accepted, and one
+    /// padded to eleven bytes is rejected, as op-node's
+    /// `TestBlockValidatorPaddedSnappyLengthPreamble` (`op-node/p2p/gossip_test.go`) checks.
+    #[test]
+    fn test_padded_snappy_length_preamble() {
+        let mut handler = handler_with_signer(Address::ZERO);
+        let topic = handler.blocks_v2_topic.clone();
+        let envelope = v2_envelope();
+        let (encoded, signer) =
+            encode_with_test_signature(&handler, topic.clone(), envelope.clone());
+        handler.signer_recv = tokio::sync::watch::channel(signer).1;
+
+        let (acceptance, payload) =
+            handler.handle(message(topic.clone(), pad_snappy_length_preamble(&encoded, 11)));
+        assert!(matches!(acceptance, MessageAcceptance::Reject));
+        assert!(payload.is_none());
+
+        let (acceptance, payload) =
+            handler.handle(message(topic, pad_snappy_length_preamble(&encoded, 10)));
+        assert!(matches!(acceptance, MessageAcceptance::Accept));
+        assert_eq!(payload, Some(envelope));
+    }
+
     #[test]
     fn test_invalid_decode_payload_hash() {
         let signature = Signature::test_signature();
@@ -339,7 +390,6 @@ mod tests {
         assert_valid_decode(v3_envelope(), |h| h.blocks_v3_topic.clone());
     }
 
-    #[cfg(feature = "metrics")]
     fn invalid_message_count(snapshot: metrics_util::debugging::Snapshot, reason: &str) -> u64 {
         use metrics_util::debugging::DebugValue;
         for (ckey, _unit, _desc, value) in snapshot.into_vec() {
@@ -356,7 +406,6 @@ mod tests {
         0
     }
 
-    #[cfg(feature = "metrics")]
     fn zero_signer_handler() -> BlockHandler {
         let (_, unsafe_signer) = tokio::sync::watch::channel(Address::ZERO);
         BlockHandler::new(
@@ -365,7 +414,6 @@ mod tests {
         )
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn handle_records_invalid_message_metric_for_invalid_snappy_length() {
         use metrics_util::debugging::DebuggingRecorder;
@@ -395,7 +443,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn handle_records_invalid_message_metric_for_decode_error() {
         use metrics_util::debugging::DebuggingRecorder;
@@ -415,7 +462,6 @@ mod tests {
         assert_eq!(invalid_message_count(snapshotter.snapshot(), "decode_error"), 1);
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn handle_records_invalid_message_metric_for_unknown_topic() {
         use metrics_util::debugging::DebuggingRecorder;

@@ -1,11 +1,11 @@
 //! Command that unwinds the OP proofs storage to a specific block number.
 
+use crate::chainspec::OpChainSpecParser;
 use alloy_consensus::{BlockHeader, EMPTY_ROOT_HASH};
 use clap::Parser;
-use reth_chainspec::EthChainSpec;
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::ProofsHistoryStorageArgs;
 use reth_optimism_trie::{
     OpProofsProviderRO, OpProofsProviderRw, OpProofsStorageError, OpProofsStore,
@@ -20,9 +20,9 @@ use tracing::{info, warn};
 ///
 /// This command removes all proof history and state updates after the target block number.
 #[derive(Debug, Parser)]
-pub struct UnwindCommand<C: ChainSpecParser> {
+pub struct UnwindCommand {
     #[command(flatten)]
-    env: EnvironmentArgs<C>,
+    env: EnvironmentArgs<OpChainSpecParser>,
 
     /// Shared proofs-history storage flags (storage path + version).
     #[command(flatten)]
@@ -35,7 +35,7 @@ pub struct UnwindCommand<C: ChainSpecParser> {
     pub target: u64,
 }
 
-impl<C: ChainSpecParser> UnwindCommand<C> {
+impl UnwindCommand {
     /// Validates that the target block number is within a valid range for unwinding.
     fn validate_unwind_range<Store: OpProofsStore>(&self, storage: Store) -> eyre::Result<bool> {
         let provider_ro = storage.provider_ro()?;
@@ -60,11 +60,9 @@ impl<C: ChainSpecParser> UnwindCommand<C> {
 
         Ok(true)
     }
-}
 
-impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> UnwindCommand<C> {
     /// Execute [`UnwindCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
@@ -126,11 +124,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> UnwindCommand<C> {
 
         Ok(())
     }
-}
 
-impl<C: ChainSpecParser> UnwindCommand<C> {
     /// Returns the underlying chain being used to run this command
-    pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+    pub const fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
         Some(&self.env.chain)
     }
 }

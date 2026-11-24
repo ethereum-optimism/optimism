@@ -97,8 +97,7 @@ pub trait WitnessExecutor {
         P: Pipeline + SignalReceiver + Send + Sync + Debug,
     {
         let boot = &claims.first;
-        // Install custom crypto provider for KZG point evaluation precompile
-        revm::precompile::install_crypto(CustomCrypto::default());
+        revm::precompile::install_crypto(CustomCrypto);
 
         let rollup_config = Arc::new(boot.rollup_config.clone());
 

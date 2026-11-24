@@ -4,9 +4,11 @@ mod crash_backtrace;
 
 mod builder;
 
+mod conditional_tx;
+
 mod custom_pool;
 
-mod priority;
+mod pool_limits;
 
 mod rpc;
 
@@ -16,10 +18,14 @@ mod debug_trace_post_exec;
 
 mod invalid_post_exec;
 
+mod lagoon;
+
+mod rpc_replay_settlement;
+
 mod estimate_gas_7825;
 
 mod p2p_version;
 
-mod payload_handoff;
+mod derived_attributes;
 
 const fn main() {}

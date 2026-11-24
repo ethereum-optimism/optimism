@@ -38,7 +38,7 @@ environment:
   environment:
     CGO_ENABLED: "0"
 
-# op-core/superchain embed prep runs once before any subpackage go/build.
+# op-core/superchain/bundle embed prep runs once before any subpackage go/build.
 pipeline:
   - uses: op-stack-go/sync-superchain
 

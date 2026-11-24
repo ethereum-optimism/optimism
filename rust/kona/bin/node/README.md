@@ -21,10 +21,6 @@ kona-node [GLOBAL_OPTIONS] <SUBCOMMAND> [SUBCOMMAND_OPTIONS]
 ### Available Subcommands
 
 - **`node`** (alias: `n`) - Runs the consensus node for OP Stack rollup validation
-- **`net`** (aliases: `p2p`, `network`) - Runs the networking stack for the node
-- **`registry`** (aliases: `r`, `scr`) - Lists OP Stack chains available in the superchain-registry
-- **`bootstore`** (aliases: `b`, `boot`, `store`) - Utility tool to interact with local bootstores
-- **`info`** - Get information about OP Stack chains
 
 ### Running the Consensus Node
 
@@ -44,7 +40,7 @@ kona-node \
   --p2p.listen.tcp 9223 \
   --p2p.listen.udp 9223 \
   --p2p.scoring off \
-  --p2p.bootstore /path/to/bootstore
+  --p2p.bootstore /path/to/bootstore.json
 ```
 
 ### Example: OP Sepolia Configuration
@@ -70,7 +66,7 @@ kona-node \
   --p2p.listen.tcp 9223 \
   --p2p.listen.udp 9223 \
   --p2p.scoring off \
-  --p2p.bootstore ./bootstore
+  --p2p.bootstore ./bootstore.json
 ```
 
 ### Configuration via Environment Variables
@@ -78,10 +74,10 @@ kona-node \
 Many configuration options can be set via environment variables:
 
 - `KONA_NODE_L1_ETH_RPC` - L1 execution client RPC URL
-- `KONA_NODE_L1_TRUST_RPC` - Whether to trust the L1 RPC without verification (default: true)
+- `KONA_NODE_L1_TRUST_RPC` - Whether to trust the L1 RPC without verification (default: false)
 - `KONA_NODE_L1_BEACON` - L1 beacon API URL
+- `KONA_NODE_VERIFIER_L1_CONFS` - L1 confirmation depth before deriving L2 data (default: 0)
 - `KONA_NODE_L2_ENGINE_RPC` - L2 engine API URL
-- `KONA_NODE_L2_TRUST_RPC` - Whether to trust the L2 RPC without verification (default: true)
 - `KONA_NODE_L2_ENGINE_AUTH` - Path to L2 engine JWT secret file
 - `KONA_NODE_MODE` - Node operation mode (default: validator)
 - `RUST_LOG` - Logging configuration
@@ -97,6 +93,11 @@ export RUST_LOG="kona_node=info,kona_derive=debug"
 kona-node node --port 5060
 ```
 
+Use `--verifier.l1-confs 4` (or `KONA_NODE_VERIFIER_L1_CONFS=4`) to keep derivation
+four blocks behind the observed L1 head. This applies in validator and sequencer modes;
+the sequencer's selection of L1 origins is configured separately. The default of zero
+derives through the L1 tip, matching op-node's default.
+
 ### Help and Documentation
 
 Use the `--help` flag to see all available options and subcommands:
@@ -105,35 +106,8 @@ Use the `--help` flag to see all available options and subcommands:
 # General help
 kona-node --help
 
-# Help for specific subcommands
+# Help for the node subcommand
 kona-node node --help
-kona-node net --help
-kona-node registry --help
-```
-
-### Networking and P2P
-
-Run just the networking stack:
-
-```bash
-kona-node net \
-  --p2p.listen.tcp 9223 \
-  --p2p.listen.udp 9223 \
-  --p2p.bootstore ./bootstore
-```
-
-### Registry Information
-
-List available OP Stack chains:
-
-```bash
-kona-node registry
-```
-
-Get information about a specific chain:
-
-```bash
-kona-node info --help
 ```
 
 ## Requirements
@@ -147,23 +121,23 @@ kona-node info --help
 
 ### RPC Trust Configuration
 
-By default, Kona trusts RPC providers and does not perform additional block hash verification, optimizing for performance. This can be configured using trust flags:
+Kona defaults to verifying L1 RPC responses (`--l1-trust-rpc=false`), matching op-node. Verification checks each L1 header against its block hash, and each block's transactions and receipts against the header's transactions and receipts roots. It also proves the unsafe block signer it reads from L1 with `eth_getProof`, so the L1 RPC must serve that method. To retain the previous L1 trust behavior, set `--l1-trust-rpc=true` or `KONA_NODE_L1_TRUST_RPC=true`. The setting accepts a space-separated value (such as `--l1-trust-rpc false`) or an equals sign (`--l1-trust-rpc=false`). A bare flag enables trust. It can be configured explicitly:
 
 ```bash
-# For untrusted/public RPC providers (adds verification)
+# For untrusted/public L1 RPC providers (adds verification)
 kona-node node \
   --l1 https://public-rpc-endpoint.com \
-  --l1-trust-rpc false \
-  --l2 https://another-public-rpc.com \
-  --l2-trust-rpc false \
+  --l1-trust-rpc=false \
   # ... other options
 ```
 
+The L2 engine is the node's own execution client and is always trusted, as in op-node: there is no `--l2-trust-rpc` flag.
+
 **Security Considerations:**
-- Default behavior (`true`): No additional verification, assumes RPC is trustworthy
-- Verification mode (`false`): All block hashes are verified against requested hashes
-- Use verification (`false`) for public or third-party RPC endpoints
-- Default trust (`true`) is suitable for local nodes and trusted infrastructure
+- Trust mode (`true`): L1 RPC responses are used as returned, assumes the L1 RPC is trustworthy
+- Verification mode (`false`): checks L1 headers, transactions, receipts and the unsafe block signer proof
+- Use verification (`false`) for public or third-party L1 RPC endpoints
+- Trust mode (`true`) is suitable for an L1 node you run yourself
 
 ### Production Deployments
 

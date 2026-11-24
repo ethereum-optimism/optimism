@@ -1,27 +1,25 @@
 //! Validates execution payload wrt Optimism consensus rules
 
 use alloc::sync::Arc;
-use alloy_consensus::Block;
 use derive_more::{Constructor, Deref};
 use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayloadEnvelope, OpPayloadError};
-use reth_optimism_forks::OpHardforks;
-use reth_payload_validator::{cancun, prague, shanghai};
-use reth_primitives_traits::{Block as _, SealedBlock, SignedTransaction};
+use reth_chainspec::EthereumHardforks;
+use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_primitives::OpBlock;
+use reth_payload_validator::{amsterdam, cancun, prague, shanghai};
+use reth_primitives_traits::{Block as _, SealedBlock};
 
 /// Execution payload validator.
 #[derive(Clone, Debug, Deref, Constructor)]
-pub struct OpExecutionPayloadValidator<ChainSpec> {
+pub struct OpExecutionPayloadValidator {
     /// Chain spec to validate against.
     #[deref]
-    inner: Arc<ChainSpec>,
+    inner: Arc<OpChainSpec>,
 }
 
-impl<ChainSpec> OpExecutionPayloadValidator<ChainSpec>
-where
-    ChainSpec: OpHardforks,
-{
+impl OpExecutionPayloadValidator {
     /// Returns reference to chain spec.
-    pub fn chain_spec(&self) -> &ChainSpec {
+    pub fn chain_spec(&self) -> &OpChainSpec {
         &self.inner
     }
 
@@ -29,15 +27,15 @@ where
     /// layout.
     ///
     /// See also [`ensure_well_formed_payload`].
-    pub fn ensure_well_formed_payload<T: SignedTransaction>(
+    pub fn ensure_well_formed_payload(
         &self,
         payload: OpExecutionData,
-    ) -> Result<SealedBlock<Block<T>>, OpPayloadError> {
+    ) -> Result<SealedBlock<OpBlock>, OpPayloadError> {
         ensure_well_formed_payload(self.chain_spec(), payload)
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:0fbe428
+/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2
 /// `reth_ethereum_payload_builder::validator::ensure_well_formed_payload`
 ///
 /// Copies upstream's ordered payload checks with OP payload fields and fork activation.
@@ -59,14 +57,10 @@ where
 /// are empty as well as those passed in the sidecar. If the payload fields are not provided.
 ///
 /// Validation according to specs <https://specs.optimism.io/protocol/exec-engine.html#engine-api>.
-pub fn ensure_well_formed_payload<ChainSpec, T>(
-    chain_spec: ChainSpec,
+pub fn ensure_well_formed_payload(
+    chain_spec: &OpChainSpec,
     payload: OpExecutionData,
-) -> Result<SealedBlock<Block<T>>, OpPayloadError>
-where
-    ChainSpec: OpHardforks,
-    T: SignedTransaction,
-{
+) -> Result<SealedBlock<OpBlock>, OpPayloadError> {
     let sidecar = payload.sidecar.clone();
     let payload = OpExecutionPayloadEnvelope::try_from(payload)?;
 
@@ -88,6 +82,11 @@ where
         sealed_block.body(),
         sidecar.isthmus(),
         chain_spec.is_prague_active_at_timestamp(sealed_block.timestamp),
+    )?;
+
+    amsterdam::ensure_well_formed_fields(
+        &sealed_block,
+        chain_spec.is_amsterdam_active_at_timestamp(sealed_block.timestamp),
     )?;
 
     Ok(sealed_block)

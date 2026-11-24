@@ -1,0 +1,91 @@
+---
+title: OP Stack 보안 모델
+description: OP Stack 보안 모델과 일반적인 질문에 대한 답변을 알아봅니다.
+diataxis: explanation
+---
+
+OP Mainnet을 비롯한 많은 OP Stack 체인은 아직 개발이 진행 중입니다.
+OP Stack 사용자를 보호하는 보안 메커니즘을 지속적이고 반복적으로 개선하는 것은 [Optimism](/ko/governance/evolution-and-experimentation)의 최우선 과제입니다.
+Optimism은 OP Stack 체인과 OP Stack 전체의 보안에 대해 명확하고 투명하게 공개하기 위해 노력합니다.
+
+## 핵심 요약
+
+모든 블록체인 시스템의 보안 모델은 가장 약한 부분만큼만 강합니다.
+현재 **OP Stack 체인의 보안은 [Optimism Security Council](https://gov.optimism.io/t/intro-to-optimisms-security-council/6885)과 Optimism Foundation이 공동으로 관리하는 [멀티시그](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A)에 의존한다는 점을 이해하는 것이 중요합니다**.
+또한 OP Stack 체인에는 **시스템 내에 보관된 ETH 또는 토큰의 일부 또는 전부를 잃게 할 수 있는 알려지지 않은 버그가 있을 수 있습니다**.
+
+## OP Stack 멀티시그
+
+OP Stack 체인의 보안은 현재 [Optimism Security Council](https://gov.optimism.io/t/intro-to-optimisms-security-council/6885)과 Optimism Foundation이 공동으로 관리하는 멀티시그에 의존합니다.
+이 멀티시그는 [2-of-2 중첩 멀티시그](https://etherscan.io/address/0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A)이며, 이는 다시 Optimism Security Council이 관리하는 [10-of-13 멀티시그](https://etherscan.io/address/0xc2819DC788505Aac350142A7A707BF9D03E3Bd03)와 Optimism Foundation이 관리하는 [5-of-7 멀티시그](https://etherscan.io/address/0x847B5c174615B1B7fDF770882256e2D3E95b9D92)에 의해 관리됩니다.
+
+이 멀티시그는 잠재적인 보안 우려에 신속하게 대응할 수 있도록 **업그레이드 지연 없이** 핵심 OP Stack 스마트 컨트랙트를 업그레이드하는 데 사용할 수 있습니다.
+OP Stack 시스템에 대한 모든 업그레이드는 두 구성 멀티시그 모두의 승인을 받아야 하며, 어느 한쪽이라도 업그레이드를 거부할 수 있습니다.
+
+## 결함 증명
+
+<Info>
+  **결함 증명(fault proof)은 만능 해결책이 아니며**, **시스템을 즉시 업그레이드할 수 있는 멀티시그나 security council이 여전히 존재한다면 결함 증명이 시스템 보안에 제공하는 개선은 제한적**이라는 점을 이해하는 것이 중요합니다.
+  OP Stack 체인은 궁극적으로 즉시 업그레이드의 필요성을 완전히 없애도록 설계된 멀티 클라이언트 및 멀티 증명 접근 방식을 따르고 있습니다.
+</Info>
+
+사용자는 출금이 실제로 OP Stack 체인 내에 포함되었음을 보여 주는 출금 증명을 제출하여 OP Stack 체인에서 Ethereum으로 ETH와 토큰을 출금할 수 있습니다.
+출금은 [`DisputeGameFactory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol) 컨트랙트를 통해 게시된 체인 상태에 대한 제안을 기준으로 증명됩니다.
+
+제안은 누구나 `DisputeGameFactory` 컨트랙트에 제출할 수 있으며, 제출에는 특별한 권한이 필요하지 않습니다.
+제출된 각 제안은 [`FaultDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol) 컨트랙트를 생성하며, 다른 사용자는 누구나 "결함 증명" 프로세스에 참여하여 제안의 유효성에 이의를 제기할 수 있습니다.
+결함 증명 게임에 대한 자세한 설명은 [결함 증명 설명](/ko/op-stack/fault-proofs/explainer)에서 확인할 수 있습니다.
+
+결함 증명 게임은 누구나 참여할 수 있지만(permissionless), [Guardian](/ko/op-stack/protocol/privileged-roles#guardian) 역할을 맡은 Optimism Security Council이 결함 증명 게임이 실패할 경우에 대비한 최후의 안전장치를 제공합니다.
+
+각 제안은 지연 기간을 기다려야 하며, 이 기간 동안 Guardian은 여러 안전 장치(safety hatch)를 통해 유효하지 않은 제안이 ETH 또는 토큰 출금에 사용되는 것을 막을 수 있습니다.
+Guardian은 또한 특정 `PROPOSER` 및 `CHALLENGER` 역할만 제안을 제출하고 이의를 제기할 수 있는 `PermissionedDisputeGame`을 사용하도록 시스템을 전환할 수도 있습니다.
+
+## 버그 및 알려지지 않은 위험
+
+다른 모든 시스템과 마찬가지로 **Optimism 코드베이스에도 알려지지 않은 버그가 있을 수 있으며**, 이로 인해 시스템 내에 보관된 ETH 또는 토큰의 일부 또는 전부를 잃을 수 있다는 점도 유의하십시오.
+OP Stack은 (`v1.1.4` 기준) [여러 차례](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/technical-documents/security-reviews) 감사를 받았지만, **감사는 승인 도장이 아니며** **감사가 완료되었다고 해서 감사 대상 코드베이스에 버그가 없다는 의미는 아닙니다.**
+
+OP Stack 체인을 사용하면 본질적으로 Optimism 코드베이스 내 버그의 위험에 노출되며, 이러한 체인은 사용자 본인의 책임하에 사용해야 한다는 점을 이해하는 것이 중요합니다.
+
+## 진행 중인 작업
+
+### Sequencer 탈중앙화
+
+현재 Optimism Foundation이 OP Stack 체인의 유일한 sequencer를 운영하고 있습니다.
+사용자는 언제든지 [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol) 컨트랙트로 트랜잭션을 직접 보내 Sequencer를 우회할 수 있지만, sequencer 탈중앙화는 여전히 단기 중단이 사용자에게 미치는 영향을 완화하는 데 도움이 될 수 있습니다.
+
+## 보안 모델 FAQ
+
+### OP Stack 체인에는 결함 증명이 있습니까?
+
+**예**, OP Stack 체인에서는 결함 증명을 사용할 수 있습니다.
+**결함 증명은 만능 해결책이 아니며**, **시스템을 즉시 업그레이드할 수 있는 멀티시그나 security council이 여전히 존재한다면 결함 증명이 시스템 보안에 제공하는 개선은 제한적**이라는 점에 유의해야 합니다.
+OP Mainnet처럼 빠른 업그레이드 키가 있는 시스템은 보안을 전적으로 업그레이드 키에 의존합니다.
+목표는 빠른 업그레이드 키 없이 결함 증명만으로 시스템을 보호할 수 있는 결함 증명을 배포하는 최초의 시스템이 되는 것입니다.
+
+### Optimism은 멀티시그를 어떻게 제거할 계획입니까?
+
+OP Stack 체인이 진정한 결함 증명 보안을 갖춘 최초의 체인이 되는 방식으로 멀티시그를 제거하는 방법에 대한 자세한 내용은 Optimism의 [Pragmatic Path to Decentralization](https://web.archive.org/web/20230331065342/https://medium.com/ethereum-optimism/our-pragmatic-path-to-decentralization-cb5805ca43c1) 게시물을 참고하십시오.
+
+### OP Stack 체인을 더 안전하게 만드는 데 어떻게 기여할 수 있습니까?
+
+[OP Stack은 (역대) 최대 규모의 버그 바운티 중 하나를 운영하고 있습니다](/ko/op-stack/security/security-policy).
+Optimism 코드베이스에서 치명적인 버그를 찾으면 최대 $2,000,042를 받을 수 있습니다.
+또한 직접 verifier node를 실행하여 네트워크 결함을 탐지할 수도 있습니다.
+
+### 버그는 어디에 보고합니까?
+
+취약점 보고 및 이용 가능한 버그 바운티 프로그램에 대한 자세한 내용은 [보안 정책](/ko/op-stack/security/security-policy)을 참고하십시오.
+
+### 모든 OP Stack 체인은 안전합니까?
+
+OP Stack 기반 블록체인의 보안 모델은 구성 요소에 사용된 모듈에 따라 달라집니다. OP Stack은 유연하고 누구나 사용할 수 있는(permissionless) 특성을 가지므로, 누군가가 악의적으로 또는 실수로 핵심 보안 기능을 사용하지 않고 OP Stack의 다른 구성 요소만 사용하는 체인을 구성할 가능성은 항상 존재합니다. **OP Stack의 목표는 안전한 기본값을 제공하는 것입니다.**
+
+다른 모든 시스템과 마찬가지로 **OP Stack(또는 OP Stack으로 구축된 체인)에도 알려지지 않은 버그가 있을 수 있으며**, 이로 인해 OP Stack 기반 시스템 내에 보관된 ETH와 토큰의 일부 또는 전부를 잃을 수 있다는 점도 유의하십시오.
+OP Stack 코드베이스의 많은 구성 요소는 (`v1.1.4` 기준) [감사](https://github.com/ethereum-optimism/optimism/tree/v1.1.4/technical-documents/security-reviews)를 받았지만, 감사를 성공적으로 통과했다고 해서 신기술의 모든 잠재적 위험이 제거되는 것은 아니며, 감사가 완료되었다고 해서 코드베이스에 버그가 전혀 없다는 의미도 아닙니다.
+OP Stack을 사용하면 본질적으로 OP Stack 코드베이스 내 버그의 위험에 노출된다는 점을 이해하는 것이 중요합니다.
+
+### OP Stack을 수정해도 안전합니까?
+
+다른 모든 것과 마찬가지로 OP Stack 수정은 본인의 책임하에 진행하십시오. 스택에 대한 수정이 안전하다는 보장은 없습니다. 무엇을 하고 있는지 완전히 확신할 수 없다면 OP Stack이 제공하는 더 안전한 기본값을 그대로 사용하십시오. 현재 OP Stack은 수정에 특별히 적합하지 않으며, **스택의 표준 Rollup 구성을 벗어나는 수정에 대해서는 어떠한 기술 지원도 기대해서는 안 됩니다**.

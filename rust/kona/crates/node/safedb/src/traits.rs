@@ -18,12 +18,9 @@ pub struct SafeHeadRecord {
 /// Implementations record, per L1 block, the L2 safe head that derivation reached as of that
 /// block, and answer queries in both directions (L1 → safe head and safe head → L1).
 ///
-/// Methods are synchronous: the backing store is queried in-process, and a future actor is
-/// expected to own a single instance and serialize access to it.
-pub trait SafeDb {
-    /// Reports whether this database actively records and serves derivation data.
-    fn enabled(&self) -> bool;
-
+/// Methods are synchronous and take `&self`; implementations are `Send + Sync` so one instance
+/// can be shared behind an `Arc`.
+pub trait SafeDb: core::fmt::Debug + Send + Sync {
     /// Records that `safe_head` became safe as of `l1_head`.
     ///
     /// `l1_head` is the first L1 block containing all data required to derive `safe_head`.
@@ -59,6 +56,9 @@ pub trait SafeDb {
     /// `target_l2_num`, along with the safe head recorded at that L1 block.
     fn l1_at_safe_head(&self, target_l2_num: u64) -> Result<SafeHeadRecord, SafeDbError>;
 
-    /// Closes the database, releasing the underlying store.
-    fn close(&self) -> Result<(), SafeDbError>;
+    /// Removes every entry, so that queries report no history.
+    ///
+    /// For a history that can no longer be completed, no answer is better than an answer from
+    /// records with a gap, which queries cannot detect.
+    fn clear(&self) -> Result<(), SafeDbError>;
 }

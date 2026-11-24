@@ -1,0 +1,41 @@
+---
+title: Regolith
+description: Bedrock 이후 입금(디파짓) 처리를 수정한 Regolith 네트워크 업그레이드의 하드포크 레지스트리 항목입니다.
+diataxis: reference
+hardfork_name: regolith
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/regolith/overview.html
+hardfork_activation_mainnet: 0
+hardfork_activation_sepolia: 0
+---
+
+import RegolithFacts from "/ko/snippets/generated/hardforks/regolith.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="이 업그레이드"
+  title="Regolith 명세"
+  href="https://specs.optimism.io/protocol/regolith/overview.html"
+  note="이 페이지는 활성화 데이터와 운영 관련 참고 정보를 기록하며, 명세의 내용을 다시 서술하지 않습니다."
+/>
+
+Regolith는 Bedrock 이후의 감사 결과를 바탕으로 입금(디파짓) 처리에 사소한 수정을
+적용했습니다. OP Mainnet과 OP Sepolia에서는 타임스탬프 `0`, 즉 Bedrock 마이그레이션
+시점부터 활성화되며, 이는 superchain-registry의 Superchain 전체 하드포크 기본값보다
+앞선 것입니다.
+
+<RegolithFacts />
+
+## 변경 사항
+
+[명세 개요](https://specs.optimism.io/protocol/regolith/overview.html)에 따른 변경 사항은 다음과 같습니다.
+
+*   `isSystemTx` boolean을 비활성화했습니다. 시스템 트랜잭션은 일반 입금과
+    동일한 gas 계산 규칙을 사용합니다.
+*   입금 트랜잭션 receipt에 실제 입금 gas 사용량을 기록하고, 이를 L2 블록
+    gas pool에서 차감합니다(사용되지 않은 입금 gas는 환불되지 않습니다).
+*   선택적 `depositNonce` receipt 필드를 추가하고, 이를 사용하여 RPC 응답의
+    트랜잭션 및 receipt 메타데이터를 수정합니다.
+*   `gas`와 `depositNonce`를 receipt의 합의 표현에 포함하여 L2 node 간에
+    데이터가 안전하게 동기화되도록 합니다.
+*   L1 비용 함수를 Bedrock 이전 동작과 더 가깝게 일치하도록 수정합니다.

@@ -5,15 +5,12 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"flag"
-	"fmt"
 	"time"
 
 	"github.com/urfave/cli/v2"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -27,31 +24,15 @@ import (
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	sequencerConfig "github.com/ethereum-optimism/optimism/op-test-sequencer/config"
-	testmetrics "github.com/ethereum-optimism/optimism/op-test-sequencer/metrics"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/builders/fakepos"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/builders/standardbuilder"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/committers/noopcommitter"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/committers/standardcommitter"
-	workconfig "github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/config"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/publishers/nooppublisher"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/publishers/standardpublisher"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/sequencers/fullseq"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/signers/localkey"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/signers/noopsigner"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
 
 type testSequencer struct {
@@ -91,28 +72,11 @@ func applyConfigPrefundedL2(t devtest.T, keys devkeys.Keys, l1ChainID, l2ChainID
 	l1Config.WithPrefundedAccount(addrFor(devkeys.SystemConfigOwner), *millionEth)
 }
 
-// startL2ELForKey starts an L2 EL node for the given key, respecting DEVSTACK_L2EL_KIND.
-// This is the single env-aware dispatch point for L2 EL selection.
-func startL2ELForKey(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, key string, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
-	switch k := devstackL2ELKind(); k {
-	case MixedL2ELOpGeth:
-		// op-reth options have no analogue on these kinds. Dropping them silently would make a
-		// binary override look like it took effect on a node that never saw it.
-		t.Require().Empty(opts, "op-reth options cannot be applied to EL kind %q", k)
-		return startL2ELNode(t, l2Net, jwtPath, jwtSecret, key, identity)
-	case "", MixedL2ELOpReth: // unset (default) or explicit op-reth
-		return startMixedOpRethNode(t, l2Net, key, jwtPath, jwtSecret, nil, opts...)
-	default:
-		t.Require().FailNow("unsupported L2 EL kind", "unknown DEVSTACK_L2EL_KIND %q", k)
-		return nil // unreachable
-	}
-}
-
-// startL2CLForKey starts an L2 CL node for the given key, respecting DEVSTACK_L2CL_KIND.
-// This is the env-aware dispatch point for preset runtimes that don't build explicit node
-// specs. Runtimes constructed from explicit MixedSingleChainNodeSpec.CLKind values (e.g.
-// NewMixedSingleChainRuntime) don't route through here; they resolve the env up front via
-// ResolveMixedL2CLKind instead.
+// startL2CLForKey starts an L2 CL node of the given kind for the given key. depSet is the chain's
+// interop dependency set, from SingleChainInteropSupport.dependencySet. The supernode runtimes
+// don't use it, so their presets skip under kona-node (presets' skipOpNodeOnlyPresetOnKonaNode);
+// a runtime that passes it the kind DEVSTACK_L2CL_KIND selects must not keep that skip in its
+// presets, or the kona-node job skips its tests.
 func startL2CLForKey(
 	t devtest.T,
 	keys devkeys.Keys,
@@ -122,55 +86,73 @@ func startL2CLForKey(
 	l1CL *L1CLNode,
 	l2EL L2ELNode,
 	jwtSecret [32]byte,
+	clKind MixedL2CLKind,
 	clKey, elKey string,
 	isSequencer bool,
 	followSource string,
+	depSet depset.DependencySet,
 	l2CLOpts []L2CLOption,
 ) L2CLNode {
-	switch devstackL2CLKind() {
+	switch clKind {
 	case MixedL2CLKona:
-		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, isSequencer, nil)
-	default: // op-node
+		return startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, clKey, elKey, konaNodeStartConfig{
+			DependencySet: depSet,
+			L2CLConfig:    resolveKonaL2CLConfig(t, clKey, l2Net.ChainID(), isSequencer, followSource, l2CLOpts),
+		})
+	case MixedL2CLOpNode:
 		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 			Key:            clKey,
 			IsSequencer:    isSequencer,
 			NoDiscovery:    true,
-			EnableReqResp:  true,
 			L2FollowSource: followSource,
+			DependencySet:  depSet,
 			L2CLOptions:    l2CLOpts,
 		})
+	default:
+		t.Require().FailNowf("unsupported L2 CL kind", "unknown L2 CL kind %q", clKind)
+		return nil // unreachable
 	}
 }
 
-func startSequencerEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, identity *ELNodeIdentity, opts ...OpRethOption) L2ELNode {
-	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", identity, opts...)
-}
-
-func startL2ELNode(
+// startStoppedSequencerCL starts a sequencer CL of the given kind in the stopped
+// state required while a conductor cluster is being assembled.
+func startStoppedSequencerCL(
 	t devtest.T,
+	keys devkeys.Keys,
+	l1Net *L1Network,
 	l2Net *L2Network,
-	jwtPath string,
+	l1EL L1ELNode,
+	l1CL *L1CLNode,
+	l2EL L2ELNode,
 	jwtSecret [32]byte,
+	clKind MixedL2CLKind,
 	key string,
-	identity *ELNodeIdentity,
-) *OpGeth {
-	cfg := DefaultL2ELConfig()
-	cfg.P2PAddr = "127.0.0.1"
-	cfg.P2PPort = identity.Port
-	cfg.P2PNodeKeyHex = identity.KeyHex()
-
-	l2EL := &OpGeth{
-		name:      key,
-		p:         t,
-		logger:    t.Logger().New("component", "l2el-"+key),
-		l2Net:     l2Net,
-		jwtPath:   jwtPath,
-		jwtSecret: jwtSecret,
-		cfg:       cfg,
+	l2CLOpts []L2CLOption,
+) L2CLNode {
+	switch clKind {
+	case MixedL2CLKona:
+		return startMixedKonaNode(
+			t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, key, key, konaNodeStartConfig{
+				L2CLConfig:       resolveKonaL2CLConfig(t, key, l2Net.ChainID(), true, "", l2CLOpts),
+				SequencerStopped: true,
+			},
+		)
+	case MixedL2CLOpNode:
+		return startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+			Key:              key,
+			IsSequencer:      true,
+			NoDiscovery:      true,
+			L2CLOptions:      l2CLOpts,
+			SequencerStopped: true,
+		})
+	default:
+		t.Require().FailNowf("unsupported L2 CL kind", "unknown L2 CL kind %q", clKind)
+		return nil // unreachable
 	}
-	l2EL.Start()
-	t.Cleanup(l2EL.Stop)
-	return l2EL
+}
+
+func startSequencerEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte, opts ...OpRethOption) *OpReth {
+	return startMixedOpRethNode(t, l2Net, "sequencer", jwtPath, jwtSecret, nil, opts...)
 }
 
 func connectL2ELPeers(t devtest.T, logger log.Logger, initiatorRPC, acceptorRPC string) {
@@ -211,25 +193,10 @@ func connectL2CLPeers(t devtest.T, logger log.Logger, l2CL1, l2CL2 L2CLNode) {
 	require.True(ok2, "peer register invalid (cl2 missing cl1)")
 }
 
-func startSequencerCL(
-	t devtest.T,
-	keys devkeys.Keys,
-	l1Net *L1Network,
-	l2Net *L2Network,
-	l1EL L1ELNode,
-	l1CL *L1CLNode,
-	l2EL L2ELNode,
-	jwtSecret [32]byte,
-	l2CLOpts []L2CLOption,
-) L2CLNode {
-	return startL2CLForKey(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, "sequencer", "sequencer", true, "", l2CLOpts)
-}
-
 type l2CLNodeStartConfig struct {
 	Key            string
 	IsSequencer    bool
 	NoDiscovery    bool
-	EnableReqResp  bool
 	L2FollowSource string
 	DependencySet  depset.DependencySet
 	L2CLOptions    []L2CLOption
@@ -266,7 +233,6 @@ func startL2CLNode(
 	cfg := DefaultL2CLConfig()
 	cfg.IsSequencer = startCfg.IsSequencer
 	cfg.NoDiscovery = startCfg.NoDiscovery
-	cfg.EnableReqRespSync = startCfg.EnableReqResp
 	cfg.FollowSource = startCfg.L2FollowSource
 	if len(startCfg.L2CLOptions) > 0 {
 		l2CLTarget := NewComponentTarget(startCfg.Key, l2Net.ChainID())
@@ -289,6 +255,15 @@ func startL2CLNode(
 	}
 
 	logger := t.Logger().New("component", "l2cl-"+startCfg.Key)
+
+	var altDACfg altda.CLIConfig
+	if cfg.AltDAServerURL != "" {
+		altDACfg = altda.CLIConfig{
+			Enabled:      true,
+			DAServerURL:  cfg.AltDAServerURL,
+			VerifyOnRead: true,
+		}
+	}
 
 	// Build P2P config through the same path as sysgo op-node setup.
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
@@ -323,7 +298,6 @@ func startL2CLNode(
 	p2pConfig, err := p2pcli.NewConfig(cliCtx, l2Net.rollupCfg.BlockTime)
 	require.NoError(err, "failed to load p2p config")
 	p2pConfig.NoDiscovery = cfg.NoDiscovery
-	p2pConfig.EnableReqRespSync = cfg.EnableReqRespSync
 	// Devstack chain timestamps are synthetic: genesis is set in the past and the
 	// chain may lag many seconds behind wallclock during startup (or many minutes
 	// during long tests like dispute games). The production-default 60s gossip
@@ -355,10 +329,10 @@ func startL2CLNode(
 			BeaconAddr: l1CL.beaconHTTPAddr,
 		},
 		Driver: driver.Config{
-			SequencerEnabled:    cfg.IsSequencer,
-			SequencerStopped:    startCfg.SequencerStopped,
-			SequencerConfDepth:  2,
-			SequencerMaxSafeLag: cfg.SequencerMaxSafeLag,
+			SequencerEnabled:   cfg.IsSequencer,
+			SequencerStopped:   startCfg.SequencerStopped,
+			SequencerConfDepth: 2,
+			VerifierConfDepth:  cfg.VerifierL1Confs,
 		},
 		Rollup:        *l2Net.rollupCfg,
 		DependencySet: startCfg.DependencySet,
@@ -375,7 +349,7 @@ func startL2CLNode(
 		Sync: nodeSync.Config{
 			SyncMode:                       syncMode,
 			SkipSyncStartCheck:             false,
-			SupportsPostFinalizationELSync: false,
+			SupportsPostFinalizationELSync: l2EngineKind.SupportsPostFinalizationELSync(),
 			L2FollowSourceEndpoint:         cfg.FollowSource,
 			// Mirror op-node/service.go: a follow-mode sequencer needs a single
 			// initial engine reset to trigger block building (TryInitialResetEngineForSequencer).
@@ -390,9 +364,17 @@ func startL2CLNode(
 		ConductorEnabled:                false,
 		ConductorRpc:                    nil,
 		ConductorRpcTimeout:             0,
-		AltDA:                           altda.CLIConfig{},
+		AltDA:                           altDACfg,
 		IgnoreMissingPectraBlobSchedule: false,
 		ExperimentalOPStackAPI:          true,
+	}
+	if cfg.ConductorRPC != "" {
+		require.Positive(cfg.ConductorRPCTimeout, "conductor RPC timeout must be positive")
+		nodeCfg.ConductorEnabled = true
+		nodeCfg.ConductorRpcTimeout = cfg.ConductorRPCTimeout
+		nodeCfg.ConductorRpc = func(context.Context) (string, error) {
+			return cfg.ConductorRPC, nil
+		}
 	}
 	l2CL := &OpNode{
 		name:     startCfg.Key,
@@ -406,204 +388,6 @@ func startL2CLNode(
 	l2CL.Start()
 	t.Cleanup(l2CL.Stop)
 	return l2CL
-}
-
-func startTestSequencer(
-	t devtest.T,
-	keys devkeys.Keys,
-	jwtPath string,
-	jwtSecret [32]byte,
-	l1Net *L1Network,
-	l1EL *L1Geth,
-	l1CL *L1CLNode,
-	l2EL L2ELNode,
-	l2Net *L2Network,
-	l2CL *OpNode,
-) *testSequencer {
-	require := t.Require()
-	logger := t.Logger().New("component", "test-sequencer")
-
-	l1ELClient, err := ethclient.DialContext(t.Ctx(), l1EL.UserRPC())
-	require.NoError(err, "failed to dial L1 EL RPC for test-sequencer")
-	t.Cleanup(l1ELClient.Close)
-
-	engineCl, err := dialEngine(t.Ctx(), l1EL.AuthRPC(), jwtSecret)
-	require.NoError(err, "failed to dial L1 engine API for test-sequencer")
-	t.Cleanup(func() {
-		engineCl.inner.Close()
-	})
-
-	l1ChainID := l1Net.ChainID()
-	l2ChainID := l2Net.ChainID()
-
-	// L1 sequencer components: fakepos builder + noop signer/committer/publisher.
-	bidL1 := seqtypes.BuilderID("test-l1-builder")
-	cidL1 := seqtypes.CommitterID("test-noop-committer")
-	sidL1 := seqtypes.SignerID("test-noop-signer")
-	pidL1 := seqtypes.PublisherID("test-noop-publisher")
-	seqIDL1 := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l1ChainID))
-
-	ensemble := &workconfig.Ensemble{
-		Builders: map[seqtypes.BuilderID]*workconfig.BuilderEntry{
-			bidL1: {
-				L1: &fakepos.Config{
-					ChainConfig:       l1Net.genesis.Config,
-					EngineAPI:         engineCl,
-					Backend:           l1ELClient,
-					Beacon:            l1CL.beacon,
-					FinalizedDistance: 20,
-					SafeDistance:      10,
-					BlockTime:         6,
-				},
-			},
-		},
-		Signers: map[seqtypes.SignerID]*workconfig.SignerEntry{
-			sidL1: {
-				Noop: &noopsigner.Config{},
-			},
-		},
-		Committers: map[seqtypes.CommitterID]*workconfig.CommitterEntry{
-			cidL1: {
-				Noop: &noopcommitter.Config{},
-			},
-		},
-		Publishers: map[seqtypes.PublisherID]*workconfig.PublisherEntry{
-			pidL1: {
-				Noop: &nooppublisher.Config{},
-			},
-		},
-		Sequencers: map[seqtypes.SequencerID]*workconfig.SequencerEntry{
-			seqIDL1: {
-				Full: &fullseq.Config{
-					ChainID:   l1ChainID,
-					Builder:   bidL1,
-					Signer:    sidL1,
-					Committer: cidL1,
-					Publisher: pidL1,
-				},
-			},
-		},
-	}
-
-	// L2 sequencer components: standard builder/committer/publisher + local signer.
-	bidL2 := seqtypes.BuilderID("test-standard-builder")
-	cidL2 := seqtypes.CommitterID("test-standard-committer")
-	sidL2 := seqtypes.SignerID("test-local-signer")
-	pidL2 := seqtypes.PublisherID("test-standard-publisher")
-	seqIDL2 := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l2ChainID))
-
-	p2pKey, err := keys.Secret(devkeys.SequencerP2PRole.Key(l2ChainID.ToBig()))
-	require.NoError(err, "need p2p key for test sequencer")
-	rawKey := hexutil.Bytes(crypto.FromECDSA(p2pKey))
-
-	ensemble.Builders[bidL2] = &workconfig.BuilderEntry{
-		Standard: &standardbuilder.Config{
-			L1ChainConfig: l1Net.genesis.Config,
-			L1EL: endpoint.MustRPC{
-				Value: endpoint.HttpURL(l1EL.UserRPC()),
-			},
-			L2EL: endpoint.MustRPC{
-				Value: endpoint.HttpURL(l2EL.UserRPC()),
-			},
-			L2CL: endpoint.MustRPC{
-				Value: endpoint.HttpURL(l2CL.UserRPC()),
-			},
-		},
-	}
-	ensemble.Signers[sidL2] = &workconfig.SignerEntry{
-		LocalKey: &localkey.Config{
-			RawKey:  &rawKey,
-			ChainID: l2ChainID,
-		},
-	}
-	ensemble.Committers[cidL2] = &workconfig.CommitterEntry{
-		Standard: &standardcommitter.Config{
-			RPC: endpoint.MustRPC{
-				Value: endpoint.HttpURL(l2CL.UserRPC()),
-			},
-		},
-	}
-	ensemble.Publishers[pidL2] = &workconfig.PublisherEntry{
-		Standard: &standardpublisher.Config{
-			RPC: endpoint.MustRPC{
-				Value: endpoint.HttpURL(l2CL.UserRPC()),
-			},
-		},
-	}
-	ensemble.Sequencers[seqIDL2] = &workconfig.SequencerEntry{
-		Full: &fullseq.Config{
-			ChainID:             l2ChainID,
-			Builder:             bidL2,
-			Signer:              sidL2,
-			Committer:           cidL2,
-			Publisher:           pidL2,
-			SequencerConfDepth:  2,
-			SequencerEnabled:    true,
-			SequencerStopped:    false,
-			SequencerMaxSafeLag: 0,
-		},
-	}
-
-	sequencerIDs := map[eth.ChainID]seqtypes.SequencerID{
-		l1ChainID: seqIDL1,
-		l2ChainID: seqIDL2,
-	}
-
-	jobs := work.NewJobRegistry()
-	startedEnsemble, err := ensemble.Start(t.Ctx(), &work.StartOpts{
-		Log:     logger,
-		Metrics: &testmetrics.NoopMetrics{},
-		Jobs:    jobs,
-	})
-	require.NoError(err, "failed to start test-sequencer ensemble")
-
-	cfg := &sequencerConfig.Config{
-		MetricsConfig: opmetrics.CLIConfig{
-			Enabled: false,
-		},
-		PprofConfig: oppprof.CLIConfig{
-			ListenEnabled: false,
-		},
-		LogConfig: logcli.CLIConfig{
-			Level:  log.LevelDebug,
-			Format: log.FormatText,
-		},
-		RPC: oprpc.CLIConfig{
-			ListenAddr:  "127.0.0.1",
-			ListenPort:  0,
-			EnableAdmin: true,
-		},
-		Ensemble:      startedEnsemble,
-		JWTSecretPath: jwtPath,
-		Version:       "dev",
-		MockRun:       false,
-	}
-
-	sq, err := sequencer.FromConfig(t.Ctx(), cfg, logger)
-	require.NoError(err, "failed to initialize test-sequencer service")
-	require.NoError(sq.Start(t.Ctx()), "failed to start test-sequencer service")
-
-	t.Cleanup(func() {
-		ctx, cancel := context.WithCancel(t.Ctx())
-		cancel()
-		logger.Info("Closing test-sequencer service")
-		closeErr := sq.Stop(ctx)
-		logger.Info("Closed test-sequencer service", "err", closeErr)
-	})
-
-	adminRPC := sq.RPC()
-	controlRPCs := make(map[eth.ChainID]string, len(sequencerIDs))
-	for chainID, seqID := range sequencerIDs {
-		controlRPCs[chainID] = adminRPC + "/sequencers/" + seqID.String()
-	}
-
-	return &testSequencer{
-		name:       "test-sequencer",
-		adminRPC:   adminRPC,
-		jwtSecret:  jwtSecret,
-		controlRPC: controlRPCs,
-		service:    sq,
-	}
 }
 
 func copyControlRPCMap(in map[eth.ChainID]string) map[eth.ChainID]string {

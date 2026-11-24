@@ -6,8 +6,9 @@ use crate::{
 };
 
 use alloy_eips::{BlockNumHash, eip1898::BlockWithParent};
-use reth_provider::BlockHashReader;
-use std::cmp;
+use reth_provider::{BlockHashReader, StageCheckpointReader};
+use reth_stages_types::StageId;
+use std::{cmp, ops::RangeInclusive};
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace};
 
@@ -15,11 +16,11 @@ use tracing::{debug, error, info, trace};
 const DEFAULT_PRUNE_BATCH_SIZE: u64 = 50;
 
 /// Prunes the proof storage by calling `prune_earliest_state` on the storage provider.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OpProofStoragePruner<S, H> {
     /// Storage backend for the prune
     store: S,
-    /// Reader to fetch block hash by block number
+    /// Reader of reth's chain: block hashes by number, and the persisted head
     block_hash_reader: H,
     /// Keep at least these many recent blocks
     min_block_interval: u64,
@@ -55,12 +56,12 @@ impl<S, H> OpProofStoragePruner<S, H> {
 impl<S, H> OpProofStoragePruner<S, H>
 where
     S: OpProofsStore,
-    H: BlockHashReader,
+    H: BlockHashReader + StageCheckpointReader,
 {
     fn run_inner(&self) -> OpProofStoragePrunerResult {
         let provider_ro = self.store.provider_ro()?;
         let Some((earliest_block, target_earliest_block, mut prune_output)) =
-            self.resolve_prune_range(&provider_ro)?
+            self.resolve_prune_range(&provider_ro, 0)?
         else {
             return Ok(PrunerOutput::default());
         };
@@ -106,7 +107,7 @@ where
         provider_rw: &RW,
     ) -> OpProofStoragePrunerResult {
         let Some((earliest_block, target_earliest_block, mut prune_output)) =
-            self.resolve_prune_range(provider_rw)?
+            self.resolve_prune_range(provider_rw, 0)?
         else {
             debug!(target: "trie::prune::pruner", "Nothing to prune in the given range");
             return Ok(PrunerOutput::default());
@@ -134,12 +135,28 @@ where
         Ok(prune_output)
     }
 
-    /// Resolve the prune range from the given provider.
+    /// Returns the blocks the next prune removes once `incoming` more blocks are stored, or
+    /// `None` if it removes nothing. The range is capped at reth's persisted head as it is now,
+    /// so that prune may reach further.
+    pub(crate) fn upcoming_prune_range(
+        &self,
+        incoming: u64,
+    ) -> Result<Option<RangeInclusive<u64>>, PrunerError> {
+        let range = self.resolve_prune_range(&self.store.provider_ro()?, incoming)?;
+        Ok(range.map(|(earliest_block, target_earliest_block, _)| {
+            earliest_block + 1..=target_earliest_block
+        }))
+    }
+
+    /// Resolve the prune range from the given provider, as if `incoming` more blocks were stored.
     ///
-    /// Returns `None` if there is nothing to prune (storage empty or window not exceeded).
+    /// The target earliest block is `latest - min_block_interval`, capped at reth's persisted head.
+    /// Returns `None` if there is nothing to prune (storage empty, window not exceeded, or no
+    /// persisted block above the earliest one).
     fn resolve_prune_range<P: OpProofsProviderRO>(
         &self,
         provider: &P,
+        incoming: u64,
     ) -> Result<Option<(u64, u64, PrunerOutput)>, PrunerError> {
         let window = match provider.get_proof_window() {
             Ok(w) => w,
@@ -149,12 +166,35 @@ where
             }
             Err(err) => return Err(err.into()),
         };
-        let (latest_block, earliest_block) = (window.latest.number, window.earliest.number);
+        let (latest_block, earliest_block) =
+            (window.latest.number.saturating_add(incoming), window.earliest.number);
         if latest_block.saturating_sub(earliest_block) <= self.min_block_interval {
             trace!(target: "trie::prune::pruner", "Nothing to prune");
             return Ok(None);
         }
-        let target_earliest_block = latest_block - self.min_block_interval;
+        // reth may drop the blocks above its persisted head after a crash, and the storage can
+        // only be unwound down to its earliest block. That head is the `Finish` checkpoint, or its
+        // partial state trie frontier when set: reth publishes static files before committing the
+        // database, and unwinds to the frontier at startup after an unclean shutdown.
+        let persisted_head = self
+            .block_hash_reader
+            .get_stage_checkpoint(StageId::Finish)?
+            .map(|checkpoint| {
+                checkpoint
+                    .finish_stage_checkpoint()
+                    .and_then(|finish| finish.partial_state_trie())
+                    .unwrap_or(checkpoint.block_number)
+            })
+            .unwrap_or_default();
+        let target_earliest_block = (latest_block - self.min_block_interval).min(persisted_head);
+        if target_earliest_block <= earliest_block {
+            trace!(
+                target: "trie::prune::pruner",
+                persisted_head,
+                "Nothing to prune below reth's persisted head",
+            );
+            return Ok(None);
+        }
         let prune_output = PrunerOutput {
             start_block: earliest_block,
             end_block: target_earliest_block,
@@ -239,6 +279,7 @@ mod tests {
     use alloy_primitives::{B256, BlockNumber, U256};
     use mockall::mock;
     use reth_primitives_traits::Account;
+    use reth_stages_types::{FinishCheckpoint, StageCheckpoint};
     use reth_storage_errors::provider::ProviderResult;
     use reth_trie::{
         BranchNodeCompact, HashedPostState, HashedStorage, Nibbles,
@@ -251,9 +292,9 @@ mod tests {
 
     mock! (
         #[derive(Debug)]
-        pub BlockHashReader {}
+        pub ChainReader {}
 
-        impl BlockHashReader for BlockHashReader {
+        impl BlockHashReader for ChainReader {
             fn block_hash(&self, number: BlockNumber) -> ProviderResult<Option<B256>>;
 
             fn convert_block_hash(
@@ -266,6 +307,14 @@ mod tests {
                 _start: BlockNumber,
                 _end: BlockNumber,
             ) -> ProviderResult<Vec<B256>>;
+        }
+
+        impl StageCheckpointReader for ChainReader {
+            fn get_stage_checkpoint(&self, id: StageId) -> ProviderResult<Option<StageCheckpoint>>;
+
+            fn get_stage_checkpoint_progress(&self, id: StageId) -> ProviderResult<Option<Vec<u8>>>;
+
+            fn get_all_checkpoints(&self) -> ProviderResult<Vec<(String, StageCheckpoint)>>;
         }
     );
 
@@ -487,7 +536,7 @@ mod tests {
 
         // --- prune: remove the first 3 blocks, keep 4 and 5
         // new_earliest = 5-1 = 4
-        let mut block_hash_reader = MockBlockHashReader::new();
+        let mut block_hash_reader = MockChainReader::new();
         block_hash_reader
             .expect_block_hash()
             .withf(move |block_num| *block_num == 4)
@@ -497,6 +546,9 @@ mod tests {
             .expect_block_hash()
             .withf(move |block_num| *block_num == 3)
             .returning(move |_| Ok(Some(b256(3))));
+        block_hash_reader
+            .expect_get_stage_checkpoint()
+            .returning(|_| Ok(Some(StageCheckpoint::new(5))));
 
         let pruner = OpProofStoragePruner::new(store.clone(), block_hash_reader, 1);
         let out = pruner.run_inner().expect("pruner ok");
@@ -599,7 +651,7 @@ mod tests {
             assert!(matches!(latest, Err(OpProofsStorageError::NoBlocksFound)));
         }
 
-        let block_hash_reader = MockBlockHashReader::new();
+        let block_hash_reader = MockChainReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 10);
         let out = pruner.run_inner().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "should early-return default output");
@@ -631,7 +683,7 @@ mod tests {
             assert_eq!(latest.number, 3, "commit_initial_state bootstraps both anchors");
         }
 
-        let block_hash_reader = MockBlockHashReader::new();
+        let block_hash_reader = MockChainReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 1);
         let out = pruner.run_inner().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "should early-return default output");
@@ -675,9 +727,168 @@ mod tests {
         }
 
         // Require min_block_interval=2 (or greater) so interval < min
-        let block_hash_reader = MockBlockHashReader::new();
+        let block_hash_reader = MockChainReader::new();
         let pruner = OpProofStoragePruner::new(store, block_hash_reader, 2);
         let out = pruner.run_inner().expect("ok");
         assert_eq!(out, PrunerOutput::default(), "no pruning should occur");
+    }
+
+    /// Stores blocks `1..=latest` on top of a genesis anchor, with hashes from [`b256`].
+    fn store_with_blocks(latest: u64) -> (TempDir, Arc<MdbxProofsStorage>) {
+        let dir = TempDir::new().unwrap();
+        let store = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
+        let init = store.initialization_provider().expect("init");
+        init.set_initial_state_anchor(BlockNumHash { number: 0, hash: b256(0) }).expect("anchor");
+        init.commit_initial_state().expect("commit init");
+        OpProofsInitProvider::commit(init).expect("commit");
+        store_blocks(&store, 1..=latest);
+        (dir, store)
+    }
+
+    /// Stores empty `blocks` on top of the latest block, with hashes from [`b256`].
+    fn store_blocks(store: &MdbxProofsStorage, blocks: RangeInclusive<u64>) {
+        for n in blocks {
+            let provider = store.provider_rw().expect("provider_rw");
+            provider.store_trie_updates(block(n, b256(n - 1)), BlockStateDiff::default()).unwrap();
+            OpProofsProviderRw::commit(provider).expect("commit");
+        }
+    }
+
+    // The proofs storage indexes blocks reth still holds in memory only. The earliest block must
+    // stay at or below reth's persisted head, since reth may drop the blocks above it.
+    #[tokio::test]
+    async fn run_inner_keeps_earliest_at_or_below_persisted_head() {
+        let (_dir, store) = store_with_blocks(10);
+
+        let mut reader = MockChainReader::new();
+        reader.expect_block_hash().returning(|n| Ok(Some(b256(n))));
+        reader.expect_get_stage_checkpoint().returning(|_| Ok(Some(StageCheckpoint::new(4))));
+
+        let pruner = OpProofStoragePruner::new(store.clone(), reader, 2);
+        let out = pruner.run_inner().expect("pruner ok");
+        assert_eq!((out.start_block, out.end_block), (0, 4));
+
+        let provider = store.provider_ro().expect("provider_ro");
+        assert_eq!(provider.get_earliest_block().expect("earliest"), NumHash::new(4, b256(4)));
+        assert_eq!(provider.get_latest_block().expect("latest"), NumHash::new(10, b256(10)));
+    }
+
+    // reth persists hashed state and trie only up to `Finish`'s partial state trie frontier and,
+    // after an unclean shutdown, unwinds to it at startup. The earliest block must stay at or
+    // below that frontier.
+    #[tokio::test]
+    async fn run_inner_caps_at_partial_state_trie_frontier() {
+        let (_dir, store) = store_with_blocks(10);
+
+        let mut reader = MockChainReader::new();
+        reader.expect_block_hash().returning(|n| Ok(Some(b256(n))));
+        reader.expect_get_stage_checkpoint().returning(|_| {
+            Ok(Some(
+                StageCheckpoint::new(10)
+                    .with_finish_stage_checkpoint(FinishCheckpoint { partial_state_trie: Some(4) }),
+            ))
+        });
+
+        let pruner = OpProofStoragePruner::new(store.clone(), reader, 2);
+        let out = pruner.run_inner().expect("pruner ok");
+        assert_eq!((out.start_block, out.end_block), (0, 4));
+        assert_eq!(
+            store.provider_ro().unwrap().get_earliest_block().unwrap(),
+            NumHash::new(4, b256(4))
+        );
+    }
+
+    // reth publishes static-file headers before it commits the database, so a crash can drop the
+    // headers above the `Finish` checkpoint. The earliest block must stay at or below the
+    // checkpoint.
+    #[tokio::test]
+    async fn run_inner_caps_at_finish_checkpoint_behind_static_file_headers() {
+        use alloy_consensus::Header;
+        use reth_provider::{
+            BlockNumReader, StageCheckpointWriter, StaticFileProviderFactory, StaticFileSegment,
+            StaticFileWriter, test_utils::create_test_provider_factory,
+        };
+
+        let (_dir, store) = store_with_blocks(10);
+
+        let factory = create_test_provider_factory();
+        let static_files = factory.static_file_provider();
+        let mut writer = static_files.latest_writer(StaticFileSegment::Headers).unwrap();
+        for n in 0..=10 {
+            writer.append_header(&Header { number: n, ..Default::default() }, &b256(n)).unwrap();
+        }
+        writer.commit().unwrap();
+        drop(writer);
+        let provider_rw = factory.provider_rw().unwrap();
+        provider_rw.save_stage_checkpoint(StageId::Finish, StageCheckpoint::new(4)).unwrap();
+        provider_rw.commit().unwrap();
+        assert_eq!(factory.last_block_number().unwrap(), 10);
+
+        let pruner = OpProofStoragePruner::new(store.clone(), factory, 2);
+        let out = pruner.run_inner().expect("pruner ok");
+        assert_eq!((out.start_block, out.end_block), (0, 4));
+        assert_eq!(
+            store.provider_ro().unwrap().get_earliest_block().unwrap(),
+            NumHash::new(4, b256(4))
+        );
+    }
+
+    // Nothing is pruned while reth's persisted head is at or below the earliest block.
+    #[tokio::test]
+    async fn run_inner_skips_when_persisted_head_at_earliest() {
+        let (_dir, store) = store_with_blocks(10);
+
+        let mut reader = MockChainReader::new();
+        reader.expect_get_stage_checkpoint().returning(|_| Ok(Some(StageCheckpoint::new(0))));
+
+        let pruner = OpProofStoragePruner::new(store.clone(), reader, 2);
+        let out = pruner.run_inner().expect("pruner ok");
+        assert_eq!(out, PrunerOutput::default());
+        assert_eq!(store.provider_ro().unwrap().get_earliest_block().unwrap().number, 0);
+    }
+
+    /// A reader whose chain has every block and is persisted up to `persisted_head`.
+    fn chain_reader(persisted_head: u64) -> MockChainReader {
+        let mut reader = MockChainReader::new();
+        reader.expect_block_hash().returning(|n| Ok(Some(b256(n))));
+        reader
+            .expect_get_stage_checkpoint()
+            .returning(move |_| Ok(Some(StageCheckpoint::new(persisted_head))));
+        reader
+    }
+
+    // The range predicted for a prune is the range that prune then removes.
+    #[tokio::test]
+    async fn upcoming_prune_range_is_what_the_next_prune_removes() {
+        let (_dir, store) = store_with_blocks(10);
+        let pruner = OpProofStoragePruner::new(store.clone(), chain_reader(20), 2);
+
+        // Three more blocks move the window to 0..=13, and the prune keeps 2 blocks.
+        let upcoming = pruner.upcoming_prune_range(3).expect("range");
+        assert_eq!(upcoming, Some(1..=11));
+
+        store_blocks(&store, 11..=13);
+        let out = pruner.run_inner().expect("pruner ok");
+        assert_eq!(upcoming, Some(out.start_block + 1..=out.end_block));
+    }
+
+    // No range is predicted until the window is exceeded, and the range stops at reth's persisted
+    // head.
+    #[tokio::test]
+    async fn upcoming_prune_range_waits_for_the_window_and_stops_at_the_persisted_head() {
+        let (_dir, store) = store_with_blocks(10);
+        let pruner = OpProofStoragePruner::new(store, chain_reader(3), 10);
+
+        // The window spans 10 blocks, which does not exceed the 10 to keep.
+        assert_eq!(pruner.upcoming_prune_range(0).expect("range"), None);
+        // One more block exceeds it by one.
+        assert_eq!(pruner.upcoming_prune_range(1).expect("range"), Some(1..=1));
+        // The target 15 - 10 is above reth's persisted head.
+        assert_eq!(pruner.upcoming_prune_range(5).expect("range"), Some(1..=3));
+
+        let dir = TempDir::new().unwrap();
+        let empty = Arc::new(MdbxProofsStorage::new(dir.path()).expect("env"));
+        let pruner = OpProofStoragePruner::new(empty, MockChainReader::new(), 2);
+        assert_eq!(pruner.upcoming_prune_range(5).expect("range"), None);
     }
 }

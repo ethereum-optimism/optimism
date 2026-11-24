@@ -80,6 +80,12 @@ build-op-reth:
 build-op-reth-debug:
   cargo build --bin op-reth
 
+# Build op-reth-test-engine, the execution engine the Go engine tests spawn (they find the build
+# in the target directory, or set RUST_BINARY_PATH_OP_RETH_TEST_ENGINE to it). The package is not
+# a workspace default member, so `-p` is required for `cargo` to resolve the binary.
+build-op-reth-test-engine:
+  cargo build --release -p op-reth-test-engine
+
 # Build lokahi. The package is not a workspace default member, so `-p`
 # is required for `cargo` to resolve the binary.
 build-lokahi:
@@ -93,7 +99,7 @@ build-lokahi-debug:
 
 # Run all outer-workspace tests. SP1 guests require generated vkeys and are tested by CI after
 # their ELFs are built.
-test: test-unit test-beacon-blob-stack test-docs
+test: test-unit test-beacon-blob-stack test-docs test-custom-embeds
 
 # Run unit tests (excluding online tests)
 test-unit *args="-E '!test(test_online)'":
@@ -103,6 +109,10 @@ test-unit *args="-E '!test(test_online)'":
 test-beacon-blob-stack:
   cargo test --profile fast-build --locked -p kona-providers-alloy \
     test_filtered_beacon_blobs_deserializes_on_small_stack
+
+# Build kona-registry with the custom chain configuration fixture and run the tests that use it.
+test-custom-embeds:
+  just --justfile {{KONA_DIR}}/justfile test-custom-embeds
 
 # Run online tests only
 test-online:
@@ -128,14 +138,20 @@ lint: fmt-check lint-clippy lint-docs check-upstream-mirrors
 mirrors *ARGS:
   scripts/upstream-mirrors.py {{ replace_regex(ARGS, '(^|\s)stale(\s|$)', '${1}--stale-only${2}') }}
 
-# Run the upstream-mirror checker's contract tests.
+# Run the contract tests of the upstream-mirror checker and the reth forward-sweep prefilter.
 test-upstream-mirrors:
-  python3 -m unittest scripts/test_upstream_mirrors.py
+  python3 -m unittest scripts/test_upstream_mirrors.py scripts/test_reth_forward_prefilter.py
 
 # Fail on malformed tags, ambiguous dependency metadata, unknown crates, or versions ahead of
 # their pin. Staleness is a review worklist, not a defect.
 check-upstream-mirrors: test-upstream-mirrors
   scripts/upstream-mirrors.py --check
+
+# Fail unless reth is pinned by a release or fork tag, in rust/Cargo.toml and every tracked
+# Cargo.lock, and a fork tag is on its op-<base> branch (asks the GitHub API). A `rev` pin is
+# for draft PRs only.
+check-reth-tag-pin:
+  scripts/upstream-mirrors.py --check-tag-pin
 
 # Check formatting (requires nightly)
 fmt-check:
@@ -153,9 +169,9 @@ fmt-fix: fmt-fix-sp1-guest
 lint-clippy:
   cargo clippy --workspace --all-features --all-targets -- -D warnings
 
-# Lint-config + self-embed + lock + precompile-patch checks, fmt-check, and clippy for the SP1
-# guest program workspace. CI runs this after building the guest ELFs.
-lint-sp1-guest: check-no-self-embed check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches fmt-check-sp1-guest lint-clippy-sp1-guest
+# Lint-config + self-embed + lock + precompile-patch + hasher checks, fmt-check, and clippy for the
+# SP1 guest program workspace. CI runs this after building the guest ELFs.
+lint-sp1-guest: check-no-self-embed check-sp1-guest-lints check-sp1-guest-lock check-sp1-guest-precompile-patches check-sp1-guest-hashers fmt-check-sp1-guest lint-clippy-sp1-guest
 
 # Verify the nested guest workspace uses the root workspace's lint configuration.
 [script('bash')]
@@ -235,14 +251,16 @@ check-no-self-embed:
   #!/usr/bin/env bash
   set -euo pipefail
   cd kona/sp1
-  # The leaf guest must not depend on the range-vkey crate: it would embed its own vkey
-  # (SUPER_RANGE_VKEY = f(super-range ELF)), closing a build cycle.
-  f=programs/super-range/Cargo.toml
-  test -f "$f"
-  if grep -q kona-sp1-range-vkeys "$f"; then
-    echo "error: $f must not depend on kona-sp1-range-vkeys (build cycle)" >&2
-    exit 1
-  fi
+  # A guest must not depend on the crate that embeds its own vkey (SUPER_RANGE_VKEY =
+  # f(super-range ELF), LOG_COMMITMENT_VKEY = f(log-commitment ELF)): that closes a build cycle.
+  for pair in super-range:kona-sp1-range-vkeys log-commitment:kona-sp1-log-commitment-vkey; do
+    f="programs/${pair%%:*}/Cargo.toml"
+    test -f "$f"
+    if grep -q "${pair#*:}" "$f"; then
+      echo "error: $f must not depend on ${pair#*:} (build cycle)" >&2
+      exit 1
+    fi
+  done
 # Runs before the `--locked` clippy so a kona-only dependency change produces a
 # clear fix hint instead of cargo's cryptic "cannot update the lock file because
 # --locked was passed" error.
@@ -316,6 +334,122 @@ check-sp1-guest-precompile-patches:
   # The aggregation guest verifies proofs but does not execute L2 EVM precompiles.
   verify_program_patches kona-sp1-super-aggregation "${common_patches[@]}"
 
+  # The log-commitment guest hashes every log with keccak.
+  verify_program_patches kona-sp1-log-commitment "${common_patches[@]}"
+
+# Every guest hash table must hash with the seeded foldhash-seeded crate (see
+# rust/kona/sp1/README.md). Cargo only warns when a [patch] goes unused, and any other hasher
+# bypasses the seed. To allow a new hasher crate: if it is unreachable at runtime, or its keys are
+# trusted and bounded, add it to `restricted_hashers` with the crates allowed to depend on it and
+# a one-line justification. Otherwise, seed it instead.
+[script('bash')]
+check-sp1-guest-hashers:
+  set -euo pipefail
+
+  # Every guest program: each guest workspace member other than the foldhash shim.
+  members=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --workspace --depth 0 \
+    --edges normal --prefix none --format '{p}')
+  packages=()
+  while IFS= read -r line; do
+    if [[ -n "$line" && "$line" != "foldhash v"* ]]; then
+      packages+=("${line%% *}")
+    fi
+  done <<< "$members"
+  if (( ${#packages[@]} == 0 )); then
+    echo "error: found no guest programs in rust/{{SP1_GUEST_MANIFEST}}" >&2
+    exit 1
+  fi
+  # The shim's Cargo.toml is the single source of truth for the upstream foldhash it wraps.
+  shim_manifest=kona/sp1/programs/foldhash-seeded/Cargo.toml
+  upstream_tag=$(sed -nE 's/^upstream = .*tag = "([^"]+)".*/\1/p' "$shim_manifest")
+  if [[ -z "$upstream_tag" ]]; then
+    echo "error: no upstream foldhash tag found in rust/$shim_manifest" >&2
+    exit 1
+  fi
+  shim_source="/rust/kona/sp1/programs/foldhash-seeded)"
+  # The fork that the shim wraps is unseeded, so only the shim may depend on it.
+  fork_url="https://github.com/ethereum-optimism/foldhash"
+  fork_source="$fork_url?tag=$upstream_tag#"
+  banned_hashers=(
+    rapidhash rustc-hash fxhash siphasher twox-hash xxhash-rust seahash gxhash wyhash highway
+    metrohash t1ha fasthash nohash-hasher hash32
+  )
+  # "<hasher> <allowed dependents...>".
+  restricted_hashers=(
+    # ark's hash tables (HashMapPippenger, sparse multilinear extensions) are never called at
+    # runtime.
+    "ahash ark-ec ark-poly"
+    "fnv ark-ec ark-poly"
+  )
+
+  for p in "${packages[@]}"; do
+    tree=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
+      --target all --edges normal --prefix none --format '{p}')
+
+    while IFS= read -r line; do
+      [[ "$line" == "foldhash v"* ]] || continue
+      if [[ "$line" != *"$shim_source"* && "$line" != *"$fork_source"* ]]; then
+        echo "error: $p resolves an unseeded foldhash: $line" >&2
+        exit 1
+      fi
+    done <<< "$tree"
+
+    if grep -qF "$fork_source" <<< "$tree"; then
+      fork_dependents=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
+        --target all --edges normal --invert "$fork_url#foldhash" --depth 1 --prefix none \
+        --format '{p}' | tail -n +2)
+      while IFS= read -r dependent; do
+        [[ -n "$dependent" ]] || continue
+        if [[ "$dependent" != "foldhash v"*"$shim_source"* ]]; then
+          echo "error: $p: $dependent depends on the unseeded foldhash fork; depend on crates.io foldhash, which the guest workspace patches to foldhash-seeded" >&2
+          exit 1
+        fi
+      done <<< "$fork_dependents"
+    fi
+
+    # alloy's generic maps hash with foldhash only under `map-foldhash`; with `std` and no map
+    # feature they fall back to std's SipHash, keyed from SP1's fixed `sys_rand` seed. Feature
+    # lines carry no version, so check each resolved version on its own.
+    for version in $(sed -nE 's/^alloy-primitives v([^ ]+).*/\1/p' <<< "$tree" | sort -u); do
+      features=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
+        --target all --edges normal,features --invert "alloy-primitives@$version" --depth 1 \
+        --prefix none --format '{p}')
+      if ! grep -q '^alloy-primitives feature "map-foldhash"' <<< "$features"; then
+        echo "error: $p builds alloy-primitives $version without map-foldhash, so its generic maps bypass the seeded hasher" >&2
+        exit 1
+      fi
+    done
+
+    for hasher in "${banned_hashers[@]}"; do
+      if grep -q "^$hasher v" <<< "$tree"; then
+        echo "error: $p links hasher crate $hasher; seed it or allow it in check-sp1-guest-hashers" >&2
+        exit 1
+      fi
+    done
+
+    for entry in "${restricted_hashers[@]}"; do
+      read -r hasher allowed <<< "$entry"
+      # One query per resolved version: `--invert` on a bare name fails as ambiguous when two
+      # versions resolve.
+      for version in $(sed -nE "s/^$hasher v([^ ]+).*/\1/p" <<< "$tree" | sort -u); do
+        dependents=$(cargo tree --manifest-path {{SP1_GUEST_MANIFEST}} --locked --package "$p" \
+          --target all --edges normal --invert "$hasher@$version" --depth 1 --prefix none \
+          --format '{p}' | tail -n +2)
+        while IFS= read -r dependent; do
+          [[ -n "$dependent" ]] || continue
+          ok=false
+          for crate in $allowed; do
+            [[ "$dependent" == "$crate v"* ]] && ok=true
+          done
+          if [[ "$ok" != true ]]; then
+            echo "error: $p: $dependent depends on hasher crate $hasher; seed it or allow it in check-sp1-guest-hashers" >&2
+            exit 1
+          fi
+        done <<< "$dependents"
+      done
+    done
+  done
+
 # Resolves without --locked (minimal change), so it only touches entries that
 # actually moved rather than bumping unrelated guest deps.
 # Refresh the SP1 guest Cargo.lock after changing kona crates it depends on
@@ -332,12 +466,17 @@ lint-clippy-sp1-guest:
   cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --workspace --all-features --all-targets --locked -- -D warnings
   cargo clippy --manifest-path {{SP1_GUEST_MANIFEST}} --locked -p kona-sp1-super-range --all-targets --no-default-features -- -D warnings
 
-# fmt-check + clippy + test the standalone range-vkeys crate (in neither workspace, so nothing
-# else covers it). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.
-check-range-vkeys:
-  cargo +{{NIGHTLY}} fmt --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all -- --check
-  cargo clippy --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --all-targets --locked -- -D warnings
-  cargo test --manifest-path kona/sp1/crates/range-vkeys/Cargo.toml --locked
+# fmt-check + clippy + test the standalone vkey crates (in neither workspace, so nothing else
+# covers them). Requires elf/vkeys.toml and is invoked only after the guest ELFs are built.
+check-vkey-crates:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  for crate in range-vkeys log-commitment-vkey; do
+    manifest="kona/sp1/crates/${crate}/Cargo.toml"
+    cargo +{{NIGHTLY}} fmt --manifest-path "$manifest" --all -- --check
+    cargo clippy --manifest-path "$manifest" --all-targets --locked -- -D warnings
+    cargo test --manifest-path "$manifest" --locked
+  done
 
 # Lint Rust documentation
 lint-docs:
@@ -399,13 +538,15 @@ rust-review base='':
 
 ############################ no_std #################################
 
-# Check no_std compatibility for proof, protocol, alloy, and op-alloy crates
+# Check no_std compatibility for proof, protocol, alloy, and op-alloy crates, plus the host-target
+# no_std build of op-reth's evm crate, whose reth dependencies do not build for riscv.
 check-no-std:
   #!/usr/bin/env bash
   set -euo pipefail
 
   no_std_packages=(
     # proof crates
+    kona-client
     kona-executor
     kona-mpt
     kona-preimage
@@ -444,6 +585,16 @@ check-no-std:
     echo "Successfully checked no_std build for: $package"
   done
 
+  host_no_std_packages=(
+    reth-optimism-evm
+  )
+
+  for package in "${host_no_std_packages[@]}"; do
+    echo "Checking host-target no_std build for: $package"
+    cargo check -p "$package" --no-default-features
+    echo "Successfully checked host-target no_std build for: $package"
+  done
+
 ########################### Benchmarks ##############################
 
 # Run benchmarks (compile only)
@@ -452,9 +603,9 @@ bench:
 
 ########################## Misc tools ###############################
 
-# Audit dependencies for licenses, advisories, and bans
+# Audit dependencies for licenses, bans, and sources (advisories are tracked via image scanning)
 deny:
-  cargo deny --all-features check all
+  cargo deny --all-features check bans licenses sources
 
 # Check for unused dependencies (requires nightly + cargo-udeps)
 check-udeps:

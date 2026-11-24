@@ -25,6 +25,10 @@ struct Cli {
     /// to exercise the invalid-claim (soundness) path.
     #[arg(long)]
     corrupt_claimed_root: bool,
+    /// Print the PGU, instruction count, stdin size, and cycle-tracker totals of each SP1 guest
+    /// execution to stdout. Cycle-tracker totals need a build with `--features sp1-sdk/profiling`.
+    #[arg(long, conflicts_with = "native_core")]
+    report: bool,
     /// Supernode JSON-RPC endpoint.
     #[arg(long, env = "SUPER_NODE_ADDRESS")]
     supernode_address: String,
@@ -66,6 +70,7 @@ fn main() -> ExitCode {
     let config = RunConfig {
         native_core: cli.native_core,
         corrupt_claimed_root: cli.corrupt_claimed_root,
+        report: cli.report,
         supernode_address: cli.supernode_address,
         l1_node_address: cli.l1_node_address,
         l1_beacon_address: cli.l1_beacon_address,

@@ -62,13 +62,9 @@ func NewRollupCostData(data []byte) (out RollupCostData) {
 	return out
 }
 
-// TxRollupCostData computes the RollupCostData for a transaction. It replaces op-geth's
-// (*types.Transaction).RollupCostData() method: deposits incur no DA cost, and the cost
-// data is derived from the full binary-encoded transaction, not just its calldata.
+// TxRollupCostData computes the RollupCostData for a standard Ethereum transaction. The
+// cost data is derived from the full binary-encoded transaction, not just its calldata.
 func TxRollupCostData(tx *types.Transaction) RollupCostData {
-	if tx.Type() == types.DepositTxType {
-		return RollupCostData{}
-	}
 	data, err := tx.MarshalBinary()
 	if err != nil {
 		// A value that exists as a *types.Transaction was decoded or constructed

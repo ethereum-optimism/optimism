@@ -1,0 +1,150 @@
+---
+title: node 문제 해결
+description: node 문제를 해결하기 위한 일반적인 문제의 해결 방법을 알아봅니다.
+diataxis: how-to
+---
+
+이 페이지는 노드 운영자를 위한 일반적인 문제 해결 시나리오와 해결 방법을 나열합니다.
+
+## 401 Unauthorized: Signature Invalid
+
+`op-node`에서 다음과 같은 로그가 표시되는 경우:
+
+```
+WARN [12-13|15:53:20.263] Derivation process temporary error       attempts=80 err="stage 0 failed resetting: temp: failed to find the L2 Heads to start from: failed to fetch current L2 forkchoice state: failed to find the finalized L2 block: failed to determine L2BlockRef of finalized, could not get payload: 401 Unauthorized: signature is invalid
+```
+
+이는 `op-node`가 JWT secret을 사용하여 `execution client`의 인증된 RPC에 인증할 수 없다는 의미입니다.
+
+### 해결 방법
+
+1.  두 서비스 모두에서 JWT secret이 올바른지 확인하십시오.
+2.  `execution client`의 인증된 RPC가 활성화되어 있고 URL이 올바른지 확인하십시오.
+
+## P2P 구성 로드 실패
+
+`op-node`에서 다음과 같은 로그가 표시되는 경우:
+
+```
+CRIT [12-13|13:46:21.386] Application failed                       message="failed to load p2p config: failed to load p2p discovery options: failed to open discovery db: mkdir /p2p: permission denied"
+```
+
+이는 `op-node`에 P2P discovery 또는 peerstore 디렉터리에 대한 쓰기 권한이 없다는 의미입니다.
+
+### 해결 방법
+
+1.  `op-node`에 P2P 디렉터리에 대한 쓰기 권한이 있는지 확인하십시오. 기본값은 `/p2p`입니다.
+2.  `--p2p.discovery.path` 및 `--p2p.peerstore.path` 파라미터를 통해 P2P 디렉터리를 `op-node`가 접근할 수 있는 위치로 설정하십시오.
+3.  `--p2p.discovery.path` 및 `--p2p.peerstore.path` 파라미터를 통해 discovery 경로를 `memory`로 설정하여 영속성을 비활성화하십시오.
+
+## 잘못된 체인
+
+`op-node`에서 다음과 같은 로그가 표시되는 경우:
+
+```
+{"attempts":183,"err":"stage 0 failed resetting: temp: failed to find the L2 Heads to start from: wrong chain L1: genesis: 0x4104895a540d87127ff11eef0d51d8f63ce00a6fc211db751a45a4b3a61a9c83:8106656, got 0x12e2c18a3ac50f74d3dd3c0ed7cb751cc924c2985de3dfed44080e683954f1dd:8106656","lvl":"warn","msg":"Derivation process temporary error","t":"2022-12-13T23:31:37.855253213Z"}
+```
+
+이는 `op-node`가 잘못된 체인을 가리키고 있다는 의미입니다.
+
+### 해결 방법
+
+1.  `op-node`의 L1 URL이 해당 네트워크의 올바른 L1을 가리키고 있는지 확인하십시오.
+2.  `op-node`의 rollup 구성/`--network` 파라미터가 올바른 네트워크로 설정되어 있는지 확인하십시오.
+3.  `op-node`의 L2 URL이 올바른 `execution client` 인스턴스를 가리키고 있으며, `execution client`가 해당 네트워크에 맞게 올바르게 초기화되었는지 확인하십시오.
+
+## 오류: `eth_sendRawTransaction`이 존재하지 않음
+
+실행 클라이언트(`op-reth`, Nethermind 등)에 대한 RPC 호출이 다음과 같은 응답을 반환하는 경우:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32601,
+    "message": "the method eth_sendRawTransaction does not exist/is not available"
+  }
+}
+```
+
+이 `-32601` JSON-RPC 오류는 구성한 sequencer 엔드포인트가 `eth_sendRawTransaction`을 제공하지 않는다는 의미입니다. 요청 경로는 다음과 같습니다.
+
+```
+Client → eth_sendRawTransaction → execution client:8545
+                                ↓
+                  EL forwards to sequencer (--rollup.sequencer URL)
+                                ↓
+              eth_sendRawTransaction → op-node:8547
+                                ↓
+              ❌ ERROR: "method does not exist/is not available"
+                 (op-node has no eth namespace!)
+```
+
+`op-node`는 rollup 전용 RPC 메서드만 제공하며 `eth_*` 네임스페이스가 없으므로, raw 트랜잭션 제출을 받을 수 없습니다. 실행 클라이언트가 트랜잭션을 `op-node` URL로 전달하면 즉시 `-32601` 오류와 함께 실패합니다.
+
+이 상황은 거의 항상 op-reth의 `--rollup.sequencer`(별칭 `--rollup.sequencer-http`, `--rollup.sequencer-ws`)가 체인의 실제 sequencer가 아닌 자체 `op-node`를 가리키도록 잘못 구성된 경우에 발생합니다.
+
+### 해결 방법
+
+1.  op-reth가 HTTP API에서 `eth` 네임스페이스를 제공하는지 확인하십시오(표준 설정은 `--http.api=eth,net,web3,debug`입니다). `eth`가 비활성화되어 있으면 raw 트랜잭션이 sequencer에 도달하기 전에 거부됩니다.
+2.  sequencer와 통신하는 모든 구성 요소(`op-node`, `op-reth`, `op-batcher`, `op-proposer`, 스크립트)의 CLI 플래그와 환경 변수를 점검하십시오. `--rollup.sequencer` 플래그는 자체 `op-node`가 **아니라** 체인의 공개 sequencer 엔드포인트(예: `https://mainnet-sequencer.optimism.io`)를 가리켜야 합니다.
+3.  sequencer를 직접 운영하는 사용자 배포 L2의 경우, op-reth가 로컬로 전달하고 `op-node` 엔드포인트로 대체되지 않도록 `--rollup.sequencer`를 설정하지 마십시오.
+4.  플래그를 수정한 후 영향을 받은 서비스를 재시작하여 새 엔드포인트가 적용되도록 하십시오. 올바른 sequencer RPC에 연결되면 즉시 오류가 사라집니다.
+
+## 비정상 종료
+
+비정상 종료(unclean shutdown)는 실행 클라이언트가 정상적인 종료 절차를 완료하지 못하고 중지될 때 발생합니다. 예를 들어 `SIGKILL`, 전원 손실, 유예 기간을 초과하여 종료된 컨테이너 등이 있습니다. 영향은 EL이 사용하는 데이터베이스 백엔드에 따라 다릅니다.
+
+위험을 최소화하려면 항상 정상적으로 종료하십시오. 포그라운드 프로세스는 `Ctrl-C`, Docker는 `docker stop -t 300 <container>`, systemd는 `systemctl stop`을 사용하십시오(EL에 플러시해야 할 대용량 인메모리 쓰기가 있는 경우 기본 90초 타임아웃을 재정의하십시오).
+
+### op-reth의 경우
+
+op-reth는 설계상 크래시에 안전한 MDBX를 사용합니다. 비정상 종료 후에도 일반적으로 운영자의 개입 없이 정상적으로 재시작됩니다.
+
+비정상 종료 후 시작에 실패하는 경우 다음 옵션을 사용할 수 있습니다.
+
+*   **Stage unwind** — 마지막으로 일관성 있는 stage 체크포인트로 롤백합니다.
+
+    ```bash
+    op-reth stage unwind to-block <BLOCK_NUMBER> --datadir=<path>
+    ```
+
+*   **전체 재동기화** — 최후의 수단으로 datadir를 삭제하고 genesis 또는 [스냅샷](https://datadirs.optimism.io/)에서 다시 동기화합니다.
+
+### Nethermind의 경우
+
+`Nethermind`에서 비정상 종료가 발생하면 데이터베이스가 손상될 수 있습니다. 이는 일반적으로 다음과 같은 경우에 발생합니다.
+
+*   node에 하드웨어 장애(디스크 장애, 메모리 오류, 과열)가 발생한 경우
+*   정전으로 인해 갑작스럽게 종료된 경우
+*   적절한 정리 없이 프로세스가 종료된 경우
+
+**해결 방법**
+
+1.  **Lock 파일 문제**
+
+    비정상 종료 후 `Nethermind`가 lock 파일에 대해 오류를 보고하는 경우 다음을 실행하십시오.
+
+    ```bash
+    find /path/to/nethermind_db -type f -name 'LOCK' -delete
+    ```
+
+2.  **블록 체크섬 불일치**
+
+    블록 체크섬 불일치 오류가 발생하는 경우 direct I/O를 활성화할 수 있습니다.
+
+    ```bash
+    --Db.UseDirectIoForFlushAndCompactions true
+    ```
+    참고: 성능에 영향을 줄 수 있습니다.
+
+3.  **완전 재동기화**
+
+    심각한 손상의 경우 전체 재동기화를 권장합니다.
+
+    ```bash
+    sudo systemctl stop nethermind
+    sudo rm -rf /path/to/nethermind_db/mainnet
+    sudo systemctl start nethermind
+    ```

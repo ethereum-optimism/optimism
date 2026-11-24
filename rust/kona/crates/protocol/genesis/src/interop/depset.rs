@@ -11,6 +11,51 @@ use alloy_primitives::ChainId;
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ChainDependency {}
 
+/// An override of the message expiry window, in seconds. A dependency set may shorten the window
+/// but not lengthen it beyond [`MESSAGE_EXPIRY_WINDOW`] (see the Expiry Window section of the
+/// interop specification). A value above [`MESSAGE_EXPIRY_WINDOW`] cannot be constructed or
+/// deserialized.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(try_from = "u64", into = "u64"))]
+pub struct MessageExpiryOverride(u64);
+
+impl MessageExpiryOverride {
+    /// Returns the override in seconds.
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+/// Error returned for a message expiry window override above [`MESSAGE_EXPIRY_WINDOW`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("overrideMessageExpiryWindow {0}s exceeds protocol window {window}s", window = MESSAGE_EXPIRY_WINDOW)]
+pub struct MessageExpiryOverrideTooLong(pub u64);
+
+impl TryFrom<u64> for MessageExpiryOverride {
+    type Error = MessageExpiryOverrideTooLong;
+
+    fn try_from(window: u64) -> Result<Self, Self::Error> {
+        if window > MESSAGE_EXPIRY_WINDOW {
+            return Err(MessageExpiryOverrideTooLong(window));
+        }
+        Ok(Self(window))
+    }
+}
+
+impl From<MessageExpiryOverride> for u64 {
+    fn from(window: MessageExpiryOverride) -> Self {
+        window.0
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for MessageExpiryOverride {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        Ok(Self(u.int_in_range(0..=MESSAGE_EXPIRY_WINDOW)?))
+    }
+}
+
 /// Configuration for the dependency set
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
@@ -22,14 +67,14 @@ pub struct DependencySet {
     pub dependencies: BTreeMap<ChainId, ChainDependency>,
 
     /// Override message expiry window to use for this dependency set.
-    pub override_message_expiry_window: Option<u64>,
+    pub override_message_expiry_window: Option<MessageExpiryOverride>,
 }
 
 impl DependencySet {
     /// Returns the message expiry window associated with this dependency set.
     pub const fn get_message_expiry_window(&self) -> u64 {
         match self.override_message_expiry_window {
-            Some(window) if window > 0 => window,
+            Some(MessageExpiryOverride(window)) if window > 0 => window,
             _ => MESSAGE_EXPIRY_WINDOW,
         }
     }
@@ -39,14 +84,17 @@ impl DependencySet {
 #[allow(clippy::zero_sized_map_values)]
 mod tests {
     use super::*;
-    use alloc::collections::BTreeMap;
+    use alloc::{collections::BTreeMap, string::ToString};
     use alloy_primitives::ChainId;
 
-    const fn create_dependency_set(
+    fn create_dependency_set(
         dependencies: BTreeMap<ChainId, ChainDependency>,
         override_expiry: u64,
     ) -> DependencySet {
-        DependencySet { dependencies, override_message_expiry_window: Some(override_expiry) }
+        DependencySet {
+            dependencies,
+            override_message_expiry_window: Some(override_expiry.try_into().unwrap()),
+        }
     }
 
     #[test]
@@ -71,6 +119,47 @@ mod tests {
             override_value,
             "Should return override expiry window when it's non-zero"
         );
+    }
+
+    #[test]
+    fn test_message_expiry_override_rejects_above_protocol_window() {
+        let err = MessageExpiryOverride::try_from(MESSAGE_EXPIRY_WINDOW + 1).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "overrideMessageExpiryWindow 604801s exceeds protocol window 604800s"
+        );
+        assert_eq!(
+            MessageExpiryOverride::try_from(MESSAGE_EXPIRY_WINDOW).unwrap().get(),
+            MESSAGE_EXPIRY_WINDOW
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_depset_json_rejects_override_above_protocol_window() {
+        let parse = |window: u64| {
+            serde_json::from_str::<DependencySet>(&alloc::format!(
+                r#"{{"dependencies":{{}},"overrideMessageExpiryWindow":{window}}}"#
+            ))
+        };
+        let err = parse(MESSAGE_EXPIRY_WINDOW + 1).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("overrideMessageExpiryWindow 604801s exceeds protocol window 604800s"),
+            "unexpected error: {err}"
+        );
+        assert_eq!(
+            parse(MESSAGE_EXPIRY_WINDOW).unwrap().get_message_expiry_window(),
+            MESSAGE_EXPIRY_WINDOW
+        );
+        let missing: DependencySet = serde_json::from_str(r#"{"dependencies":{}}"#).unwrap();
+        assert_eq!(missing.override_message_expiry_window, None);
+    }
+
+    /// op-core pins the same 7 days (`MessageExpiryTimeSecondsInterop`).
+    #[test]
+    fn test_message_expiry_window_is_seven_days() {
+        assert_eq!(MESSAGE_EXPIRY_WINDOW, 604_800);
     }
 
     #[test]

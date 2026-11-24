@@ -1,0 +1,68 @@
+---
+title: "Consensus"
+diataxis: reference
+---
+
+`op-alloy-consensus` crate는 Optimism 합의(consensus) 인터페이스를 제공합니다.
+이 crate에는 Optimism EL 합의 및 통신을 구현하기 위한 상수, 타입, 함수가
+포함되어 있습니다. 여기에는 [입금(디파짓) 트랜잭션](https://specs.optimism.io/protocol/deposits.html)을 포함하도록 확장된 `OpTxEnvelope` 타입과,
+OP Stack 전용 필드(`deposit_nonce` + `deposit_receipt_version`)를 포함하는 receipt가 포함됩니다.
+
+일반적으로 어떤 타입이 `alloy-consensus` crate에 존재하지만 OP Stack에서
+기본 Ethereum 프로토콜로부터 수정된 경우, 해당 타입은 이 crate에 속합니다.
+OP Stack에서 수정되지 않은 합의 타입의 경우에는
+`alloy-consensus` 타입을 대신 사용해야 합니다.
+
+
+## Block
+
+[`op-alloy-consensus`](https://crates.io/crates/op-alloy-consensus)는 Optimism 블록 타입인 [`OpBlock`](https://docs.rs/op-alloy-consensus/latest/op_alloy_consensus/type.OpBlock.html)을 내보냅니다.
+
+이 타입은 단순히 `alloy-consensus` 블록 타입을 재사용하며, 블록 내 트랜잭션의
+타입으로 `OpTxEnvelope`를 사용합니다.
+
+
+## 트랜잭션
+
+Optimism은 Ethereum [EIP-2718](https://eips.ethereum.org/EIPS/eip-2718) 트랜잭션 envelope를 확장하여
+deposit 변형(variant)을 포함합니다.
+
+### [`OpTxEnvelope`](https://docs.rs/op-alloy-consensus/latest/op_alloy_consensus/transaction/enum.OpTxEnvelope.html)
+
+[`OpTxEnvelope`](https://docs.rs/op-alloy-consensus/latest/op_alloy_consensus/transaction/enum.OpTxEnvelope.html) 타입은 [Alloy](https://github.com/alloy-rs/alloy)의
+`TxEnvelope` 타입을 기반으로 합니다.
+
+Optimism은 `TxEnvelope`를 다음과 같이 수정합니다.
+- Legacy
+- EIP-2930
+- EIP-1559
+- EIP-7702
+- Deposit
+
+Deposit은 L1 attributes 입금 트랜잭션 또는 사용자가 제출한 입금 트랜잭션 중
+하나인 맞춤 트랜잭션 타입입니다. 입금 트랜잭션에 대한 자세한 내용은
+[사양](https://specs.optimism.io)을 참조하십시오.
+
+### 트랜잭션 타입([`OpTxType`](https://docs.rs/op-alloy-consensus/latest/op_alloy_consensus/transaction/enum.OpTxType.html))
+
+[`OpTxType`](https://docs.rs/op-alloy-consensus/latest/op_alloy_consensus/transaction/enum.OpTxType.html)은 트랜잭션 타입을 바이트 식별자로 열거하며,
+Rust에서는 `u8`로 표현됩니다.
+
+
+## Receipt 타입
+
+[`op-alloy-consensus`](https://crates.io/crates/op-alloy-consensus)는 트랜잭션 타입을 정의하는 것과 마찬가지로
+관련 receipt 타입도 정의합니다.
+
+[`OpReceiptEnvelope`](https://docs.rs/op-alloy-consensus/latest/op_alloy_consensus/enum.OpReceiptEnvelope.html)는 OP Stack에 맞게 수정된 [Eip-2718](https://eips.ethereum.org/EIPS/eip-2718) receipt envelope 타입을
+정의합니다. 여기에는 위에서 정의한 `OpTxEnvelope` 변형에 직접 대응하는
+다음 변형이 포함됩니다.
+
+- Legacy
+- EIP-2930
+- EIP-1559
+- EIP-7702
+- Deposit
+
+또한 alloy receipt 타입을 deposit nonce와 deposit receipt version으로 확장한
+[`OpDepositReceipt`](https://docs.rs/op-alloy-consensus/latest/op_alloy_consensus/struct.OpDepositReceipt.html) 타입도 있습니다.

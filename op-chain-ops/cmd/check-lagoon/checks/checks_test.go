@@ -13,11 +13,6 @@ func TestInteropTxRejected(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "op-geth filter rejection",
-			err:  errors.New("transaction filtered out"),
-			want: true,
-		},
-		{
 			name: "op-interop-filter access entry parse failure",
 			err:  errors.New("failed to parse access entry: bad data"),
 			want: true,
@@ -34,7 +29,7 @@ func TestInteropTxRejected(t *testing.T) {
 		},
 		{
 			name: "rejection wrapped in another error",
-			err:  fmt.Errorf("submit failed: %w", errors.New("transaction filtered out")),
+			err:  fmt.Errorf("submit failed: %w", errors.New("interop failsafe is active")),
 			want: true,
 		},
 		{

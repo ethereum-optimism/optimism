@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use discv5::Config as Discv5Config;
 use kona_disc::{Discv5Builder, LocalNode};
 use kona_genesis::RollupConfig;
-use kona_gossip::{GaterConfig, GossipDriverBuilder};
+use kona_gossip::{GaterConfig, GossipDriverBuilder, GossipTransport, PeerAddr};
 use kona_peers::{BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
 use libp2p::{Multiaddr, identity::Keypair};
 use std::time::Duration;
@@ -20,13 +20,10 @@ use crate::{
 pub struct NetworkBuilder {
     /// The discovery driver.
     pub(super) discovery: Discv5Builder,
+    /// Whether to build and run discovery.
+    pub(super) discovery_enabled: bool,
     /// The gossip driver.
     pub(super) gossip: GossipDriverBuilder,
-    /// Whether to update the ENR socket after the libp2p Swarm is started.
-    /// This is set to true by default.
-    /// This may be set to false if the node is configured to use a static advertised address (when
-    /// used with a nat for example).
-    pub(super) enr_update: bool,
 }
 
 impl From<NetworkConfig> for NetworkBuilder {
@@ -39,10 +36,11 @@ impl From<NetworkConfig> for NetworkBuilder {
             config.discovery_address,
             config.discovery_config,
         )
-        .with_enr_update(config.enr_update)
+        .with_discovery_enabled(config.discovery_enabled)
         .with_discovery_randomize(config.discovery_randomize)
         .with_bootstore(config.bootstore)
         .with_bootnodes(config.bootnodes)
+        .with_static_peers(config.static_peers)
         .with_discovery_interval(config.discovery_interval)
         .with_gossip_config(config.gossip_config)
         .with_peer_scoring(config.scoring)
@@ -68,19 +66,25 @@ impl NetworkBuilder {
                 rollup_config.l2_chain_id.id(),
                 discovery_config,
             ),
+            discovery_enabled: true,
             gossip: GossipDriverBuilder::new(
                 rollup_config,
                 unsafe_block_signer,
                 gossip_addr,
                 keypair,
             ),
-            enr_update: true,
         }
     }
 
-    /// Sets the ENR update flag for the [`NetworkBuilder`].
-    pub fn with_enr_update(self, enr_update: bool) -> Self {
-        Self { enr_update, ..self }
+    /// Sets whether to build and run discovery. Without it, the node binds no UDP socket, and the
+    /// discovery settings are ignored.
+    pub fn with_discovery_enabled(self, discovery_enabled: bool) -> Self {
+        Self { discovery_enabled, ..self }
+    }
+
+    /// Sets the [`GossipTransport`] the gossip swarm listens and dials on.
+    pub fn with_gossip_transport(self, transport: GossipTransport) -> Self {
+        Self { gossip: self.gossip.with_transport(transport), ..self }
     }
 
     /// Sets the configuration for the connection gater.
@@ -103,6 +107,11 @@ impl NetworkBuilder {
     /// Sets the interval at which to randomize discovery peers.
     pub fn with_discovery_randomize(self, randomize: Option<Duration>) -> Self {
         Self { discovery: self.discovery.with_discovery_randomize(randomize), ..self }
+    }
+
+    /// Sets the peers to dial at startup and keep connected.
+    pub fn with_static_peers(self, static_peers: Vec<PeerAddr>) -> Self {
+        Self { gossip: self.gossip.with_static_peers(static_peers), ..self }
     }
 
     /// Sets the initial bootnodes to add to the bootstore.
@@ -128,6 +137,12 @@ impl NetworkBuilder {
     /// Sets the discovery interval for the [`Discv5Builder`].
     pub fn with_discovery_interval(self, interval: tokio::time::Duration) -> Self {
         Self { discovery: self.discovery.with_interval(interval), ..self }
+    }
+
+    /// Sets how often the [`Discv5Builder`]'s driver saves the bootstore, and hands its records
+    /// to gossip again.
+    pub fn with_discovery_store_interval(self, interval: Duration) -> Self {
+        Self { discovery: self.discovery.with_store_interval(interval), ..self }
     }
 
     /// Sets the address for the [`Discv5Builder`].
@@ -157,10 +172,12 @@ impl NetworkBuilder {
 
     /// Builds the [`NetworkDriver`].
     pub fn build(self) -> Result<NetworkDriver, NetworkBuilderError> {
-        let gossip = self.gossip.build()?;
-        let discovery = self.discovery.build()?;
+        let Self { discovery, discovery_enabled, gossip } = self;
+        let gossip = gossip.build()?;
+        // Not even built when disabled, since building can bind the UDP socket.
+        let discovery = discovery_enabled.then(|| discovery.build()).transpose()?;
 
-        Ok(NetworkDriver { gossip, discovery, enr_update: self.enr_update })
+        Ok(NetworkDriver { gossip, discovery })
     }
 }
 
@@ -171,6 +188,7 @@ mod tests {
     use discv5::{ConfigBuilder, ListenConfig};
     use enr::CombinedKey;
     use libp2p::gossipsub::IdentTopic;
+    use rstest::rstest;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     #[derive(Debug)]
@@ -240,21 +258,22 @@ mod tests {
 
         // Driver Assertions
         let id = 10;
-        assert_eq!(driver.gossip.addr, gossip_addr);
-        assert_eq!(driver.discovery.chain_id, id);
-        assert_eq!(driver.discovery.disc.local_enr().tcp4().unwrap(), 9098);
+        assert_eq!(driver.gossip.addr(), &gossip_addr);
+        let discovery = driver.discovery.unwrap();
+        assert_eq!(discovery.chain_id, id);
+        assert_eq!(discovery.disc.local_enr().tcp4().unwrap(), 9098);
 
         // Block Handler Assertions
-        assert_eq!(driver.gossip.handler.rollup_config.l2_chain_id, id);
+        assert_eq!(driver.gossip.handler().rollup_config.l2_chain_id, id);
         let v1 = IdentTopic::new(format!("/optimism/{id}/0/blocks"));
-        println!("{:?}", driver.gossip.handler.blocks_v1_topic);
-        assert_eq!(driver.gossip.handler.blocks_v1_topic.hash(), v1.hash());
+        println!("{:?}", driver.gossip.handler().blocks_v1_topic);
+        assert_eq!(driver.gossip.handler().blocks_v1_topic.hash(), v1.hash());
         let v2 = IdentTopic::new(format!("/optimism/{id}/1/blocks"));
-        assert_eq!(driver.gossip.handler.blocks_v2_topic.hash(), v2.hash());
+        assert_eq!(driver.gossip.handler().blocks_v2_topic.hash(), v2.hash());
         let v3 = IdentTopic::new(format!("/optimism/{id}/2/blocks"));
-        assert_eq!(driver.gossip.handler.blocks_v3_topic.hash(), v3.hash());
+        assert_eq!(driver.gossip.handler().blocks_v3_topic.hash(), v3.hash());
         let v4 = IdentTopic::new(format!("/optimism/{id}/3/blocks"));
-        assert_eq!(driver.gossip.handler.blocks_v4_topic.hash(), v4.hash());
+        assert_eq!(driver.gossip.handler().blocks_v4_topic.hash(), v4.hash());
     }
 
     #[test]
@@ -278,6 +297,97 @@ mod tests {
             .build()
             .unwrap();
 
-        assert_eq!(driver.discovery.disc.local_enr().tcp4().unwrap(), 9097);
+        assert_eq!(driver.discovery.unwrap().disc.local_enr().tcp4().unwrap(), 9097);
+    }
+
+    /// Disabled discovery isn't built, so its settings don't matter: an advertised UDP port with a
+    /// listen port of 0 fails the build only if discovery is enabled.
+    #[test]
+    fn test_build_without_discovery_ignores_its_settings() {
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        let builder = || {
+            network_builder(Default::default())
+                .with_discovery_address(LocalNode::new(secret_key.clone(), ip, 9097, 9097))
+                .with_discovery_config(ConfigBuilder::new(ListenConfig::from_ip(ip, 0)).build())
+        };
+
+        assert!(builder().build().is_err());
+        let driver = builder().with_discovery_enabled(false).build().unwrap();
+        assert!(driver.discovery.is_none());
+    }
+
+    /// Nor is its bootstore opened, so a bootstore that can't be opened, here a directory, fails
+    /// the build only if discovery is enabled.
+    #[test]
+    fn test_build_without_discovery_ignores_its_bootstore() {
+        let dir = tempfile::tempdir().unwrap();
+        let builder = || {
+            network_builder(Default::default())
+                .with_bootstore(Some(BootStoreFile::Custom(dir.path().to_path_buf())))
+        };
+
+        let err = builder().build().unwrap_err();
+        assert!(
+            matches!(
+                err,
+                NetworkBuilderError::DiscoveryDriverBuilder(
+                    kona_disc::Discv5BuilderError::Bootstore(_)
+                )
+            ),
+            "{err}"
+        );
+        let driver = builder().with_discovery_enabled(false).build().unwrap();
+        assert!(driver.discovery.is_none());
+    }
+
+    /// A network starts without discovery, and its handler then holds none.
+    #[tokio::test]
+    async fn test_start_without_discovery() {
+        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        let handler = network_builder(Default::default())
+            .with_gossip_address(Multiaddr::from(ip).with(libp2p::multiaddr::Protocol::Tcp(0)))
+            .with_discovery_enabled(false)
+            .build()
+            .unwrap()
+            .start()
+            .await
+            .unwrap();
+
+        assert!(handler.discovery.is_none());
+    }
+
+    /// Once a node starts, its ENR advertises the TCP port gossip bound, and keeps the IP it
+    /// listens on, if specific. A node listening on all interfaces doesn't know which of its
+    /// addresses peers can reach, so it advertises no IP.
+    #[rstest]
+    #[case::all_interfaces(Ipv4Addr::UNSPECIFIED, None)]
+    #[case::loopback(Ipv4Addr::LOCALHOST, Some(Ipv4Addr::LOCALHOST))]
+    #[tokio::test]
+    async fn test_start_advertises_only_a_specific_ip(
+        #[case] ip: Ipv4Addr,
+        #[case] advertised: Option<Ipv4Addr>,
+    ) {
+        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
+            unreachable!()
+        };
+        let ip = IpAddr::V4(ip);
+        let handler = network_builder(Default::default())
+            .with_gossip_address(Multiaddr::from(ip).with(libp2p::multiaddr::Protocol::Tcp(0)))
+            .with_discovery_address(LocalNode::new(secret_key, ip, 0, 0))
+            .with_discovery_config(ConfigBuilder::new(ListenConfig::from_ip(ip, 0)).build())
+            .build()
+            .unwrap()
+            .start()
+            .await
+            .unwrap();
+
+        let bound_tcp_port = handler.gossip.peer_addr().tcp_port().expect("gossip listens on TCP");
+        let enr = handler.discovery.unwrap().handler.local_enr().await.unwrap();
+
+        assert_eq!(enr.ip4(), advertised);
+        assert_eq!(enr.tcp4(), Some(bound_tcp_port));
     }
 }

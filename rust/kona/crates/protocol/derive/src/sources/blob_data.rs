@@ -123,7 +123,7 @@ impl BlobData {
 
     /// Reassemble 4 by 6 bit encoded chunks into 3 bytes of output and place them in their
     /// appropriate output positions.
-    pub(crate) fn reassemble_bytes(
+    pub(crate) const fn reassemble_bytes(
         &self,
         mut output_pos: usize,
         encoded_byte: &[u8],

@@ -41,18 +41,6 @@ For example, to run the common node tests:
 just test-e2e-sysgo node node/common simple-kona
 ```
 
-### Acceptance Tests
-
-To run acceptance tests for the Rust stack:
-
-```bash
-just acceptance-tests CL_TYPE EL_TYPE
-```
-
-Where:
-- `CL_TYPE`: Consensus layer type (`kona` or `op-node`)
-- `EL_TYPE`: Execution layer type (`op-reth` or `op-geth`)
-
 ### Other Recipes
 
 - `just build-devnet BINARY`: Builds the Docker image for the specified binary (`node`).
@@ -61,7 +49,7 @@ Where:
 
 - `just build-reth`: Builds the op-reth binary.
 
-- `just action-tests-single`: Runs action tests for the single-chain client program.
+- `just action-tests-single`: Builds kona-host and op-reth-test-engine (the L2 execution engine the tests run on), then runs action tests for the single-chain client program.
 
 - `just action-tests-interop`: Runs action tests for the interop client program.
 

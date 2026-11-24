@@ -1,0 +1,47 @@
+---
+title: Proposer 구성
+description: op-proposer 구성 옵션과 proposer 정책 제약 조건에 대한 레퍼런스입니다.
+diataxis: reference
+---
+
+import OpProposerFlags from '/ko/snippets/generated/op-proposer-flags.mdx';
+import { ConfigReferencePreamble } from '/ko/snippets/config-reference-preamble.mdx';
+
+이 페이지에는 op-proposer의 모든 구성 옵션이 나열되어 있습니다. op-proposer는
+output root(제안, proposal)를 L1에 게시하여 검증자(verifier)가 사용할 수 있도록 합니다. L1으로의 출금은 반드시 output root를 참조해야 합니다.
+체인이 권한형(permissioned) 결함 증명(fault proof)을 실행하는 경우, [지정된 proposer](/ko/op-stack/protocol/privileged-roles)만 output root를 제출할 수 있습니다.
+[무허가형(permissionless) 결함 증명](/ko/op-stack/fault-proofs/explainer)을 사용하면 누구나 제안을 할 수 있습니다.
+
+## Proposer 정책
+
+proposer 정책은 L2 output root를 L1에 게시하는 방식에 관한 상위 수준의 제약 조건과 책임을 정의합니다. 아래는 OP Stack에서 proposer를 구성하기 위한 [표준 가이드라인](/ko/op-stack/protocol/superchain-registry#what-is-a-standard-chain)입니다.
+
+| 파라미터        | 설명                                                                         | 관리 주체  | 요구 사항                                                | 참고                                                           |
+| ---------------- | ----------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| Output 빈도 | L2 output root를 (output oracle을 통해) L1에 얼마나 자주 제출할지 정의합니다. | L1 Proxy Admin | **43,200 L2 블록**(2초 블록 시간 기준 24시간) 이하 | 0으로 설정할 수 없습니다(output에는 일정한 주기가 있어야 합니다). |
+
+### 구성 예시
+
+```
+OP_PROPOSER_L1_ETH_RPC: YOUR_L1_RPC_URL_HERE
+OP_PROPOSER_ROLLUP_RPC: YOUR_CHAINS_RPC_URL_HERE
+OP_PROPOSER_GAME_FACTORY_ADDRESS: YOUR_CHAINS_GAME_FACTORY_ADDRESS_HERE
+OP_PROPOSER_PROPOSAL_INTERVAL: 5h
+OP_PROPOSER_WAIT_NODE_SYNC: true
+OP_PROPOSER_ALLOW_NON_FINALIZED: "false"
+OP_PROPOSER_POLL_INTERVAL: "20s"
+OP_PROPOSER_NUM_CONFIRMATIONS: "1"
+OP_PROPOSER_SAFE_ABORT_NONCE_TOO_LOW_COUNT: "3"
+OP_PROPOSER_RESUBMISSION_TIMEOUT: "30s"
+OP_PROPOSER_METRICS_ENABLED: "true"
+OP_PROPOSER_METRICS_ADDR: 0.0.0.0
+OP_PROPOSER_METRICS_PORT: 7300
+```
+
+처리량이 높은 체인은 사용자가 더 자주 출금을 제출할 수 있도록 `proposal-interval`을 줄일 수 있습니다.
+
+## 플래그
+
+<ConfigReferencePreamble component="op-proposer" />
+
+<OpProposerFlags />

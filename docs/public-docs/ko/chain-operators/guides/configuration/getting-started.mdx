@@ -1,0 +1,54 @@
+---
+title: 체인 운영자 구성
+description: OP Stack 체인을 구성하는 방법을 알아봅니다.
+---
+
+OP Stack 체인은 체인 운영자(chain operator)의 필요에 맞게 구성할 수 있습니다. 
+스택의 각 구성 요소에는 고유한 고려 사항이 있습니다. 
+각 구성 요소의 구성에 대한 자세한 내용은 아래 문서를 참고하십시오.
+
+<Steps>
+
+  <Step title="Rollup 구성">
+OP Stack 컨트랙트를 배포하려면 배포 구성 JSON 파일을
+  생성해야 합니다. 이 파일은 genesis 시점의 네트워크 동작을 정의합니다.
+  *   **중요 참고 사항:**
+      *   Rollup 구성은 배포 시 L1 스마트 컨트랙트의 파라미터를 설정합니다. 이 파라미터는 체인의 동작을 제어하며 체인 운영에 매우 중요합니다.
+      *   이러한 값 중 상당수는 배포 후 변경할 수 없거나, 업데이트하려면 복잡한 절차가 필요하다는 점에 유의하십시오.
+          나중에 문제가 발생하지 않도록 구성 과정에서 모든 설정을 신중하게 검토하고 검증하십시오.
+
+  *   [Rollup 배포 구성 레퍼런스](/ko/chain-operators/reference/rollup-deployment-configuration)
+
+
+  </Step>
+
+  <Step title="Batcher 구성">
+batcher는 L2 sequencer 데이터를 L1에 제출하여 검증자(verifier)가
+  사용할 수 있도록 하는 서비스입니다. 이 구성들은 batcher의 
+  동작을 결정합니다.
+
+  *   [Batcher 구성 문서](/ko/chain-operators/guides/configuration/batcher)
+
+
+  </Step>
+
+  <Step title="Proposer 구성">
+proposer는 output root를 L1에 제출하는 서비스입니다. 이
+  구성들은 proposer의 동작을 결정합니다.
+
+  *   [Proposer 구성 문서](/ko/chain-operators/guides/configuration/proposer)
+
+
+  </Step>
+
+  <Step title="Node 구성">
+rollup node는 합의 클라이언트와 실행 클라이언트 모두에 대해
+  다양한 구성 옵션을 제공합니다.
+
+  *   [합의 클라이언트 구성](/ko/node-operators/guides/configuration/consensus-clients)
+  *   [실행 클라이언트 구성](/ko/node-operators/guides/configuration/execution-clients)
+
+
+  </Step></Steps>
+
+

@@ -57,14 +57,15 @@ func TestActor(t *testing.T) {
 		},
 		{
 			// Canonical and safe, but its data only landed on L1 after the game's l1Head
-			// (VerifiedRequiredL1 > l1Head). The challenger decides on canonicity alone and accepts it;
-			// it deliberately does not gate on l1Head-provability the way the interactive super game does.
-			name: "DoNotChallengeCanonicalProposalUnprovableWithinGameL1Head",
+			// (VerifiedRequiredL1 > l1Head). It can never be proven against l1Head, so the actor
+			// challenges it, as super fault games do.
+			name: "ChallengeCanonicalProposalNotDerivableAtGameL1Head",
 			setup: func(t *testing.T, stubs *zkTestStubs) {
 				stubs.contract.proposalHash = stubs.rootProvider.root
 				stubs.contract.l2SequenceNumber = stubs.rootProvider.rootTimestamp
 				stubs.rootProvider.verifiedRequiredL1 = eth.BlockID{Number: zkTestL1Head + 1}
 			},
+			challenge: true,
 		},
 		{
 			name: "ChallengeMismatchedSuperRoot",

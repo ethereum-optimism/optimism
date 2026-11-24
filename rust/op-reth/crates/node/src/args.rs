@@ -20,8 +20,9 @@ pub enum ProofsStorageVersion {
 fn parse_proofs_storage_version(value: &str) -> Result<ProofsStorageVersion, String> {
     match value {
         "v2" => Ok(ProofsStorageVersion::V2),
-        _ => Err("only `v2` is supported; drop this flag or pass `v2`, then delete any v1 proofs \
-                  database and re-create it with `op-reth proofs init`"
+        _ => Err("only `v2` is supported and existing v1 proofs data is ignored; drop this flag \
+                  or pass `v2`, delete any v1 proofs database (or use a fresh \
+                  `--proofs-history.storage-path`), then run `op-reth proofs init`"
             .to_string()),
     }
 }
@@ -165,6 +166,18 @@ pub struct RollupArgs {
     /// that this flag is not yet functional.
     #[arg(long = "rollup.compute-pending-block")]
     pub compute_pending_block: bool,
+
+    /// Seconds between two L2 blocks, which dates the RPC's pending block
+    ///
+    /// The op-reth binary defaults it to the superchain registry's block time for a registry
+    /// chain. Without either, the RPC uses the chain's alloy-chains hint, else 2 s.
+    #[arg(
+        id = "rollup_block_time",
+        long = "rollup.block-time",
+        value_name = "SECONDS",
+        value_parser = clap::value_parser!(u64).range(1..)
+    )]
+    pub block_time: Option<u64>,
 
     /// enables discovery v4 if provided
     #[arg(long = "rollup.discovery.v4", default_value = "false")]
@@ -311,6 +324,18 @@ pub struct RollupArgs {
         default_value_t = 0
     )]
     pub proofs_history_verification_interval: u64,
+
+    /// Parallel readers that warm the proofs storage's page cache ahead of persistence (0 to
+    /// 64). `0` (default) disables warming. Warming reads the pages each buffered block and the
+    /// next prunes will touch, so the single-threaded persistence transaction waits on fewer disk
+    /// reads.
+    #[arg(
+        long = "proofs-history.prefetch-threads",
+        value_name = "THREADS",
+        default_value_t = 0,
+        value_parser = clap::value_parser!(u64).range(0..=64),
+    )]
+    pub proofs_history_prefetch_threads: u64,
 }
 
 impl Default for RollupArgs {
@@ -319,6 +344,7 @@ impl Default for RollupArgs {
             sequencer: None,
             disable_txpool_gossip: false,
             compute_pending_block: false,
+            block_time: None,
             discovery_v4: false,
             enable_tx_conditional: false,
             retain_forwarded_txs: false,
@@ -337,6 +363,7 @@ impl Default for RollupArgs {
             history: ProofsHistoryStorageArgs { storage_path: None, storage_version: None },
             proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
+            proofs_history_prefetch_threads: 0,
         }
     }
 }
@@ -379,6 +406,38 @@ mod tests {
             .unwrap_or_else(|| panic!("storage version {version} should be rejected"));
             assert!(err.to_string().contains("only `v2` is supported"), "unexpected error: {err}");
         }
+    }
+
+    #[test]
+    fn test_proofs_history_prefetch_threads() {
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--proofs-history.prefetch-threads",
+            "8",
+        ])
+        .args;
+        assert_eq!(args.proofs_history_prefetch_threads, 8);
+        assert!(
+            CommandParser::<RollupArgs>::try_parse_from([
+                "reth",
+                "--proofs-history.prefetch-threads",
+                "65",
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn test_parse_optimism_block_time_args() {
+        let expected_args = RollupArgs { block_time: Some(5), ..Default::default() };
+        let args =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.block-time", "5"]).args;
+        assert_eq!(args, expected_args);
+
+        assert!(
+            CommandParser::<RollupArgs>::try_parse_from(["reth", "--rollup.block-time", "0"])
+                .is_err()
+        );
     }
 
     #[test]

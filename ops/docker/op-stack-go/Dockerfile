@@ -43,15 +43,15 @@ RUN <<-EOF
 
     [ "${ACTUAL_SHA}" == "${EXPECTED_SHA}" ] || (echo "Forge checksum mismatch: Expected $EXPECTED_SHA, got $ACTUAL_SHA" && exit 1)
 
-    # Extract the archive
-    tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge
+    # Extract the archive. op-deployer runs forge, and anvil for `op-deployer prepare` and `continue`.
+    tar -xzf "${DOWNLOAD_PATH}" -C /usr/local/bin forge anvil
 EOF
 
 # Display installed version for visibility
-RUN forge --version
+RUN forge --version && anvil --version
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
-FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine3.23 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine3.23 AS builder
 
 # Enforce that builds use the committed go.mod/go.sum exactly and never
 # silently mutate them. Fails the build if the lockfile is out of date.
@@ -79,12 +79,12 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 # NOTE: the Dockerfile.dockerignore file effectively describes all dependencies
 COPY . /app
 
-# Most op-stack-go services embed op-core/superchain/superchain-configs.zip via
+# Most op-stack-go services embed op-core/superchain/bundle/superchain-configs.zip via
 # //go:embed. It's gitignored and regenerated from the superchain-registry
 # submodule, whose data is copied into the build context (see Dockerfile.dockerignore).
 # Build it here in the shared builder stage — git-free, verifying against the
 # committed .sha256 — so every Go build stage below links it.
-RUN bash op-core/superchain/sync-superchain.sh
+RUN bash op-core/superchain/bundle/sync-superchain.sh
 
 # We avoid copying the full .git dir into the build for just some metadata.
 # Instead, specify:
@@ -183,7 +183,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 # Compile contracts in a glibc-based image (solc requires glibc, crashes on Alpine musl).
 # Uses BUILDPLATFORM so it runs natively (no QEMU). Contract artifacts are platform-independent.
-FROM --platform=$BUILDPLATFORM golang:1.26.5-bookworm AS op-deployer-contracts
+FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm AS op-deployer-contracts
 ARG BUILDARCH
 ENV GOFLAGS=-mod=readonly
 RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends curl jq git && rm -rf /var/lib/apt/lists/*
@@ -225,7 +225,7 @@ RUN <<-EOF
     done
 EOF
 # Compile contracts and create artifacts tarball
-RUN cd packages/contracts-bedrock && forge build --skip "/**/test/**"
+RUN ./op-deployer/scripts/build-embedded-contracts.sh
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
   go run ./op-deployer/pkg/deployer/artifacts/cmd/mktar \
     -base ./packages/contracts-bedrock \
@@ -257,7 +257,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
   just op-interop-mon/op-interop-mon
 
 # The Rust version must match rust/rust-toolchain.toml. We don't use "latest" to ensure reproducibility
-FROM --platform=$BUILDPLATFORM rust:1.95 AS kona-host-builder
+FROM --platform=$BUILDPLATFORM rust:1.99.1 AS kona-host-builder
 ARG TARGETARCH
 # Install build dependencies and cross-compilation toolchains
 RUN apt-get -o Acquire::Retries=8 update && apt-get -o Acquire::Retries=8 install -y --no-install-recommends \
@@ -362,9 +362,8 @@ CMD ["op-test-sequencer"]
 
 FROM dhi.io/alpine-base:3.23 AS op-deployer-target
 USER 0
-COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/
+COPY --from=builder_foundry /usr/local/bin/forge /usr/local/bin/anvil /usr/local/bin/
 COPY --from=op-deployer-builder /app/op-deployer/bin/op-deployer /usr/local/bin/
-ENV FORGE_ENV=alpine
 CMD ["op-deployer"]
 
 FROM $TARGET_BASE_IMAGE AS op-dripper-target

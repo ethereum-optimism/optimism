@@ -1,0 +1,34 @@
+---
+title: regenesis 이전 이력 조회
+description: Etherscan CSV 내보내기 도구를 사용하여 regenesis 이전 이력을 조회하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+이 가이드에서는 2021년 6월 23일부터 마지막 regenesis 사이의 트랜잭션 이력을 조회하는 방법을 설명합니다.
+2021년 11월 11일의 마지막 regenesis로 인해, 그 이전의 트랜잭션은 현재 블록체인에 포함되어 있지 않으며 [Etherscan](https://explorer.optimism.io/?utm_source=op-docs&utm_medium=docs)에도 표시되지 않습니다.
+
+<Info>
+  2021년 1월부터 7월까지의 이벤트 및 트랜잭션 상태 데이터는 일부 손실되었으며 완전히 복구할 수 없습니다.
+  누락된 내용, 그 이유, 영향은 [손실된 regenesis 이전 데이터](/ko/op-mainnet/pre-bedrock-history/lost-pre-regenesis-data)를 참조하세요.
+</Info>
+
+## Dune을 통한 조회
+
+[이 쿼리](https://dune.com/queries/354886?addr=%5Cx25E1c58040f27ECF20BBd4ca83a09290326896B3)와 유사하게 [Dune Analytics](https://dune.com)에서 쿼리를 사용할 수 있습니다.
+Dune 계정으로 로그인해야 하지만, 무료 요금제로 충분합니다.
+
+<Steps>
+  <Step title="Dune의 [OVM1.0 User Address Transactions](https://dune.com/optimismfnd/OVM1.0-User-Address-Transactions) 대시보드로 이동합니다.">
+  
+  </Step>
+
+  <Step title="왼쪽 상단의 `Address` 텍스트 상자에 검색할 주소를 입력합니다.">
+  
+  </Step>
+
+  <Step title="쿼리를 실행합니다(로그인이 필요하며, 무료 Dune 계정으로 충분합니다).">
+  
+  </Step>
+</Steps>
+
+또는 Dune에서 사용자 정의 쿼리를 실행하려면 [여기 Dune 문서](https://dune.com/docs/data-tables/?h=ovm#optimism)에 정의된 `optimism_legacy_ovm1` 스키마를 사용할 수 있습니다.

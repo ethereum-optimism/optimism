@@ -126,7 +126,10 @@ func New(ctx context.Context, log oplog.Logger, version string, commit string, r
 				break
 			}
 		}
-		interopActivity = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, dependencySet, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
+		interopActivity, err = interop.New(log.New("activity", "interop"), *interopActivationTimestamp, dependencySet, s.chains, cfg.DataDir, s.l1Client, cfg.InteropLogBackfillDepth, s.supernodeMetrics)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create interop activity: %w", err)
+		}
 		verifiedReader = interopActivity
 	}
 

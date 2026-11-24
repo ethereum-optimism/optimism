@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { L2ContractsManager } from "src/L2/L2ContractsManager.sol";
 import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { L2ContractsManagerUtils } from "src/libraries/L2ContractsManagerUtils.sol";
@@ -25,6 +24,7 @@ import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableE
 import { IFeeVault } from "interfaces/L2/IFeeVault.sol";
 import { IL2ProxyAdmin } from "interfaces/L2/IL2ProxyAdmin.sol";
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
@@ -36,11 +36,6 @@ contract L2ContractsManager_FunctionsExposer_Harness is L2ContractsManager {
     /// @notice Returns the full configuration for the L2 predeploys.
     function loadFullConfig() external view returns (L2ContractsManagerTypes.FullConfig memory) {
         return _loadFullConfig();
-    }
-
-    /// @notice Returns true if _feature is enabled and false otherwise.
-    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool) {
-        return _isDevFeatureEnabled(_feature);
     }
 }
 
@@ -80,6 +75,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         address l2ToL2CrossDomainMessengerImpl;
         address superchainETHBridgeImpl;
         address ethLiquidityImpl;
+        address undeliveredMessageExporterImpl;
         address nativeAssetLiquidityImpl;
         address liquidityControllerImpl;
         address l2DevFeatureFlagsImpl;
@@ -160,6 +156,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         state_.superchainETHBridgeImpl = EIP1967Helper.getImplementation(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         state_.ethLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.ETH_LIQUIDITY);
+        state_.undeliveredMessageExporterImpl = EIP1967Helper.getImplementation(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
         state_.nativeAssetLiquidityImpl = EIP1967Helper.getImplementation(Predeploys.NATIVE_ASSET_LIQUIDITY);
         state_.liquidityControllerImpl = EIP1967Helper.getImplementation(Predeploys.LIQUIDITY_CONTROLLER);
         state_.l2DevFeatureFlagsImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
@@ -210,6 +207,11 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         );
         assertEq(_state1.superchainETHBridgeImpl, _state2.superchainETHBridgeImpl, "SuperchainETHBridge impl mismatch");
         assertEq(_state1.ethLiquidityImpl, _state2.ethLiquidityImpl, "ETHLiquidity impl mismatch");
+        assertEq(
+            _state1.undeliveredMessageExporterImpl,
+            _state2.undeliveredMessageExporterImpl,
+            "UndeliveredMessageExporter impl mismatch"
+        );
         assertEq(
             _state1.nativeAssetLiquidityImpl, _state2.nativeAssetLiquidityImpl, "NativeAssetLiquidity impl mismatch"
         );
@@ -487,6 +489,7 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
         config_.liquidityController = L2ContractsManagerTypes.LiquidityControllerConfig({
             owner: makeAddr("liquidityControllerOwner"), gasPayingTokenName: "Custom", gasPayingTokenSymbol: "CGT"
         });
+        config_.l2ToL2MessageExpiryPeriod = 1 days;
         config_.isCustomGasToken = _cgt;
         config_.isInterop = _interop;
     }
@@ -634,7 +637,8 @@ contract L2ContractsManager_Upgrade_Test is CommonTest {
             || _proxy == Predeploys.SEQUENCER_FEE_WALLET || _proxy == Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
             || _proxy == Predeploys.L2_ERC721_BRIDGE || _proxy == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY
             || _proxy == Predeploys.BASE_FEE_VAULT || _proxy == Predeploys.L1_FEE_VAULT
-            || _proxy == Predeploys.OPERATOR_FEE_VAULT || _proxy == Predeploys.LIQUIDITY_CONTROLLER;
+            || _proxy == Predeploys.OPERATOR_FEE_VAULT || _proxy == Predeploys.LIQUIDITY_CONTROLLER
+            || _proxy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
     }
 }
 
@@ -840,15 +844,15 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
     function setUp() public override {
         super.enableInterop();
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        vm.skip(!deploy.cfg().useInterop());
         interopPredeploys.push(Predeploys.CROSS_L2_INBOX);
         interopPredeploys.push(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         interopPredeploys.push(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         interopPredeploys.push(Predeploys.ETH_LIQUIDITY);
+        interopPredeploys.push(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     }
 
-    /// @notice Tests that all 4 interop predeploys are upgraded when the INTEROP sys feature is enabled
-    ///         (which requires OPTIMISM_PORTAL_INTEROP dev feature to also be enabled for consistency).
+    /// @notice Tests that all interop predeploys are upgraded when the INTEROP sys feature is enabled.
     function test_upgradeUpgradesInteropPredeploys_whenInteropFlagEnabled_succeeds() public {
         // Capture pre-upgrade implementations
         address[] memory preUpgradeImpls = new address[](interopPredeploys.length);
@@ -879,6 +883,96 @@ contract L2ContractsManager_Upgrade_InteropFlagEnabled_Test is L2ContractsManage
             _findImplByName("ETHLiquidity"),
             "ETHLiquidity should be upgraded"
         );
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.UNDELIVERED_MESSAGE_EXPORTER),
+            _findImplByName("UndeliveredMessageExporter"),
+            "UndeliveredMessageExporter should be upgraded"
+        );
+    }
+
+    /// @notice Tests that an upgrade installs the UndeliveredMessageExporter on a chain whose proxy at
+    ///         its address has no implementation yet, as on every chain before it ships.
+    function test_upgradeInstallsUndeliveredMessageExporter_whenProxyEmpty_succeeds() public {
+        EIP1967Helper.setImplementation(Predeploys.UNDELIVERED_MESSAGE_EXPORTER, address(0));
+        assertEq(EIP1967Helper.getImplementation(Predeploys.UNDELIVERED_MESSAGE_EXPORTER), address(0));
+
+        _executeUpgrade();
+
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.UNDELIVERED_MESSAGE_EXPORTER),
+            _findImplByName("UndeliveredMessageExporter"),
+            "UndeliveredMessageExporter should be installed"
+        );
+    }
+
+    /// @notice Tests that an upgrade keeps the messenger's expiry period, and that running it again
+    ///         keeps it too.
+    function testFuzz_upgradeKeepsMessengerExpiryPeriod_succeeds(uint256 _expiryPeriod) public {
+        _expiryPeriod = bound(_expiryPeriod, 1, 365 days);
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        stdstore.target(address(messenger)).sig(messenger.expiryPeriod.selector).checked_write(_expiryPeriod);
+
+        _executeUpgrade();
+        assertEq(messenger.expiryPeriod(), _expiryPeriod);
+
+        _executeUpgrade();
+        assertEq(messenger.expiryPeriod(), _expiryPeriod);
+    }
+
+    /// @notice Tests that an upgrade keeps a short expiry period that a test network set at genesis.
+    function test_upgradeKeepsMessengerExpiryPeriod_shortPeriod_succeeds() public {
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        stdstore.target(address(messenger)).sig(messenger.expiryPeriod.selector).checked_write(uint256(1 hours));
+
+        _executeUpgrade();
+
+        assertEq(messenger.expiryPeriod(), 1 hours);
+    }
+
+    /// @notice Tests that an upgrade keeps the production expiry period of 8 days.
+    function test_upgradeKeepsMessengerExpiryPeriod_productionPeriod_succeeds() public {
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(messenger.expiryPeriod(), 8 days);
+
+        _executeUpgrade();
+
+        assertEq(messenger.expiryPeriod(), 8 days);
+    }
+
+    /// @notice Tests that an upgrade from a messenger whose expiry period reads 0 initializes it with
+    ///         the production expiry period of 8 days.
+    function test_upgradeSetsProductionMessengerExpiryPeriod_zeroPeriod_succeeds() public {
+        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.store(address(messenger), bytes32(uint256(5)), bytes32(0));
+        assertEq(messenger.expiryPeriod(), 0);
+
+        _executeUpgrade();
+
+        assertEq(messenger.expiryPeriod(), 8 days);
+    }
+
+    /// @notice Tests that an upgrade from a messenger without a configurable expiry period, as on
+    ///         chains today, initializes it with the production expiry period of 8 days.
+    function test_upgradeSetsProductionMessengerExpiryPeriod_fromLegacyMessenger_succeeds() public {
+        EIP1967Helper.setImplementation(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, address(new L2ContractsManager_LegacyMessenger_Harness())
+        );
+        vm.store(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, bytes32(uint256(5)), bytes32(0));
+        vm.store(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, INITIALIZABLE_SLOT_OZ_V5, bytes32(0));
+
+        _executeUpgrade();
+
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), 8 days);
+    }
+}
+
+/// @title L2ContractsManager_LegacyMessenger_Harness
+/// @notice Stands in for an L2ToL2CrossDomainMessenger implementation from before the expiry period
+///         was configurable: it has a version but no expiryPeriod() getter.
+contract L2ContractsManager_LegacyMessenger_Harness {
+    /// @notice Returns the version of the last messenger without a configurable expiry period.
+    function version() external pure returns (string memory) {
+        return "1.3.2";
     }
 }
 
@@ -892,14 +986,19 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
 
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        vm.skip(deploy.cfg().useInterop());
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
+            .checked_write(false);
         interopPredeploys.push(Predeploys.CROSS_L2_INBOX);
         interopPredeploys.push(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         interopPredeploys.push(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         interopPredeploys.push(Predeploys.ETH_LIQUIDITY);
+        interopPredeploys.push(Predeploys.UNDELIVERED_MESSAGE_EXPORTER);
     }
 
-    /// @notice Tests that all 4 interop predeploys retain pre-upgrade implementations when OPTIMISM_PORTAL_INTEROP flag
+    /// @notice Tests that all interop predeploys retain pre-upgrade implementations when the INTEROP sys feature
     /// is disabled.
     function test_upgradeSkipsInteropPredeploys_whenInteropFlagDisabled_succeeds() public {
         // Capture pre-upgrade implementations
@@ -915,24 +1014,26 @@ contract L2ContractsManager_Upgrade_InteropFlagDisabled_Test is L2ContractsManag
             assertEq(
                 EIP1967Helper.getImplementation(interopPredeploys[i]),
                 preUpgradeImpls[i],
-                "Interop predeploy should not be upgraded when OPTIMISM_PORTAL_INTEROP is disabled"
+                "Interop predeploy should not be upgraded when INTEROP is disabled"
             );
         }
     }
 }
 
-/// @title L2ContractsManager_Upgrade_FeatureFlagMismatch_Test
-/// @notice Tests that _loadFullConfig reverts when the INTEROP system customization is enabled
-///         but the OPTIMISM_PORTAL_INTEROP dev feature is not.
-contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManager_Upgrade_Test {
+/// @title L2ContractsManager_Upgrade_InteropSystemFeature_Test
+/// @notice Tests that the upgrade is gated by the INTEROP system feature alone, independent of
+///         whether interop was active at genesis. Existing chains activate interop at the Lagoon
+///         hard fork.
+contract L2ContractsManager_Upgrade_InteropSystemFeature_Test is L2ContractsManager_Upgrade_Test {
     using stdStorage for StdStorage;
 
-    /// @notice Tests that upgrade succeeds when the dev feature is enabled but the system feature is not.
-    ///         This is a valid transitional state: interop code is deployed but not yet activated.
-    function test_upgrade_devEnabledSysDisabled_succeeds() public {
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    /// @notice Tests that upgrade succeeds when interop was active at genesis but the system feature
+    ///         is not set. This is a valid transitional state: interop code is deployed but not yet
+    ///         activated.
+    function test_upgrade_genesisInteropSysDisabled_succeeds() public {
+        vm.skip(!deploy.cfg().useInterop());
 
-        // Clear the INTEROP system feature on L1Block while the dev feature remains enabled.
+        // Clear the INTEROP system feature on L1Block that L2 genesis set.
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
             .sig("isFeatureEnabled(bytes32)")
             .with_key(Features.INTEROP)
@@ -941,18 +1042,52 @@ contract L2ContractsManager_Upgrade_FeatureFlagMismatch_Test is L2ContractsManag
         _executeUpgrade();
     }
 
-    /// @notice Tests that upgrade reverts when the system feature is enabled but the dev feature is not.
-    function test_upgrade_sysEnabledDevDisabled_reverts() public {
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    /// @notice Tests that upgrade installs the interop predeploys when the system feature is enabled
+    ///         on a chain without interop at genesis, as on a chain activating interop at Lagoon.
+    function test_upgrade_sysEnabledNoGenesisInterop_succeeds() public {
+        vm.skip(deploy.cfg().useInterop());
 
-        // Set the INTEROP system feature on L1Block while the dev feature remains disabled.
+        // Set the INTEROP system feature on L1Block.
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
             .sig("isFeatureEnabled(bytes32)")
             .with_key(Features.INTEROP)
             .checked_write(true);
 
-        vm.expectRevert(L2ContractsManager.L2ContractsManager_FeatureFlagMismatch.selector);
         _executeUpgrade();
+
+        _assertInteropPredeploysUpgraded();
+    }
+
+    /// @notice Tests that upgrade installs the interop predeploys when the system feature is enabled
+    ///         and the L2DevFeatureFlags implementation has no code, as on a chain that predates it.
+    function test_upgrade_sysEnabledFlagsImplHasNoCode_succeeds() public {
+        vm.etch(EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS), bytes(""));
+
+        stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
+            .checked_write(true);
+
+        _executeUpgrade();
+
+        _assertInteropPredeploysUpgraded();
+    }
+
+    /// @notice Asserts that every interop predeploy points at its L2CM implementation.
+    function _assertInteropPredeploysUpgraded() internal view {
+        assertEq(EIP1967Helper.getImplementation(Predeploys.CROSS_L2_INBOX), _findImplByName("CrossL2Inbox"));
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER),
+            _findImplByName("L2ToL2CrossDomainMessenger")
+        );
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.SUPERCHAIN_ETH_BRIDGE), _findImplByName("SuperchainETHBridge")
+        );
+        assertEq(EIP1967Helper.getImplementation(Predeploys.ETH_LIQUIDITY), _findImplByName("ETHLiquidity"));
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.UNDELIVERED_MESSAGE_EXPORTER),
+            _findImplByName("UndeliveredMessageExporter")
+        );
     }
 }
 
@@ -964,7 +1099,7 @@ contract L2ContractsManager_Upgrade_Coverage_Test is L2ContractsManager_Upgrade_
         super.setUp();
         // Skip interop since it requires to call useInterop() on setUp.
         // The upgrade test for interop is in L2ContractsManager_Upgrade_InteropFlagEnabled_Test.
-        skipIfDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+        vm.skip(deploy.cfg().useInterop());
     }
 
     /// @notice Expects the proxy call path used by L2CM.
@@ -1053,9 +1188,20 @@ contract L2ContractsManager_Deploy_Coverage_Test is L2ContractsManager_Upgrade_T
         _assertDeployTouchesExactly(_deployConfig(true, false));
     }
 
-    /// @notice Interop combo: CrossL2Inbox, L2ToL2CrossDomainMessenger, SuperchainETHBridge, ETHLiquidity gated in.
+    /// @notice Interop combo: CrossL2Inbox, L2ToL2CrossDomainMessenger, SuperchainETHBridge, ETHLiquidity,
+    ///         UndeliveredMessageExporter gated in.
     function test_deployTouchedSet_interop_succeeds() public {
         _assertDeployTouchesExactly(_deployConfig(false, true));
+    }
+
+    /// @notice Tests that deploy() initializes the messenger with the supplied expiry period.
+    function test_deploy_messengerExpiryPeriod_succeeds() public {
+        L2ContractsManagerTypes.FullConfig memory config = _deployConfig(false, true);
+        _executeDeploy(l2cm, config);
+        assertEq(
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
+            config.l2ToL2MessageExpiryPeriod
+        );
     }
 
     /// @notice Custom gas token and interop combined: both feature sets are gated in.
@@ -1072,24 +1218,16 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
     using stdStorage for StdStorage;
 
     /// @notice Helper function that simulates an existing-chain state where L2DevFeatureFlags
-    ///         has not been deployed. Empties the current proxy implementation so that the
-    ///         null-safe guard in `_isDevFeatureEnabled` fires and returns false.
+    ///         has not been deployed. Empties the current proxy implementation.
     function _simulateNoFlagsImpl() internal {
         address currentImpl = EIP1967Helper.getImplementation(Predeploys.L2_DEV_FEATURE_FLAGS);
         vm.etch(currentImpl, bytes(""));
 
-        // Clear the INTEROP system feature on L1Block to stay consistent with the dev feature
-        // being unavailable, otherwise _loadFullConfig will revert on the mismatch check.
+        // Clear the INTEROP system feature on L1Block so these tests cover a chain without interop.
         stdstore.target(Predeploys.L1_BLOCK_ATTRIBUTES)
             .sig("isFeatureEnabled(bytes32)")
             .with_key(Features.INTEROP)
             .checked_write(false);
-    }
-
-    /// @notice Tests that _isDevFeatureEnabled returns false when the flags implementation has no code.
-    function testFuzz_isDevFeatureEnabled_whenFlagsImplHasNoCode_succeeds(bytes32 _feature) public {
-        _simulateNoFlagsImpl();
-        assertFalse(l2cm.isDevFeatureEnabled(_feature));
     }
 
     /// @notice Tests that the upgrade does not revert when L2DevFeatureFlags implementation has no code.
@@ -1101,13 +1239,14 @@ contract L2ContractsManager_Upgrade_NullSafeFlagsImpl_Test is L2ContractsManager
     /// @notice Tests that all interop predeploys retain their pre-upgrade implementations
     ///         when the flags implementation has no code.
     function test_upgrade_skipsInteropPredeploys_succeeds() public {
-        address[] memory interopPredeploys = new address[](4);
+        address[] memory interopPredeploys = new address[](5);
         interopPredeploys[0] = Predeploys.CROSS_L2_INBOX;
         interopPredeploys[1] = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
         interopPredeploys[2] = Predeploys.SUPERCHAIN_ETH_BRIDGE;
         interopPredeploys[3] = Predeploys.ETH_LIQUIDITY;
+        interopPredeploys[4] = Predeploys.UNDELIVERED_MESSAGE_EXPORTER;
 
-        address[] memory preUpgradeImpls = new address[](4);
+        address[] memory preUpgradeImpls = new address[](5);
         for (uint256 i = 0; i < interopPredeploys.length; i++) {
             preUpgradeImpls[i] = EIP1967Helper.getImplementation(interopPredeploys[i]);
         }

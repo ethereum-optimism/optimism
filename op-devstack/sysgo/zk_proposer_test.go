@@ -47,11 +47,13 @@ func TestZKProposerOptions(t *testing.T) {
 		WithZKProposalInterval(12*time.Second),
 		WithZKFastFinality(),
 		WithZKMetrics(),
+		WithZKLogPath("receipts"),
 	)
 	require.NoError(t, err)
 	require.Equal(t, 12*time.Second, *cfg.ProposalInterval)
 	require.True(t, cfg.FastFinality)
 	require.True(t, cfg.Metrics)
+	require.Equal(t, "receipts", cfg.LogPath)
 }
 
 func TestZKProposerDisablesMetricsByDefault(t *testing.T) {

@@ -8,13 +8,13 @@ import (
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,7 +49,7 @@ func testStartStopBatcher(t *testing.T, cfgMod func(*e2esys.SystemConfig)) {
 
 	rollupClient := sys.RollupClient("verifier")
 
-	l2Seq := sys.NodeClient("sequencer")
+	l2Seq := sys.NodeSourceClient("sequencer")
 	l2Verif := sys.NodeClient("verifier")
 
 	// retrieve the initial sync status
@@ -57,7 +57,7 @@ func testStartStopBatcher(t *testing.T, cfgMod func(*e2esys.SystemConfig)) {
 	require.NoError(t, err)
 
 	nonce := uint64(0)
-	sendTx := func() *types.Receipt {
+	sendTx := func() *optypes.Receipt {
 		// Submit TX to L2 sequencer node
 		receipt := helpers.SendL2Tx(t, cfg, l2Seq, cfg.Secrets.Alice, func(opts *helpers.TxOpts) {
 			opts.ToAddr = &common.Address{0xff, 0xff}

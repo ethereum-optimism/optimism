@@ -435,6 +435,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
     /// 3. Speculative: pending sequence with pending parent state (if provided)
     ///
     /// Returns None if nothing is buildable right now.
+    #[allow(clippy::question_mark)]
     pub(crate) fn next_buildable_args<N: NodePrimitives<SignedTx = T>>(
         &mut self,
         local_tip_hash: B256,

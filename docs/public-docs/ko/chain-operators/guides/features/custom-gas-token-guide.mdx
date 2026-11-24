@@ -1,0 +1,253 @@
+---
+title: Custom Gas Token 체인 배포하기
+description: OP Deployer를 사용하여 Custom Gas Token 체인을 배포하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+이 가이드는 Custom Gas Token(CGT) 체인을 배포하려는 체인 운영자를 위한 안내서입니다.
+이 OP Stack 기능에 대한 전반적인 이해는 [Custom Gas Token 개요](/ko/op-stack/features/custom-gas-token)를 참고하십시오.
+
+Custom Gas Token 체인을 사용하면 ETH 대신 어떤 자산이든 네이티브 수수료 통화로 사용할 수 있습니다.
+이 자산은 기존 L1 토큰, 다른 체인의 토큰을 표현한 것, 또는 genesis 시점에 생성된 새로 정의된 자산(또는 새 L2 토큰)일 수 있습니다.
+
+<Warning>
+Custom Gas Token v2는 레거시 CGT 체인과 호환되지 않는 새로운 구현입니다.
+현재 레거시 CGT에서 CGT v2로의 마이그레이션 경로는 없으며, 향후 마련될 예정입니다.
+</Warning>
+
+## 사전 요구 사항 {#prerequisites}
+
+CGT 체인을 배포하기 전에 다음을 갖추었는지 확인하십시오.
+
+*   **OP Deployer 설치**: 설정 방법은 [op-deployer 설치](/ko/chain-operators/tools/op-deployer/installation)를 참고하십시오
+*   **L1 RPC 엔드포인트**: 배포를 위한 Ethereum L1 node 접근
+*   **자금이 충전된 배포자 계정**: 배포 중 L1 gas 비용을 위한 ETH
+*   **토큰 설계**: 네이티브 자산에 대한 명확한 계획(공급량, 분배, 브리징 메커니즘)
+*   **보안 감사**: 배포하려는 모든 승인된 minter 또는 bridge 컨트랙트에 대한 철저한 검토
+
+## 배포 단계 {#deployment-steps}
+
+CGT 체인 배포는 표준 OP Stack 배포 절차를 따르며, Custom Gas Token 관련 파라미터에 대한 추가 구성이 필요합니다.
+
+<Steps>
+  <Step title="intent 파일 초기화">
+    OP Deployer의 [init 명령](/ko/chain-operators/tools/op-deployer/usage/init)을 사용하여 새 intent 파일을 생성합니다.
+
+    ```bash
+    op-deployer init \
+      --l1-chain-id <chain ID of your L1> \
+      --l2-chain-ids <comma separated list of chain IDs for your L2s> \
+      --intent-type custom
+    ```
+
+    이 명령은 `intent.toml` 파일을 생성합니다.
+  </Step>
+
+  <Step title="Custom Gas Token 파라미터 구성">
+    `intent.toml` 파일을 열고 Custom Gas Token 구성을 추가합니다. 아래는 CGT 관련 필드가 포함된 예시입니다.
+
+    ```toml
+    configType = "custom"
+    l1ChainID = 11155111
+    fundDevAccounts = false
+    useInterop = false
+    l1ContractsLocator = "embedded"
+    l2ContractsLocator = "embedded"
+
+    [superchainRoles]
+      SuperchainProxyAdminOwner = "0xYourMultisigAddress"
+      SuperchainGuardian = "0xYourMultisigAddress"
+      Challenger = "0xYourMultisigAddress"
+
+    [[chains]]
+      id = "0x0000000000000000000000000000000000000000000000000000000000001234"
+      baseFeeVaultRecipient = "0xYourFeeRecipientAddress"
+      l1FeeVaultRecipient = "0xYourFeeRecipientAddress"
+      sequencerFeeVaultRecipient = "0xYourFeeRecipientAddress"
+      operatorFeeVaultRecipient = "0xYourFeeRecipientAddress"
+      eip1559DenominatorCanyon = 0
+      eip1559Denominator = 0
+      eip1559Elasticity = 0
+      gasLimit = 60000000
+      operatorFeeScalar = 0
+      operatorFeeConstant = 0
+      minBaseFee = 0
+      daFootprintGasScalar = 0
+
+      [chains.roles]
+        l1ProxyAdminOwner = "0xYourMultisigAddress"
+        l2ProxyAdminOwner = "0xYourMultisigAddress"
+        systemConfigOwner = "0xYourMultisigAddress"
+        unsafeBlockSigner = "0xYourSequencerAddress"
+        batcher = "0xYourBatcherAddress"
+        proposer = "0xYourProposerAddress"
+        challenger = "0xYourChallengerAddress"
+
+      [chains.customGasToken]
+        name = "My Custom Token"
+        symbol = "MCT"
+        initialLiquidity = "0x..."  # optional, default: type(uint248).max
+        liquidityControllerOwner = "0x..."  # optional, default: L2ProxyAdminOwner
+    ```
+
+    ### 주요 CGT 구성 필드
+
+    | 필드 | 설명 | 필수 여부 |
+    |-------|-------------|----------|
+    | `name` | 네이티브 자산의 이름(예: "My Custom Token") | 예 |
+    | `symbol` | 네이티브 자산의 심볼(예: "MCT") | 예 |
+    | `initialLiquiditySupply` | genesis 시점에 NativeAssetLiquidity에 발행되는 초기 공급량 | 아니요, 기본값: type(uint248).max |
+    | `liquidityControllerOwner` | 자산 공급량을 관리 | 아니요, 기본값으로 `L2ProxyAdminOwner`가 사용됨 |
+
+    <Warning>
+    **수수료 파라미터 계산은 매우 중요합니다**: `minBaseFee`와 `operatorFee`는 커스텀 토큰으로 표시된 L1 gas 비용과 DA 수수료를 정확하게 반영해야 합니다. 너무 낮게 설정하면 체인이 운영 비용을 충당하지 못할 수 있습니다. 너무 높게 설정하면 사용자가 과도한 수수료를 지불하게 됩니다.
+    </Warning>
+
+    <Info>
+    **소수점 지원**: CGT v2는 현재 소수점 18자리 토큰만 지원합니다. 다른 소수점 자릿수에 대한 지원은 향후 릴리스에서 추가될 수 있습니다.
+    </Info>
+  </Step>
+
+  <Step title="L1 컨트랙트 배포">
+    OP Deployer의 [apply 명령](/ko/chain-operators/tools/op-deployer/usage/apply)을 사용하여 L1 컨트랙트를 배포합니다.
+
+    ```bash
+    op-deployer apply \
+      --l1-rpc-url <your L1 RPC URL> \
+      --private-key <your deployer private key>
+    ```
+
+    이 명령은 `isCustomGasToken` 플래그가 활성화된 `SystemConfig`를 포함하여 필요한 모든 L1 컨트랙트를 배포하며, 이 플래그는 L1 컨트랙트가 ETH 값을 포함한 트랜잭션을 거부하도록 지시합니다.
+
+    <Info>
+    배포 과정에서 genesis 초기화 시 CGT 전용 predeploy(`NativeAssetLiquidity` 및 `LiquidityController`)가 자동으로 배포됩니다.
+    </Info>
+  </Step>
+
+  <Step title="(선택 사항) L1 컨트랙트 검증">
+    선택적으로 OP Deployer의 [verify 명령](/ko/chain-operators/tools/op-deployer/usage/verify)을 사용하여 Blockscout 또는 Etherscan에서 L1 컨트랙트를 검증할 수 있습니다.
+  </Step>
+
+  <Step title="CGT 구성으로 genesis 파일 생성">
+    L1 배포가 완료되면 OP Deployer의 [apply 명령](/ko/chain-operators/tools/op-deployer/usage/apply)으로 L2 genesis를 초기화합니다.
+
+    ```bash
+    op-deployer apply \
+      --deployment-target genesis \
+      --deploy-mock-sp1-verifier
+    ```
+
+    genesis 구성은 `intent.toml`을 기반으로 적용됩니다. 생성된 genesis에는 SP1 verifier가 포함되어 있지 않으므로,
+    `--deploy-mock-sp1-verifier`가 모든 증명을 수락하는 mock을 배포합니다. 개발 용도로만 사용하십시오.
+  </Step>
+
+  <Step title="체인 서비스 시작">
+    OP Stack 서비스를 시작하여 CGT 체인의 시퀀싱을 시작합니다.
+
+    * Sequencer 실행 클라이언트
+    * Sequencer 합의 클라이언트
+    * Batcher
+    * Proposer
+    * Challenger
+
+  </Step>
+
+  <Step title="검증 및 테스트">
+    서비스를 공개하기 전에 CGT 체인을 철저히 테스트하십시오. 다음은 확인해야 할 주요 영역입니다.
+
+    **플래그 일치 여부 확인**
+    * L1 SystemConfig.isCustomGasToken()이 true를 반환하는지 확인
+    * L2 L1Block.isCustomGasToken()이 true를 반환하는지 확인
+    * 두 플래그가 일치하는지 확인
+
+    **네이티브 자산 동작 테스트**
+    * 승인된 minter를 통한 네이티브 자산 발행 테스트
+    * 네이티브 자산 소각 테스트
+    * 네이티브 토큰으로 수수료 지불 테스트
+    * fee vault 누적 확인
+
+
+    **ETH 거부 테스트**
+    * OptimismPortal을 통한 ETH 입금 시도(실패해야 함)
+    * L2ToL1MessagePasser를 통한 ETH 출금 시도(실패해야 함)
+    * ETH 동작이 올바르게 차단되는지 확인
+
+
+    **bridge 기능 테스트**
+
+    * 입금 테스트(L1 → L2 네이티브 자산 발행)
+    * 출금 테스트(L2 네이티브 → L1 토큰)
+    * 유동성 컨트랙트에서 잠금/잠금 해제가 올바르게 이루어지는지 확인
+
+  </Step>
+</Steps>
+
+## 배포 후 고려 사항 {#post-deployment-considerations}
+
+### 공급량 관리 {#supply-management}
+
+배포 후 다음 작업을 수행할 수 있습니다.
+
+*   **초과 유동성 출금**: genesis에서 필요 이상의 공급량이 생성된 경우, `L2ToL1MessagePasser`를 통해 출금하고 소각합니다
+*   **새 minter 추가**: 생태계가 성장함에 따라 네이티브 자산을 발행할 수 있는 추가 컨트랙트를 승인합니다
+*   **minter 권한 취소**: 손상되었거나 더 이상 사용되지 않는 컨트랙트의 권한을 제거합니다
+*   **속도 제한 구현**: 발행 속도를 제어하기 위한 안전장치를 추가합니다
+
+### 수수료 파라미터 조정 {#fee-parameter-adjustments}
+
+체인의 운영 비용을 모니터링하고 필요에 따라 수수료 파라미터를 조정하십시오.
+
+*   **minBaseFee**: L1 gas 비용과 토큰 가치에 따라 `SystemConfig.setMinBaseFee()`를 사용하여 조정합니다
+*   **operatorFee**: 데이터 가용성 비용에 따라 `SystemConfig.setOperatorFeeScalars()`를 사용하여 조정합니다
+
+### 개발자 문서 {#developer-documentation}
+
+사용자를 위해 다음 내용을 다루는 명확한 문서를 작성하십시오.
+
+*   네이티브 자산을 획득하는 방법(bridge, DEX, faucet 등)
+*   bridge 컨트랙트 주소와 인터페이스
+*   수수료 구조와 토큰 이코노믹스
+*   지갑 구성(RPC 엔드포인트, chain ID, 토큰 메타데이터)
+
+## 문제 해결 {#troubleshooting}
+
+### 플래그 불일치 오류 {#flag-mismatch-errors}
+
+**증상**: "custom gas token mismatch" 오류와 함께 트랜잭션이 실패합니다
+
+**해결 방법**: L1의 `SystemConfig.isCustomGasToken()`과 L2의 `L1Block.isCustomGasToken()`이 동일한 값을 반환하는지 확인하십시오. 일치하지 않으면 심각한 구성 오류가 있음을 의미합니다.
+
+### 수수료 파라미터 문제 {#fee-parameter-issues}
+
+**증상**: 체인 운영자가 트랜잭션 비용에서 손실을 보거나, 사용자가 과도한 수수료에 대해 불만을 제기합니다
+
+**해결 방법**: 다음을 기준으로 `minBaseFee`와 `operatorFee` 파라미터를 검토하고 다시 계산하십시오.
+*   현재 L1 gas 가격
+*   토큰의 시장 가치 또는 페그
+*   데이터 가용성 비용
+*   사용자를 위한 목표 수수료 구조
+
+### 유동성 고갈 {#liquidity-depletion}
+
+**증상**: 유동성 부족으로 발행 트랜잭션이 실패합니다
+
+**해결 방법**:
+*   `NativeAssetLiquidity` 잔액을 확인하십시오
+*   고갈된 경우 발행과 소각 사이에 불균형이 있음을 의미합니다
+*   bridge 로직을 검토하여 소각이 올바르게 이루어지고 있는지 확인하십시오
+*   향후 배포에서는 초기 유동성 공급량을 늘리는 것을 고려하십시오
+
+### 승인되지 않은 발행 시도 {#unauthorized-minting-attempts}
+
+**증상**: 승인되지 않은 주소가 네이티브 자산 발행을 시도합니다
+
+**해결 방법**:
+*   `LiquidityController`의 접근 제어 구성을 검토하십시오
+*   감사를 거쳐 안전하게 보호된 컨트랙트만 승인되었는지 확인하십시오
+*   아직 적용되지 않았다면 속도 제한을 구현하십시오
+*   추가 안전장치와 함께 권한을 취소하고 다시 승인하는 것을 고려하십시오
+
+## 참고 자료 {#resources}
+
+*   [Custom Gas Token 기능 개요](/ko/op-stack/features/custom-gas-token)
+*   [OP Deployer 문서](/ko/chain-operators/tools/op-deployer/overview)

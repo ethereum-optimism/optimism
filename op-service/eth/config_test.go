@@ -15,9 +15,9 @@ func TestL1ChainConfigByChainID(t *testing.T) {
 	}{
 		{1, common.HexToAddress("0x00000000219ab540356cbb839cbe05303d7705fa"), false},        // Mainnet
 		{11155111, common.HexToAddress("0x7f02c3e3c98b133055b8b348b2ac625669ed295d"), false}, // Sepolia
-		{17000, common.HexToAddress("0x4242424242424242424242424242424242424242"), false},    // Holesky
 		{560048, common.HexToAddress("0x00000000219ab540356cBB839Cbe05303d7705Fa"), false},   // Hoodi
-		{560049, common.HexToAddress("0xdeadbeef"), true},                                    // Unknown
+		{17000, common.Address{}, true},                   // Holesky, shut down
+		{560049, common.HexToAddress("0xdeadbeef"), true}, // Unknown
 	}
 	for _, tc := range tc {
 		config := L1ChainConfigByChainID(ChainIDFromUInt64(tc.chainID))

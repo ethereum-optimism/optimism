@@ -15,7 +15,8 @@ import (
 )
 
 // sp1SuperRangeExecutorPath is the path to a pre-built kona-sp1-super-range-executor binary. The
-// binary loads the super-range guest ELF from KONA_SP1_ELF_DIR at runtime.
+// binary loads the super-range guest ELF from KONA_SP1_ELF_DIR at runtime, and the log-commitment
+// ELF for blocks below a local safe head.
 var sp1SuperRangeExecutorPath string
 
 func init() {
@@ -62,7 +63,7 @@ func RunSuperRangeExecutor(
 	writeConfig(t, workDir, "l1chain", l1chainConfig, l1chainConfigPath)
 
 	depsetPath := filepath.Join(workDir, "depset.json")
-	writeDepset(t, depsetPath, rollupCfgs)
+	writeDepset(t, depsetPath, fixtureInputs.DependencySet, rollupCfgs)
 
 	args := []string{
 		"--supernode-address", fixtureInputs.SupernodeAddress,

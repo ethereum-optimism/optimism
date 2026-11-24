@@ -127,22 +127,23 @@ fn catch_error_over_tx_types_and_error_kinds(
 
 /// A failed deposit rolls the world state back to just after the initial mint, but still
 /// increments the sender nonce by 1 and persists the mint — see the deposits spec:
-/// <https://specs.optimism.io/protocol/deposits.html#nonce-handling>.
-#[test]
-fn failed_deposit_bumps_sender_nonce_and_persists_mint() {
+/// <https://specs.optimism.io/protocol/deposits.html#nonce-handling>. A mint that overflows the
+/// balance saturates at `U256::MAX`, as it does when the deposit succeeds.
+#[rstest]
+#[case::no_overflow(U256::from(500), U256::from(1_500))]
+#[case::overflow(U256::MAX - U256::from(1), U256::MAX)]
+fn failed_deposit_bumps_sender_nonce_and_persists_mint(
+    #[case] start_balance: U256,
+    #[case] expected_balance: U256,
+) {
     const CALLER: Address = Address::new([0x11; 20]);
     const START_NONCE: u64 = 7;
-    const START_BALANCE: u64 = 500;
     const MINT: u128 = 1_000;
 
     let mut db = InMemoryDB::default();
     db.insert_account_info(
         CALLER,
-        AccountInfo {
-            nonce: START_NONCE,
-            balance: U256::from(START_BALANCE),
-            ..Default::default()
-        },
+        AccountInfo { nonce: START_NONCE, balance: start_balance, ..Default::default() },
     );
 
     // A deposit (non-zero source hash) from `CALLER` carrying a mint, failed via a tx-validity
@@ -150,7 +151,7 @@ fn failed_deposit_bumps_sender_nonce_and_persists_mint() {
     let tx = OpTransaction::builder()
         .base(TxEnv::builder().caller(CALLER).gas_limit(21_000))
         .source_hash(B256::with_last_byte(1))
-        .mint(MINT)
+        .mint(U256::from(MINT))
         .build_fill();
     let mut evm = Context::op().with_db(db).with_tx(tx).build_op();
     let handler = OpHandler::<_, TestError, EthFrame<EthInterpreter>>::new();
@@ -179,8 +180,7 @@ fn failed_deposit_bumps_sender_nonce_and_persists_mint() {
         "a failed deposit must increment the sender nonce by 1"
     );
     assert_eq!(
-        caller.info.balance,
-        U256::from(START_BALANCE) + U256::from(MINT),
+        caller.info.balance, expected_balance,
         "a failed deposit must persist the minted ETH"
     );
 }

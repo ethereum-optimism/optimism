@@ -4,7 +4,7 @@ contents:
   repositories:
     - https://packages.wolfi.dev/os
   packages:
-    - ca-certificates-bundle
+    - ca-certificates-bundle>=20260909-r3
     - wolfi-baselayout
     - op-dispute-mon@local
     - busybox

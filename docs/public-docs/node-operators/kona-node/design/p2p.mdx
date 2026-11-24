@@ -95,8 +95,16 @@ over and consuming events from `GossipDriver::next`.
 
 The `GossipDriver` provides the methods to handle events
 from the [libp2p Swarm][swarm]. Events should be consumed
-this way in order to use the connection gater as well as peer
-store and fields on the `GossipDriver`.
+this way to keep the `GossipDriver`'s peer store, dial
+bookkeeping and connection state in step with the swarm.
+
+Peer, address and subnet blocks, and score bans, are enforced
+inside the swarm, by a gate behaviour that the swarm asks about
+each connection before the other behaviours. It refuses an
+inbound connection from a blocked address before the handshake,
+and one from a blocked or banned peer once its peer ID is known.
+Blocking a peer, address or subnet also closes the connections
+already open to it.
 
 The [libp2p Swarm][swarm] listens on a specified
 [`Multiaddr`][multiaddr].

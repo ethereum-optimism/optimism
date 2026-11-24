@@ -1,7 +1,10 @@
-//! Task and its associated types for the forkchoice engine update.
+//! The forkchoice engine update shared by the engine tasks, and its error type.
 
-mod task;
-pub use task::SynchronizeTask;
+mod helper;
+pub(in crate::task_queue) use helper::{synchronize, synchronize_unconditionally};
 
 mod error;
 pub use error::SynchronizeTaskError;
+
+#[cfg(test)]
+mod tests;

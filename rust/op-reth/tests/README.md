@@ -50,9 +50,6 @@ just build-bedrock-contracts
 
 - `just test-e2e-sysgo` depends on `build-contracts` and runs automatically.
 - The test target sets `RUST_BINARY_PATH_OP_RETH` to `../../target/release/op-reth` (the devstack harness env var; the path must exist).
-- You can override proof EL kinds with:
-  - `OP_DEVSTACK_PROOF_SEQUENCER_EL`
-  - `OP_DEVSTACK_PROOF_VALIDATOR_EL`
 
 ## Quick workflow example
 

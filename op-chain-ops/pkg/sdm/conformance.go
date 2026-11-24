@@ -234,7 +234,7 @@ func validateReceiptConformance(validation *ValidationResult, receipts map[commo
 		if receipt == nil {
 			return fmt.Errorf("receipt %s missing", tx.Hash)
 		}
-		if uint64(tx.Type) == types.DepositTxType {
+		if uint64(tx.Type) == optypes.DepositTxType {
 			if receipt.OPGasRefund != nil {
 				return fmt.Errorf("deposit receipt %s unexpectedly exposes opGasRefund=%d", tx.Hash, *receipt.OPGasRefund)
 			}
@@ -335,7 +335,7 @@ func validateReplayAccounting(validation *ValidationResult, receipts map[common.
 		if row.CanonicalGasUsed != uint64(receipt.GasUsed) {
 			return fmt.Errorf("replay transaction %d canonical gas %d, want receipt gasUsed %d (%s)", i, row.CanonicalGasUsed, receipt.GasUsed, replayCaveat)
 		}
-		if uint64(tx.Type) == types.DepositTxType {
+		if uint64(tx.Type) == optypes.DepositTxType {
 			if row.OPGasRefundPayload != nil || row.RawGasUsed != row.CanonicalGasUsed {
 				return fmt.Errorf("deposit replay row %d contains a refund or changes gas accounting", i)
 			}

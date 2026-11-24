@@ -1,0 +1,50 @@
+{/*
+  Standing "Unreleased" callout for hand-written pages that describe component
+  behavior merged on `develop` but not yet in a finalized release, per the
+  content guide's "Documenting unreleased changes" rule:
+  https://docs.optimism.io/op-stack/contribute/content-guide#documenting-unreleased-changes
+
+  docs.optimism.io deploys from `develop` while components ship from release
+  tags, so prose that lands with a component PR is live before the binary is.
+  This callout marks such prose. It is temporary: when it names a version,
+  `pnpm lint:reference` warns once that tag exists in git and the weekly CI
+  sweep (the lint in --strict mode) fails until the callout is removed; when
+  it does not, the weekly sweep lists it, and a maintainer removes it after
+  confirming the change has shipped.
+
+  Do not use this on generated reference pages (anything under reference/):
+  those regenerate from the published artifact at the next finalized tag and
+  are never hand-edited.
+
+  Usage:
+    import { Unreleased } from "/snippets/unreleased.mdx"
+
+    <Unreleased component="op-reth" />
+    <Unreleased component="op-reth" version="v2.5.0" />
+
+  Props:
+    component - required. The release-tag prefix as published on GitHub
+                Releases: "op-node", "op-batcher", "op-proposer",
+                "op-challenger", "op-conductor", "op-supernode",
+                "op-deployer", "op-reth", "kona-node".
+    version   - optional. The finalized release that will carry the change,
+                as a full semver with the leading v ("v2.5.0"), when known.
+                The lint matches the git tag `<component>/<version>` exactly.
+*/}
+
+export const Unreleased = ({ component, version }) => (
+  <Warning>
+    <strong>미출시(Unreleased):</strong> 이 내용은 병합되었지만 아직 게시된{" "}
+    <code>{component}</code> 릴리스에 포함되지 않은 동작을 설명합니다. 이 동작은{" "}
+    {version ? (
+      <a href={`https://github.com/ethereum-optimism/optimism/releases?q=${component}%2F${version}&expanded=true`}>
+        <code>{component}/{version}</code>
+      </a>
+    ) : (
+      <span>향후 출시될 <code>{component}</code> 릴리스</span>
+    )}
+    에 포함되어 출시됩니다. 그때까지 현재 릴리스는 이 페이지의 나머지 부분에
+    설명된 대로 동작합니다. 이미 출시된 내용은 <a href="/ko/releases">릴리스
+    기록</a>을 참조하십시오.
+  </Warning>
+);

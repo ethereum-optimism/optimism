@@ -24,7 +24,8 @@ Notes that matter in practice:
 
 - **Wait for the gates the ruleset requires,** not the individual jobs: the four
   CircleCI fan-in gates (`ci-gate`, `required-contracts-ci`, `required-rust-ci`,
-  `required-rust-e2e`) plus the `dependency-review` GitHub Actions check. A gate reports
+  `required-rust-e2e`) plus the `dependency-review` GitHub Actions check; on a
+  `proposal/**` branch, `ci-gate-proposals` and `required-contracts-ci`. A gate reports
   last, so it can still be pending while every job you were watching is green. On skip
   paths the gate is produced by an `always-succeed` companion, so a gate that never
   reports at all is a config bug (see [ci-config-review.md](ci-config-review.md) item 2),
@@ -63,20 +64,29 @@ branch that only added a new `op-core/types` package. The diff touched nothing i
 `op-deployer`; the failures were a data-dependent flake already fixed on `develop` by
 #21396. Rebasing made CI green with no change to the branch's own work.
 
-## Missing `op-core/superchain` bundle (`superchain-configs.zip`)
+## Go module cache on Circle
+
+A successful "Restore Go module cache" step does not prove that Go reads the restored
+modules. Machine images default `GOPATH` to `~/.go_workspace`, so the shared
+`restore-go-mod-cache` helper sets `GOMODCACHE=$HOME/go/pkg/mod` through `BASH_ENV`. If a
+job downloads modules after a cache hit, compare `go env GOMODCACHE` with the cached path.
+The key includes `go.mod`, so a toolchain-directive bump saves a new snapshot that holds the
+downloaded toolchain. `.circleci/scripts/test-go-mod-cache.py` checks both properties.
+
+## Missing `op-core/superchain/bundle` bundle (`superchain-configs.zip`)
 
 A CI-only compile error like:
 
 ```
-op-core/superchain/chain.go:NN: pattern superchain-configs.zip: no matching files found
+op-core/superchain/bundle/bundle.go:NN: pattern superchain-configs.zip: no matching files found
 ```
 
-means the job builds Go that transitively links `op-core/superchain` without the bundle
+means the job builds Go that transitively links `op-core/superchain/bundle` without the bundle
 it `//go:embed`s. The zip is **gitignored** and built only by the `prep-superchain` job
 (or `just build-superchain-go` locally), so **every** job that compiles an
-`op-core/superchain` linker must provision it. The linker set is large — op-node and
+`op-core/superchain/bundle` linker must provision it. The linker set is large — op-node and
 several other binaries, but also `op-e2e`, `op-acceptance-tests`, `op-deployer`, and the
-`kona`/`op-reth` Go tests (`TestBundleReachability` in `op-core/superchain/deps_test.go`
+`kona`/`op-reth` Go tests (`TestBundleReachability` in `op-core/superchain/bundle/deps_test.go`
 pins the full set) — so a **Go-only** change can red-wash unrelated-looking jobs
 (`rust-e2e`) all at compile time. It passes locally and in review because the
 developer already has the zip on disk (see [go-dev.md](go-dev.md)).
@@ -92,7 +102,7 @@ Provision the bundle in the failing job:
 - **`just` recipes** that compile such Go: have the recipe run
   `just build-superchain-go` first.
 
-When adding a new `op-core/superchain` consumer, audit every CI job that compiles it.
+When adding a new `op-core/superchain/bundle` consumer, audit every CI job that compiles it.
 
 ## TODO Checker Failures
 

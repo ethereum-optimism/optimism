@@ -330,7 +330,7 @@ mod tests {
         data[24..32].copy_from_slice(&offset);
         let len: [u8; 8] = U64::from(128).to_be_bytes();
         data[56..64].copy_from_slice(&len);
-        // Copy the u128 mint value
+        // Copy the mint into the low 16 bytes of its word
         let mint: [u8; 16] = 10_u128.to_be_bytes();
         data[80..96].copy_from_slice(&mint);
         // Copy the tx value
@@ -859,9 +859,9 @@ mod tests {
             seq_num: 0,
         };
         let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
-        // 1 L1InfoTx + 28 bundle txs. Single-chain superchains skip only the
+        // 1 L1InfoTx + 29 bundle txs. Single-chain superchains skip only the
         // setFeature and ETHLiquidity funding wrappers.
-        assert_eq!(payload.transactions.unwrap().len(), 1 + 28);
+        assert_eq!(payload.transactions.unwrap().len(), 1 + 29);
     }
 
     /// Interop-activated, multi-chain `dep-set` → full bundle wrapped with setFeature + funding.
@@ -897,8 +897,8 @@ mod tests {
             seq_num: 0,
         };
         let payload = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap();
-        // 1 L1InfoTx + 30 interop txs (1 setFeature + 28 bundle + 1 ETHLiquidity funding).
-        assert_eq!(payload.transactions.unwrap().len(), 1 + 30);
+        // 1 L1InfoTx + 31 interop txs (1 setFeature + 29 bundle + 1 ETHLiquidity funding).
+        assert_eq!(payload.transactions.unwrap().len(), 1 + 31);
     }
 
     /// The Lagoon activation block reserves the same upgrade gas for every dependency-set size.

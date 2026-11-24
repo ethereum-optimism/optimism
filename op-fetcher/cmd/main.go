@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
-	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch"
+	"github.com/ethereum-optimism/optimism/op-fetcher/fetch"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/urfave/cli/v2"

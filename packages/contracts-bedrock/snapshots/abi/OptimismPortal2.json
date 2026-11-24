@@ -3,7 +3,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_proofMaturityDelaySeconds",
+        "name": "_minProofMaturityDelaySeconds",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_maxProofMaturityDelaySeconds",
         "type": "uint256"
       }
     ],
@@ -28,6 +33,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "bridgeHook",
+    "outputs": [
+      {
+        "internalType": "contract IBridgeHook",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -43,6 +61,146 @@
     "name": "checkWithdrawal",
     "outputs": [],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum BridgeHookTypes.Direction",
+            "name": "direction",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum BridgeHookTypes.Asset",
+            "name": "asset",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "aliased",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ethAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2Value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isCreation",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct BridgeHookTypes.Item",
+        "name": "_item",
+        "type": "tuple"
+      }
+    ],
+    "name": "completeDepositTransaction",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum BridgeHookTypes.Direction",
+            "name": "direction",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum BridgeHookTypes.Asset",
+            "name": "asset",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "aliased",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ethAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2Value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isCreation",
+            "type": "bool"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct BridgeHookTypes.Item",
+        "name": "_item",
+        "type": "tuple"
+      }
+    ],
+    "name": "completeWithdrawalTransaction",
+    "outputs": [],
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -289,6 +447,44 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "heldDeposits",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "heldWithdrawals",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "initVersion",
     "outputs": [
@@ -317,6 +513,16 @@
         "internalType": "contract IETHLockbox",
         "name": "_ethLockbox",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_proofMaturityDelaySeconds",
+        "type": "uint256"
+      },
+      {
+        "internalType": "contract IBridgeHook",
+        "name": "_bridgeHook",
+        "type": "address"
       }
     ],
     "name": "initialize",
@@ -332,6 +538,19 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxProofMaturityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -360,6 +579,19 @@
     "name": "migrateToSharedDisputeGame",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minProofMaturityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -612,6 +844,38 @@
   },
   {
     "inputs": [],
+    "name": "publishedParams",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "prevPublishedGas",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "prevBlockNum",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct ResourceMetering.PublishedParams",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "removeHook",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "respectedGameType",
     "outputs": [
       {
@@ -634,6 +898,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_proofMaturityDelaySeconds",
+        "type": "uint256"
+      }
+    ],
+    "name": "setProofMaturityDelaySeconds",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -674,6 +951,45 @@
     ],
     "stateMutability": "pure",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract IBridgeHook",
+        "name": "bridgeHook",
+        "type": "address"
+      }
+    ],
+    "name": "BridgeHookRemoved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract IBridgeHook",
+        "name": "bridgeHook",
+        "type": "address"
+      }
+    ],
+    "name": "BridgeHookSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DepositHeld",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -742,6 +1058,19 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "proofMaturityDelaySeconds",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProofMaturityDelaySecondsSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "from",
@@ -786,6 +1115,25 @@
       }
     ],
     "name": "WithdrawalFinalized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "id",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "withdrawalHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "WithdrawalHeld",
     "type": "event"
   },
   {
@@ -852,6 +1200,31 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "withdrawalHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "proofSubmitter",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "contract IDisputeGame",
+        "name": "disputeGameProxy",
+        "type": "address"
+      }
+    ],
+    "name": "WithdrawalProvenExtension2",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "ContentLengthMismatch",
     "type": "error"
@@ -913,6 +1286,11 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_InvalidBridgeHookState",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_InvalidDisputeGame",
     "type": "error"
   },
@@ -938,12 +1316,27 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_InvalidProofMaturityDelay",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_InvalidProofMaturityDelayBounds",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_InvalidProofTimestamp",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "OptimismPortal_InvalidRootClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_L1CDMCallFailed",
     "type": "error"
   },
   {
@@ -968,6 +1361,16 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_NotBridgeHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_NotHeld",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_NotUsingInterop",
     "type": "error"
   },
@@ -983,7 +1386,17 @@
   },
   {
     "inputs": [],
+    "name": "OptimismPortal_TargetCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OptimismPortal_Unproven",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_ValueMismatch",
     "type": "error"
   },
   {

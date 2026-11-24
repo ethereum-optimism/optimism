@@ -26,7 +26,7 @@ not a monitoring gap.
 | Code | `op-node/node/safedb/` | `rust/kona/crates/node/safedb/` |
 | Store | pebble | rocksdb, behind the non-default `rocksdb` feature |
 | Contract | `rollup.SafeHeadListener` (`op-node/rollup/iface.go:79-96`) plus the reader interface (`op-node/node/api.go:45-56`) | the `SafeDb` trait (`src/traits.rs`) |
-| Disabled form | `safedb.Disabled` | `DisabledDatabase` |
+| Disabled form | `safedb.Disabled` | `None` |
 | State | wired: derivation writes it, two RPCs serve it | crate only; not yet wired to derivation or RPC |
 
 Both use the same key and value layout today, but that is coincidence, not contract.
@@ -193,9 +193,9 @@ error is not the dangerous outcome. A confident wrong answer is.
    head keeps the answer for an L1 block that is only partly rolled back.
 3. **No rewrite when no earlier entry exists.** Intentional: the node cannot tell whether
    the head became safe in that L1 block or before its records start.
-4. **A truncation path that does not check `Enabled`.** The disabled implementation makes
-   the truncation a no-op, and the interface permits callbacks when it reports disabled
-   (`op-node/rollup/iface.go:84-86`).
+4. **A truncation path without a database.** Kona skips recording and truncation when the
+   database is `None`. The op-node disabled implementation makes truncation a no-op, and its
+   interface permits callbacks when disabled (`op-node/rollup/iface.go:84-86`).
 5. **A query returning an L1 block below the one requested.** That is the contract for
    "safe head at L1".
 6. **A green test on a label change.** Pre-interop and follow-source-disabled modes make

@@ -134,15 +134,15 @@ func TestBuildZKGameReport(t *testing.T) {
 		report, err := buildZKGameReport(context.Background(), setup(t, contracts.ProposalStatusChallengedAndValidProofProvided, gameTypes.GameStatusInProgress))
 		require.NoError(t, err)
 		require.Equal(t, zkGameReport{
-			Status:                     "In Progress",
-			ProposalStatus:             "ChallengedAndValidProofProvided",
-			ParentIndex:                3,
-			RootClaim:                  rootClaim.Hex(),
-			StartingSuperRootTimestamp: 100,
-			ProposalSuperRootTimestamp: 200,
-			Challenger:                 challenger.Hex(),
-			Prover:                     prover.Hex(),
-			Deadline:                   deadline.Format(time.RFC3339),
+			Status:                "In Progress",
+			ProposalStatus:        "ChallengedAndValidProofProvided",
+			ParentIndex:           3,
+			RootClaim:             rootClaim.Hex(),
+			L2StartSequenceNumber: 100,
+			L2EndSequenceNumber:   200,
+			Challenger:            challenger.Hex(),
+			Prover:                prover.Hex(),
+			Deadline:              deadline.Format(time.RFC3339),
 		}, report)
 	})
 
@@ -150,16 +150,16 @@ func TestBuildZKGameReport(t *testing.T) {
 		report, err := buildZKGameReport(context.Background(), setup(t, contracts.ProposalStatusResolved, gameTypes.GameStatusDefenderWon))
 		require.NoError(t, err)
 		require.Equal(t, zkGameReport{
-			Status:                     "Defender Won",
-			ResolutionTime:             resolvedAt.Format(time.RFC3339),
-			ProposalStatus:             "Resolved",
-			ParentIndex:                3,
-			RootClaim:                  rootClaim.Hex(),
-			StartingSuperRootTimestamp: 100,
-			ProposalSuperRootTimestamp: 200,
-			Challenger:                 challenger.Hex(),
-			Prover:                     prover.Hex(),
-			Deadline:                   deadline.Format(time.RFC3339),
+			Status:                "Defender Won",
+			ResolutionTime:        resolvedAt.Format(time.RFC3339),
+			ProposalStatus:        "Resolved",
+			ParentIndex:           3,
+			RootClaim:             rootClaim.Hex(),
+			L2StartSequenceNumber: 100,
+			L2EndSequenceNumber:   200,
+			Challenger:            challenger.Hex(),
+			Prover:                prover.Hex(),
+			Deadline:              deadline.Format(time.RFC3339),
 		}, report)
 	})
 }

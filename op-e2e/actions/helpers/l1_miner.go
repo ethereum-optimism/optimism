@@ -72,6 +72,9 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 
 		parent := s.l1Chain.CurrentHeader()
 		parentHash := parent.Hash()
+		if s.l1Cfg.Config.IsAmsterdam(new(big.Int).Add(parent.Number, common.Big1), parent.Time+timeDelta) {
+			t.Fatalf("the L1 miner cannot build Amsterdam blocks: it builds no block access lists")
+		}
 		statedb, err := state.New(parent.Root, state.NewDatabase(triedb.NewDatabase(s.l1Database, nil), nil))
 		if err != nil {
 			t.Fatalf("failed to init state db around block %s (state %s): %w", parentHash, parent.Root, err)
@@ -88,7 +91,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 		}
 
 		if s.l1Cfg.Config.IsLondon(header.Number) {
-			header.BaseFee = eip1559.CalcBaseFee(s.l1Cfg.Config, parent, header.Time)
+			header.BaseFee = eip1559.CalcBaseFee(s.l1Cfg.Config, parent)
 			// At the transition, double the gas limit so the gas target is equal to the old gas limit.
 			if !s.l1Cfg.Config.IsLondon(parent.Number) {
 				header.GasLimit = parent.GasLimit * s.l1Cfg.Config.ElasticityMultiplier()
@@ -105,24 +108,12 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			header.ExcessBlobGas = &excessBlobGas
 			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
 			header.ParentBeaconRoot = &root
-
-			// Copied from op-e2e/actions/helpers/engineapi/block_processor.go
-			// TODO(client-pod#826)
-			// Unfortunately this is not part of any Geth environment setup,
-			// we just have to apply it, like how the Geth block-builder worker does.
-			context := core.NewEVMBlockContext(header, s.l1Chain, nil, s.l1Chain.Config(), statedb)
-			// NOTE: Unlikely to be needed for the beacon block root, but we setup any precompile overrides anyways for forwards-compatibility
-			var precompileOverrides vm.PrecompileOverrides
-			if vmConfig := s.l1Chain.GetVMConfig(); vmConfig != nil && vmConfig.PrecompileOverrides != nil {
-				precompileOverrides = vmConfig.PrecompileOverrides
-			}
-			vmenv := vm.NewEVM(context, statedb, s.l1Chain.Config(), vm.Config{PrecompileOverrides: precompileOverrides})
-			core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv)
-
-			if s.l1Chain.Config().IsPrague(header.Number, header.Time) {
-				core.ProcessParentBlockHash(header.ParentHash, vmenv)
-			}
 		}
+
+		// Run the pre-execution system calls (EIP-4788 beacon root, EIP-2935 parent hash),
+		// like the go-ethereum block builder does.
+		vmenv := vm.NewEVM(core.NewEVMBlockContext(header, s.l1Chain, nil), statedb, s.l1Chain.Config(), vm.Config{})
+		core.PreExecution(t.Ctx(), header.ParentBeaconRoot, parent, s.l1Chain.Config(), vmenv, header.Number, header.Time)
 
 		s.l1Building = true
 		s.l1BuildingHeader = header
@@ -147,7 +138,7 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 		getPendingIndex := func(from common.Address) uint64 {
 			return s.pendingIndices[from]
 		}
-		tx := firstValidTx(t, from, getPendingIndex, s.Eth.TxPool().ContentFrom, s.EthClient().NonceAt)
+		tx := FirstValidTx(t, from, getPendingIndex, s.Eth.TxPool().ContentFrom, s.EthClient().NonceAt)
 		s.IncludeTx(t, tx)
 		s.pendingIndices[from] = s.pendingIndices[from] + 1 // won't retry the tx
 	}
@@ -176,14 +167,15 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) *types.Receipt {
 	if tx.Gas() > s.l1BuildingHeader.GasLimit {
 		t.Fatalf("tx consumes %d gas, more than available in L1 block %d", tx.Gas(), s.l1BuildingHeader.GasLimit)
 	}
-	if tx.Gas() > s.L1GasPool.Gas() {
-		t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), s.L1GasPool.Gas())
+	if available := s.L1GasPool.Available(false); tx.Gas() > available {
+		t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), available)
 		return nil
 	}
-	s.l1BuildingState.SetTxContext(tx.Hash(), len(s.L1Transactions))
-	blockCtx := core.NewEVMBlockContext(s.l1BuildingHeader, s.l1Chain, nil, s.l1Cfg.Config, s.l1BuildingState)
+	txIndex := len(s.L1Transactions)
+	s.l1BuildingState.SetTxContext(tx.Hash(), txIndex, uint32(txIndex+1))
+	blockCtx := core.NewEVMBlockContext(s.l1BuildingHeader, s.l1Chain, nil)
 	evm := vm.NewEVM(blockCtx, s.l1BuildingState, s.l1Cfg.Config, *s.l1Chain.GetVMConfig())
-	receipt, err := core.ApplyTransaction(
+	receipt, _, err := core.ApplyTransaction(t.Ctx(),
 		evm, s.L1GasPool, s.l1BuildingState, s.l1BuildingHeader, tx.WithoutBlobTxSidecar())
 	if err != nil {
 		s.l1TxFailed = append(s.l1TxFailed, tx)
@@ -192,38 +184,18 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) *types.Receipt {
 	s.l1Receipts = append(s.l1Receipts, receipt)
 	s.L1Transactions = append(s.L1Transactions, tx.WithoutBlobTxSidecar())
 	if tx.Type() == types.BlobTxType {
-		require.True(t, s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time), "L1 must be cancun to process blob tx")
+		// Test blob senders send cell proofs, which an L1 includes only from Osaka on.
+		require.True(t, s.l1Cfg.Config.IsOsaka(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time), "L1 must be Osaka to process blob tx")
 		sidecar := tx.BlobTxSidecar()
 		require.NotNil(t, sidecar, "missing sidecar in blob transaction")
 		hashes := tx.BlobHashes()
 		require.Greater(t, len(hashes), 0, "blobless blob transaction")
 		require.NoError(t, sidecar.ValidateBlobCommitmentHashes(hashes))
-		if s.l1Cfg.Config.IsOsaka(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
-			require.NoError(t, validateBlobSidecarOsaka(sidecar, hashes))
-		} else {
-			require.NoError(t, validateBlobSidecarLegacy(sidecar, hashes))
-		}
+		require.NoError(t, validateBlobSidecarOsaka(sidecar, hashes))
 		s.l1BuildingBlobSidecars = append(s.l1BuildingBlobSidecars, sidecar)
 		*s.l1BuildingHeader.BlobGasUsed += receipt.BlobGasUsed
 	}
 	return receipt
-}
-
-// validateBlobSidecarLegacy implements pre-Osaka sidecar validation.
-// Copied and adapted from op-geth core/txpool/validation.go
-func validateBlobSidecarLegacy(sidecar *types.BlobTxSidecar, hashes []common.Hash) error {
-	if sidecar.Version != types.BlobSidecarVersion0 {
-		return fmt.Errorf("invalid sidecar version pre-osaka: %v", sidecar.Version)
-	}
-	if len(sidecar.Proofs) != len(hashes) {
-		return fmt.Errorf("invalid number of %d blob proofs expected %d", len(sidecar.Proofs), len(hashes))
-	}
-	for i := range sidecar.Blobs {
-		if err := kzg4844.VerifyBlobProof(&sidecar.Blobs[i], sidecar.Commitments[i], sidecar.Proofs[i]); err != nil {
-			return fmt.Errorf("invalid blob %d: %w", i, err)
-		}
-	}
-	return nil
 }
 
 // validateBlobSidecarOsaka implements Osaka sidecar validation.
@@ -254,8 +226,9 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 	}
 
 	s.l1Building = false
-	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - s.L1GasPool.Gas()
-	s.l1BuildingHeader.Root = s.l1BuildingState.IntermediateRoot(s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
+	s.l1BuildingHeader.GasUsed = s.L1GasPool.Used()
+	rules := s.l1Cfg.Config.Rules(s.l1BuildingHeader.Number, true, s.l1BuildingHeader.Time)
+	s.l1BuildingHeader.Root = s.l1BuildingState.IntermediateRoot(rules)
 
 	var withdrawals []*types.Withdrawal
 	if s.l1Cfg.Config.IsShanghai(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
@@ -267,14 +240,13 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 		s.l1BuildingHeader.RequestsHash = &types.EmptyRequestsHash
 	}
 
-	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
 	// Write state changes to db
-	root, err := s.l1BuildingState.Commit(bigs.Uint64Strict(s.l1BuildingHeader.Number), s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number), isCancun)
+	root, err := s.l1BuildingState.Commit(rules, bigs.Uint64Strict(s.l1BuildingHeader.Number))
 	if err != nil {
 		t.Fatalf("l1 state write error: %v", err)
 	}
 	require.Equal(t, s.l1BuildingHeader.Root, root, "no unexpected change in state-root")
-	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil))
 
 	if err := s.l1BuildingState.Database().TrieDB().Commit(root, false); err != nil {
 		t.Fatalf("l1 trie write error: %v", err)

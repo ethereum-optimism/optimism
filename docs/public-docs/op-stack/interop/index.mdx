@@ -6,7 +6,7 @@ content-type: curriculum-hub
 last-reviewed: 2026-07-22
 ---
 
-<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+<Info>OP Stack interop goes live with the Lagoon hardfork.</Info>
 
 OP Stack interoperability is a set of protocols that lets OP Stack chains
 read each other's state, so a network of chains can feel like a single
@@ -15,7 +15,7 @@ burning, contracts can compose with events from other chains at low
 latency, and applications that need it can scale horizontally across
 multiple chains.
 
-Interop is in active development and is being rolled out iteratively, so
+OP Stack interop goes live with the Lagoon hardfork but additional features will be rolled out iteratively, so
 read these materials as a picture of where the stack is going and what you
 can already build against, not as a finished production system. Start with
 the explainer, then work through the mechanism pages in order: they build
@@ -31,6 +31,20 @@ chains, and the spec is the normative definition throughout.
     covering initiating and executing messages, access-list validation,
     block safety levels, and dependency sets and clusters.
 
+## Run interop nodes
+
+If you operate nodes for a chain in an interop dependency set, start here:
+
+*   [Prepare for interop on OP Mainnet and Unichain](/notices/interop-prep):
+    the dates, what you must run, how to choose a topology, and an FAQ.
+*   [OP Supernode](/op-stack/interop/supernode): what op-supernode does and
+    how it pairs with a Light CL fleet.
+*   [Set up op-supernode](/node-operators/guides/configuration/supernode-setup)
+    and [configure it](/node-operators/guides/configuration/supernode),
+    including execution-client retention and high availability.
+*   [Specialized op-node topology](/notices/specialized-node-topology): the
+    Light CL pattern your fleet follows.
+
 ## Go deeper
 
 *   [Interop message passing overview](/app-developers/guides/interoperability/message-passing):
@@ -40,8 +54,8 @@ chains, and the spec is the normative definition throughout.
     the pull model, where a contract validates a log from another chain
     directly instead of receiving a message.
 *   [Message expiration](/app-developers/guides/interoperability/message-expiration):
-    why an unrelayed message eventually expires and how to reemit one that
-    did.
+    why an unrelayed message eventually expires and how an application
+    undoes one that did.
 *   [Superchain ETH Bridge](/op-stack/interop/superchain-eth-bridge): how
     native ETH moves between chains through `SuperchainETHBridge` and the
     `ETHLiquidity` contract.

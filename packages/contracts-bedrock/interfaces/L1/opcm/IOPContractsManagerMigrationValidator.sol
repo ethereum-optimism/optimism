@@ -69,7 +69,6 @@ interface IOPContractsManagerMigrationValidator {
     /// @notice Shared roles and config values used during migration validation.
     struct SharedConfig {
         address l1PAOMultisig;
-        uint256 withdrawalDelaySeconds;
         ISuperchainConfig superchainConfig;
     }
 

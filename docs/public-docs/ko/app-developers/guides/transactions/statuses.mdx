@@ -1,0 +1,55 @@
+---
+title: OP Mainnet의 트랜잭션 상태
+description: OP Mainnet에서 트랜잭션이 가질 수 있는 상태에 대한 참조 문서입니다.
+diataxis: reference
+---
+
+이 페이지는 OP Mainnet에서 트랜잭션이 가질 수 있는 상태를 트랜잭션이 거쳐 가는 순서대로 정리한 참조 문서입니다.
+각 항목에는 상태, 해당 상태에 도달하는 데 일반적으로 걸리는 시간, 해당 상태가 보장하는 내용, 그리고 이를 확인하는 데 사용되는 JSON-RPC 호출이 나와 있습니다.
+
+트랜잭션 문제를 해결해야 하거나, 애플리케이션이 몇 번의 확인(confirmation)을 기다려야 할지 결정해야 하거나, 사용자에게 정확한 상태 정보를 표시해야 할 때 이 문서를 참고하세요.
+트랜잭션이 *왜* 이러한 상태를 거치는지에 대한 설명은 [트랜잭션 흐름](/ko/op-stack/transactions/transaction-flow)을 참조하세요.
+
+## Pending
+
+**Sequencer로 전송한 직후**
+
+트랜잭션이 Sequencer로 전송되었지만 아직 블록에 포함되지 않은 경우 "pending" 상태로 간주됩니다.
+이는 트랜잭션이 Sequencer로 전송된 후 갖게 되는 첫 번째 상태입니다.
+이 시점에서 트랜잭션은 블록체인의 일부가 아니며, 블록체인에 포함된다는 보장도 없습니다.
+
+모든 pending 트랜잭션 목록은 블록 번호 파라미터로 `pending`을 지정하여 표준 JSON-RPC 메서드 [`eth_getBlockByNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbynumber)를 호출하면 가져올 수 있습니다.
+
+## Sequencer confirmed 또는 unsafe
+
+**일반적으로 2~4초 이내**
+
+트랜잭션이 Sequencer에 의해 블록에 포함되었지만 해당 블록이 아직 Ethereum에 게시되지 **않은** 경우 "sequencer confirmed" 또는 "unsafe" 상태로 간주됩니다.
+트랜잭션이 블록에 포함되었더라도, Sequencer가 [Sequencing Window](/ko/op-stack/reference/glossary#sequencing-window)(약 12시간) 내에 블록을 Ethereum에 게시하지 못하면 최종 블록체인에서 제외될 수 있습니다.
+애플리케이션은 이 상태에 있는 트랜잭션 정보를 표시할 때 이러한 가능성을 반드시 고려해야 합니다.
+
+최신 "sequencer confirmed" 블록은 블록 번호 파라미터로 `safe`를 지정하여 표준 JSON-RPC 메서드 [`eth_getBlockByNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbynumber)를 호출하고, 그 결과를 `latest` 블록에 대해 반환된 결과와 비교하여 확인할 수 있습니다.
+`safe` 블록이 `latest` 블록보다 뒤처져 있다면, 가장 이른 "sequencer confirmed" 블록은 `safe` 블록에 1을 더한 블록입니다.
+
+## Ethereum에 게시됨 또는 safe
+
+**일반적으로 5~10분 이내, 최대 12시간**
+
+트랜잭션이 Sequencer에 의해 블록에 포함되고 해당 블록이 Ethereum에 게시되었지만 아직 최종 확정되지 않은 경우 "safe" 상태로 간주됩니다.
+블록이 Ethereum에 게시되면 해당 블록이 최종 블록체인에 포함될 가능성이 높습니다.
+그러나 Ethereum 블록체인에서 재구성(reorganization)이 발생하면 해당 블록이 여전히 최종 블록체인에서 제외될 수 있습니다.
+
+최신 "safe" 블록은 블록 번호 파라미터로 `safe`를 지정하여 표준 JSON-RPC 메서드 [`eth_getBlockByNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbynumber)를 호출하면 가져올 수 있습니다.
+
+트랜잭션은 일반적으로 "sequencer confirmed" 상태가 된 후 몇 분 이내에 "safe" 상태가 됩니다.
+
+
+## Finalized
+
+**일반적으로 15~30분 이내, 최대 12시간**
+
+트랜잭션이 Sequencer에 의해 블록에 포함되고, 해당 블록이 Ethereum에 게시되고, 해당 블록이 최종 확정된 경우 "finalized" 상태로 간주됩니다.
+블록이 최종 확정되면 OP Mainnet 블록체인에 포함되는 것이 보장됩니다.
+트랜잭션이 블록체인에 포함된다는 최고 수준의 확실성이 필요한 애플리케이션은 트랜잭션이 "finalized" 상태가 될 때까지 기다린 후 트랜잭션을 성공으로 간주해야 합니다.
+
+최신 "finalized" 블록은 블록 번호 파라미터로 `finalized`를 지정하여 표준 JSON-RPC 메서드 [`eth_getBlockByNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getblockbynumber)를 호출하면 가져올 수 있습니다.

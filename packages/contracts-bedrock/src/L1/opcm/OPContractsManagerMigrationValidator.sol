@@ -389,9 +389,7 @@ contract OPContractsManagerMigrationValidator {
                     delayedWETHImpl: _impls.delayedWETHImpl,
                     anchorStateRegistryImpl: _impls.anchorStateRegistryImpl
                 }),
-                DisputeGameConfig({
-                    l1PAOMultisig: _cfg.l1PAOMultisig, withdrawalDelaySeconds: _cfg.withdrawalDelaySeconds
-                })
+                DisputeGameConfig({ l1PAOMultisig: _cfg.l1PAOMultisig })
             );
     }
 
@@ -471,6 +469,9 @@ contract OPContractsManagerMigrationValidator {
         if (_chainSystemConfigs.length == 0) {
             return internalRequire(false, "MIG-CHAIN-EMPTY", _errors);
         }
+
+        // An interop set needs at least two chains. Report it and keep checking the one chain.
+        _errors = internalRequire(_chainSystemConfigs.length != 1, "MIG-CHAIN-SINGLE", _errors);
 
         if (_chainSystemConfigs.length != _input.legacyChainContracts.length) {
             return internalRequire(false, "MIG-CHAIN-LEGACY-MISMATCH", _errors);

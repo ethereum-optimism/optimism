@@ -50,7 +50,7 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure that the safe head has not advanced - the channel is incomplete.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Time out the channel by mining `channelTimeout + 1` empty blocks on L1.
@@ -64,7 +64,7 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure the safe head has still not advanced.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Ensure that the channel was timed out.
@@ -98,7 +98,7 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure the safe head has still advanced to L2 block # NumL2Blocks.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.EqualValues(t, NumL2Blocks, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Run FPP from genesis up to safe head
@@ -144,7 +144,7 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure that the safe head has not advanced - the channel is incomplete.
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Time out the channel by mining `channelTimeout + 1` empty blocks on L1.
@@ -158,7 +158,7 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure the safe head has still not advanced.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Ensure that the channel was timed out.
@@ -187,7 +187,7 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure the safe head has still not advanced.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(0), bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Instruct the batcher to submit the blocks to L1 in a new channel.
@@ -206,7 +206,7 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 	env.Sequencer.ActL2PipelineFull(t)
 
 	// Ensure the safe head has still advanced to L2 block # NumL2Blocks.
-	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead = env.Engine.SafeHeader(t)
 	require.EqualValues(t, NumL2Blocks, bigs.Uint64Strict(l2SafeHead.Number))
 
 	// Run FPP from genesis up to safe head

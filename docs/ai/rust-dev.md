@@ -1,6 +1,6 @@
 # Rust Development
 
-Guidance for AI agents working with Rust code in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for tool versions, PR workflow, and other cross-language guidance.
+Guidance for AI agents working with Rust code in the Optimism monorepo. See [dev-workflow.md](dev-workflow.md) for shared code simplicity principles, tool versions, and PR workflow.
 
 ## Workspace Layout
 
@@ -25,9 +25,27 @@ Most of the OP Stack Rust code here was **officially migrated** into the monorep
 - **alloy-op-\*** (`rust/alloy-op-evm/`, `rust/alloy-op-hardforks/`)
 - **op-revm** (`rust/op-revm/`)
 
-These crates are owned and edited directly here — do not look upstream for their source. They still *depend on* generic upstream crates (e.g. reth's engine/provider crates, `alloy`, `revm`), which remain external and pinned in `rust/Cargo.toml`; a change to one of those generic APIs has to go upstream first and then be consumed via a version bump. When changing upstream behavior or API leads to a better overall solution than working around it locally, it is acceptable — and often preferable — to propose that change upstream (a PR to the respective repository); suggest this when it applies.
+These crates are owned and edited directly here — do not look upstream for their source. They still *depend on* generic upstream crates (e.g. reth's engine/provider crates, `alloy`, `revm`), which remain external and pinned in `rust/Cargo.toml`; a change to one of those generic APIs has to go upstream first and then be consumed via a version bump. For reth, the monorepo need not wait for the next reth update: backport the upstream change to our fork, `ethereum-optimism/reth`, with a PR to the branch of the pinned base, and pin it through a new fork tag ([UPDATING-RETH, "The reth fork"](../../rust/UPDATING-RETH.md#the-reth-fork)). When changing upstream behavior or API leads to a better overall solution than working around it locally, it is acceptable — and often preferable — to propose that change upstream (a PR to the respective repository); suggest this when it applies.
 
 **Known exception:** `op-alloy-flz` has not been migrated yet and is still an external dependency, tracked by [#21087](https://github.com/ethereum-optimism/optimism/issues/21087).
+
+## Code Design
+
+Apply the [shared code simplicity principles](dev-workflow.md#code-simplicity-and-design) with
+these Rust-specific conventions:
+
+- **Prefer concrete types.** Avoid `Box<dyn ...>`, broad generics and single-implementation traits
+  unless a real boundary requires them. Each trait and type parameter should justify its existence
+  through a meaningful boundary or invariant. Use an enum for a genuinely closed set of alternatives.
+- **Keep meaningful absence.** Keep `Option` where absence has domain meaning; eliminate it where
+  `None` represents incomplete construction or an unsupported combination. Replacing an unnecessary
+  `Option` with an equivalent enum preserves the same problem.
+- **Let modules provide naming context.** Prefer `derivation::Trusted` over
+  `derivation::TrustedDerivation`.
+- **Propagate typed errors.** Return `Result` from fallible operations and use `?` to propagate errors
+  to the component that owns recovery policy. Preserve the distinction between a terminal task
+  failure, a retryable condition and intentional shutdown; see the shared guidance for service
+  lifecycle behavior.
 
 ## Build System
 
@@ -74,7 +92,7 @@ just test-docs
 
 ### Running op-reth E2E Tests
 
-The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-reth as both the sequencer and the validator EL by default; `OP_DEVSTACK_PROOF_SEQUENCER_EL` and `OP_DEVSTACK_PROOF_VALIDATOR_EL` override either role (`rust/op-reth/tests/proofs/utils/preset.go`). They require two build prerequisites:
+The op-reth E2E tests (`rust/op-reth/tests/proofs/`) run a full devnet with op-reth as both the sequencer and the validator EL (`rust/op-reth/tests/proofs/utils/preset.go`). They require two build prerequisites:
 
 1. **Forge artifacts** — the devnet deploys contracts from compiled artifacts:
    ```bash
@@ -140,7 +158,7 @@ This builds affected crates for the `riscv32imac-unknown-none-elf` target.
 
 ## Dependency Auditing
 
-The workspace uses `cargo-deny` for license, advisory, and dependency checks. Configuration is in `rust/deny.toml`.
+The workspace uses `cargo-deny` for license, banned-crate, and crate-source checks. RustSec advisories are checked daily by the `rust-deny-advisories` CI job, not on PRs. Configuration is in `rust/deny.toml`.
 
 ```bash
 cd rust
@@ -184,7 +202,7 @@ Op-reth requires `clang` / `libclang-dev` for reth-mdbx-sys bindgen. CI installs
 ## Cross-implementation parity
 
 `rust/op-alloy` holds the OP transaction and receipt types that op-reth and kona consume; the Go
-services run the same formats through op-geth and `op-core/*`. A change to a wire format or hash
+services run the same formats through `op-core/*`. A change to a wire format or hash
 rule on either side has to agree with the other, pinned by a shared golden vector asserted in both
 suites. The rule and the current
 example live in [opgeth-decoupling.md](opgeth-decoupling.md#cross-implementation-parity);
@@ -196,16 +214,15 @@ The OP fork → implied L1 (Ethereum) fork mapping is defined once, in `OpHardfo
 
 ## Updating the reth dependency
 
-The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before bumping the reth pin in `rust/Cargo.toml` — or run the `/update-reth` skill (`.claude/skills/update-reth/`), which wraps the guide in an end-to-end agent workflow.
+The full guide lives at [`rust/UPDATING-RETH.md`](../../rust/UPDATING-RETH.md). Read it before any change to the reth pin in `rust/Cargo.toml`. That covers an update to a new upstream base and a change to our fork on the current base: a fork change gets a new `op-<base>-<n>` tag, and the monorepo PR may pin the fork PR's commit by `rev` while that PR is open, but stays in draft until the tag replaces the `rev` (the required `rust-reth-tag-pin` check fails on a `rev`) ([Pinning a fork change](../../rust/UPDATING-RETH.md#pinning-a-fork-change)). For an update, the `/update-reth` skill (`.claude/skills/update-reth/`) wraps the guide in an end-to-end agent workflow.
 
 When **reviewing** a bump (rather than performing one), use [reth-update-review.md](reth-update-review.md) and the `reth-update-reviewer` agent — they surface upstream `reth`/`revm`/`alloy` changes that should have forced a change in our in-tree op- forks but produced no diff in our tree.
 
 Agent-specific tips beyond what's in the guide:
 
-- The bump is iterative — run `cargo check --workspace --tests`, fix the first batch of errors, re-run, repeat. Don't try to enumerate every API change up front and don't ask the user to confirm every line of adaptation; just iterate to a green compile and report the diff at the end.
+- Don't ask the user to confirm each adaptation: iterate the guide's compile loop (step 7) to green and report the diff at the end.
 - If you have a local checkout of `paradigmxyz/reth`, use it to look up upstream trait signatures and run `git log <old-rev>..<new-rev>` to find the commit that changed any given symbol — much faster and more reliable than hand-fetching raw GitHub URLs. If you don't know whether one is available, ask the user. Don't assume a path.
 - For trait methods that gained an ignored parameter, prefix the new param with `_` (e.g. `_block_access_list_hash: Option<B256>`) so it doesn't generate an unused-variable warning. Don't invent a meaningful name unless you're actually plumbing the value through.
-- If upstream removed a trait or re-export that op-reth still uses, vendor it locally with a comment pointing at the upstream removal PR — don't try to refactor op-reth to do without it without first confirming the consumer is actually unused. The "stale" label upstream doesn't mean unused downstream.
 - When the new rev pulls in new transitive deps (visible as `Adding <crate>` lines from `cargo update`), check whether they're from upstream reth's own deps or from a misconfiguration on our side. `cargo tree -i <crate>` traces the path.
 
 ## Skills

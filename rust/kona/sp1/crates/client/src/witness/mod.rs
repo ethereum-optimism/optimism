@@ -75,3 +75,17 @@ pub struct BlobData {
     /// The KZG proofs corresponding to the blobs.
     pub proofs: Vec<Bytes48>,
 }
+
+// Host-only, like `PreimageStore::preimage_count`.
+#[cfg(not(target_os = "zkvm"))]
+impl DefaultWitnessData {
+    /// The witness's preimages.
+    pub const fn preimage_store(&self) -> &PreimageStore {
+        &self.preimage_store
+    }
+
+    /// The witness's blobs.
+    pub const fn blob_data(&self) -> &BlobData {
+        &self.blob_data
+    }
+}

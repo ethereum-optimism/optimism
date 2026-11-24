@@ -65,16 +65,17 @@ pub type SharedKeyValueStore = Arc<RwLock<dyn KeyValueStore + Send + Sync>>;
 /// Creates a [`SharedKeyValueStore`] backed by disk or memory.
 ///
 /// If `data_dir` is provided, the format is auto-detected from any existing `kvformat` marker file,
-/// falling back to `default_format`. Otherwise a [`MemoryKeyValueStore`] is used.
+/// falling back to `default_format`. Otherwise a [`MemoryKeyValueStore`] is used. Fails when a
+/// `RocksDB` store cannot be opened in `data_dir`.
 pub(crate) fn create_key_value_store<L>(
     local_kv_store: L,
     data_dir: Option<&Path>,
     default_format: DataFormat,
-) -> SharedKeyValueStore
+) -> std::io::Result<SharedKeyValueStore>
 where
     L: KeyValueStore + Send + Sync + 'static,
 {
-    match data_dir {
+    Ok(match data_dir {
         Some(data_dir) => {
             let format = detect_data_format(data_dir, default_format);
             match format {
@@ -83,7 +84,7 @@ where
                     Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, dir_kv_store)))
                 }
                 DataFormat::Rocksdb => {
-                    let disk_kv_store = DiskKeyValueStore::new(data_dir.to_path_buf());
+                    let disk_kv_store = DiskKeyValueStore::new(data_dir.to_path_buf())?;
                     Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, disk_kv_store)))
                 }
             }
@@ -92,7 +93,7 @@ where
             let mem_kv_store = MemoryKeyValueStore::new();
             Arc::new(RwLock::new(SplitKeyValueStore::new(local_kv_store, mem_kv_store)))
         }
-    }
+    })
 }
 
 /// Describes the interface of a simple, synchronous key-value store.

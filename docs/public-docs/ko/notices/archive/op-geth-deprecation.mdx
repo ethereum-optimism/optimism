@@ -1,0 +1,78 @@
+---
+title: op-geth 및 op-program 지원 종료
+description: op-geth와 op-program의 지원이 종료되었습니다. 둘 다 현재 활성화된 Karst 하드포크를 지원하지 않습니다. op-reth와 kona-client로 마이그레이션하십시오.
+date: 2026-05-31
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: op-geth-deprecation
+personas:
+  - node-operator
+  - chain-operator
+categories:
+  - infrastructure
+  - protocol
+is_imported_content: 'false'
+---
+
+생태계가 성숙함에 따라 실행 클라이언트에 대한 전체 지원을 **op-reth**로 전환하고, **op-program**에서 **kona-client**로 이전하고 있습니다.
+
+## 의미
+
+- **op-geth 지원은 2026년 5월 31일에 종료되었습니다.** 해당 기간까지 보안 패치와 치명적 버그 수정이 제공되었으며, 이제 지원이 종료되었습니다.
+- **Karst 하드포크를 포함한 신규 기능 개발은 op-reth에서만 진행됩니다.**
+- **op-program 역시 지원이 종료되었습니다.** 결함 증명(fault proof) 프로그램은 **op-program**에서 **kona-client**로 전환되었습니다.
+- **op-program은 현재 활성화된 Karst 하드포크를 지원하지 않습니다.** 체인 운영자는 **kona-client**로 마이그레이션해야 합니다.
+- **cannon-kona에는 kona-node가 필요하지 않습니다.** 기존 **op-node** 설정으로 kona 증명을 실행할 수 있습니다. kona-node는 별도의 선택적 구성 요소이며 결함 증명 프로그램 마이그레이션의 일부가 아닙니다.
+- **op-node**는 지원 중단되지 않습니다.
+
+## 필요한 조치
+
+**op-geth는 현재 활성화된 Karst 하드포크를 지원하지 않습니다.** 여전히 op-geth를 실행하는 체인은 더 이상 정규(canonical) 체인을 따라갈 수 없습니다.
+
+### 노드 운영자
+
+모든 노드 운영자는 가능한 한 빨리 op-reth로 마이그레이션해야 합니다. 자세한 내용은 아래 자료 섹션의 **op-reth 구성**을 참조하십시오.
+
+<Warning>
+  op-geth는 **2026년 5월 31일**에 지원이 종료되었으며 현재 활성화된 Karst 하드포크를 지원하지 않습니다.
+</Warning>
+
+<Info>
+  [op-reth v2.2.3 이상](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.2.3)으로 마이그레이션하십시오. `--proofs-history.storage-version=v2`를 통해 과거 증명 저장소(v2)를 활성화하려면 v2.2.3이 필요합니다. 설정 절차는 [과거 증명 가이드](/ko/node-operators/tutorials/reth-historical-proofs)를 참조하십시오.
+</Info>
+
+<Info>
+  op-reth 동기화에는 시간이 걸립니다. 하드포크 기간 이전에 충분한 검증을 할 수 있도록 일찍 시작하십시오.
+</Info>
+
+기존 op-geth node와 함께 op-reth node 동기화를 시작하고 스냅샷을 생성하십시오. 의미 있는 기간 동안 블록 해시, 상태 루트, RPC 출력을 비교하여 동기화가 올바른지 검증하십시오. 확신이 서면 프로덕션 트래픽을 op-reth로 이전하십시오.
+
+OP Mainnet 스냅샷은 [여기](https://datadirs.optimism.io/)에서 찾을 수 있습니다.
+
+### 체인 운영자
+
+op-reth가 완전히 동기화되면 즉시 스냅샷을 생성하십시오. Glamsterdam이 다가올수록 정기적으로 갱신하십시오.
+op-reth node를 가능한 한 빨리 동기화해 두면 체인의 다른 검증자들이 처음부터 동기화할 필요 없이 스냅샷을 사용할 수 있습니다.
+
+op-reth의 과거 L2 상태는 permissionless 체인뿐만 아니라 **permissioned 체인에도** 필요합니다. 출금 증명은 분쟁 게임(dispute game) 모델과 관계없이 출금이 포함된 L2 블록에 대해 `eth_getProof`를 호출합니다. op-geth는 이를 아카이브 상태로 처리했으며, op-reth에는 이에 상응하는 구성이 필요합니다. Permissioned 체인은 몇 시간 정도의 조회 범위만 있으면 되며(과거 증명 데이터베이스 없이 아래 옵션 1로 충분합니다), permissionless 체인은 약 28일이 필요합니다. 두 가지 옵션이 있습니다.
+
+- `--rpc.eth-proof-window <num_blocks>` — 과거 증명 데이터베이스(ExEx)가 없지만, 더 오래된 시점을 조회할수록 성능 및 메모리 비용이 증가합니다. 여유를 두고 분쟁 게임 게시 주기를 포괄하도록 크기를 설정하십시오.
+- `--proofs-history` — 메모리 사용량은 제한되지만 스토리지를 많이 사용합니다. 기본 `--proofs-history.window`는 1,296,000 블록(2초 블록 시간 기준 약 30일)입니다. 체인의 블록 시간이 다르면 조정하십시오.
+
+크기 산정 가이드와 구성 세부 사항은 [op-reth로 과거 증명 실행하는 방법](https://docs.optimism.io/node-operators/tutorials/reth-historical-proofs)을 참조하십시오.
+
+### Permissionless 체인 운영자
+
+이와 동시에 결함 증명 프로그램은 **op-program**에서 **kona-client**로 이전되었습니다. Karst 하드포크가 활성화되었으므로 체인 운영자는 **kona-client**로 마이그레이션해야 합니다.
+
+## 자료
+
+- [op-reth 저장소](https://github.com/ethereum-optimism/optimism/tree/develop/rust)
+- [op-reth v2.2.3 릴리스 노트](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.2.3)
+- [op-reth 구성](https://docs.optimism.io/node-operators/guides/configuration/execution-clients#op-reth-configuration)
+- [op-reth OP Mainnet 스냅샷](https://datadirs.optimism.io/)
+- [op-reth 과거 증명 가이드](https://docs.optimism.io/node-operators/tutorials/reth-historical-proofs)
+- [op-stack rust 문서](https://docs.optimism.io/rust)
+- [스냅샷 사용 방법](https://docs.optimism.io/op-mainnet/network-information/snapshots)
+- [kona 저장소](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona)

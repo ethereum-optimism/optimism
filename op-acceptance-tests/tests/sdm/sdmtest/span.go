@@ -27,7 +27,7 @@ func VerifyPostExecSpanCrossesActivation(
 				hasPreActivationBatch = true
 			}
 			for _, rawTx := range batch.Transactions {
-				if len(rawTx) == 0 || rawTx[0] != optypes.PostExecTxType {
+				if !optypes.IsPostExecTxBytes(rawTx) {
 					continue
 				}
 				postExecTx, err := optypes.UnmarshalPostExecTx(rawTx)

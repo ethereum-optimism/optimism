@@ -21,11 +21,7 @@ func SealL1DevGenesis(env *Env, intent *state.Intent, st *state.State) error {
 		env.Logger.Warn("Using dev L1 genesis without any customization")
 		l1DevParams = &state.L1DevGenesisParams{}
 	}
-	// Create a state-dump
-	dump, err := env.L1ScriptHost.StateDump()
-	if err != nil {
-		return fmt.Errorf("failed to dump L1 state: %w", err)
-	}
+	dump := env.Forge.Genesis.Allocs.Copy()
 	st.L1StateDump = &state.GzipData[foundry.ForgeAllocs]{
 		Data: dump,
 	}
@@ -60,15 +56,9 @@ func SealL1DevGenesis(env *Env, intent *state.Intent, st *state.State) error {
 	if err != nil {
 		return fmt.Errorf("failed to create dev L1 genesis template: %w", err)
 	}
-	// Combine the two into a valid genesis
 	genesisTemplate.Alloc = dump.Accounts
-	// Compute the genesis state root (by turning it into a block, which will apply the defaults, chain-config, etc.)
 	l1GenesisBlock := genesisTemplate.ToBlock()
-	// Cache the genesis state-root, and de-dup the state-copy we maintain, by using the state-hash attribute.
-	h := l1GenesisBlock.Root()
-	genesisTemplate.Alloc = nil
-	genesisTemplate.StateHash = &h
 	st.L1DevGenesis = genesisTemplate
-	lgr.Info("Sealed L1 dev genesis", "blockHash", l1GenesisBlock.Hash(), "stateRoot", h)
+	lgr.Info("Sealed L1 dev genesis", "blockHash", l1GenesisBlock.Hash(), "stateRoot", l1GenesisBlock.Root())
 	return nil
 }

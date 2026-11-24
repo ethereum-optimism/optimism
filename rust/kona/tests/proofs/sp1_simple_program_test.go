@@ -49,7 +49,7 @@ func runSP1SuperRangeSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[a
 	env.Sequencer.ActL2PipelineFull(t)
 
 	l1Head := env.Miner.L1Chain().CurrentBlock()
-	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+	l2SafeHead := env.Engine.SafeHeader(t)
 	require.Equal(t, uint64(1), bigs.Uint64Strict(l1Head.Number))
 	require.Equal(t, uint64(1), bigs.Uint64Strict(l2SafeHead.Number))
 

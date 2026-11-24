@@ -4,6 +4,7 @@ use alloy_eips::BlockId;
 use alloy_primitives::B256;
 use alloy_transport::{RpcError, TransportErrorKind};
 use kona_protocol::FromBlockError;
+use kona_providers_alloy::AlloyChainProviderError;
 use thiserror::Error;
 
 /// An error that can occur during the sync start process.
@@ -12,6 +13,9 @@ pub enum SyncStartError {
     /// An rpc error occurred
     #[error("An RPC error occurred: {0}")]
     RpcError(#[from] RpcError<TransportErrorKind>),
+    /// The L1 provider failed.
+    #[error("L1 provider error: {0}")]
+    L1(#[from] AlloyChainProviderError),
     /// An error occurred while converting a block to [`L2BlockInfo`].
     ///
     /// [`L2BlockInfo`]: kona_protocol::L2BlockInfo
@@ -29,6 +33,22 @@ pub enum SyncStartError {
     /// Finalized block mismatch
     #[error("Finalized block mismatch. Expected {0}, Got {1}")]
     MismatchedFinalizedBlock(B256, B256),
+    /// The L1 RPC reported a head at or above a height, then served no block there.
+    #[error("L1 block {number} is missing below the L1 head {l1_head}")]
+    L1BlockMissing {
+        /// The missing L1 block's number.
+        number: u64,
+        /// The L1 head the RPC reported.
+        l1_head: u64,
+    },
+    /// The unsafe head would rewind across more L1 origins than a plausible L1 reorg.
+    #[error("Reorg too deep: unsafe head {previous_unsafe_head} would rewind to {unsafe_head}")]
+    TooDeepReorg {
+        /// The L2 block the unsafe head would rewind to.
+        unsafe_head: u64,
+        /// The unsafe head before the reset.
+        previous_unsafe_head: u64,
+    },
     /// L1 origin mismatch.
     #[error("L1 origin mismatch")]
     L1OriginMismatch,

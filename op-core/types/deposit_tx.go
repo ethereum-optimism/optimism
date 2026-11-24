@@ -9,7 +9,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -77,61 +76,8 @@ func UnmarshalDepositTx(raw []byte) (*DepositTx, error) {
 	return d, nil
 }
 
-// The helpers below operate on a go-ethereum *types.Transaction. They exist
-// only for the decoupling transition: while the build still resolves
-// go-ethereum to op-geth, a *types.Transaction can hold a deposit, so these let
-// call sites drop their dependency on op-geth's Transaction methods before the
-// underlying transaction representation is migrated. Once the build moves to
-// upstream go-ethereum a *types.Transaction can never hold a deposit (the
-// 0x7E type is rejected on decode), making these dead — they are removed at the
-// cutover, together with the differential test. The durable shape decodes raw
-// bytes into a [DepositTx] (via [UnmarshalDepositTx]) and reads its fields
-// directly; see op-service/sources accessors (#20264).
-
-// IsDepositTx reports whether tx is an OP Stack deposit transaction.
-func IsDepositTx(tx *types.Transaction) bool {
-	return tx.Type() == DepositTxType
-}
-
-// SourceHash returns the source hash of a deposit transaction.
-// It errors if tx is not a deposit transaction.
-func SourceHash(tx *types.Transaction) (common.Hash, error) {
-	d, err := asDepositTx(tx)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	return d.SourceHash, nil
-}
-
-// Mint returns the ETH minted by a deposit transaction. A deposit that mints
-// nothing yields zero, never nil: the wire encoding does not distinguish a nil
-// from a zero mint, and the transaction is decoded from its wire bytes.
-// It errors if tx is not a deposit transaction.
-func Mint(tx *types.Transaction) (*big.Int, error) {
-	d, err := asDepositTx(tx)
-	if err != nil {
-		return nil, err
-	}
-	return d.Mint, nil
-}
-
-// IsSystemTx reports whether tx is a deposit that is a system transaction,
-// exempt from the L2 gas limit. It errors if tx is not a deposit transaction.
-func IsSystemTx(tx *types.Transaction) (bool, error) {
-	d, err := asDepositTx(tx)
-	if err != nil {
-		return false, err
-	}
-	return d.IsSystemTransaction, nil
-}
-
-func asDepositTx(tx *types.Transaction) (*DepositTx, error) {
-	if !IsDepositTx(tx) {
-		return nil, fmt.Errorf("transaction %s (type %#x) is not a deposit transaction", tx.Hash(), tx.Type())
-	}
-	raw, err := tx.MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode transaction %s: %w", tx.Hash(), err)
-	}
-	return UnmarshalDepositTx(raw)
+// IsDepositTxBytes reports whether raw, a transaction's EIP-2718 encoding, starts with the
+// deposit type byte. Empty input is not a deposit. It does not check the payload.
+func IsDepositTxBytes(raw []byte) bool {
+	return len(raw) > 0 && raw[0] == DepositTxType
 }

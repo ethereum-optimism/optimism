@@ -11,6 +11,7 @@ op-alloy-consensus.workspace = true
 alloy-consensus.workspace = true
 alloy-eips.workspace = true
 alloy-primitives.workspace = true
+alloy-rlp.workspace = true
 alloy-sol-types.workspace = true
 
 # Execution
@@ -28,6 +29,8 @@ kona-driver.workspace = true
 kona-protocol.workspace = true
 kona-genesis.workspace = true
 kona-interop = { workspace = true, features = ["serde"] }
+kona-mpt.workspace = true
+kona-proof-interop.workspace = true
 
 # general
 anyhow.workspace = true
@@ -42,13 +45,20 @@ spin.workspace = true
 kzg-rs.workspace = true
 cfg-if.workspace = true
 
+# EIP-2537 BLS12-381
+sp1_bls12_381.workspace = true
+
 [dev-dependencies]
+kona-interop = { workspace = true, features = ["test-utils"] }
+rand = { workspace = true, features = ["thread_rng"] }
 serde_json.workspace = true
 
 [features]
 # Exposes the canonical super-aggregation fixture to downstream guest tests. Kept narrowly named
 # to avoid Zepter propagating unrelated dependency test features.
 aggregation-test-utils = []
+# Exposes the log-commitment receipt fixtures to the SP1 executor tests.
+log-commitment-test-utils = []
 
 [lints]
 workspace = true

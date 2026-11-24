@@ -41,7 +41,7 @@ func setupRewindTest(gt *testing.T) *rewindTestEnv {
 	miner, seqEngine, sequencer := helpers.SetupSequencerTest(t, sd, logger)
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := helpers.NewL2Batcher(logger, sd.RollupCfg, helpers.DefaultBatcherCfg(dp),
-		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		rollupSeqCl, miner.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// Initialize the pipeline
 	sequencer.ActL2PipelineFull(t)

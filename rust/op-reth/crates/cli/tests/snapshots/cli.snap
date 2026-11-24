@@ -86,7 +86,7 @@ arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] he
 arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
 arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
 arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
-arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Maximum number of announced transaction hashes to track, including inflight requests.
 arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
 arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
@@ -102,6 +102,8 @@ arg: --http [action: SetTrue] [num-args: 0] [default: false] [default-values-if:
 arg: --http.addr <HTTP_ADDR> [action: Set] [num-args: 1] [default: 127.0.0.1] help: Http server address to listen on
 arg: --http.port <HTTP_PORT> [action: Set] [num-args: 1] [default: 8545] help: Http server port to listen on
 arg: --http.disable-compression [action: SetTrue] [num-args: 0] [default: false] help: Disable compression for HTTP responses
+arg: --http.compression <ALGOS> [action: Append] [num-args: 1] [value-delimiter: ','] [possible: zstd, gzip, deflate, br] help: Comma-separated list of allowed compression algorithms for HTTP responses
+arg: --http.decompression <ALGOS> [action: Append] [num-args: 1] [value-delimiter: ','] [possible: zstd, gzip, deflate, br] help: Comma-separated list of allowed decompression algorithms for HTTP requests
 arg: --http.api <HTTP_API> [action: Set] [num-args: 1] [possible: admin, debug, eth, net, trace, txpool, web3, rpc, reth, ots, flashbots, miner, mev, testing] help: Rpc Modules to be configured for the HTTP server
 arg: --http.corsdomain <HTTP_CORSDOMAIN> [action: Set] [num-args: 1] help: Http Corsdomain to allow request from
 arg: --ws [action: SetTrue] [num-args: 0] [default: false] help: Enable the WS-RPC server
@@ -114,7 +116,8 @@ arg: --ipcpath <IPCPATH> [action: Set] [num-args: 1] [default: /tmp/reth.ipc] he
 arg: --ipc.permissions <IPC_SOCKET_PERMISSIONS> [action: Set] [num-args: 1] help: Set the permissions for the IPC socket file, in octal format
 arg: --authrpc.addr <AUTH_ADDR> [action: Set] [num-args: 1] [default: 127.0.0.1] help: Auth server address to listen on
 arg: --authrpc.port <AUTH_PORT> [action: Set] [num-args: 1] [default: 8551] help: Auth server port to listen on
-arg: --authrpc.jwtsecret <PATH> [action: Set] [num-args: 1] [global] help: Path to a JWT secret to use for the authenticated engine-API RPC server
+arg: --authrpc.jwtsecret <PATH> [action: Set] [num-args: 1] [conflicts: --authrpc.jwtsecret-hex] [global] help: Path to a JWT secret to use for the authenticated engine-API RPC server
+arg: --authrpc.jwtsecret-hex <HEX> [action: Set] [num-args: 1] [conflicts: --authrpc.jwtsecret] [global] help: Hex encoded JWT secret to use for the authenticated engine-API RPC server
 arg: --auth-ipc [action: SetTrue] [num-args: 0] [default: false] help: Enable auth engine API over IPC
 arg: --auth-ipc.path <AUTH_IPC_PATH> [action: Set] [num-args: 1] [default: /tmp/reth_engine_api.ipc] help: Filename for auth IPC socket/pipe within the datadir
 arg: --disable-auth-server [action: SetTrue] [num-args: 0] [aliases: disable-engine-api] [default: false] help: Disable the auth/engine API server
@@ -129,7 +132,7 @@ arg: --rpc.max-blocking-io-requests <COUNT> [action: Set] [num-args: 1] [aliases
 arg: --rpc.max-trace-filter-blocks <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-trace-filter-blocks] [default: 100] help: Maximum number of blocks for `trace_filter` requests
 arg: --rpc.max-blocks-per-filter <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-blocks-per-filter] [default: 100000] help: Maximum number of blocks that could be scanned per filter request. (0 = entire chain)
 arg: --rpc.max-logs-per-response <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-logs-per-response] [default: 20000] help: Maximum number of logs that can be returned in a single response. (0 = no limit)
-arg: --rpc.gascap <GAS_CAP> [action: Set] [num-args: 1] [aliases: rpc-gascap] [default: 50000000] help: Maximum gas limit for `eth_call` and call tracing RPC methods
+arg: --rpc.gascap <GAS_CAP> [action: Set] [num-args: 1] [aliases: rpc-gascap] [default: 50000000] help: Maximum gas limit for `eth_call`, `eth_estimateGas`, and call tracing RPC methods
 arg: --rpc.evm-memory-limit <MEMORY_LIMIT> [action: Set] [num-args: 1] [aliases: rpc-evm-memory-limit] [default: 4294967295] help: Maximum memory the EVM can allocate per RPC request
 arg: --rpc.txfeecap <TX_FEE_CAP> [action: Set] [num-args: 1] [aliases: rpc-txfeecap] [default: 1.0] help: Maximum eth transaction fee (in ether) that can be sent via the RPC APIs (0 = no cap)
 arg: --rpc.max-simulate-blocks <BLOCKS_COUNT> [action: Set] [num-args: 1] [default: 256] help: Maximum number of blocks for `eth_simulateV1` call
@@ -139,12 +142,18 @@ arg: --rpc.proof-permits <COUNT> [action: Set] [num-args: 1] [aliases: rpc-proof
 arg: --rpc.pending-block <KIND> [action: Set] [num-args: 1] [default: full] help: Configures the pending block behavior for RPC responses
 arg: --rpc.forwarder <FORWARDER> [action: Set] [num-args: 1] [aliases: rpc-forwarder] help: Endpoint to forward transactions to
 arg: --builder.disallow <PATH> [action: Set] [num-args: 1] help: Path to file containing disallowed addresses, json-encoded list of strings. Block validation API will reject blocks containing transactions from these addresses
-arg: --rpc-cache.max-blocks <MAX_BLOCKS> [action: Set] [num-args: 1] [default: 5000] help: Max number of blocks in cache
-arg: --rpc-cache.max-receipts <MAX_RECEIPTS> [action: Set] [num-args: 1] [default: 2000] help: Max number receipts in cache
-arg: --rpc-cache.max-headers <MAX_HEADERS> [action: Set] [num-args: 1] [aliases: rpc-cache.max-envs] [default: 1000] help: Max number of headers in cache
-arg: --rpc-cache.max-bals <MAX_BALS> [action: Set] [num-args: 1] [default: 1000] help: Max number of block access lists in cache
+arg: --rpc-cache.max-blocks <MAX_BLOCKS> [action: Set] [num-args: 1] [default: 1000] help: Max number of blocks in cache
+arg: --rpc-cache.max-receipts <MAX_RECEIPTS> [action: Set] [num-args: 1] [default: 500] help: Max number receipts in cache
+arg: --rpc-cache.max-headers <MAX_HEADERS> [action: Set] [num-args: 1] [aliases: rpc-cache.max-envs] [default: 1000] [hidden] help: Legacy no-op retained for CLI compatibility
+arg: --rpc-cache.max-bals <MAX_BALS> [action: Set] [num-args: 1] [default: 1000] [hidden] help: Max number of block access lists in cache
+arg: --rpc-cache.max-blocks-bytes <BYTES> [action: Set] [num-args: 1] [default: 2147483648] help: Maximum estimated block cache memory in bytes or with a unit (e.g. 1GB, 500MB). Units use powers of 1024. Zero disables caching. The entry count limit also applies
+arg: --rpc-cache.max-receipts-bytes <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Maximum estimated receipts cache memory in bytes or with a unit (e.g. 1GB, 500MB). Units use powers of 1024. Zero disables caching. The entry count limit also applies
+arg: --rpc-cache.max-bals-bytes <BYTES> [action: Set] [num-args: 1] [default: 524288000] [hidden] help: Maximum estimated block access list cache memory in bytes or with a unit (e.g. 1GB, 500MB). Units use powers of 1024. Zero disables caching. The entry count limit also applies
+arg: --rpc-cache.idle-timeout <DURATION> [action: Set] [num-args: 1] [default: 1h] help: Evict blocks, receipts, and block access lists after this duration without a cache hit (e.g. 5m, 30s). Zero disables expiration. Cleanup starts every 1 to 60 seconds and removes at most five entries per cache per poll
+arg: --rpc-cache.cache-computed-bals [action: SetTrue] [num-args: 0] [hidden] help: Cache block access lists computed by RPC requests for transaction tracing
+arg: --rpc-cache.prewarm-bals <BLOCKS> [action: Set] [num-args: 0..=1] [default-missing-values: ["0"]] [hidden] [require-equals] help: Replay new canonical blocks to cache block access lists until native BAL support
 arg: --rpc-cache.max-concurrent-db-requests <MAX_CONCURRENT_DB_REQUESTS> [action: Set] [num-args: 1] [default: 512] help: Max number of concurrent database requests
-arg: --rpc-cache.max-cached-tx-hashes <MAX_CACHED_TX_HASHES> [action: Set] [num-args: 1] [default: 30000] help: Maximum number of transaction hashes to cache for transaction lookups
+arg: --rpc-cache.max-cached-tx-hashes <MAX_CACHED_TX_HASHES> [action: Set] [num-args: 1] [default: 100000] help: Maximum number of transaction hashes to cache for transaction lookups
 arg: --gpo.blocks <BLOCKS> [action: Set] [num-args: 1] [default: 20] help: Number of recent blocks to check for gas price
 arg: --gpo.ignoreprice <IGNORE_PRICE> [action: Set] [num-args: 1] [default: 0] help: Gas Price below which gpo will ignore transactions
 arg: --gpo.maxprice <MAX_PRICE> [action: Set] [num-args: 1] [default: 500000000000] help: Maximum transaction priority fee(or gasprice before London Fork) to be recommended by gpo
@@ -184,6 +193,7 @@ arg: --txpool.lifetime <DURATION> [action: Set] [num-args: 1] [default: 10800] h
 arg: --txpool.transactions-backup <PATH> [action: Set] [num-args: 1] [aliases: txpool.journal] help: Path to store the local transaction backup at, to survive node restarts
 arg: --txpool.disable-transactions-backup [action: SetTrue] [num-args: 0] [aliases: txpool.disable-journal] [default: false] [conflicts: --txpool.transactions-backup] help: Disables transaction backup to disk on node shutdown
 arg: --txpool.max-batch-size <MAX_BATCH_SIZE> [action: Set] [num-args: 1] [default: 1] help: Max batch size for transaction pool insertions
+arg: --txpool.enforce-tracked-nonce [action: SetTrue] [num-args: 0] [default: false] help: Reject transactions whose nonce is below the sender nonce tracked from canonical updates
 arg: --builder.extradata <EXTRA_DATA> [action: Set] [num-args: 1] [default: <MACHINE_SPECIFIC>] help: Block extra data set by the payload builder
 arg: --builder.gaslimit <GAS_LIMIT> [action: Set] [num-args: 1] [aliases: miner.gaslimit] help: Target gas limit for built blocks
 arg: --builder.interval <DURATION> [action: Set] [num-args: 1] [default: 1] help: The interval at which the job should build a new payload after the last
@@ -215,7 +225,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --dev [action: SetTrue] [num-args: 0] [aliases: auto-mine] [default: false] help: Start the node in dev mode
 arg: --dev.block-max-transactions <BLOCK_MAX_TRANSACTIONS> [action: Set] [num-args: 1] [conflicts: --dev.block-time] help: How many transactions to mine per block
@@ -247,16 +257,18 @@ arg: --prune.bodies.pre-merge [action: SetTrue] [num-args: 0] [conflicts: --prun
 arg: --prune.bodies.distance <BLOCKS> [action: Set] [num-args: 1] [conflicts: --prune.bodies.before, --prune.bodies.pre-merge] help: Prune bodies before the `head-N` block number. In other words, keep last N + 1 blocks
 arg: --prune.bodies.before <BLOCK_NUMBER> [action: Set] [num-args: 1] [conflicts: --prune.bodies.distance, --prune.bodies.pre-merge] help: Prune storage history before the specified block number. The specified block number is not pruned
 arg: --prune.minimum-distance <BLOCKS> [action: Set] [num-args: 1] help: Minimum pruning distance from the tip. This controls the safety margin for reorgs and manual unwinds
-arg: --engine.persistence-threshold <PERSISTENCE_THRESHOLD> [action: Set] [num-args: 1] [default: 7] help: Configure persistence threshold for the engine. This determines how many canonical blocks must be in-memory, ahead of the last persisted block, before flushing canonical blocks to disk again
+arg: --engine.persistence-threshold <PERSISTENCE_THRESHOLD> [action: Set] [num-args: 1] [env: RETH_ENGINE_PERSISTENCE_THRESHOLD] [default: 50] help: Configure persistence threshold for the engine. This determines how many canonical blocks must be in-memory, ahead of the last persisted block, before flushing canonical blocks to disk again
 arg: --engine.persistence-backpressure-threshold <PERSISTENCE_BACKPRESSURE_THRESHOLD> [action: Set] [num-args: 1] help: Configure the maximum number of blocks beyond the in-memory buffer target that may await persistence before engine API processing stalls
+arg: --engine.num-state-masking-blocks <NUM_STATE_MASKING_BLOCKS> [action: Set] [num-args: 1] [env: RETH_ENGINE_NUM_STATE_MASKING_BLOCKS] [default: 0] [hidden] help: Configure how many of the blocks being persisted should only mask state/trie writes instead of durably persisting their state/trie updates in the current cycle
 arg: --engine.memory-block-buffer-target <MEMORY_BLOCK_BUFFER_TARGET> [action: Set] [num-args: 1] help: Configure the target number of blocks to keep in memory
+arg: --engine.backfill-threshold <BACKFILL_RUN_THRESHOLD> [action: Set] [num-args: 1] [env: RETH_ENGINE_BACKFILL_THRESHOLD] [default: 32] help: Configure the largest gap, in blocks, between the local head and the forkchoice head that is closed by downloading the missing blocks directly. Larger gaps trigger a full pipeline (backfill) run instead
 arg: --engine.invalid-header-cache-hit-eviction-threshold <INVALID_HEADER_HIT_EVICTION_THRESHOLD> [action: Set] [num-args: 1] [default: 128] help: Configure how many cache hits an invalid header can accumulate before it is evicted and reprocessed
 arg: --engine.legacy-state-root [action: SetTrue] [num-args: 0] [default: false] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.state-root-fallback if you want to force synchronous state root computation
 arg: --engine.caching-and-prewarming [action: SetTrue] [num-args: 0] [default: true] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.disable-caching-and-prewarming if you want to disable caching and prewarming
 arg: --engine.disable-state-cache [action: SetTrue] [num-args: 0] [default: false] help: Disable state cache
 arg: --engine.disable-prewarming [action: SetTrue] [num-args: 0] [aliases: engine.disable-caching-and-prewarming] [default: false] help: Disable parallel prewarming
 arg: --engine.txpool-prewarming [action: SetTrue] [num-args: 0] [env: RETH_ENGINE_TXPOOL_PREWARMING] [default: false] help: Enable best-effort txpool transaction prewarming between payloads
-arg: --engine.sender-recovery-cache [action: SetTrue] [num-args: 0] [env: RETH_ENGINE_SENDER_RECOVERY_CACHE] [default: false] help: Enable caching recovered transaction senders across transaction ingress and payload execution
+arg: --engine.sender-recovery-cache <SENDER_RECOVERY_CACHE_ENABLED> [action: SetTrue] [num-args: 0..=1] [env: RETH_ENGINE_SENDER_RECOVERY_CACHE] [default: true] [default-missing-values: ["true"]] [possible: true, false] help: Cache recovered transaction senders across transaction ingress and payload execution
 arg: --engine.parallel-sparse-trie [action: SetTrue] [num-args: 0] [default: true] [hidden] help: CAUTION: This CLI flag has no effect anymore. The parallel sparse trie is always enabled
 arg: --engine.disable-parallel-sparse-trie [action: SetTrue] [num-args: 0] [default: false] [hidden] help: CAUTION: This CLI flag has no effect anymore. The parallel sparse trie is always enabled
 arg: --engine.state-provider-metrics [action: SetTrue] [num-args: 0] [default: false] help: Enable state provider latency metrics. This allows the engine to collect and report stats about how long state provider calls took during execution, but this does introduce slight overhead to state provider calls
@@ -280,9 +292,9 @@ arg: --engine.state-root-task-timeout <STATE_ROOT_TASK_TIMEOUT> [action: Set] [n
 arg: --engine.share-execution-cache-with-payload-builder [action: SetTrue] [num-args: 0] [default: false] help: Whether to share execution cache with the payload builder
 arg: --engine.share-sparse-trie-with-payload-builder [action: SetTrue] [num-args: 0] [default: false] help: Whether to share the sparse trie with the payload builder
 arg: --engine.suppress-persistence-during-build [action: SetTrue] [num-args: 0] [default: false] help: Suppress persistence while building a payload
-arg: --engine.disable-bal-parallel-execution [action: SetTrue] [num-args: 0] [default: false] help: Disable BAL (Block Access List, EIP-7928) based parallel execution
-arg: --engine.disable-bal-parallel-state-root [action: SetTrue] [num-args: 0] [default: false] help: Disable BAL-driven parallel state root computation. This is only valid together with `--engine.disable-bal-parallel-execution`
-arg: --engine.disable-bal-batch-io [action: SetTrue] [num-args: 0] [default: false] help: Disable BAL (Block Access List) storage prefetch IO during prewarming. When set, BAL storage slots are not read into the execution cache
+arg: --engine.disable-bal-parallel-execution [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Disable BAL (Block Access List, EIP-7928) based parallel execution
+arg: --engine.disable-bal-parallel-state-root [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Disable BAL-driven parallel state root computation. This is only valid together with `--engine.disable-bal-parallel-execution`
+arg: --engine.disable-bal-batch-io [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Disable BAL (Block Access List) storage prefetch IO during prewarming. When set, BAL storage slots are not read into the execution cache
 arg: --era.enable [action: SetTrue] [num-args: 0] [default: false] help: Enable import from ERA1 files
 arg: --era.path <ERA_PATH> [action: Set] [num-args: 1] help: The path to a directory for import.
 arg: --era.url <ERA_URL> [action: Set] [num-args: 1] help: The URL to a remote host where the ERA1 files are hosted.
@@ -306,6 +318,7 @@ arg: --jit.blocking [action: SetTrue] [num-args: 0] [default: false] [hidden] he
 arg: --rollup.sequencer <SEQUENCER> [action: Set] [num-args: 1] [aliases: rollup.sequencer-http, rollup.sequencer-ws] [visible-aliases: rollup.sequencer-http, rollup.sequencer-ws] help: Endpoint for the sequencer mempool (can be both HTTP and WS)
 arg: --rollup.disable-tx-pool-gossip [action: SetTrue] [num-args: 0] help: Disable transaction pool gossip
 arg: --rollup.compute-pending-block [action: SetTrue] [num-args: 0] help: By default the pending block equals the latest block to save resources and not leak txs from the tx-pool, this flag enables computing of the pending block from the tx-pool instead
+arg: --rollup.block-time <SECONDS> [action: Set] [num-args: 1] help: Seconds between two L2 blocks, which dates the RPC's pending block
 arg: --rollup.discovery.v4 [action: SetTrue] [num-args: 0] [default: false] help: enables discovery v4 if provided
 arg: --rollup.enable-tx-conditional [action: SetTrue] [num-args: 0] [default: false] help: Enable transaction conditional support on sequencer
 arg: --rollup.retain-forwarded-txs [action: SetTrue] [num-args: 0] [default: false] help: Retain RPC-submitted transactions in the local pool after forwarding them to the sequencer
@@ -325,6 +338,7 @@ arg: --proofs-history.storage-path <PROOFS_HISTORY_STORAGE_PATH> [action: Set] [
 arg: --proofs-history.storage-version <PROOFS_HISTORY_STORAGE_VERSION> [action: Set] [num-args: 1] help: Deprecated: v2 is the only storage format, so `v2` is a no-op and any other value is rejected
 arg: --proofs-history.window <PROOFS_HISTORY_WINDOW> [action: Set] [num-args: 1] [default: 1296000] help: The window to span blocks for proofs history. Value is the number of blocks. Default is 1 month of blocks based on 2 seconds block time (`30 * 24 * 60 * 60 / 2 = 1_296_000`)
 arg: --proofs-history.verification-interval <PROOFS_HISTORY_VERIFICATION_INTERVAL> [action: Set] [num-args: 1] [default: 0] help: Verification interval: perform full block execution every N blocks for data integrity. - 0: Disabled (Default) (always use fast path with pre-computed data from notifications) - 1: Always verify (always execute blocks, slowest) - N: Verify every Nth block (e.g., 100 = every 100 blocks)
+arg: --proofs-history.prefetch-threads <THREADS> [action: Set] [num-args: 1] [default: 0] help: Parallel readers that warm the proofs storage's page cache ahead of persistence (0 to 64). `0` (default) disables warming. Warming reads the pages each buffered block and the next prunes will touch, so the single-threaded persistence transaction waits on fewer disk reads
 
 == op-reth init
 about: Initialize the database from a genesis file
@@ -343,7 +357,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -370,7 +384,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -407,7 +421,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -480,7 +494,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --table <TABLE> [action: Set] [num-args: 1] help: The table name to diff. If not specified, all tables are diffed.
 arg: --output <OUTPUT> [action: Set] [num-args: 1] [required] help: The output directory for the diff report.
@@ -634,7 +648,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -687,7 +701,7 @@ arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] he
 arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
 arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
 arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
-arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Maximum number of announced transaction hashes to track, including inflight requests.
 arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
 arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
@@ -717,7 +731,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -746,7 +760,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -802,7 +816,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -864,7 +878,7 @@ arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] he
 arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
 arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
 arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
-arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Maximum number of announced transaction hashes to track, including inflight requests.
 arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
 arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
@@ -923,7 +937,7 @@ arg: --max-seen-tx-history <COUNT> [action: Set] [num-args: 1] [default: 320] he
 arg: --max-pending-imports <COUNT> [action: Set] [num-args: 1] [default: 4096] help: Max number of transactions to import concurrently.
 arg: --pooled-tx-response-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 2097152] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions\nto pack in one response.\nSpec'd at 2MiB.
 arg: --pooled-tx-pack-soft-limit <BYTES> [action: Set] [num-args: 1] [default: 131072] help: Experimental, for usage in research. Sets the max accumulated byte size of transactions to\nrequest in one request.
-arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Max capacity of cache of hashes for transactions pending fetch.
+arg: --max-tx-pending-fetch <COUNT> [action: Set] [num-args: 1] [default: 25600] help: Maximum number of announced transaction hashes to track, including inflight requests.
 arg: --tx-channel-memory-limit <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Memory limit (in bytes) for the channel that buffers transaction events flowing\nfrom the network manager to the transactions manager.
 arg: --net-if.experimental <IF_NAME> [action: Set] [num-args: 1] [conflicts: --addr] help: Name of network interface used to communicate with peers
 arg: --tx-propagation-policy <TX_PROPAGATION_POLICY> [action: Set] [num-args: 1] [default: All] help: Transaction Propagation Policy
@@ -985,7 +999,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1029,7 +1043,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1075,7 +1089,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1108,7 +1122,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1140,7 +1154,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1175,7 +1189,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1205,7 +1219,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment
@@ -1234,7 +1248,7 @@ arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
 arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
-arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] help: Number of recent blocks to keep in the in-memory BAL store cache
+arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
 arg: --static-files.blocks-per-file.headers <BLOCKS_PER_FILE_HEADERS> [action: Set] [num-args: 1] help: Number of blocks per file for the headers segment
 arg: --static-files.blocks-per-file.transactions <BLOCKS_PER_FILE_TRANSACTIONS> [action: Set] [num-args: 1] help: Number of blocks per file for the transactions segment

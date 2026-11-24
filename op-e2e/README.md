@@ -21,6 +21,18 @@ just test-actions
 just test-ws
 ```
 
+The action tests run their L2 execution engine as an `op-reth-test-engine` subprocess.
+`just test-actions` builds it in release mode (`just build-op-reth-test-engine` in `rust/`) and
+points the tests at it, unless `RUST_BINARY_PATH_OP_RETH_TEST_ENGINE` already names a binary.
+Run with `go test` directly, the tests use that variable if set, otherwise the newest build in the
+cargo target directory, and otherwise fail with instructions. `RUST_JIT_BUILD=1` makes them run
+the release build themselves; a cold build takes long, so pass a `-timeout` that covers it (e.g.
+`-timeout 60m`).
+
+The system tests run op-reth as their L2 execution engine, also as a subprocess. They use the
+binary that `RUST_BINARY_PATH_OP_RETH` names, otherwise the newest build in the cargo target
+directory (`just build-op-reth` in `rust/`); `RUST_JIT_BUILD=1` makes them build it themselves.
+
 ## Overview
 
 `op-e2e` can be categorized as following:
@@ -36,8 +48,6 @@ just test-ws
   These tests focus less on the onchain state-transition aspects, and more on the offchain integration aspects.
   - `op-e2e/faultproofs`: system tests with fault-proofs stack attached
   - `op-e2e/interop`: system tests with a distinct Interop "SuperSystem", to run multiple L2 chains.
-- `op-e2e/opgeth`: integration tests between test-mocks and op-geth execution-engine.
-  - also includes upgrade-tests to ensure testing of op-stack Go components around a network upgrade.
 
 ### Generating Binding
 
@@ -80,11 +90,6 @@ By running a more full system, test-runners also run into resource-limits more q
 This may result in lag or even stalled services.
 Improvements, as described in the [test infra draft design-doc],
 are in active development, to make test execution more reliable.
-
-### `op-e2e/opgeth`
-
-Integration-testing with op-geth, to cover engine behavior, without setting up a full test environment.
-These tests are limited in scope, and may be changed at a later stage, to support alternative EL implementations.
 
 ## Product
 

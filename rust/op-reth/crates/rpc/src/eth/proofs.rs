@@ -1,6 +1,9 @@
 //! Historical proofs RPC server implementation.
 
-use crate::{metrics::EthApiExtMetrics, state::OpStateProviderFactory};
+use crate::{
+    metrics::EthApiExtMetrics,
+    state::{OpStateProviderFactory, ensure_within_proofs_window},
+};
 use alloy_eips::BlockId;
 use alloy_primitives::Address;
 use alloy_rpc_types_eth::EIP1186AccountProofResponse;
@@ -9,14 +12,17 @@ use async_trait::async_trait;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::RpcResult;
 use jsonrpsee_types::error::ErrorObject;
+use reth_errors::RethError;
 use reth_optimism_trie::{OpProofsStorage, OpProofsStore};
 use reth_provider::StateProofProvider;
 use reth_rpc_api::eth::helpers::FullEthApi;
-use std::time::Instant;
+use reth_rpc_eth_api::FromEthApiError;
+use reth_rpc_eth_types::EthApiError;
+use reth_rpc_server_types::constants::DEFAULT_MAX_PROOF_SLOTS;
 
 /// The `eth_` proof methods served from the historical proofs storage.
 ///
-/// UPSTREAM-MIRROR(set): reth@rev:0fbe428 `reth_rpc_eth_api::EthApi`
+/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-2 `reth_rpc_eth_api::EthApi`
 ///
 /// Re-declares the proof methods that are answered from historical proofs rather than live state.
 /// A proof method added to upstream's `EthApi` produces no diff here, so diff the two method sets
@@ -36,10 +42,30 @@ pub trait EthApiOverride {
     ) -> RpcResult<EIP1186AccountProofResponse>;
 }
 
+/// Rejects a proof request for more storage keys than [`DEFAULT_MAX_PROOF_SLOTS`].
+///
+/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2
+/// `reth_rpc_eth_api::helpers::state::EthState::get_proof`
+///
+/// Copies the key-count check that opens upstream's `get_proof` (paradigmxyz/reth#27716), which
+/// upstream writes inline rather than as a function we could call. Keep the limit, the
+/// `InvalidParams` variant and the message identical to upstream's; the test below pins the
+/// message. On a bump, diff the checks upstream's `get_proof` runs before taking its permit, for
+/// a changed limit or a new early rejection that should also apply here.
+fn ensure_proof_key_count(key_count: usize) -> Result<(), EthApiError> {
+    if key_count > DEFAULT_MAX_PROOF_SLOTS {
+        return Err(EthApiError::InvalidParams(format!(
+            "storage key count {key_count} exceeds limit {DEFAULT_MAX_PROOF_SLOTS}",
+        )));
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 /// Overrides applied to the `eth_` namespace of the RPC API for historical proofs ExEx.
 pub struct EthApiExt<Eth, P> {
-    state_provider_factory: OpStateProviderFactory<Eth, P>,
+    eth_api: Eth,
+    preimage_store: OpProofsStorage<P>,
     metrics: EthApiExtMetrics,
 }
 
@@ -51,11 +77,57 @@ where
 {
     /// Creates a new instance of the `EthApiExt`.
     pub fn new(eth_api: Eth, preimage_store: OpProofsStorage<P>) -> Self {
-        let metrics = EthApiExtMetrics::default();
-        Self {
-            state_provider_factory: OpStateProviderFactory::new(eth_api, preimage_store),
-            metrics,
-        }
+        Self { eth_api, preimage_store, metrics: EthApiExtMetrics::default() }
+    }
+
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2
+    /// `reth_rpc_eth_api::helpers::state::EthState::get_proof`
+    ///
+    /// Uses the OP proofs-history state provider while preserving upstream permit and blocking-task
+    /// behavior, checking upstream's key-count cap (`ensure_proof_key_count`) first. Upstream's
+    /// `ensure_within_proof_window` bounds the distance from the tip by `max_proof_window`; a
+    /// proofs-history node instead serves its proofs storage window. Unlike upstream, which takes
+    /// the permit first and then checks its window, this checks the window before taking the
+    /// permit, so out-of-window requests never wait for one. Upstream also resolves the state
+    /// before taking a blocking thread (`spawn_blocking_io_with_state`), as opening the pending
+    /// state takes one itself; this resolves it inside the task. That is safe because `pending`
+    /// never gets this far: reth sets no canonical pending block on an OP node,
+    /// so `ensure_within_proofs_window` rejects it with `HeaderNotFound` first.
+    async fn get_proof_inner(
+        &self,
+        address: Address,
+        keys: Vec<JsonStorageKey>,
+        block_id: BlockId,
+    ) -> Result<EIP1186AccountProofResponse, Eth::Error> {
+        ensure_proof_key_count(keys.len()).map_err(Eth::Error::from_eth_err)?;
+        ensure_within_proofs_window(&self.eth_api, &self.preimage_store, block_id)
+            .map_err(Eth::Error::from_eth_err)?;
+
+        let permit = self
+            .eth_api
+            .acquire_owned_tracing()
+            .await
+            .map_err(RethError::other)
+            .map_err(EthApiError::Internal)?;
+        let preimage_store = self.preimage_store.clone();
+
+        self.eth_api
+            .spawn_blocking_io_fut(move |eth_api| async move {
+                // Hold the proof permit for the full lifetime of the blocking task, including
+                // after the requesting future is cancelled.
+                let _permit = permit;
+                let state_provider_factory = OpStateProviderFactory::new(eth_api, preimage_store);
+                let state = state_provider_factory
+                    .state_provider(block_id)
+                    .await
+                    .map_err(Eth::Error::from_eth_err)?;
+                let storage_keys = keys.iter().map(|key| key.as_b256()).collect::<Vec<_>>();
+                let proof = state
+                    .proof(Default::default(), address, &storage_keys)
+                    .map_err(Eth::Error::from_eth_err)?;
+                Ok(proof.into_eip1186_response(keys))
+            })
+            .await
     }
 }
 
@@ -72,32 +144,29 @@ where
         keys: Vec<JsonStorageKey>,
         block_number: Option<BlockId>,
     ) -> RpcResult<EIP1186AccountProofResponse> {
-        let start = Instant::now();
-        self.metrics.get_proof_requests.increment(1);
+        self.metrics
+            .record_get_proof(self.get_proof_inner(address, keys, block_number.unwrap_or_default()))
+            .await
+            .map_err(Into::into)
+    }
+}
 
-        let storage_keys = keys.iter().map(|key| key.as_b256()).collect::<Vec<_>>();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        let result = async {
-            let proof = self
-                .state_provider_factory
-                .state_provider(block_number)
-                .await
-                .map_err(Into::into)?
-                .proof(Default::default(), address, &storage_keys)
-                .map_err(Into::into)?;
+    #[test]
+    fn proof_key_count_is_capped() {
+        assert!(ensure_proof_key_count(DEFAULT_MAX_PROOF_SLOTS).is_ok());
 
-            Ok(proof.into_eip1186_response(keys))
-        }
-        .await;
-
-        match &result {
-            Ok(_) => {
-                self.metrics.get_proof_latency.record(start.elapsed().as_secs_f64());
-                self.metrics.get_proof_successful_responses.increment(1);
-            }
-            Err(_) => self.metrics.get_proof_failures.increment(1),
-        }
-
-        result
+        let err = ensure_proof_key_count(DEFAULT_MAX_PROOF_SLOTS + 1).unwrap_err();
+        let expected = format!(
+            "storage key count {} exceeds limit {DEFAULT_MAX_PROOF_SLOTS}",
+            DEFAULT_MAX_PROOF_SLOTS + 1
+        );
+        assert!(
+            matches!(&err, EthApiError::InvalidParams(msg) if *msg == expected),
+            "unexpected error: {err:?}"
+        );
     }
 }

@@ -45,4 +45,18 @@ if [[ -n "${mismatched}" ]]; then
   exit 1
 fi
 
+checkout_setup=$(yq '.commands["github-checkout"]' "${SETUP_CONFIG}")
+checkout_continue=$(yq '.commands["github-checkout"]' "${REPO_ROOT}/.circleci/continue/helpers.yml")
+if [[ "${checkout_setup}" != "${checkout_continue}" ]]; then
+  echo "ERROR: github-checkout command differs between .circleci/config.yml and .circleci/continue/helpers.yml" >&2
+  echo "Apply every change to both copies." >&2
+  exit 1
+fi
+
+if plain_checkouts=$(grep -nE '^\s*- (checkout|utils/checkout-with-mise)\s*$' "${SETUP_CONFIG}" "${REPO_ROOT}"/.circleci/continue/*.yml); then
+  echo "ERROR: plain checkout steps found, use github-checkout or checkout-with-mise:" >&2
+  echo "${plain_checkouts}" >&2
+  exit 1
+fi
+
 echo "All setup pipeline params are declared in the continuation config."

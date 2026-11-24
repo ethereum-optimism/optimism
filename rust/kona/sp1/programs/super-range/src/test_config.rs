@@ -17,7 +17,10 @@ pub(super) async fn load(
     oracle: &impl PreimageOracleClient,
 ) -> anyhow::Result<ChainConfigs> {
     let chain_ids = match inputs {
-        SuperInteropInputs::Range(inputs) => inputs.chain_ids.clone(),
+        SuperInteropInputs::Range(inputs) => {
+            inputs.validate()?;
+            inputs.super_root_chain_ids()
+        }
         SuperInteropInputs::Consolidation(inputs) => inputs
             .transitions
             .first()
@@ -48,12 +51,22 @@ pub(super) async fn load(
 mod tests {
     use super::*;
     use kona_sp1_client_utils::{
-        super_root::{SuperConsolidationInputs, SuperRangeInputs, TimestampSpan},
+        super_root::{
+            SuperConsolidationInputs, SuperOptimisticBlock, SuperOutputRoot, SuperRangeInputs,
+            SuperRangeTransition, SuperRootProof, TimestampSpan,
+        },
         witness::preimage_store::PreimageStore,
     };
 
+    /// Installs the guest hash seed once for this test process; `main` does it in the guest.
+    fn install_test_seed() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| foldhash::install_global_seed(0));
+    }
+
     #[test]
     fn test_guest_rejects_consolidation_without_transitions() {
+        install_test_seed();
         let inputs = SuperInteropInputs::Consolidation(SuperConsolidationInputs {
             span: TimestampSpan::new(101, 101).unwrap(),
             previous_super_root: Default::default(),
@@ -65,19 +78,38 @@ mod tests {
 
     #[test]
     fn test_guest_loads_complete_synthetic_configs_and_rejects_mismatched_l1() {
-        let mut configs = ChainConfigs::from_registry(&["0xa".parse().unwrap()]).unwrap();
+        install_test_seed();
+        // The range proves only the synthetic chain, while its previous super root also holds
+        // Zora, so the configs must cover both. Zora's dependency set holds only itself.
+        const ZORA: u64 = 7777777;
+        let mut configs =
+            ChainConfigs::from_registry(&[ZORA.to_string().parse().unwrap()]).unwrap();
         configs.l1_config = Default::default();
-        let mut rollup = configs.rollup_configs.remove(&10).unwrap();
+        let mut rollup = configs.rollup_configs[&ZORA].clone();
         rollup.l2_chain_id = u64::MAX.into();
         configs.rollup_configs.insert(u64::MAX, rollup);
-        let dependency = configs.dependency_set.dependencies.remove(&10).unwrap();
+        let dependency = configs.dependency_set.dependencies[&ZORA].clone();
         configs.dependency_set.dependencies.insert(u64::MAX, dependency);
+        let synthetic = u64::MAX.to_string().parse().unwrap();
         let inputs = SuperInteropInputs::Range(SuperRangeInputs {
             span: TimestampSpan::new(101, 101).unwrap(),
             l1_head: Default::default(),
-            chain_ids: vec![u64::MAX.to_string().parse().unwrap()],
-            previous_super_root_proofs: Vec::new(),
-            claimed_transitions: Vec::new(),
+            chain_ids: vec![synthetic],
+            previous_super_root_proofs: vec![SuperRootProof::new(
+                100,
+                vec![
+                    SuperOutputRoot { chain_id: ZORA, output_root: Default::default() },
+                    SuperOutputRoot { chain_id: u64::MAX, output_root: Default::default() },
+                ],
+            )],
+            claimed_transitions: vec![SuperRangeTransition {
+                timestamp: 101,
+                optimistic_block: SuperOptimisticBlock {
+                    chain_id: synthetic,
+                    block_hash: Default::default(),
+                    output_root: Default::default(),
+                },
+            }],
         });
         for mismatched_l1 in [false, true] {
             let mut supplied = configs.clone();

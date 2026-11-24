@@ -24,10 +24,6 @@ type L1Config struct {
 	Explorer  string `toml:"explorer"`
 }
 
-func GetSuperchain(network string) (Superchain, error) {
-	return BuiltInConfigs.GetSuperchain(network)
-}
-
 func (c *ChainConfigLoader) GetSuperchain(network string) (Superchain, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()

@@ -13,8 +13,6 @@ pub enum DepositSourceDomainIdentifier {
     L1Info = 1,
     /// An upgrade deposit source.
     Upgrade = 2,
-    /// An interop block replacement source.
-    InteropBlockReplacement = 4,
 }
 
 /// Source domains for deposit transactions.
@@ -26,8 +24,6 @@ pub enum DepositSourceDomain {
     L1Info(L1InfoDepositSource),
     /// An upgrade deposit source.
     Upgrade(UpgradeDepositSource),
-    /// An interop block replacement deposit source.
-    InteropBlockReplacement(InteropBlockReplacementDepositSource),
 }
 
 impl DepositSourceDomain {
@@ -37,7 +33,6 @@ impl DepositSourceDomain {
             Self::User(ds) => ds.source_hash(),
             Self::L1Info(ds) => ds.source_hash(),
             Self::Upgrade(ds) => ds.source_hash(),
-            Self::InteropBlockReplacement(ds) => ds.source_hash(),
         }
     }
 }
@@ -128,37 +123,6 @@ impl UpgradeDepositSource {
             (DepositSourceDomainIdentifier::Upgrade as u64).to_be_bytes();
         domain_input[32 - 8..32].copy_from_slice(&identifier_bytes);
         domain_input[32..].copy_from_slice(&intent_hash[..]);
-        keccak256(domain_input)
-    }
-}
-
-/// An interop block replacement deposit transaction source.
-///
-/// This implements the translation of the replaced output root information to a deposit
-/// source-hash, which makes the deposit uniquely identifiable.
-/// Interop block replacement transactions have their own domain for source-hashes,
-/// to not conflict with user-deposits, system upgrades, or L1 information updates.
-///
-/// The output root in the source is the output root of the block that was replaced.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct InteropBlockReplacementDepositSource {
-    /// The output root of the replaced block.
-    pub output_root: B256,
-}
-
-impl InteropBlockReplacementDepositSource {
-    /// Creates a new [`InteropBlockReplacementDepositSource`].
-    pub const fn new(output_root: B256) -> Self {
-        Self { output_root }
-    }
-
-    /// Returns the source hash.
-    pub fn source_hash(&self) -> B256 {
-        let mut domain_input = [0u8; 32 * 2];
-        let identifier_bytes: [u8; 8] =
-            (DepositSourceDomainIdentifier::InteropBlockReplacement as u64).to_be_bytes();
-        domain_input[32 - 8..32].copy_from_slice(&identifier_bytes);
-        domain_input[32..].copy_from_slice(&self.output_root[..]);
         keccak256(domain_input)
     }
 }

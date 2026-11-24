@@ -1,0 +1,196 @@
+---
+title: OP Stack에서 트랜잭션 비용 추정하기
+description: viem을 사용하여 OP Stack에서 트랜잭션 비용을 추정하는 방법을 알아봅니다.
+diataxis: tutorial
+---
+
+import TutorialSetupNodeProject from '/ko/snippets/tutorial-setup-node-project.mdx';
+import TutorialSetupWalletAndFunds, { TutorialFaucets } from '/ko/snippets/tutorial-setup-wallet-and-funds.mdx';
+import TutorialSetupRepl from '/ko/snippets/tutorial-setup-repl.mdx';
+
+이 튜토리얼에서는 [viem](https://viem.sh/op-stack/)을 사용하여 OP Mainnet에서 트랜잭션 비용을 추정하는 방법을 알아봅니다.
+[실행 gas 수수료](/ko/op-stack/transactions/fees#execution-gas-fee)와 [L1 데이터 수수료](/ko/op-stack/transactions/fees#l1-data-fee)를 각각 추정하는 방법을 배웁니다.
+또한 트랜잭션의 총비용을 한 번에 추정하는 방법도 배웁니다.
+
+<Info>
+  OP Mainnet이 내부적으로 수수료를 부과하는 방식에 대한 자세한 내용은 [OP Stack 트랜잭션 수수료](/ko/op-stack/transactions/fees)에 대한 전체 설명을 참조하십시오.
+</Info>
+
+## 지원되는 네트워크
+
+Viem은 모든 [OP Stack 네트워크](/ko/op-mainnet/network-information/connecting-to-op)를 지원합니다.
+OP Stack 네트워크는 기본적으로 Viem에 포함되어 있습니다.
+기본적으로 포함되지 않은 네트워크를 사용하려면 Viem의 체인 구성에 추가할 수 있습니다.
+
+## 의존성
+
+*   [node](https://nodejs.org/en/)
+*   [pnpm](https://pnpm.io/installation)
+
+## 데모 프로젝트 생성하기
+
+<TutorialSetupNodeProject lib="Viem" folder="op-est-cost-tutorial" packages="viem" />
+
+## OP Sepolia에서 ETH 받기
+
+이 튜토리얼에서는 OP Sepolia에서 트랜잭션 비용을 추정하는 방법을 설명합니다.
+이 튜토리얼의 코드를 실행하려면 OP Sepolia에서 약간의 ETH가 필요합니다.
+
+<TutorialFaucets sepolia={false} />
+
+## 환경에 개인 키 추가하기
+
+<TutorialSetupWalletAndFunds networks="OP Sepolia" />
+
+## Node REPL 시작하기
+
+<TutorialSetupRepl lib="Viem" />
+
+## 세션 변수 설정하기
+
+이 튜토리얼 전반에서 몇 가지 변수가 필요합니다.
+지금 설정해 보겠습니다.
+
+<Steps>
+
+  <Step title="viem 및 기타 필요한 모듈 가져오기">
+
+```js
+const { createPublicClient, createWalletClient, http, parseEther, parseGwei, formatEther } = require('viem');
+const { privateKeyToAccount } = require('viem/accounts');
+const { optimismSepolia } = require('viem/chains');
+const { publicActionsL2, walletActionsL2 } = require('viem/op-stack');
+```
+
+  </Step>
+  <Step title="계정 설정하기">
+
+```js
+const privateKey = process.env.TUTORIAL_PRIVATE_KEY
+const account = privateKeyToAccount(privateKey)
+```
+
+  </Step>
+  <Step title="public client 생성하기">
+
+```js
+const publicClient = createPublicClient({
+  chain: optimismSepolia,
+  transport: http("https://sepolia.optimism.io"),
+}).extend(publicActionsL2())
+```
+
+  </Step>
+  <Step title="wallet client 생성하기">
+
+```js
+const walletClientL2 = createWalletClient({
+  chain: optimismSepolia,
+  transport: http("https://sepolia.optimism.io"),
+}).extend(walletActionsL2())
+```
+  </Step>
+</Steps>
+
+## 트랜잭션 비용 추정하기
+
+이제 Viem을 사용하여 OP Mainnet에서 트랜잭션 비용을 추정합니다. 
+여기서는 사용자 주소에서 `0x1000000000000000000000000000000000000000` 주소로 소량의 ETH를 보내는 간단한 트랜잭션의 비용을 추정합니다.
+
+<Steps>
+  <Step title="서명되지 않은 트랜잭션 생성하기">
+
+  Viem을 사용하면 서명되지 않은 트랜잭션을 쉽게 생성할 수 있으므로, 사용자에게 서명을 요청하기 전에 트랜잭션 비용을 추정할 수 있습니다.
+  여기서는 사용자 주소에서 `0x1000000000000000000000000000000000000000` 주소로 소량의 ETH를 보내는 서명되지 않은 트랜잭션을 생성합니다. 
+
+```js
+  const transaction = {
+  account,
+  to: '0x1000000000000000000000000000000000000000',
+  value: parseEther('0.00069420'),
+  gasPrice: await publicClient.getGasPrice() 
+  }
+```
+
+  </Step>
+  <Step title="총비용 추정하기">
+
+  Viem에서는 [estimateTotalFee](https://viem.sh/op-stack/actions/estimateTotalFee) 메서드를 사용하여 트랜잭션의 총비용을 추정할 수 있습니다.
+
+```js
+  const totalEstimate = await publicClient.estimateTotalFee(transaction)
+  console.log(`Estimated Total Cost: ${formatEther(totalEstimate)} ETH`)
+```
+
+  </Step>
+  <Step title="트랜잭션 전송하기">
+
+  트랜잭션의 총비용을 추정했으니, 이제 트랜잭션을 네트워크로 전송합니다.
+  이렇게 하면 트랜잭션의 실제 비용을 확인하여 추정치와 비교할 수 있습니다.
+
+```js
+  const txHash = await walletClientL2.sendTransaction(transaction)
+  console.log(`Transaction Hash: ${txHash}`)
+
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+  console.log('receipt', receipt);
+```
+
+  </Step>
+  <Step title="실제 실행 gas 수수료 확인하기">
+
+  트랜잭션 영수증을 받으면 실제 실행 gas 수수료를 확인합니다.
+  트랜잭션 영수증에서 `gasUsed`와 `effectiveGasPrice`에 접근하여 확인할 수 있습니다.
+  그런 다음 이 값들을 곱하면 트랜잭션의 실제 L2 비용을 얻을 수 있습니다.
+
+```js
+  const l2CostActual = receipt.gasUsed * receipt.effectiveGasPrice
+  console.log(`Actual Execution Gas Fee: ${formatEther(l2CostActual)} ETH`)
+```
+
+  </Step>
+  <Step title="실제 L1 데이터 수수료 확인하기">
+
+  실제 L1 데이터 수수료도 확인할 수 있습니다.
+
+```js
+  const l1CostActual = receipt.l1Fee
+  console.log(`Actual L1 Data Fee: ${formatEther(l1CostActual)} ETH`)
+```
+
+  </Step>
+  <Step title="실제 총비용 확인하기">
+
+  이 두 값을 더하면 트랜잭션의 실제 총비용을 얻을 수 있습니다.
+
+```js
+  const totalActual = l2CostActual + l1CostActual
+  console.log(`Actual Total Cost: ${formatEther(totalActual)} ETH`)
+```
+
+  </Step>
+  <Step title="차이 확인하기">
+
+  마지막으로, 추정 총비용과 실제 총비용의 차이를 확인합니다.
+  이를 통해 추정치가 얼마나 정확했는지 파악할 수 있습니다.
+  추정치가 완전히 정확할 수는 없지만, 실제 값에 근접해야 합니다!
+
+```js
+  const difference = totalEstimate >= totalActual ? totalEstimate - totalActual : totalActual - totalEstimate
+  console.log(`Estimation Difference: ${formatEther(difference)} ETH`)
+```
+  </Step>
+</Steps>
+
+<Info>
+네트워크 상황과 gas 가격 변동으로 인해 추정치가 완전히 정확할 수는 없지만, 실제 비용에 근접해야 합니다.
+</Info>
+
+## 다음 단계
+
+*   전송 전에 항상 추정하십시오: 트랜잭션을 전송하기 전에 비용을 추정하면 예상치 못한 수수료와 트랜잭션 실패를 방지하는 데 도움이 됩니다.
+*   gas 가격 변동성을 고려하십시오: gas 가격은 빠르게 변할 수 있습니다. 추정치에 여유분을 추가하거나, 보다 정확한 가격 책정을 위해 gas 가격 오라클을 구현하는 것을 고려하십시오.
+*   트랜잭션 데이터를 최적화하십시오: L1 데이터 수수료를 줄이려면 트랜잭션의 데이터 양을 최소화하십시오.
+*   네트워크 상황을 모니터링하십시오: 네트워크 혼잡도를 주시하고 그에 따라 추정치를 조정하십시오.
+*   적절한 gas 한도를 사용하십시오: gas 한도를 너무 낮게 설정하면 트랜잭션이 실패할 수 있고, 너무 높게 설정하면 불필요한 비용이 발생할 수 있습니다.
+*   재시도 메커니즘을 구현하십시오: gas를 과소 추정하여 트랜잭션이 실패한 경우, 조정된 gas 파라미터로 재시도하는 메커니즘을 구현하십시오.

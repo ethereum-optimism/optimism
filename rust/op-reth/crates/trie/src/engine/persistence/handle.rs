@@ -6,7 +6,7 @@ use super::{
 use crate::{BlockStateDiff, OpProofsStore, prune::OpProofStoragePruner};
 use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::Sender;
-use reth_provider::BlockHashReader;
+use reth_provider::{BlockHashReader, StageCheckpointReader};
 use std::{sync::Arc, thread};
 
 /// Messages sent to the persistence service.
@@ -39,7 +39,7 @@ impl PersistenceHandle {
     pub fn spawn<H, S>(pruner: OpProofStoragePruner<S, H>, storage: S) -> Self
     where
         S: OpProofsStore + Clone + 'static,
-        H: BlockHashReader + Send + Sync + 'static,
+        H: BlockHashReader + StageCheckpointReader + Send + Sync + 'static,
     {
         let (tx, rx) = crossbeam_channel::bounded(2);
         let service = PersistenceService::new(pruner, storage, rx);

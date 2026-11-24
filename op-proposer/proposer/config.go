@@ -2,6 +2,7 @@ package proposer
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -20,16 +21,15 @@ var (
 	ErrMissingSuperRootRpc = errors.New("missing super root rpc")
 	ErrMissingSource       = errors.New("missing proposal source rpc (rollup or super root)")
 	ErrConflictingSource   = errors.New("must specify exactly one of rollup rpc or super root rpc")
+	ErrUnsupportedGameType = errors.New("unsupported game type")
 
-	// preInteropGameTypes are game types that enforce having a rollup RPC.
-	// It is ok if this list isn't complete, unknown game types will allow either rollup or super root RPCs.
-	// We just want to reduce foot-guns during the migration period.
-	preInteropGameTypes = []uint32{0, 1, 2, 3, 6, 254, 255, 1337}
+	// outputRootGameTypes are the game types op-proposer proposes output roots for, read from a rollup RPC.
+	// PERMISSIONED_CANNON (1) is the guardian fallback of every CANNON_KONA (8) deployment, and FAST (254)
+	// is the e2e withdrawal game.
+	outputRootGameTypes = []uint32{1, 8, 254}
 
-	// postInteropGameTypes are game types that enforce having a super root RPC.
-	// It is ok if this list isn't complete, unknown game types will allow either rollup or super root RPCs.
-	// We just want to reduce foot-guns during the migration period.
-	postInteropGameTypes = []uint32{4, 5}
+	// superRootGameTypes are the game types op-proposer proposes super roots for, read from super root RPCs.
+	superRootGameTypes = []uint32{5, 9}
 )
 
 // CLIConfig is a well typed config that is parsed from the CLI params.
@@ -104,28 +104,19 @@ func (c *CLIConfig) Check() error {
 	if c.ProposalInterval != 0 && c.DGFAddress == "" {
 		return errors.New("the `ProposalInterval` was provided but the `DisputeGameFactory` address was not set")
 	}
-	// Check for conflicting RPC sources - only one should be specified
-	sourceCount := 0
-	if c.RollupRpc != "" {
-		sourceCount++
+	usesSuperRoots := slices.Contains(superRootGameTypes, c.DisputeGameType)
+	if !usesSuperRoots && !slices.Contains(outputRootGameTypes, c.DisputeGameType) {
+		supported := slices.Sorted(slices.Values(slices.Concat(outputRootGameTypes, superRootGameTypes)))
+		return fmt.Errorf("%w %d: set --game-type (OP_PROPOSER_GAME_TYPE) to the chain's respected game type, one of %v", ErrUnsupportedGameType, c.DisputeGameType, supported)
 	}
-	if len(c.SuperRootRpcs) != 0 {
-		sourceCount++
-	}
-	if sourceCount > 1 {
+	if c.RollupRpc != "" && len(c.SuperRootRpcs) != 0 {
 		return ErrConflictingSource
 	}
-	// Require rollup RPC for pre interop game types.
-	if c.DGFAddress != "" && slices.Contains(preInteropGameTypes, c.DisputeGameType) && c.RollupRpc == "" {
-		return ErrMissingRollupRpc
-	}
-	// Require super root RPC for post interop game types.
-	if c.DGFAddress != "" && slices.Contains(postInteropGameTypes, c.DisputeGameType) && len(c.SuperRootRpcs) == 0 {
+	if usesSuperRoots && len(c.SuperRootRpcs) == 0 {
 		return ErrMissingSuperRootRpc
 	}
-	// For unknown game types, allow any source, but require at least one.
-	if sourceCount == 0 {
-		return ErrMissingSource
+	if !usesSuperRoots && c.RollupRpc == "" {
+		return ErrMissingRollupRpc
 	}
 
 	return nil

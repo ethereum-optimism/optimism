@@ -6,7 +6,6 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-mod disabled;
 mod error;
 mod traits;
 
@@ -16,9 +15,8 @@ mod encoding;
 mod safe_db;
 
 #[cfg(test)]
-mod tests;
+mod safedb_tests;
 
-pub use disabled::DisabledDatabase;
 pub use error::SafeDbError;
 pub use traits::{SafeDb, SafeHeadRecord};
 

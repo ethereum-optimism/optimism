@@ -1,12 +1,12 @@
 //! The [`L1OriginSelector`].
 
+use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
-use alloy_provider::{Provider, RootProvider};
-use alloy_transport::{RpcError, TransportErrorKind};
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
 use kona_protocol::{BlockInfo, L2BlockInfo};
-use std::{fmt::Debug, sync::Arc};
+use kona_providers_alloy::{AlloyChainProvider, AlloyChainProviderError};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 use tokio::sync::watch;
 
 /// Trait for selecting the next L1 origin block for sequencing.
@@ -59,13 +59,29 @@ impl<P: L1OriginSelectorProvider + Send + Sync> OriginSelector for L1OriginSelec
         unsafe_head: L2BlockInfo,
         is_recovery_mode: bool,
     ) -> Result<BlockInfo, L1OriginSelectorError> {
+        self.l1.prepare(unsafe_head.l1_origin, is_recovery_mode)?;
         self.select_origins(&unsafe_head, is_recovery_mode).await?;
+
+        let current = self.current.ok_or(L1OriginSelectorError::Pending)?;
+        if self.next.is_none() &&
+            (is_recovery_mode ||
+                unsafe_head.block_info.timestamp + self.cfg.block_time >
+                    current.timestamp + self.cfg.max_sequencer_drift(current.timestamp))
+        {
+            // Recovery mode eagerly adopts available origins, even below max drift. The worker
+            // still owns the I/O; a stalled RPC cannot block sequencing or admin indefinitely.
+            tokio::time::timeout(Duration::from_millis(500), self.l1.refresh())
+                .await
+                .map_err(|_| L1OriginSelectorError::Timeout)??;
+            self.try_fetch_next_origin().await?;
+        }
 
         // Start building on the next L1 origin block if the next L2 block's timestamp is
         // greater than or equal to the next L1 origin's timestamp.
         if let Some(next) = self.next &&
             unsafe_head.block_info.timestamp + self.cfg.block_time >= next.timestamp
         {
+            self.l1.selected(unsafe_head.l1_origin, next.id(), is_recovery_mode)?;
             return Ok(next);
         }
 
@@ -134,26 +150,21 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
                     .await?
                     .ok_or(L1OriginSelectorError::OriginNotFound(unsafe_head.l1_origin.hash))?,
             );
-            self.next = self.l1.get_block_by_number(unsafe_head.l1_origin.number + 1).await?;
-            return Ok(());
+            self.next = None;
+            return self.try_fetch_next_origin().await;
         }
 
-        if self.current.map(|c| c.hash == unsafe_head.l1_origin.hash).unwrap_or(false) {
-            // Do nothing; The next L2 block exists in the same epoch as the current L1 origin.
-        } else if self.next.map(|n| n.hash == unsafe_head.l1_origin.hash).unwrap_or(false) {
-            // Advance the origin.
-            self.current = self.next.take();
-            self.next = None;
-        } else {
-            // Find the current origin block, as it is missing.
-            self.current = Some(
-                self.l1
-                    .get_block_by_hash(unsafe_head.l1_origin.hash)
-                    .await?
-                    .ok_or(L1OriginSelectorError::OriginNotFound(unsafe_head.l1_origin.hash))?,
-            );
-            self.next = None;
+        if !self.current.is_some_and(|current| current.hash == unsafe_head.l1_origin.hash) {
+            self.current =
+                match self.next.take() {
+                    Some(next) if next.hash == unsafe_head.l1_origin.hash => Some(next),
+                    _ => Some(self.l1.get_block_by_hash(unsafe_head.l1_origin.hash).await?.ok_or(
+                        L1OriginSelectorError::OriginNotFound(unsafe_head.l1_origin.hash),
+                    )?),
+                };
         }
+        // Re-read the prepared successor: a head update may have invalidated it.
+        self.next = None;
 
         self.try_fetch_next_origin().await
     }
@@ -173,8 +184,11 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
             // Ignore the eventuality that the block is not found, as the next L1 origin fetch is
             // performed on a best-effort basis.
             let next = self.l1.get_block_by_number(current.number + 1).await?;
-            if next.map(|n| n.parent_hash == current.hash).unwrap_or(false) {
-                self.next = next;
+            if let Some(next) = next {
+                if next.parent_hash != current.hash {
+                    return Err(L1OriginSelectorError::NextOriginOrphaned);
+                }
+                self.next = Some(next);
             }
         }
 
@@ -184,10 +198,26 @@ impl<P: L1OriginSelectorProvider> L1OriginSelector<P> {
 
 /// An error produced by the [`L1OriginSelector`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum L1OriginSelectorError {
-    /// An error produced by the [`RootProvider`].
+    /// The background prefetcher has not prepared the requested origin yet.
+    #[error("L1 origin preparation is pending")]
+    Pending,
+    /// The bounded recovery-mode or max-drift wait expired.
+    #[error("L1 origin fetch timed out")]
+    Timeout,
+    /// The background prefetcher stopped; sequencing cannot safely continue.
+    #[error("L1 origin prefetcher channel closed")]
+    Closed,
+    /// The next canonical block does not extend the current origin.
+    #[error("Next L1 origin is orphaned")]
+    NextOriginOrphaned,
+    /// Preparing the attributes inputs failed; retry in the background.
+    #[error("L1 attributes preparation failed: {0}")]
+    Attributes(String),
+    /// An error produced by the L1 provider.
     #[error(transparent)]
-    Provider(#[from] RpcError<TransportErrorKind>),
+    Provider(#[from] AlloyChainProviderError),
     /// The L1 provider does not have enough data to select the next L1 origin block.
     #[error(
         "Waiting for more L1 data to be available to select the next L1 origin block. Current L1 origin: {0:?}"
@@ -201,6 +231,26 @@ pub enum L1OriginSelectorError {
 /// L1 [`BlockInfo`] provider interface for the [`L1OriginSelector`].
 #[async_trait]
 pub trait L1OriginSelectorProvider: Debug + Sync {
+    /// Request preparation for the unsafe head's origin without waiting for I/O.
+    fn prepare(&self, _origin: BlockNumHash, _recovery: bool) -> Result<(), L1OriginSelectorError> {
+        Ok(())
+    }
+
+    /// Start preparing lookahead as soon as an origin is selected for a build.
+    fn selected(
+        &self,
+        _parent: BlockNumHash,
+        _origin: BlockNumHash,
+        _recovery: bool,
+    ) -> Result<(), L1OriginSelectorError> {
+        Ok(())
+    }
+
+    /// Refresh unavailable L1 data during recovery or at the max-drift boundary.
+    async fn refresh(&self) -> Result<(), L1OriginSelectorError> {
+        Ok(())
+    }
+
     /// Returns a [`BlockInfo`] by its hash.
     async fn get_block_by_hash(
         &self,
@@ -214,12 +264,12 @@ pub trait L1OriginSelectorProvider: Debug + Sync {
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError>;
 }
 
-/// A wrapper around the [`RootProvider`] that delays the view of the L1 chain by a configurable
-/// amount of blocks.
+/// A wrapper around the [`AlloyChainProvider`] that delays the view of the L1 chain by a
+/// configurable amount of blocks.
 #[derive(Debug)]
 pub struct DelayedL1OriginSelectorProvider {
-    /// The inner [`RootProvider`].
-    inner: RootProvider,
+    /// The node's L1 provider.
+    inner: AlloyChainProvider,
     /// The L1 head watch channel.
     l1_head: watch::Receiver<Option<BlockInfo>>,
     /// The confirmation depth to delay the view of the L1 chain.
@@ -229,11 +279,33 @@ pub struct DelayedL1OriginSelectorProvider {
 impl DelayedL1OriginSelectorProvider {
     /// Creates a new [`DelayedL1OriginSelectorProvider`].
     pub const fn new(
-        inner: RootProvider,
+        inner: AlloyChainProvider,
         l1_head: watch::Receiver<Option<BlockInfo>>,
         confirmation_depth: u64,
     ) -> Self {
         Self { inner, l1_head, confirmation_depth }
+    }
+
+    /// Whether a numbered origin is eligible at the latest observed L1 head.
+    pub(crate) fn is_confirmed(&self, number: u64) -> bool {
+        number == 0 ||
+            self.confirmation_depth == 0 ||
+            self.l1_head.borrow().is_some_and(|head| {
+                head.number
+                    .checked_sub(number)
+                    .is_some_and(|depth| depth >= self.confirmation_depth)
+            })
+    }
+}
+
+/// Treats a missing block as absent rather than as an error.
+fn found<T>(
+    result: Result<T, AlloyChainProviderError>,
+) -> Result<Option<T>, L1OriginSelectorError> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(AlloyChainProviderError::BlockNotFound(_)) => Ok(None),
+        Err(error) => Err(error.into()),
     }
 }
 
@@ -244,25 +316,18 @@ impl L1OriginSelectorProvider for DelayedL1OriginSelectorProvider {
         hash: B256,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
         // By-hash lookups are not delayed, as they're direct indexes.
-        Ok(Provider::get_block_by_hash(&self.inner, hash).await?.map(Into::into))
+        let header = found(self.inner.header_by_hash(hash).await)?;
+        Ok(header.map(|header| {
+            BlockInfo::new(hash, header.number, header.parent_hash, header.timestamp)
+        }))
     }
 
     async fn get_block_by_number(
         &self,
         number: u64,
     ) -> Result<Option<BlockInfo>, L1OriginSelectorError> {
-        let Some(l1_head) = *self.l1_head.borrow() else {
-            // If the L1 head is not available, do not enforce a confirmation delay.
-            return Ok(Provider::get_block_by_number(&self.inner, number.into())
-                .await?
-                .map(Into::into));
-        };
-
-        if number == 0 ||
-            self.confirmation_depth == 0 ||
-            number + self.confirmation_depth <= l1_head.number
-        {
-            Ok(Provider::get_block_by_number(&self.inner, number.into()).await?.map(Into::into))
+        if self.is_confirmed(number) {
+            found(self.inner.block_info_by_number(number).await)
         } else {
             Ok(None)
         }
@@ -275,6 +340,88 @@ mod test {
     use alloy_eips::NumHash;
     use rstest::rstest;
     use std::collections::HashSet;
+
+    #[rstest]
+    #[case::head_at_genesis(Some(0), 1, 1, false)]
+    #[case::unknown_positive(None, 2, 7, false)]
+    #[case::zero_depth(None, 0, 7, true)]
+    #[case::genesis(None, u64::MAX, 0, true)]
+    #[case::exact_boundary(Some(9), 2, 7, true)]
+    #[case::too_recent(Some(8), 2, 7, false)]
+    #[case::ahead_of_head(Some(6), 2, 7, false)]
+    #[case::large_eligible(Some(u64::MAX), 1, u64::MAX - 1, true)]
+    #[case::addition_would_overflow(Some(u64::MAX), 2, u64::MAX - 1, false)]
+    #[case::large_depth(Some(u64::MAX), u64::MAX, 1, false)]
+    #[tokio::test]
+    async fn numeric_origin_reads_require_the_configured_confirmations(
+        #[case] head: Option<u64>,
+        #[case] depth: u64,
+        #[case] number: u64,
+        #[case] eligible: bool,
+    ) {
+        use alloy_rpc_client::RpcClient;
+        use alloy_rpc_types_eth::{Block, BlockTransactions, Header};
+        use alloy_transport::mock::Asserter;
+
+        let block: Block = Block::new(
+            Header::new(alloy_consensus::Header { number, ..Default::default() }),
+            BlockTransactions::Hashes(vec![]),
+        );
+        let expected: BlockInfo = block.clone().into();
+        let responses = Asserter::new();
+        responses.push_success(&block);
+        let (_observations, state) =
+            watch::channel(head.map(|number| BlockInfo { number, ..Default::default() }));
+        let provider = DelayedL1OriginSelectorProvider::new(
+            kona_engine::test_utils::trusted_l1_provider(alloy_provider::RootProvider::new(
+                RpcClient::mocked(responses.clone()),
+            )),
+            state,
+            depth,
+        );
+
+        assert_eq!(
+            provider.get_block_by_number(number).await.unwrap(),
+            eligible.then_some(expected)
+        );
+        // Each real mock-transport RPC consumes one response; withheld reads consume none.
+        assert_eq!(responses.read_q().len(), usize::from(!eligible));
+    }
+
+    #[tokio::test]
+    async fn observed_head_enables_numeric_reads_without_delaying_current_origin_hash_reads() {
+        use alloy_rpc_client::RpcClient;
+        use alloy_rpc_types_eth::{Block, BlockTransactions, Header};
+        use alloy_transport::mock::Asserter;
+
+        let block: Block = Block::new(
+            Header::new(alloy_consensus::Header { number: 7, ..Default::default() }),
+            BlockTransactions::Hashes(vec![]),
+        );
+        let expected: BlockInfo = block.clone().into();
+        let responses = Asserter::new();
+        responses.push_success(&block);
+        let (observations, state) = watch::channel(None);
+        let provider = DelayedL1OriginSelectorProvider::new(
+            kona_engine::test_utils::trusted_l1_provider(alloy_provider::RootProvider::new(
+                RpcClient::mocked(responses.clone()),
+            )),
+            state,
+            2,
+        );
+
+        assert_eq!(provider.get_block_by_hash(expected.hash).await.unwrap(), Some(expected));
+        assert!(responses.read_q().is_empty());
+        responses.push_success(&block);
+        assert_eq!(provider.get_block_by_number(7).await.unwrap(), None);
+        assert_eq!(responses.read_q().len(), 1);
+        observations.send_replace(Some(BlockInfo { number: 8, ..Default::default() }));
+        assert_eq!(provider.get_block_by_number(7).await.unwrap(), None);
+        assert_eq!(responses.read_q().len(), 1);
+        observations.send_replace(Some(BlockInfo { number: 9, ..Default::default() }));
+        assert_eq!(provider.get_block_by_number(7).await.unwrap(), Some(expected));
+        assert!(responses.read_q().is_empty());
+    }
 
     /// A mock [`OriginSelectorProvider`] with a local set of [`BlockInfo`]s available.
     #[derive(Default, Debug, Clone)]

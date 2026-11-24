@@ -7,39 +7,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type L1Client interface {
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
-}
-
-// EncodeTransactions encodes a list of transactions into opaque transactions.
-func EncodeTransactions(elems []*types.Transaction) ([]hexutil.Bytes, error) {
-	out := make([]hexutil.Bytes, len(elems))
-	for i, el := range elems {
-		dat, err := el.MarshalBinary()
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal tx %d: %w", i, err)
-		}
-		out[i] = dat
-	}
-	return out, nil
-}
-
-// DecodeTransactions decodes a list of opaque transactions into transactions.
-func DecodeTransactions(data []hexutil.Bytes) ([]*types.Transaction, error) {
-	dest := make([]*types.Transaction, len(data))
-	for i := range dest {
-		var x types.Transaction
-		if err := x.UnmarshalBinary(data[i]); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal tx %d: %w", i, err)
-		}
-		dest[i] = &x
-	}
-	return dest, nil
 }
 
 // CheckRecentTxs checks the depth recent blocks for txs from the account with address addr

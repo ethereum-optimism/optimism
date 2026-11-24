@@ -39,6 +39,12 @@ func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	sfp.RunConsolidateValidCrossChainMessageTest(t, sys, proofRunners()...)
 }
 
+func TestInteropFaultProofs_ConsolidateBelowHeadMessage(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunConsolidateBelowHeadMessageTest(t, sys, proofRunners()...)
+}
+
 func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
@@ -75,14 +81,64 @@ func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	sfp.RunInvalidBlockTest(t, sys, proofRunners()...)
 }
 
-func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
-	for _, tc := range sfp.IntraBlockCases() {
-		gt.Run(tc.Name, func(gt *testing.T) {
-			t := devtest.SerialT(gt)
-			sys := presets.NewSimpleInterop(t)
-			sfp.RunIntraBlockConsolidationTest(t, sys, tc, proofRunners()...)
-		})
-	}
+func TestInteropFaultProofs_DestroyedAndRecreatedAccount(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunDestroyedAndRecreatedAccountTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_ReplacedBlockStorageDeletion(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunReplacedBlockStorageDeletionTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_ReplacedBlockSameChainMessage(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunReplacedBlockSameChainMessageTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_ReplacedBlockCrossChainMessage(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunReplacedBlockCrossChainMessageTest(t, sys, proofRunners()...)
+}
+
+// Each intra-block case is a top-level test, so CI can shard the cases across
+// nodes. Each one builds its own devstack (~70s).
+func TestInteropFaultProofs_IntraBlock_CascadeInvalid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockCascadeInvalid())
+}
+
+func TestInteropFaultProofs_IntraBlock_SwapCascadeInvalid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockSwapCascadeInvalid())
+}
+
+func TestInteropFaultProofs_IntraBlock_CyclicDependencyValid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockCyclicDependencyValid())
+}
+
+func TestInteropFaultProofs_IntraBlock_CyclicDependencyInvalid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockCyclicDependencyInvalid())
+}
+
+func TestInteropFaultProofs_IntraBlock_LongDependencyChainValid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockLongDependencyChainValid())
+}
+
+func TestInteropFaultProofs_IntraBlock_SameChainValid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockSameChainValid())
+}
+
+func TestInteropFaultProofs_IntraBlock_SameChainInvalid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockSameChainInvalid())
+}
+
+func runIntraBlockCase(gt *testing.T, tc *sfp.IntraBlockTestCase) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunIntraBlockConsolidationTest(t, sys, tc, proofRunners()...)
 }
 
 func TestInteropFaultProofs_CycleReplacementPreservesAcyclicPrerequisite(gt *testing.T) {

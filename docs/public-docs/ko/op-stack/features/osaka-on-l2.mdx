@@ -1,0 +1,71 @@
+---
+title: L2의 Osaka
+description: EIP-7825 트랜잭션당 gas 한도와 precompile gas 변경 사항을 포함하여 L2에서 활성화되는 Osaka EIP에 대해 알아봅니다.
+diataxis: explanation
+---
+
+Upgrade 19는 L2에서 Osaka EIP 중 일부, 구체적으로는 OP Stack 체인에 적용 가능한 변경 사항을 활성화합니다. 모든 Osaka EIP가 L2 실행과 관련된 것은 아니며, L2 트랜잭션 처리 또는 precompile 동작에 영향을 미치는 EIP만 포함됩니다.
+
+활성화되는 변경 사항은 트랜잭션당 gas 한도와 두 개의 precompile에 대한 gas 비용 업데이트를 도입합니다.
+
+## EIP-7825: 트랜잭션당 gas 한도
+
+[EIP-7825](https://eips.ethereum.org/EIPS/eip-7825)는 단일 L2 트랜잭션이 요청할 수 있는 최대 gas 한도를 도입합니다. Upgrade 19 이후에는 gas 한도가 이 임계값을 초과하는 트랜잭션이 실행 계층에서 유효하지 않은 것으로 거부됩니다.
+
+EIP-7825 한도는 2^24 = **16,777,216 gas**입니다.
+이 한도는 실행 클라이언트(`op-reth`)에 의해 적용됩니다.
+
+### 입금(디파짓) 트랜잭션은 면제됩니다
+
+입금(디파짓) 트랜잭션(L1에서 L2로의 메시지)은 EIP-7825 한도의 적용을 **받지 않습니다**. 입금은 이미 L1 블록당 총 20M gas로 제한되어 있으며, L1에서 수락된 입금을 L2에서 거부하면 ETH가 영구적으로 손실됩니다. 시스템 입금 트랜잭션(예: 네트워크 업그레이드 트랜잭션)도 면제됩니다.
+
+### 앱 개발자에게 미치는 영향
+
+대부분의 트랜잭션은 영향을 받지 않습니다. 이 한도는 일반적인 애플리케이션 상호작용에 필요한 gas보다 충분히 높게 설계되었습니다. 애플리케이션이 매우 높은 gas 한도로 트랜잭션을 제출하는 경우, 새로운 임계값 이내인지 확인하십시오.
+
+애플리케이션이 프로그래밍 방식으로 원시 트랜잭션을 구성하고 임계값보다 높은 gas 한도를 설정하는 경우, 해당 트랜잭션은 실패합니다. gas 한도 로직을 업데이트하거나 표준 `eth_estimateGas` 응답을 사용하십시오. 추정값은 한도를 초과하는 값을 반환하지 않습니다.
+
+## MODEXP gas 비용 및 입력 크기 변경
+
+[EIP-7883](https://eips.ethereum.org/EIPS/eip-7883)은 `MODEXP` precompile(`0x05`)의 최소 gas 비용을 200 gas에서 500 gas로 인상합니다.
+[EIP-7823](https://eips.ethereum.org/EIPS/eip-7823)은 모듈러스 크기를 1024바이트로 제한합니다. 선언된 모듈러스가 이보다 큰 호출은 실패합니다.
+
+*   **`MODEXP`를 사용하는 컨트랙트의 경우:** gas 벤치마크를 다시 실행하고 하드코딩된 gas 값을 업데이트하십시오. 모듈러스 입력이 1024바이트 한도 이내인지 확인하십시오.
+*   **`MODEXP`를 사용하지 않는 컨트랙트의 경우:** 조치가 필요하지 않습니다.
+
+## P256VERIFY gas 비용 변경
+
+[EIP-7951](https://eips.ethereum.org/EIPS/eip-7951)은 `P256VERIFY` precompile(`0x100`)의 gas 비용을 3,450(RIP-7212)에서 **6,900 gas**로 인상합니다.
+
+*   **`P256VERIFY`를 사용하는 컨트랙트의 경우:** gas 벤치마크를 다시 실행하고 하드코딩된 gas 값을 업데이트하십시오.
+*   **`P256VERIFY`를 사용하지 않는 컨트랙트의 경우:** 조치가 필요하지 않습니다.
+
+## CLZ opcode
+
+[EIP-7939](https://eips.ethereum.org/EIPS/eip-7939)는 Count Leading Zeros opcode(`CLZ`, `0x1e`)를 도입합니다.
+`uint256`이 주어지면 선행 0 비트의 개수(0–255)를 반환합니다.
+
+*   **컨트랙트 개발자의 경우:** 이제 이 opcode를 사용할 수 있습니다. 기존 컨트랙트는 영향을 받지 않습니다.
+*   **툴체인 작성자의 경우:** 알 수 없는 opcode를 유효하지 않은 것으로 처리하는 어셈블러와 디컴파일러는 `CLZ` 지원을 추가해야 합니다.
+
+## 변경 사항 요약
+
+| 변경 사항 | EIP | OPCODE | 영향 |
+| --- | --- | --- | --- |
+| 트랜잭션당 gas 한도(16,777,216 gas) | [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825) | n/a | 한도를 초과하는 트랜잭션은 유효하지 않음(입금은 면제) |
+| `MODEXP` 최소 gas 인상(200 → 500 gas) | [EIP-7883](https://eips.ethereum.org/EIPS/eip-7883) | `0x05` | gas 비용 변경 |
+| `MODEXP` 모듈러스 크기 제한(1024바이트) | [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823) | `0x05` | 모듈러스가 1024바이트를 초과하는 입력은 실패 |
+| `P256VERIFY` gas 비용 인상(3,450 → 6,900 gas) | [EIP-7951](https://eips.ethereum.org/EIPS/eip-7951) | `0x100` | gas 비용 변경 |
+| CLZ(Count Leading Zeros) opcode | [EIP-7939](https://eips.ethereum.org/EIPS/eip-7939) | opcode `0x1e` | 새로운 opcode 사용 가능 |
+
+## 참고 자료
+
+*   [Karst 사양 개요](https://specs.optimism.io/protocol/karst/overview.html)
+*   [Karst exec-engine 사양](https://specs.optimism.io/protocol/karst/exec-engine.html)
+*   [L2의 Osaka 설계 문서](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/osaka-on-l2.md)
+*   [EIP-7825](https://eips.ethereum.org/EIPS/eip-7825)
+*   [EIP-7883](https://eips.ethereum.org/EIPS/eip-7883)
+*   [EIP-7823](https://eips.ethereum.org/EIPS/eip-7823)
+*   [EIP-7951](https://eips.ethereum.org/EIPS/eip-7951)
+*   [EIP-7939](https://eips.ethereum.org/EIPS/eip-7939)
+*   [Upgrade 19 공지](/ko/notices/archive/upgrade-19)

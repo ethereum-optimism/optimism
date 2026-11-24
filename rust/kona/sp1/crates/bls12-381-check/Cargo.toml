@@ -1,0 +1,31 @@
+[package]
+name = "kona-sp1-bls12-381-check"
+version = "0.0.1"
+description = "Test-only: EIP-2537 reference oracle, corpus, and zkVM differential-check support for kona-sp1's CustomCrypto"
+publish = false
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+revm.workspace = true
+op-revm.workspace = true
+alloy-primitives.workspace = true
+sha2.workspace = true
+rkyv.workspace = true
+ark-bls12-381-0-6.workspace = true
+ark-ec-0-6.workspace = true
+ark-ff-0-6.workspace = true
+ark-serialize-0-6.workspace = true
+
+[dev-dependencies]
+kona-sp1-client-utils.workspace = true
+kona-sp1-elfs.workspace = true
+# `profiling` makes the executor collect `cycle-tracker-report-*` spans into the report.
+sp1-sdk = { workspace = true, features = ["profiling"] }
+anyhow.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

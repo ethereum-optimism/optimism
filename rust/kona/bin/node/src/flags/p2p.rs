@@ -8,16 +8,16 @@ use crate::flags::{GlobalArgs, SignerArgs};
 use alloy_primitives::B256;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
+use backon::{ConstantBuilder, Retryable};
 use clap::Parser;
 use enr::k256;
-use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
-use kona_gossip::GaterConfig;
-use kona_node_service::NetworkConfig;
-use kona_peers::{BootNode, BootStoreFile, PeerMonitoring, PeerScoreLevel};
-use kona_providers_alloy::AlloyChainProvider;
-use libp2p::identity::Keypair;
+use kona_gossip::{GaterConfig, PeerAddr};
+use kona_node_service::{IpVotes, NetworkConfig};
+use kona_peers::{BootNode, BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
+use kona_providers_alloy::{AlloyChainProvider, AlloyChainProviderError, BlockLabel};
+use libp2p::{identity::Keypair, multiaddr::Protocol};
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
     num::ParseIntError,
@@ -25,7 +25,6 @@ use std::{
     str::FromStr,
 };
 use tokio::time::Duration;
-use url::Url;
 
 /// Resolves a hostname or IP address string to an [`IpAddr`].
 ///
@@ -53,10 +52,54 @@ fn resolve_host(host: &str) -> Result<IpAddr, String> {
     }
 }
 
+/// Parses one `--p2p.bootnodes` entry: an ENR (`enr:...`) or an enode URL (`enode://...`).
+fn parse_bootnode(raw: &str) -> Result<BootNode, String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err("Bootnode must not be empty".to_string());
+    }
+    BootNode::parse_bootnode(raw).map_err(|e| format!("{:#}", anyhow::Error::new(e)))
+}
+
+/// Parses one static peer: a TCP address that ends in the peer's ID, such as
+/// `/dns4/node.example.com/tcp/9222/p2p/16Uiu2...`.
+///
+/// The node only gossips over TCP, so any other transport could never be dialed. DNS names are
+/// resolved when dialing, not here, so a peer whose name does not resolve yet does not stop the
+/// node from starting.
+fn parse_static_peer(addr: &str) -> Result<PeerAddr, String> {
+    let addr = addr.trim();
+    if addr.is_empty() {
+        return Err("Static peer must not be empty".to_string());
+    }
+    let peer: PeerAddr = addr.parse().map_err(|e| format!("{:#}", anyhow::Error::new(e)))?;
+    let protocols: Vec<_> = peer.addr().iter().collect();
+    let shape = match protocols.as_slice() {
+        [
+            Protocol::Ip4(_) |
+            Protocol::Ip6(_) |
+            Protocol::Dns(_) |
+            Protocol::Dns4(_) |
+            Protocol::Dns6(_),
+            rest @ ..,
+        ] => match rest {
+            [Protocol::Tcp(0), ..] => Err("TCP port must not be 0"),
+            [Protocol::Tcp(_), Protocol::P2p(_)] => Ok(()),
+            [Protocol::Tcp(_), ..] => Err("Address must end in /tcp/<port>/p2p/<peer id>"),
+            _ => Err("Address must have a /tcp/<port> after the host"),
+        },
+        _ => Err("Address must start with /ip4, /ip6, /dns, /dns4 or /dns6"),
+    };
+    shape.map_err(str::to_string)?;
+    Ok(peer)
+}
+
 /// P2P CLI Flags
 #[derive(Parser, Clone, Debug, PartialEq, Eq)]
 pub struct P2PArgs {
-    /// Disable Discv5 (node discovery).
+    /// Disable Discv5 (node discovery). The node then binds no UDP port, ignores its bootnodes,
+    /// and connects only to its static peers, the peers that dial it, and the peers added with
+    /// `opp2p_connectPeer`.
     #[arg(long = "p2p.no-discovery", default_value = "false", env = "KONA_NODE_P2P_NO_DISCOVERY")]
     pub no_discovery: bool,
     /// Read the hex-encoded 32-byte private key for the peer ID from this txt file.
@@ -69,7 +112,9 @@ pub struct P2PArgs {
     pub private_key: Option<B256>,
 
     /// IP address or DNS hostname to advertise to external peers from Discv5.
-    /// Optional argument. Use the `p2p.listen.ip` if not set.
+    /// Optional argument. If not set, the node advertises `p2p.listen.ip` if it is a specific
+    /// address. On all interfaces (`0.0.0.0` or `::`), it advertises no IP until discovery learns
+    /// one from the peers it contacts.
     /// Accepts either an IP address (e.g., "1.2.3.4") or a DNS hostname (e.g.,
     /// "node1.example.com"). DNS hostnames are resolved to IP addresses at startup.
     ///
@@ -78,8 +123,8 @@ pub struct P2PArgs {
     /// behind a NAT for instance).
     #[arg(long = "p2p.advertise.ip", env = "KONA_NODE_P2P_ADVERTISE_IP", value_parser = resolve_host)]
     pub advertise_ip: Option<IpAddr>,
-    /// TCP port to advertise to external peers from the discovery layer. Same as `p2p.listen.tcp`
-    /// if set to zero.
+    /// TCP port to advertise to external peers from the discovery layer. If not set or zero, the
+    /// port `LibP2P` binds: `p2p.listen.tcp`, or the port picked for a listen port of zero.
     #[arg(long = "p2p.advertise.tcp", env = "KONA_NODE_P2P_ADVERTISE_TCP_PORT")]
     pub advertise_tcp_port: Option<u16>,
     /// UDP port to advertise to external peers from the discovery layer.
@@ -95,7 +140,8 @@ pub struct P2PArgs {
     /// TCP port to bind `LibP2P` to. Any available system port if set to 0.
     #[arg(long = "p2p.listen.tcp", default_value = "9222", env = "KONA_NODE_P2P_LISTEN_TCP_PORT")]
     pub listen_tcp_port: u16,
-    /// UDP port to bind Discv5 to. Same as TCP port if left 0.
+    /// UDP port to bind Discv5 to. Any available system port if set to 0, which then cannot be
+    /// combined with `p2p.advertise.udp`.
     #[arg(long = "p2p.listen.udp", default_value = "9223", env = "KONA_NODE_P2P_LISTEN_UDP_PORT")]
     pub listen_udp_port: u16,
     /// Low-tide peer count. The node actively searches for new peer connections if below this
@@ -168,6 +214,9 @@ pub struct P2PArgs {
 
     /// The duration in minutes to ban a peer for.
     ///
+    /// A banned peer is disconnected, and its connections are refused in both directions until
+    /// the ban expires, or until `opp2p_unblockPeer` lifts it. Bans don't survive a restart.
+    ///
     /// For peers to be banned, the `p2p.ban.peers` flag must be set to `true`.
     /// By default peers are banned for 1 hour. This follows the `op-node` default `<https://github.com/ethereum-optimism/optimism/blob/09a8351a72e43647c8a96f98c16bb60e7b25dc6e/op-node/flags/p2p_flags.go#L131-L138>`.
     #[arg(long = "p2p.ban.duration", default_value = "60", env = "KONA_NODE_P2P_BAN_DURATION")]
@@ -181,15 +230,40 @@ pub struct P2PArgs {
         env = "KONA_NODE_P2P_DISCOVERY_INTERVAL"
     )]
     pub discovery_interval: u64,
-    /// The directory to store the bootstore.
+    /// How many peers must report the same external address before discovery advertises it in
+    /// the ENR. At least 2. Ignored with `p2p.advertise.ip`, which turns these updates off.
+    ///
+    /// The reports come from the peers this node finds through its bootnodes and contacts; the
+    /// bootnodes themselves don't count. With fewer votes, fewer peers decide the address: two
+    /// colluding peers could make the node unreachable, or point other nodes at another host.
+    /// Keep the default on public networks. On a network with fewer reachable nodes than this,
+    /// not counting the bootnodes, a node listening on all interfaces never learns its address:
+    /// set `p2p.advertise.ip`, or lower this.
+    #[arg(
+        long = "p2p.discovery.ip-votes",
+        default_value_t = IpVotes::DEFAULT,
+        env = "KONA_NODE_P2P_DISCOVERY_IP_VOTES"
+    )]
+    pub discovery_ip_votes: IpVotes,
+    /// Lets discovery use non-public addresses, such as loopback and LAN ones, in other nodes'
+    /// records, as on a devnet.
+    ///
+    /// Without it, discovery uses only public addresses, and skips bootnodes at other addresses. A
+    /// node on a public network can't reach other hosts' private addresses, so leave it off there.
+    #[arg(long = "p2p.discovery.private", env = "KONA_NODE_P2P_DISCOVERY_PRIVATE")]
+    pub discovery_private: bool,
+    /// The bootstore file, which saves peers' records so that the node can dial them again after
+    /// a restart. If it is missing, the node creates it, and its directory, and doesn't start if
+    /// it can't. Nor does it start if the file can't be read, isn't a bootstore, or is in a format
+    /// a newer version wrote. Defaults to `~/.kona/<chain_id>/bootstore.json`.
     #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE")]
     pub bootstore: Option<PathBuf>,
-    /// Disables the bootstore.
+    /// Disables the bootstore: the node neither saves peers' records nor reads saved ones.
     #[arg(long = "p2p.no-bootstore", env = "KONA_NODE_P2P_NO_BOOTSTORE")]
     pub disable_bootstore: bool,
     /// Peer Redialing threshold is the maximum amount of times to attempt to redial a peer that
-    /// disconnects. By default, peers are *not* redialed. If set to 0, the peer will be
-    /// redialed indefinitely.
+    /// disconnects. The count resets once the peer has not been dialed for `p2p.redial.period`.
+    /// If set to 0, the peer will be redialed indefinitely.
     #[arg(long = "p2p.redial", env = "KONA_NODE_P2P_REDIAL", default_value = "500")]
     pub peer_redial: Option<u64>,
 
@@ -200,8 +274,34 @@ pub struct P2PArgs {
     pub redial_period: u64,
 
     /// An optional list of bootnode ENRs or node records to start the node with.
-    #[arg(long = "p2p.bootnodes", value_delimiter = ',', env = "KONA_NODE_P2P_BOOTNODES")]
-    pub bootnodes: Vec<String>,
+    ///
+    /// Each entry is an ENR (`enr:...`) or an enode URL (`enode://...`). The flag can be repeated,
+    /// or given a comma-separated list.
+    #[arg(
+        long = "p2p.bootnodes",
+        value_delimiter = ',',
+        env = "KONA_NODE_P2P_BOOTNODES",
+        value_parser = parse_bootnode
+    )]
+    pub bootnodes: Vec<BootNode>,
+
+    /// Multiaddrs of peers to dial at startup and keep connected, such as
+    /// `/dns4/node.example.com/tcp/9222/p2p/16Uiu2...`.
+    ///
+    /// Each address must be TCP and end in the peer's ID: an `opp2p_self` RPC call lists a node's
+    /// addresses in this form. The flag can be repeated, or given a comma-separated list.
+    ///
+    /// Several addresses with the same peer ID make one peer, dialed at whichever address connects
+    /// first. Addresses with the node's own ID are ignored, so a cluster can share one list.
+    #[arg(
+        long = "p2p.static-peers",
+        // op-node's name for the flag, for configs migrated from op-node.
+        visible_alias = "p2p.static",
+        value_delimiter = ',',
+        env = "KONA_NODE_P2P_STATIC_PEERS",
+        value_parser = parse_static_peer
+    )]
+    pub static_peers: Vec<PeerAddr>,
 
     /// Optionally enable topic scoring.
     ///
@@ -251,20 +351,33 @@ impl Default for P2PArgs {
 }
 
 impl P2PArgs {
-    fn check_ports_inner(ip_addr: IpAddr, tcp_port: u16, udp_port: u16) -> Result<()> {
-        if tcp_port == 0 {
-            return Ok(());
-        }
-        if udp_port == 0 {
-            return Ok(());
-        }
-        let tcp_socket = std::net::TcpListener::bind((ip_addr, tcp_port));
-        let udp_socket = std::net::UdpSocket::bind((ip_addr, udp_port));
-        if let Err(e) = tcp_socket {
+    /// How many times startup tries to read the unsafe block signer from L1, as op-node does.
+    const SIGNER_READ_ATTEMPTS: usize = 5;
+
+    /// How long startup waits between attempts to read the unsafe block signer, as op-node does.
+    const SIGNER_READ_RETRY_DELAY: Duration = Duration::from_secs(10);
+
+    /// Checks if the listen ports are available on the system.
+    ///
+    /// A port of `0` is not checked, and neither is the UDP port if discovery is disabled, since
+    /// the node then doesn't bind it.
+    ///
+    /// ## Errors
+    ///
+    /// - If the TCP port is already in use.
+    /// - If the UDP port is already in use.
+    pub fn check_ports(&self) -> Result<()> {
+        let (ip, tcp_port, udp_port) = (self.listen_ip, self.listen_tcp_port, self.listen_udp_port);
+        if tcp_port != 0 &&
+            let Err(e) = std::net::TcpListener::bind((ip, tcp_port))
+        {
             tracing::error!(target: "p2p::flags", tcp_port, "Error binding TCP socket: {e}");
             anyhow::bail!("Error binding TCP socket on port {tcp_port}: {e}");
         }
-        if let Err(e) = udp_socket {
+        if !self.no_discovery &&
+            udp_port != 0 &&
+            let Err(e) = std::net::UdpSocket::bind((ip, udp_port))
+        {
             tracing::error!(target: "p2p::flags", udp_port, "Error binding UDP socket: {e}");
             anyhow::bail!("Error binding UDP socket on port {udp_port}: {e}");
         }
@@ -272,16 +385,45 @@ impl P2PArgs {
         Ok(())
     }
 
-    /// Checks if the listen ports are available on the system.
-    ///
-    /// If either of the ports are `0`, this check is skipped.
-    ///
-    /// ## Errors
-    ///
-    /// - If the TCP port is already in use.
-    /// - If the UDP port is already in use.
-    pub fn check_ports(&self) -> Result<()> {
-        Self::check_ports_inner(self.listen_ip, self.listen_tcp_port, self.listen_udp_port)
+    /// Returns what an operator should know about how the node can find peers with these flags,
+    /// and how they can find it, on the chain with `chain_id`.
+    fn peering_warnings(&self, chain_id: u64) -> Vec<&'static str> {
+        let mut warnings = Vec::new();
+        if self.no_discovery {
+            if self.static_peers.is_empty() {
+                warnings.push(
+                    "Discovery is disabled and no static peers are set: the node only connects \
+                     to peers that dial it, or that are added with opp2p_connectPeer",
+                );
+            }
+            if !self.bootnodes.is_empty() {
+                warnings.push("Discovery is disabled, so the bootnodes are ignored");
+            }
+            if self.discovery_ip_votes != IpVotes::DEFAULT {
+                warnings.push("Discovery is disabled, so --p2p.discovery.ip-votes is ignored");
+            }
+        } else if self.advertise_ip.is_some() && self.discovery_ip_votes != IpVotes::DEFAULT {
+            warnings.push(
+                "--p2p.discovery.ip-votes is ignored with --p2p.advertise.ip, which keeps the \
+                 advertised IP fixed",
+            );
+        }
+        // On all interfaces, the ENR has no IP until enough peers agree on one. A chain without
+        // built-in bootnodes, such as a devnet, may have too few nodes for that.
+        if !self.no_discovery &&
+            self.advertise_ip.is_none() &&
+            self.listen_ip.is_unspecified() &&
+            BootNodes::from_chain_id(chain_id).is_empty()
+        {
+            warnings.push(
+                "The node listens on all interfaces without --p2p.advertise.ip, so it advertises \
+                 no IP until --p2p.discovery.ip-votes of the peers it contacts agree on its \
+                 address, and other nodes can't find it before. This chain has no built-in \
+                 bootnodes, so its network may be too small for that: consider setting \
+                 --p2p.advertise.ip, or a specific --p2p.listen.ip",
+            );
+        }
+        warnings
     }
 
     /// Returns the private key as specified in the raw cli flag or via file path.
@@ -318,16 +460,12 @@ impl P2PArgs {
         &self,
         args: &GlobalArgs,
         rollup_config: &RollupConfig,
-        l1_eth_rpc: Option<Url>,
+        l1_provider: Option<&AlloyChainProvider>,
     ) -> anyhow::Result<alloy_primitives::Address> {
-        if let Some(l1_eth_rpc) = l1_eth_rpc {
-            let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
-            let latest_block_num = provider.latest_block_number().await?;
-            let block_info = provider.block_info_by_number(latest_block_num).await?;
-            return Ok(kona_providers_alloy::unsafe_block_signer(
-                &provider.inner,
+        if let Some(provider) = l1_provider {
+            return Ok(Self::unsafe_block_signer_at_l1_head(
+                provider,
                 rollup_config.l1_system_config_address,
-                block_info.hash,
             )
             .await?);
         }
@@ -337,6 +475,37 @@ impl P2PArgs {
             self.unsafe_block_signer
                 .ok_or_else(|| anyhow::anyhow!("Unsafe block signer not provided"))
         })
+    }
+
+    /// Reads the unsafe block signer from `system_config` at the L1 head, making up to
+    /// [`Self::SIGNER_READ_ATTEMPTS`] attempts [`Self::SIGNER_READ_RETRY_DELAY`] apart, as op-node
+    /// does.
+    ///
+    /// Each attempt reads the head again. An RPC may serve proofs only for blocks near its head
+    /// (Reth's default `--rpc.eth-proof-window` is 0, the head alone), so a retry at a head the
+    /// RPC has moved past would keep failing.
+    async fn unsafe_block_signer_at_l1_head(
+        provider: &AlloyChainProvider,
+        system_config: alloy_primitives::Address,
+    ) -> Result<alloy_primitives::Address, AlloyChainProviderError> {
+        let read = || async {
+            let head = provider.block_info_by_label(BlockLabel::Latest).await?;
+            provider.unsafe_block_signer(system_config, head.hash).await
+        };
+        read.retry(
+            ConstantBuilder::default()
+                .with_delay(Self::SIGNER_READ_RETRY_DELAY)
+                .with_max_times(Self::SIGNER_READ_ATTEMPTS - 1),
+        )
+        .notify(|error, delay| {
+            tracing::warn!(
+                target: "p2p::flags",
+                %error,
+                ?delay,
+                "Failed to read the unsafe block signer from L1; retrying at the current L1 head"
+            );
+        })
+        .await
     }
 
     /// Constructs kona's P2P network [`NetworkConfig`] from CLI arguments.
@@ -350,27 +519,25 @@ impl P2PArgs {
         self,
         config: &RollupConfig,
         args: &GlobalArgs,
-        l1_rpc: Option<Url>,
+        l1_provider: Option<&AlloyChainProvider>,
     ) -> anyhow::Result<NetworkConfig> {
+        for warning in self.peering_warnings(config.l2_chain_id.id()) {
+            tracing::warn!(target: "p2p::flags", "{warning}");
+        }
+
         // Note: the advertised address is contained in the ENR for external peers from the
         // discovery layer to use.
 
         // Fallback to the listen ip if the advertise ip is not specified
         let advertise_ip = self.advertise_ip.unwrap_or(self.listen_ip);
 
-        // If the advertise ip is set, we will disable the dynamic ENR updates.
-        let static_ip = self.advertise_ip.is_some();
+        // An advertise IP stays fixed, so discovery doesn't update it from the peers' votes.
+        let ip_votes = self.advertise_ip.is_none().then_some(self.discovery_ip_votes);
 
-        // If the advertise tcp port is null, use the listen tcp port
-        let advertise_tcp_port = match self.advertise_tcp_port {
-            None => self.listen_tcp_port,
-            Some(port) => port,
-        };
-
-        let advertise_udp_port = match self.advertise_udp_port {
-            None => self.listen_udp_port,
-            Some(port) => port,
-        };
+        // Gossip advertises the port it binds for 0, see `LocalNode::tcp_port`.
+        let advertise_tcp_port = self.advertise_tcp_port.unwrap_or_default();
+        // Discovery advertises the port it listens on for 0, see `Discv5Builder::build`.
+        let advertise_udp_port = self.advertise_udp_port.unwrap_or_default();
 
         let keypair = self.keypair().unwrap_or_else(|e| {
             let generated = Keypair::generate_secp256k1();
@@ -405,13 +572,16 @@ impl P2PArgs {
         });
 
         let discovery_listening_address = SocketAddr::new(self.listen_ip, self.listen_udp_port);
-        let discovery_config =
-            NetworkConfig::discv5_config(discovery_listening_address.into(), static_ip);
+        let mut discovery_config =
+            NetworkConfig::discv5_config(discovery_listening_address.into(), ip_votes);
+        if !self.discovery_private {
+            discovery_config.table_filter = kona_disc::public_only;
+        }
 
         let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
 
-        let unsafe_block_signer = self.unsafe_block_signer(args, config, l1_rpc).await?;
+        let unsafe_block_signer = self.unsafe_block_signer(args, config, l1_provider).await?;
 
         let bootstore = if self.disable_bootstore {
             None
@@ -422,19 +592,14 @@ impl P2PArgs {
             ))
         };
 
-        let bootnodes = self
-            .bootnodes
-            .iter()
-            .map(|bootnode| BootNode::parse_bootnode(bootnode))
-            .collect::<Vec<BootNode>>()
-            .into();
+        let bootnodes = self.bootnodes.into();
 
         Ok(NetworkConfig {
             discovery_config,
             discovery_interval: Duration::from_secs(self.discovery_interval),
             discovery_address,
             discovery_randomize: self.discovery_randomize.map(Duration::from_secs),
-            enr_update: !static_ip,
+            discovery_enabled: !self.no_discovery,
             gossip_address,
             keypair,
             unsafe_block_signer,
@@ -448,6 +613,7 @@ impl P2PArgs {
                 dial_period: Duration::from_secs(60 * self.redial_period),
             },
             bootnodes,
+            static_peers: self.static_peers,
             rollup_config: config.clone(),
             gossip_signer: self.signer.config(args)?,
         })
@@ -484,9 +650,22 @@ impl P2PArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::b256;
+    use alloy_consensus::{Header, TxEnvelope};
+    use alloy_primitives::{Address, B256, b256};
+    use alloy_provider::RootProvider;
+    use alloy_rpc_client::RpcClient;
+    use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
+    use alloy_transport::mock::Asserter;
     use clap::Parser;
+    use kona_genesis::OP_MAINNET_CHAIN_ID;
+    use kona_node_service::NetworkBuilder;
     use kona_peers::NodeRecord;
+    use libp2p::PeerId;
+    use rstest::rstest;
+    use std::num::NonZeroUsize;
+
+    /// A chain ID in no registry, so it has no built-in bootnodes, as on a devnet.
+    const DEVNET_CHAIN_ID: u64 = 0;
 
     /// A mock command that uses the `P2PArgs`.
     #[derive(Parser, Debug, Clone)]
@@ -495,6 +674,73 @@ mod tests {
         /// P2P CLI Flags
         #[clap(flatten)]
         pub p2p: P2PArgs,
+    }
+
+    /// Creates an untrusted L1 provider backed by a FIFO mock RPC transport.
+    fn mocked_l1(asserter: &Asserter) -> AlloyChainProvider {
+        AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter.clone())),
+            NonZeroUsize::new(8).unwrap(),
+            false,
+        )
+    }
+
+    /// An L1 block with an empty state.
+    fn l1_block(number: u64) -> RpcBlock<TxEnvelope> {
+        RpcBlock::new(
+            RpcHeader::new(Header { number, ..Default::default() }),
+            BlockTransactions::Hashes(Vec::new()),
+        )
+    }
+
+    /// An `eth_getProof` response proving that `address` is absent from an empty state, so its
+    /// unsafe block signer slot reads as zero.
+    fn absent_account_proof(address: Address) -> serde_json::Value {
+        // bytes32(uint256(keccak256("systemconfig.unsafeblocksigner")) - 1)
+        let slot = b256!("65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
+        serde_json::json!({
+            "address": address,
+            "balance": "0x0",
+            "codeHash": B256::ZERO,
+            "nonce": "0x0",
+            "storageHash": B256::ZERO,
+            "accountProof": [],
+            "storageProof": [{ "key": slot, "value": "0x0", "proof": [] }],
+        })
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn startup_signer_read_retries_at_the_new_l1_head() {
+        let system_config = Address::repeat_byte(0x01);
+        let asserter = Asserter::new();
+        asserter.push_success(&l1_block(1));
+        // The RPC has moved past block 1 and no longer serves proofs for it.
+        asserter.push_failure_msg("distance to target block exceeds maximum proof window");
+        asserter.push_success(&l1_block(2));
+        asserter.push_success(&absent_account_proof(system_config));
+
+        let read =
+            P2PArgs::unsafe_block_signer_at_l1_head(&mocked_l1(&asserter), system_config).await;
+
+        assert_eq!(read.unwrap(), Address::ZERO);
+        assert!(asserter.read_q().is_empty(), "each attempt must read the head again");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn startup_signer_read_gives_up_after_the_last_attempt() {
+        let asserter = Asserter::new();
+        for _ in 0..=P2PArgs::SIGNER_READ_ATTEMPTS {
+            asserter.push_failure_msg("unavailable");
+        }
+        let start = tokio::time::Instant::now();
+
+        let read =
+            P2PArgs::unsafe_block_signer_at_l1_head(&mocked_l1(&asserter), Address::ZERO).await;
+
+        assert!(matches!(read, Err(AlloyChainProviderError::Transport(_))), "{read:?}");
+        assert_eq!(asserter.read_q().len(), 1, "every attempt but no more must be made");
+        let retries = u32::try_from(P2PArgs::SIGNER_READ_ATTEMPTS - 1).unwrap();
+        assert_eq!(start.elapsed(), P2PArgs::SIGNER_READ_RETRY_DELAY * retries);
     }
 
     #[test]
@@ -546,10 +792,165 @@ mod tests {
         assert_eq!(args.p2p.discovery_randomize, None);
     }
 
+    /// On a chain without built-in bootnodes, a node that listens on all interfaces without an
+    /// advertise IP warns that it may never learn its address. A specific listen IP, an advertise
+    /// IP, no discovery or a chain with built-in bootnodes don't warn.
+    #[rstest]
+    #[case::ipv4_all_interfaces(DEVNET_CHAIN_ID, &[], true)]
+    #[case::ipv6_all_interfaces(DEVNET_CHAIN_ID, &["--p2p.listen.ip", "::"], true)]
+    #[case::specific_listen_ip(DEVNET_CHAIN_ID, &["--p2p.listen.ip", "127.0.0.1"], false)]
+    #[case::advertise_ip(DEVNET_CHAIN_ID, &["--p2p.advertise.ip", "1.2.3.4"], false)]
+    #[case::no_discovery(DEVNET_CHAIN_ID, &["--p2p.no-discovery"], false)]
+    #[case::chain_with_bootnodes(OP_MAINNET_CHAIN_ID, &[], false)]
+    fn test_peering_warnings_on_all_interfaces(
+        #[case] chain_id: u64,
+        #[case] flags: &[&str],
+        #[case] warns: bool,
+    ) {
+        let warnings = peering_warnings_on(chain_id, flags);
+        assert_eq!(
+            warnings.iter().any(|w| w.contains("listens on all interfaces")),
+            warns,
+            "{warnings:?}"
+        );
+    }
+
+    /// The votes default to 10, as discv5's and op-node's do. Fewer than 2 are rejected, since
+    /// discv5 panics on them.
+    #[test]
+    fn test_p2p_args_discovery_ip_votes() {
+        let parse = |args: &[&str]| {
+            MockCommand::try_parse_from(std::iter::once("test").chain(args.iter().copied()))
+                .map(|args| args.p2p.discovery_ip_votes.get())
+        };
+
+        assert_eq!(parse(&[]).unwrap(), 10);
+        assert_eq!(parse(&["--p2p.discovery.ip-votes", "2"]).unwrap(), 2);
+        assert_eq!(parse(&["--p2p.discovery.ip-votes", "30"]).unwrap(), 30);
+        for invalid in ["0", "1", "-1", "two"] {
+            assert!(parse(&["--p2p.discovery.ip-votes", invalid]).is_err(), "{invalid}");
+        }
+    }
+
+    /// The votes reach discovery, which needs that many peers to agree before it updates the
+    /// ENR's address. With an advertise IP, it never updates it.
+    #[tokio::test]
+    async fn test_discovery_ip_votes_reach_discovery() {
+        let config = network_config(&["--p2p.discovery.ip-votes", "3"]).await;
+        assert!(config.discovery_config.enr_update);
+        assert_eq!(config.discovery_config.enr_peer_update_min, 3);
+
+        let config =
+            network_config(&["--p2p.discovery.ip-votes", "3", "--p2p.advertise.ip", "127.0.0.1"])
+                .await;
+        assert!(!config.discovery_config.enr_update);
+    }
+
+    /// Discovery's table filter accepts only public records, unless `--p2p.discovery.private`
+    /// allows private ones.
+    #[tokio::test]
+    async fn test_discovery_private_reaches_discovery() {
+        let loopback = discv5::Enr::builder()
+            .ip4(std::net::Ipv4Addr::LOCALHOST)
+            .build(&enr::CombinedKey::generate_secp256k1())
+            .expect("the record builds");
+
+        let config = network_config(&[]).await;
+        assert!(!(config.discovery_config.table_filter)(&loopback));
+
+        let config = network_config(&["--p2p.discovery.private"]).await;
+        assert!((config.discovery_config.table_filter)(&loopback));
+    }
+
     #[test]
     fn test_p2p_args_no_discovery() {
         let args = MockCommand::parse_from(["test", "--p2p.no-discovery"]);
         assert!(args.p2p.no_discovery);
+    }
+
+    /// The TCP port is always checked, and the UDP port only if discovery binds it.
+    #[test]
+    fn test_check_ports_skips_udp_without_discovery() {
+        let ip = std::net::Ipv4Addr::LOCALHOST;
+        let port = |addr: std::io::Result<SocketAddr>| addr.unwrap().port().to_string();
+        let udp = std::net::UdpSocket::bind((ip, 0)).unwrap();
+        let tcp = std::net::TcpListener::bind((ip, 0)).unwrap();
+        let (taken_udp, taken_tcp) = (port(udp.local_addr()), port(tcp.local_addr()));
+        let free_tcp = port(std::net::TcpListener::bind((ip, 0)).unwrap().local_addr());
+        let check = |tcp_port: &str, no_discovery: bool| {
+            let mut args = vec!["test", "--p2p.listen.ip", "127.0.0.1"];
+            args.extend(["--p2p.listen.tcp", tcp_port, "--p2p.listen.udp", &taken_udp]);
+            if no_discovery {
+                args.push("--p2p.no-discovery");
+            }
+            MockCommand::parse_from(args).p2p.check_ports()
+        };
+
+        assert!(check(&free_tcp, false).is_err());
+        assert!(check(&free_tcp, true).is_ok());
+        assert!(check(&taken_tcp, true).is_err());
+        // A TCP port of 0 no longer skips the UDP check.
+        assert!(check("0", false).is_err());
+    }
+
+    /// Returns the peering warnings for these P2P flags on the chain with `chain_id`.
+    fn peering_warnings_on(chain_id: u64, args: &[&str]) -> Vec<&'static str> {
+        let args = MockCommand::parse_from(std::iter::once("test").chain(args.iter().copied()));
+        args.p2p.peering_warnings(chain_id)
+    }
+
+    /// Without discovery, the node warns if nothing gives it peers, and that bootnodes and IP
+    /// votes go unused. With an advertise IP, it warns that the IP votes go unused.
+    #[test]
+    fn test_peering_warnings() {
+        let static_peer = format!("/ip4/10.0.0.1/tcp/9222/p2p/{}", PeerId::random());
+        // OP Mainnet has built-in bootnodes, so listening on all interfaces doesn't warn.
+        let warnings = |args: &[&str]| peering_warnings_on(OP_MAINNET_CHAIN_ID, args);
+
+        assert!(warnings(&[]).is_empty());
+        assert!(warnings(&["--p2p.bootnodes", ENODE_1]).is_empty());
+        assert!(warnings(&["--p2p.no-discovery", "--p2p.static-peers", &static_peer]).is_empty());
+
+        let no_peers = warnings(&["--p2p.no-discovery"]);
+        assert!(
+            matches!(no_peers.as_slice(), [w] if w.contains("no static peers")),
+            "{no_peers:?}"
+        );
+
+        let bootnodes = warnings(&[
+            "--p2p.no-discovery",
+            "--p2p.static-peers",
+            &static_peer,
+            "--p2p.bootnodes",
+            ENODE_1,
+        ]);
+        assert!(
+            matches!(bootnodes.as_slice(), [w] if w.contains("bootnodes are ignored")),
+            "{bootnodes:?}"
+        );
+
+        // Votes only matter without an advertise IP, so only setting them with one warns.
+        let advertise_ip = ["--p2p.advertise.ip", "1.2.3.4"];
+        let ip_votes = ["--p2p.discovery.ip-votes", "3"];
+        assert!(warnings(&advertise_ip).is_empty());
+        assert!(warnings(&ip_votes).is_empty());
+        let ignored_votes = warnings(&[advertise_ip, ip_votes].concat());
+        assert!(
+            matches!(ignored_votes.as_slice(), [w] if w.contains("ip-votes is ignored")),
+            "{ignored_votes:?}"
+        );
+
+        // Without discovery, the votes are ignored too, and that is the only warning, with or
+        // without an advertise IP.
+        let static_peers = ["--p2p.no-discovery", "--p2p.static-peers", static_peer.as_str()];
+        let only_votes_ignored = |flags: &[&str]| {
+            matches!(
+                warnings(flags).as_slice(),
+                [w] if w.contains("Discovery is disabled, so --p2p.discovery.ip-votes is ignored")
+            )
+        };
+        assert!(only_votes_ignored(&[&static_peers[..], &ip_votes].concat()));
+        assert!(only_votes_ignored(&[&static_peers[..], &ip_votes, &advertise_ip].concat()));
     }
 
     #[test]
@@ -593,71 +994,187 @@ mod tests {
         assert_eq!(args.p2p.listen_tcp_port, 1234);
     }
 
+    /// Returns the network config for these P2P flags, for a node that listens on `127.0.0.1` on
+    /// free ports, without bootnodes or a bootstore.
+    async fn network_config(flags: &[&str]) -> NetworkConfig {
+        let args = MockCommand::parse_from(
+            [
+                "test",
+                "--p2p.listen.ip",
+                "127.0.0.1",
+                "--p2p.listen.tcp",
+                "0",
+                "--p2p.listen.udp",
+                "0",
+                "--p2p.no-bootstore",
+                "--p2p.unsafe.block.signer",
+                "0x0000000000000000000000000000000000000001",
+            ]
+            .into_iter()
+            .chain(flags.iter().copied()),
+        );
+        // Chain ID 0 is in no registry, so discovery has no bootnodes. Peer scoring needs a block
+        // time.
+        let rollup_config = RollupConfig { block_time: 2, ..Default::default() };
+        args.p2p.config(&rollup_config, &GlobalArgs::default(), None).await.unwrap()
+    }
+
+    /// A started node advertises `--p2p.advertise.tcp` if set, and otherwise the TCP port gossip
+    /// bound, with or without `--p2p.advertise.ip`. The node listens on port 0 here, so the bound
+    /// port differs from the listen port.
+    #[rstest]
+    #[case::bound_port(&[], None)]
+    #[case::advertise_tcp(&["--p2p.advertise.tcp", "30303"], Some(30303))]
+    #[case::advertise_ip(&["--p2p.advertise.ip", "127.0.0.1"], None)]
+    #[case::advertise_ip_and_tcp(
+        &["--p2p.advertise.ip", "127.0.0.1", "--p2p.advertise.tcp", "30303"],
+        Some(30303)
+    )]
+    #[tokio::test]
+    async fn test_started_node_advertises_tcp_port(
+        #[case] flags: &[&str],
+        #[case] advertised: Option<u16>,
+    ) {
+        let config = network_config(flags).await;
+        let handler = NetworkBuilder::from(config).build().unwrap().start().await.unwrap();
+
+        let bound_port = handler.gossip.peer_addr().tcp_port().expect("gossip listens on TCP");
+        let enr = handler.discovery.unwrap().handler.local_enr().await.unwrap();
+
+        assert_eq!(enr.tcp4(), Some(advertised.unwrap_or(bound_port)));
+    }
+
     #[test]
     fn test_p2p_args_listen_udp_port() {
         let args = MockCommand::parse_from(["test", "--p2p.listen.udp", "1234"]);
         assert_eq!(args.p2p.listen_udp_port, 1234);
     }
 
+    const ENODE_1: &str = "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305";
+    const ENODE_2: &str = "enode://dd751a9ef8912be1bfa7a5e34e2c3785cc5253110bd929f385e07ba7ac19929fb0e0c5d93f77827291f4da02b2232240fbc47ea7ce04c46e333e452f8656b667@34.65.107.0:30305";
+
+    /// The bootnodes the CLI arguments parse to.
+    fn bootnodes(args: &[&str]) -> Vec<BootNode> {
+        MockCommand::parse_from(std::iter::once("test").chain(args.iter().copied())).p2p.bootnodes
+    }
+
     #[test]
     fn test_p2p_args_bootnodes() {
-        let args = MockCommand::parse_from([
-            "test",
-            "--p2p.bootnodes",
-            "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305",
-        ]);
-        assert_eq!(
-            args.p2p.bootnodes,
-            vec![
-                "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305",
-            ]
-        );
-
-        // Parse the bootnodes.
-        let bootnodes = args
-            .p2p
-            .bootnodes
-            .iter()
-            .map(|bootnode| BootNode::parse_bootnode(bootnode))
-            .collect::<Vec<BootNode>>();
-
-        // Otherwise, attempt to use the Node Record format.
-        let record = NodeRecord::from_str(
-                "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305").unwrap();
-        let expected_bootnode = vec![BootNode::from_unsigned(record).unwrap()];
-
-        assert_eq!(bootnodes, expected_bootnode);
+        let record = NodeRecord::from_str(ENODE_1).unwrap();
+        let expected = BootNode::from_unsigned(record).unwrap();
+        assert_eq!(bootnodes(&["--p2p.bootnodes", ENODE_1]), vec![expected]);
     }
 
     #[test]
     fn test_p2p_args_bootnodes_multiple() {
-        let args = MockCommand::parse_from([
-            "test",
-            "--p2p.bootnodes",
-            "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305,enode://dd751a9ef8912be1bfa7a5e34e2c3785cc5253110bd929f385e07ba7ac19929fb0e0c5d93f77827291f4da02b2232240fbc47ea7ce04c46e333e452f8656b667@34.65.107.0:30305",
-        ]);
-        assert_eq!(
-            args.p2p.bootnodes,
-            vec![
-                "enode://ca2774c3c401325850b2477fd7d0f27911efbf79b1e8b335066516e2bd8c4c9e0ba9696a94b1cb030a88eac582305ff55e905e64fb77fe0edcd70a4e5296d3ec@34.65.175.185:30305",
-                "enode://dd751a9ef8912be1bfa7a5e34e2c3785cc5253110bd929f385e07ba7ac19929fb0e0c5d93f77827291f4da02b2232240fbc47ea7ce04c46e333e452f8656b667@34.65.107.0:30305",
-            ]
-        );
+        let expected = [ENODE_1, ENODE_2].map(|raw| BootNode::parse_bootnode(raw).unwrap());
+        // A comma-separated list, as the environment variable needs, with spaces trimmed.
+        assert_eq!(bootnodes(&["--p2p.bootnodes", &format!(" {ENODE_1}, {ENODE_2}")]), expected);
+        // A repeated flag.
+        assert_eq!(bootnodes(&["--p2p.bootnodes", ENODE_1, "--p2p.bootnodes", ENODE_2]), expected);
     }
 
     #[test]
     fn test_p2p_args_bootnode_enr() {
-        let args = MockCommand::parse_from([
-            "test",
-            "--p2p.bootnodes",
-            "enr:-J64QBbwPjPLZ6IOOToOLsSjtFUjjzN66qmBZdUexpO32Klrc458Q24kbty2PdRaLacHM5z-cZQr8mjeQu3pik6jPSOGAYYFIqBfgmlkgnY0gmlwhDaRWFWHb3BzdGFja4SzlAUAiXNlY3AyNTZrMaECmeSnJh7zjKrDSPoNMGXoopeDF4hhpj5I0OsQUUt4u8uDdGNwgiQGg3VkcIIkBg",
-        ]);
-        assert_eq!(
-            args.p2p.bootnodes,
-            vec![
-                "enr:-J64QBbwPjPLZ6IOOToOLsSjtFUjjzN66qmBZdUexpO32Klrc458Q24kbty2PdRaLacHM5z-cZQr8mjeQu3pik6jPSOGAYYFIqBfgmlkgnY0gmlwhDaRWFWHb3BzdGFja4SzlAUAiXNlY3AyNTZrMaECmeSnJh7zjKrDSPoNMGXoopeDF4hhpj5I0OsQUUt4u8uDdGNwgiQGg3VkcIIkBg",
-            ]
-        );
+        let enr = "enr:-J64QBbwPjPLZ6IOOToOLsSjtFUjjzN66qmBZdUexpO32Klrc458Q24kbty2PdRaLacHM5z-cZQr8mjeQu3pik6jPSOGAYYFIqBfgmlkgnY0gmlwhDaRWFWHb3BzdGFja4SzlAUAiXNlY3AyNTZrMaECmeSnJh7zjKrDSPoNMGXoopeDF4hhpj5I0OsQUUt4u8uDdGNwgiQGg3VkcIIkBg";
+        let expected = BootNode::parse_bootnode(enr).unwrap();
+        assert!(matches!(expected, BootNode::Enr(_)));
+        assert_eq!(bootnodes(&["--p2p.bootnodes", enr]), vec![expected]);
+    }
+
+    #[test]
+    fn test_p2p_args_bootnodes_default_empty() {
+        assert!(bootnodes(&[]).is_empty());
+    }
+
+    #[test]
+    fn test_p2p_args_bootnodes_rejects_empty_entries() {
+        for list in ["", ",", &format!("{ENODE_1},"), &format!("{ENODE_1}, ,{ENODE_2}")] {
+            let err = MockCommand::try_parse_from(["test", "--p2p.bootnodes", list])
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("Bootnode must not be empty"), "{list:?}: {err}");
+        }
+    }
+
+    /// A malformed bootnode is a CLI error, not a panic when the config is built.
+    #[test]
+    fn test_p2p_args_bootnodes_rejects_invalid_entries() {
+        let err =
+            MockCommand::try_parse_from(["test", "--p2p.bootnodes", &format!("{ENODE_1},nope")])
+                .unwrap_err()
+                .to_string();
+        assert!(err.contains("invalid value 'nope'"), "{err}");
+        assert!(err.contains("Invalid enode URL"), "{err}");
+    }
+
+    #[test]
+    fn test_p2p_args_static_peers_default_empty() {
+        let args = MockCommand::parse_from(["test"]);
+        assert!(args.p2p.static_peers.is_empty());
+    }
+
+    #[test]
+    fn test_p2p_args_static_peers() {
+        let (id1, id2) = (PeerId::random(), PeerId::random());
+        let addr1 = format!("/ip4/10.0.0.1/tcp/9222/p2p/{id1}");
+        let addr2 = format!("/dns4/node.example.com/tcp/9222/p2p/{id2}");
+        let expected = vec![(id1, addr1.clone()), (id2, addr2.clone())];
+        let static_peers = |args: &[&str]| {
+            let args = MockCommand::parse_from(std::iter::once("test").chain(args.iter().copied()));
+            args.p2p.static_peers.iter().map(|p| (p.peer_id(), p.to_string())).collect::<Vec<_>>()
+        };
+        for flag in ["--p2p.static-peers", "--p2p.static"] {
+            // A comma-separated list, as the environment variable needs, with spaces trimmed.
+            assert_eq!(static_peers(&[flag, &format!(" {addr1}, {addr2}")]), expected, "{flag}");
+            // A repeated flag.
+            assert_eq!(static_peers(&[flag, &addr1, flag, &addr2]), expected, "{flag}");
+        }
+    }
+
+    #[test]
+    fn test_p2p_args_static_peers_rejects_empty_entries() {
+        let addr = format!("/ip4/10.0.0.1/tcp/9222/p2p/{}", PeerId::random());
+        for list in ["", ",", &format!("{addr},"), &format!("{addr}, ,{addr}")] {
+            let err = MockCommand::try_parse_from(["test", "--p2p.static-peers", list])
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("Static peer must not be empty"), "{list:?}: {err}");
+        }
+    }
+
+    #[test]
+    fn test_p2p_args_static_peers_rejects_invalid_addresses() {
+        let id = PeerId::random();
+        let cases = [
+            ("127.0.0.1:9222".to_string(), "Invalid multiaddr"),
+            ("/ip4/127.0.0.1/tcp/9222".to_string(), "does not end in /p2p/<peer id>"),
+            (format!("/p2p/{id}"), "nothing to dial"),
+            (format!("/ip4/127.0.0.1/udp/9222/p2p/{id}"), "must have a /tcp/<port>"),
+            (format!("/ip4/127.0.0.1/tcp/0/p2p/{id}"), "must not be 0"),
+            (format!("/memory/1/p2p/{id}"), "must start with /ip4"),
+            (format!("/ip4/127.0.0.1/tcp/9222/ws/p2p/{id}"), "must end in /tcp/<port>/p2p"),
+            // Anything after the peer ID.
+            (
+                format!("/ip4/127.0.0.1/tcp/9222/p2p/{id}/p2p/{}", PeerId::random()),
+                "must end in /tcp/<port>/p2p",
+            ),
+            // A UDP port next to the TCP one, in either order.
+            (format!("/ip4/127.0.0.1/tcp/9222/udp/9223/p2p/{id}"), "must end in /tcp/<port>/p2p"),
+            (format!("/ip4/127.0.0.1/udp/9223/tcp/9222/p2p/{id}"), "must have a /tcp/<port>"),
+        ];
+        for (addr, expected) in cases {
+            let valid = format!("/ip4/127.0.0.1/tcp/9222/p2p/{id}");
+            // One bad entry rejects the whole list.
+            let err = MockCommand::try_parse_from([
+                "test",
+                "--p2p.static-peers",
+                &format!("{valid},{addr}"),
+            ])
+            .unwrap_err()
+            .to_string();
+            assert!(err.contains(expected), "{addr}: {err}");
+        }
     }
 
     #[test]

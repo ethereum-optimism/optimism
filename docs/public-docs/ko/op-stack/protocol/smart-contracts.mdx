@@ -1,0 +1,230 @@
+---
+title: 스마트 컨트랙트 개요
+description: OP Stack을 구성하는 스마트 컨트랙트에 대해 알아봅니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="OP Stack 컨트랙트 계층"
+  title="Optimism 개요 사양"
+  href="https://specs.optimism.io/protocol/overview.html#architecture-overview"
+  note="이 페이지는 컨트랙트와 그 연결 방식에 대한 안내입니다. 각 컨트랙트의 동작과 인터페이스는 해당 사양 섹션과 소스 코드에서 정의됩니다."
+/>
+
+OP Stack의 온체인 로직은 두 그룹의 스마트 컨트랙트에 있습니다. 하나는
+Ethereum에 배포된 Layer 1 컨트랙트이고, 다른 하나는 모든 OP Stack 체인의
+제네시스 상태에 존재하는 Layer 2 predeploy입니다. 이 페이지는 각 그룹의
+용도를 설명하고 각 컨트랙트의 정식 정의로 안내합니다. 인터페이스, 파라미터,
+릴리스별 버전은 다시 서술하지 않습니다.
+
+*   **동작**은 [OP Stack 사양](https://specs.optimism.io/?utm_source=op-docs&utm_medium=docs)에 정의되어 있습니다.
+*   **소스 코드**는 모노레포의 [`packages/contracts-bedrock`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock)에 있으며, 생성된 인터페이스 문서는 [devdocs.optimism.io](https://devdocs.optimism.io/contracts-bedrock)에서 볼 수 있습니다.
+*   **배포된 주소**는 [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)를 기반으로 하는 [OP Mainnet 주소 페이지](/ko/op-mainnet/network-information/op-addresses)에 있습니다.
+
+## Layer 1 컨트랙트
+
+L1 컨트랙트는 체인의 bridge 유동성을 보관하고, 입금(디파짓)을 받고, 출금을
+검증하고, 체인의 구성을 저장하며, 결함 증명(fault proof) 시스템을 통해 output
+제안을 판정합니다. [Optimism 개요
+사양](https://specs.optimism.io/protocol/overview.html?utm_source=op-docs&utm_medium=docs#core-l1-smart-contracts)에는
+이들이 어떻게 연결되는지 보여 주는 아키텍처 다이어그램이 포함되어 있습니다.
+
+### Bridging 및 메시징
+
+입금은 계층화된 스택을 통해 체인으로 들어오고 출금은 이를 통해 체인을 떠납니다.
+`OptimismPortal`은 저수준 입금 및 출금 컨트랙트이고,
+`L1CrossDomainMessenger`는 그 위에 재실행 가능한(replayable) 메시지 전달을 추가하며,
+토큰 bridge는 messenger 위에 놓입니다. `OptimismPortal`로 직접 보낸 메시지는
+재실행할 수 없으므로, 사용자와 앱 개발자는 messenger 또는 bridge 인터페이스를
+사용하는 것이 좋습니다.
+
+| 컨트랙트 | 역할 | 규범 사양 |
+| --- | --- | --- |
+| `OptimismPortal` | 저수준 입금 진입점이자 출금 출구입니다. 출금은 분쟁 게임(dispute game) 결과를 기준으로 증명되고 최종 확정됩니다 | [입금](https://specs.optimism.io/protocol/deposits.html?utm_source=op-docs&utm_medium=docs#deposit-contract), [출금](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs#the-optimism-portal-contract), [OptimismPortal 결함 증명 통합](https://specs.optimism.io/fault-proof/stage-one/optimism-portal.html?utm_source=op-docs&utm_medium=docs) |
+| `ETHLockbox` | 승인된 portal을 통해 입금된 ETH를 에스크로하여 ETH 유동성을 하나의 단위로 관리하고 마이그레이션할 수 있게 합니다 | [ETH Lockbox](https://specs.optimism.io/interop/eth-lockbox.html?utm_source=op-docs&utm_medium=docs) |
+| `L1CrossDomainMessenger` | L1과 L2 간의 재실행 가능한 크로스 도메인 메시지 전달이며, 권장되는 메시징 인터페이스입니다 | [Cross Domain Messengers](https://specs.optimism.io/protocol/messengers.html?utm_source=op-docs&utm_medium=docs) |
+| `L1StandardBridge` | messenger 기반의 ETH 및 ERC-20 bridging이며, L1 네이티브 토큰을 에스크로합니다 | [Standard Bridges](https://specs.optimism.io/protocol/bridges.html?utm_source=op-docs&utm_medium=docs) |
+| `L1ERC721Bridge` | messenger 기반의 ERC-721 bridging이며, L1 네이티브 NFT를 에스크로합니다 | [Standard Bridges](https://specs.optimism.io/protocol/bridges.html?utm_source=op-docs&utm_medium=docs) |
+
+<Info>
+  Standard bridge는 모든 ERC-20 변형을 지원하도록 설계되지 않았습니다. 전송
+  수수료, 리베이스 로직, 차단 목록이 있는 토큰은 올바르게 작동하지 않을 수 있습니다.
+  안내는 [Standard Bridge](/ko/app-developers/guides/bridging/standard-bridge)를
+  참고하십시오.
+</Info>
+
+### 체인 구성
+
+| 컨트랙트 | 역할 | 규범 사양 |
+| --- | --- | --- |
+| `SystemConfig` | 파생 파이프라인(derivation pipeline)이 읽는 체인별 구성(batcher, gas, 수수료 스칼라)과 체인의 다른 컨트랙트 주소에 대한 온체인 레지스트리입니다 | [System Config](https://specs.optimism.io/protocol/system-config.html?utm_source=op-docs&utm_medium=docs) |
+| `SuperchainConfig` | Superchain 전체 구성과 Guardian의 일시 중지 메커니즘입니다. 일시 중지는 식별자 단위로 적용되며 자동으로 만료됩니다 | [Superchain Configuration](https://specs.optimism.io/protocol/superchain-config.html?utm_source=op-docs&utm_medium=docs) |
+
+### 제안 및 결함 증명
+
+L2 상태에 대한 주장은 신뢰 기반 output 제출이 아니라 분쟁 게임을 통해
+누구나(permissionless) 제안하고 이의를 제기할 수 있습니다. 시스템이 처음부터
+끝까지 어떻게 작동하는지는 [결함 증명 설명](/ko/op-stack/fault-proofs/explainer)을
+참고하십시오.
+
+| 컨트랙트 | 역할 | 규범 사양 |
+| --- | --- | --- |
+| `DisputeGameFactory` | 분쟁 게임 인스턴스를 배포하고 추적합니다. L2 상태를 제안하는 진입점입니다 | [Dispute Game Interface](https://specs.optimism.io/fault-proof/stage-one/dispute-game-interface.html?utm_source=op-docs&utm_medium=docs#disputegamefactory-interface) |
+| `FaultDisputeGame` | 온체인 결함 증명 VM을 기반으로 하는 이분 탐색(bisection) 게임을 통해 L2 상태에 대한 주장을 판정합니다 | [Fault Dispute Game](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html?utm_source=op-docs&utm_medium=docs) |
+| `PermissionedDisputeGame` | 지정된 proposer와 challenger만 참여할 수 있도록 제한한 `FaultDisputeGame` 변형으로, 더 엄격한 접근 제어가 필요한 경우에 사용됩니다 | [Fault Dispute Game](https://specs.optimism.io/fault-proof/stage-one/fault-dispute-game.html?utm_source=op-docs&utm_medium=docs) |
+| `AnchorStateRegistry` | anchor 상태(새 게임을 위한 최근의, 이의 제기되지 않은 시작점)와 게임 결과의 유효성을 추적합니다 | [AnchorStateRegistry](https://specs.optimism.io/fault-proof/stage-one/anchor-state-registry.html?utm_source=op-docs&utm_medium=docs) |
+| `DelayedWETH` | 분쟁 보증금(bond)을 보관하고 지급을 지연하여 자금이 이동하기 전에 잘못된 판정을 잡아낼 수 있게 합니다 | [Bond Incentives](https://specs.optimism.io/fault-proof/stage-one/bond-incentives.html?utm_source=op-docs&utm_medium=docs#delayedweth) |
+| `MIPS64` | 온체인 결함 증명 VM입니다. 분쟁 대상인 단일 명령어 단계를 실행하는 빅 엔디언, 64비트, 멀티스레드 MIPS 에뮬레이터입니다 | [Cannon Fault Proof VM](https://specs.optimism.io/fault-proof/cannon-fault-proof-vm.html?utm_source=op-docs&utm_medium=docs) |
+| `PreimageOracle` | 결함 증명 VM이 분쟁 단계 중에 읽는 해시된 입력의 preimage를 제공합니다 | [Pre-image Oracle](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs#pre-image-oracle) |
+
+### 레거시 및 지원 중단된 컨트랙트
+
+*   `AddressManager`는 Bedrock 이전 시스템의 레거시 이름-주소 레지스트리입니다.
+    `L1CrossDomainMessenger`가 여전히 이를 통해 주소를 확인하는 레거시
+    `ResolvedDelegateProxy` 뒤에 있기 때문에 남아 있을 뿐입니다.
+*   `L2OutputOracle`은 결함 증명 이전의 신뢰 기반 output 제안 컨트랙트였습니다.
+    이 컨트랙트는 지원 중단(deprecated)되었으며, [L2 output root 제안
+    사양](https://specs.optimism.io/protocol/proposals.html?utm_source=op-docs&utm_medium=docs)에 따라
+    output 제안은 대신 `DisputeGameFactory`를 통해 이루어집니다.
+*   `ProtocolVersions`는 노드 운영자에게 권장 및 필수 프로토콜 버전을 알렸습니다.
+    이 컨트랙트는 OP Stack 컨트랙트에서 제거되었으며, 이 컨트랙트가 제공하던
+    버전 관리 체계는 [Superchain 업그레이드
+    사양](https://specs.optimism.io/protocol/superchain-upgrades.html?utm_source=op-docs&utm_medium=docs#protocol-version)에 계속 문서화되어 있습니다.
+
+### 컨트랙트 업그레이드
+
+L1 컨트랙트는 L1 컨트랙트를 버전이 지정된 세트로 배포하고 업그레이드하는
+[OP Contracts Manager (OPCM)](/ko/chain-operators/reference/opcm)을 통해
+업그레이드됩니다.
+[superchain-ops](/ko/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide)
+워크플로는 내부적으로 OPCM을 구동하며, Security Council 서명이 필요한 체인을 위한
+경로입니다. 다른 체인은 OPCM을 직접 호출할 수 있습니다. `op-deployer`는
+초기 배포를 위한 도구로 계속 사용되지만, 그 업그레이드 명령은 OPCM으로 대체되어
+지원 중단되었습니다. 자세한 내용은
+[지원 중단 공지](/ko/notices/archive/op-deployer-upgrade-deprecation)를 참고하십시오.
+
+L2 predeploy는 [Upgrade 19](/ko/notices/archive/upgrade-19)에서 도입된
+L2 Contract Manager (L2CM)를 통해 업그레이드됩니다. 네트워크 업그레이드 시
+합의 계층(consensus layer)은 L2 `ProxyAdmin`이 `L2ContractsManager` 컨트랙트를
+delegatecall하도록 하는 네트워크 업그레이드 트랜잭션을 생성합니다. 이 컨트랙트는
+모든 predeploy 구현을 하나의 원자적 트랜잭션으로 업데이트하며, 컨트랙트별
+멀티시그 트랜잭션을 사용하던 이전 방식을 대체합니다.
+[L2 Contract Manager 기능 페이지](/ko/op-stack/features/l2-contract-manager)와
+[L2 업그레이드 사양](https://specs.optimism.io/protocol/l2-upgrades-1-execution.html?utm_source=op-docs&utm_medium=docs)을
+참고하십시오.
+
+### 컨트랙트 릴리스
+
+컨트랙트는 문서화된
+[버전 관리 정책](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/versioning.md)에 따라
+`op-contracts/vX.Y.Z`라는 이름의 태그가 지정된 모노레포 릴리스로 배포됩니다.
+이 페이지는 릴리스를 추적하지 않으므로 다음 자료를 대신 사용하십시오.
+
+*   [op-contracts 릴리스 기록](/ko/releases/op-contracts)은 GitHub 릴리스에서
+    생성된 모든 릴리스와 그 노트를 나열합니다.
+*   [superchain-registry 표준 버전](https://github.com/ethereum-optimism/superchain-registry/tree/main/validation/standard)
+    파일은 각 표준 릴리스를 구성하는 정확한 컨트랙트 버전과 구현 주소를
+    기록합니다.
+*   [네트워크 업그레이드 레지스트리](/ko/op-stack/protocol/network-upgrades)는
+    각 하드포크를 해당 거버넌스 승인 및 필수 구성 요소 버전과 연결합니다.
+
+<Warning>
+  구성 요소 이름 없이 `v<semver>`로 태그된 릴리스(예: `v1.1.4`)는
+  Go 코드 릴리스이며 스마트 컨트랙트를 포함하지 않습니다. 컨트랙트는
+  `op-contracts/vX.Y.Z` 태그에서만 배포하십시오.
+</Warning>
+
+## Layer 2 컨트랙트 (predeploy)
+
+Predeploy는 모든 OP Stack 체인의 제네시스 상태에서 고정되고 잘 알려진 주소에
+배치된 컨트랙트입니다. precompile과 달리 일반적인 EVM 컨트랙트이므로
+클라이언트 구현 간에 이식성이 유지되고 표준 도구에서도 확인할 수 있습니다.
+대부분은 `0x4200000000000000000000000000000000000xxx` 주소 네임스페이스에 있으며
+L2 `ProxyAdmin`이 소유한 프록시 뒤에 있습니다.
+
+[Predeploys 사양](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs)은
+정식 목록입니다. 이 사양은 predeploy 주소의 전체 표, 각 predeploy가 도입된
+업그레이드, 지원 중단 상태, 프록시 사용 여부와 함께 각 컨트랙트의 규범적
+정의를 관리합니다.
+
+### Bridging predeploy
+
+L2 측은 L1 bridging 스택을 그대로 반영합니다.
+[`L2CrossDomainMessenger`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#l2crossdomainmessenger)는
+권장되는 고수준 메시징 인터페이스이고,
+[`L2ToL1MessagePasser`](https://specs.optimism.io/protocol/withdrawals.html?utm_source=op-docs&utm_medium=docs#the-l2tol1messagepasser-contract)는
+나중에 L1에서 포함 여부가 증명되는 출금 메시지를 기록하며,
+[`L2StandardBridge`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#l2standardbridge)와
+`L2ERC721Bridge`는 L1 대응 컨트랙트와 짝을 이룹니다.
+[`OptimismMintableERC20Factory`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#optimismmintableerc20factory)와
+`OptimismMintableERC721Factory`는 bridge가 발행하고 소각하는 L2 토큰 컨트랙트를
+누구나(permissionless) 생성할 수 있게 합니다.
+
+<Info>
+  원래 OP Stack 체인에 배포된 ERC-721은 ERC-721 bridge를 통해 bridging하지
+  마십시오. 이 bridge는 원래 L1에 배포된 NFT만 지원합니다.
+</Info>
+
+### 수수료 및 시스템 predeploy
+
+*   [`GasPriceOracle`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#gaspriceoracle)은
+    트랜잭션 수수료 중 데이터 가용성 부분을 추정하기 위한 파라미터와 헬퍼 함수를
+    제공합니다. 정확한 수수료 공식은 업그레이드마다 바뀌며 여기가 아니라 사양에
+    정의되어 있습니다. 설명은 [트랜잭션 수수료](/ko/op-stack/transactions/fees)를
+    참고하십시오.
+*   [`L1Block`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#l1block)
+    predeploy는 프로토콜이 시스템 입금 트랜잭션을 통해 기록하는, 최신으로 알려진
+    L1 블록에 대한 정보를 제공합니다.
+*   수수료 볼트([`SequencerFeeVault`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#sequencerfeevault),
+    [`BaseFeeVault`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#basefeevault),
+    [`L1FeeVault`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#l1feevault),
+    그리고 Isthmus 업그레이드 이후의
+    [`OperatorFeeVault`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#operator-fee-vault))는
+    트랜잭션 수수료의 구성 요소를 수집하여 설정된 수령인에게 출금할 수 있게 합니다.
+    운영 관련 세부 사항은 [수수료 볼트](/ko/op-stack/transactions/fee-vaults)를
+    참고하십시오.
+*   [`ProxyAdmin`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#proxyadmin)은
+    다른 predeploy의 프록시를 소유하고 그 업그레이드를 제어합니다.
+*   [`BeaconBlockRoot`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#beacon-block-root)
+    컨트랙트([EIP-4788](https://eips.ethereum.org/EIPS/eip-4788))는 L1
+    beacon block root를 제공하며, Ecotone 업그레이드 이후 사용할 수 있습니다.
+*   [`WETH9`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#weth9)는
+    결정론적 주소에 있는 표준 Wrapped Ether 컨트랙트입니다.
+
+### GovernanceToken
+
+[`GovernanceToken`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#governance-token)은
+Optimism 거버넌스에서 사용되는 OP 토큰으로, 투표와 위임을 지원합니다. 이 토큰은
+토큰 인플레이션 일정을 강제하는 `MintManager` 컨트랙트가 소유합니다. 토큰의
+사용 방식은 [거버넌스 자료](/ko/governance/resources)를 참고하십시오.
+
+### EAS (Ethereum Attestation Service)
+
+[`EAS`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#eas)와
+[`SchemaRegistry`](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs#schemaregistry)
+predeploy는 온체인 증명(attestation)을 발급하고 관리하기 위한 오픈 소스 공공재인
+[Ethereum Attestation Service](https://attest.sh/) 프로토콜을 구현합니다.
+EAS는 [EAS Scan UI](https://optimism.easscan.org/),
+[EAS SDK](https://docs.attest.sh/docs/developer-tools/eas-sdk) 또는
+[온체인에서 직접](https://github.com/ethereum-attestation-service/eas-contracts/blob/master/contracts/EAS.sol)
+상호 작용할 수 있으며, 증명은
+[EAS API](https://docs.attest.sh/docs/developer-tools/api) 또는
+[오픈 소스 인덱서](https://github.com/ethereum-attestation-service/eas-indexing-service)로
+인덱싱할 수 있습니다.
+
+### 지원 중단된 predeploy
+
+`LegacyMessagePasser`, `DeployerWhitelist`, `LegacyERC20ETH`,
+`L1BlockNumber` 컨트랙트는 Bedrock 이전 시스템과의 하위 호환성을 위해 상태에
+남아 있지만, 지원 중단되었으며 사용되지 않습니다. 이들의 주소와 기록은
+[Predeploys 사양](https://specs.optimism.io/protocol/predeploys.html?utm_source=op-docs&utm_medium=docs)에 있습니다.
+
+## 다음 단계
+
+*   이 컨트랙트들을 연결하는 아키텍처 다이어그램은 [Optimism 개요 사양](https://specs.optimism.io/protocol/overview.html?utm_source=op-docs&utm_medium=docs)을 읽어 보십시오.
+*   [컨트랙트 소스](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock)와 [생성된 컨트랙트 레퍼런스](https://devdocs.optimism.io/contracts-bedrock)를 살펴보십시오.
+*   [OP Mainnet의 컨트랙트 주소](/ko/op-mainnet/network-information/op-addresses)를 확인하십시오.
+*   [결함 증명 시스템](/ko/op-stack/fault-proofs/explainer)이 분쟁 컨트랙트를 사용하는 방식을 알아보십시오.
+*   릴리스, 배포 도구, 소스 링크는 [op-contracts 허브](/ko/op-stack/components/op-contracts)를 참고하십시오.

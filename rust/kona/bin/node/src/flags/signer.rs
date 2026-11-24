@@ -4,7 +4,6 @@ use alloy_primitives::{Address, B256};
 use alloy_signer::{Signer, k256::ecdsa};
 use alloy_signer_local::PrivateKeySigner;
 use clap::Parser;
-use kona_cli::SecretKeyLoader;
 use kona_sources::{BlockSigner, ClientCert, RemoteSigner};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use std::str::FromStr;
@@ -22,7 +21,7 @@ pub struct SignerArgs {
         conflicts_with = "endpoint"
     )]
     pub sequencer_key: Option<B256>,
-    /// An optional path to a file containing the sequencer private key.
+    /// An optional path to a file containing the hex-encoded sequencer private key.
     /// This is mutually exclusive with `p2p.sequencer.key`.
     #[arg(
         long = "p2p.sequencer.key.path",
@@ -88,9 +87,22 @@ pub enum SignerArgsParseError {
     /// The sequencer key is invalid.
     #[error("The sequencer key is invalid.")]
     SequencerKeyInvalid(#[from] ecdsa::Error),
-    /// Failed to load sequencer key from file.
-    #[error("Failed to load sequencer key from file")]
-    SequencerKeyFileError(#[from] kona_cli::KeypairError),
+    /// Failed to read the sequencer key file.
+    #[error("Failed to read sequencer key file {path:?}")]
+    SequencerKeyFileRead {
+        /// The path to the sequencer key file.
+        path: PathBuf,
+        /// The I/O error.
+        source: std::io::Error,
+    },
+    /// The sequencer key file does not hold a hex-encoded 32-byte key.
+    #[error("Sequencer key file {path:?} does not hold a hex-encoded 32-byte key")]
+    SequencerKeyFileDecode {
+        /// The path to the sequencer key file.
+        path: PathBuf,
+        /// The decoding error.
+        source: alloy_primitives::hex::FromHexError,
+    },
     /// The address is required if `signer.endpoint` is provided.
     #[error("The address is required if `signer.endpoint` is provided.")]
     AddressRequired,
@@ -135,16 +147,14 @@ impl SignerArgs {
         match (self.sequencer_key, &self.sequencer_key_path) {
             (Some(key), None) => Ok(Some(key)),
             (None, Some(path)) => {
-                let keypair = SecretKeyLoader::load(path)?;
-                // Extract the private key bytes from the secp256k1 keypair
-                keypair.try_into_secp256k1().map_or_else(
-                    |_| Err(SignerArgsParseError::SequencerKeyInvalid(ecdsa::Error::new())),
-                    |secp256k1_keypair| {
-                        let private_key_bytes = secp256k1_keypair.secret().to_bytes();
-                        let key = B256::from_slice(&private_key_bytes);
-                        Ok(Some(key))
-                    },
-                )
+                // Never generate a key here: blocks signed by an unknown key are rejected.
+                let contents = std::fs::read_to_string(path).map_err(|source| {
+                    SignerArgsParseError::SequencerKeyFileRead { path: path.clone(), source }
+                })?;
+                let key = B256::from_str(contents.trim()).map_err(|source| {
+                    SignerArgsParseError::SequencerKeyFileDecode { path: path.clone(), source }
+                })?;
+                Ok(Some(key))
             }
             (Some(_), Some(_)) => Err(SignerArgsParseError::ConflictingSequencerKeyInputs),
             (None, None) => Ok(None),
@@ -181,13 +191,7 @@ impl SignerArgs {
             })
             .transpose()?;
 
-        Ok(Some(RemoteSigner {
-            address,
-            endpoint,
-            ca_cert: self.ca_cert.clone(),
-            client_cert,
-            headers,
-        }))
+        Ok(Some(RemoteSigner { address, endpoint, ca_cert: self.ca_cert, client_cert, headers }))
     }
 }
 
@@ -214,6 +218,52 @@ mod tests {
 
         let resolved = signer_args.resolve_sequencer_key().unwrap();
         assert_eq!(resolved, Some(key));
+    }
+
+    #[test]
+    fn test_resolve_sequencer_key_from_file_with_prefix_and_whitespace() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let key = b256!("1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be");
+        let hex = alloy_primitives::hex::encode(key);
+        writeln!(temp_file, " 0x{hex}\r").unwrap();
+
+        let signer_args = SignerArgs {
+            sequencer_key_path: Some(temp_file.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        assert_eq!(signer_args.resolve_sequencer_key().unwrap(), Some(key));
+    }
+
+    #[test]
+    fn test_resolve_sequencer_key_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing.key");
+        let signer_args =
+            SignerArgs { sequencer_key_path: Some(path.clone()), ..Default::default() };
+
+        let result = signer_args.resolve_sequencer_key();
+        assert!(matches!(
+            result,
+            Err(SignerArgsParseError::SequencerKeyFileRead { ref source, .. })
+                if source.kind() == std::io::ErrorKind::NotFound
+        ));
+        // The missing key is not replaced by a generated one.
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn test_resolve_sequencer_key_invalid_file() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        write!(temp_file, "not a key").unwrap();
+
+        let signer_args = SignerArgs {
+            sequencer_key_path: Some(temp_file.path().to_path_buf()),
+            ..Default::default()
+        };
+
+        let result = signer_args.resolve_sequencer_key();
+        assert!(matches!(result, Err(SignerArgsParseError::SequencerKeyFileDecode { .. })));
     }
 
     #[test]

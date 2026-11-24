@@ -22,8 +22,8 @@ use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_primitives_traits::{AlloyBlockHeader, Block as _, RecoveredBlock};
 use reth_provider::{
     BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
-    ProviderFactory, StateRootProvider, StorageSettingsCache, providers::ProviderNodeTypes,
-    test_utils::create_test_provider_factory_with_chain_spec,
+    ProviderFactory, StateProvider, StateRootProvider, StorageSettingsCache,
+    providers::ProviderNodeTypes, test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
 use secp256k1::{Keypair, Secp256k1, SecretKey};
@@ -150,7 +150,9 @@ where
         > + NodeTypesWithDB,
 {
     let provider = provider_factory.provider().unwrap();
-    let db = StateProviderDatabase::new(LatestStateProviderRef::new(&provider));
+    let db = StateProviderDatabase::new(
+        LatestStateProviderRef::new(&provider).into_evm_state_provider(),
+    );
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
     let block_executor = evm_config.batch_executor(db);
     let execution_result = block_executor.execute(block).unwrap();
@@ -329,6 +331,73 @@ pub(crate) fn build_chain_with_storage_writes_and_initialize_storage(
     }
 
     (provider_factory, storage, last_number, last_hash)
+}
+
+/// Slot of [`STORAGE_CONTRACT`] that each storage-call block sets to its block number.
+pub(crate) fn storage_contract_slot0() -> (B256, B256) {
+    (keccak256(STORAGE_CONTRACT), keccak256(B256::ZERO))
+}
+
+/// Builds `num_blocks` storage-writing blocks and persists them with reth's
+/// [`save_blocks`](reth_provider::DatabaseProvider::save_blocks) in one cycle that advances the
+/// database tip to `num_blocks` but the hashed-state/trie frontier only to `partial_state_trie`,
+/// as the engine does with state masking enabled. The on-disk result is what an unclean
+/// shutdown leaves behind; `partial_state_trie == num_blocks` is a full flush.
+///
+/// Trie data for each block is computed against a second, fully persisted factory, mirroring the
+/// engine's in-memory overlay.
+pub(crate) fn build_chain_with_partial_state_trie(
+    num_blocks: u64,
+    partial_state_trie: u64,
+) -> (ProviderFactory<reth_provider::test_utils::MockNodeTypesWithDB>, u64, B256) {
+    use reth_chain_state::ExecutedBlock;
+    use reth_provider::SaveBlocksInput;
+    use reth_trie::ComputedTrieData;
+
+    let key_pair = deterministic_keypair();
+    let sender = public_key_to_address(key_pair.public_key());
+    let chain_spec = chain_spec_with_address(sender);
+
+    let shadow = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&shadow).unwrap();
+    let target = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&target).unwrap();
+
+    let mut blocks = Vec::new();
+    let mut last_hash = chain_spec.genesis_hash();
+    for n in 1..=num_blocks {
+        let mut block = build_storage_call_block(n, last_hash, &chain_spec, key_pair, n - 1);
+        let exec = execute_block(&mut block, &shadow, &chain_spec);
+        let (hashed_state, trie_updates) = {
+            let provider = shadow.provider().unwrap();
+            let state = LatestStateProviderRef::new(&provider);
+            let hashed_state = state.hashed_post_state(&exec.state).unwrap();
+            let (root, trie_updates) = state.state_root_with_updates(hashed_state.clone()).unwrap();
+            assert_eq!(root, block.state_root());
+            (hashed_state.into_sorted(), trie_updates.into_sorted())
+        };
+        last_hash = block.hash();
+        let executed = ExecutedBlock::new(
+            Arc::new(block),
+            Arc::new(exec),
+            ComputedTrieData::new(Arc::new(hashed_state), Arc::new(trie_updates)),
+        );
+
+        let provider_rw = shadow.provider_rw().unwrap();
+        provider_rw
+            .save_blocks(&SaveBlocksInput::new(vec![executed.clone()], n - 1, n - 1, n, n))
+            .unwrap();
+        provider_rw.commit().unwrap();
+        blocks.push(executed);
+    }
+
+    let provider_rw = target.provider_rw().unwrap();
+    provider_rw
+        .save_blocks(&SaveBlocksInput::new(blocks, 0, 0, num_blocks, partial_state_trie))
+        .unwrap();
+    provider_rw.commit().unwrap();
+
+    (target, num_blocks, last_hash)
 }
 
 /// Fixtures for `HashedPostStateProvider` tests over the proofs storage: persisted storage

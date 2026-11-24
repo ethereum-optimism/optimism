@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -573,7 +574,7 @@ func TestValidBatch(t *testing.T) {
 					EpochHash:  l2A1.L1Origin.Hash,
 					Timestamp:  l2A1.Time,
 					Transactions: []hexutil.Bytes{
-						[]byte{types.DepositTxType, 0}, // piece of data alike to a deposit
+						[]byte{optypes.DepositTxType, 0}, // piece of data alike to a deposit
 					},
 				},
 			},
@@ -1242,7 +1243,7 @@ func TestValidBatch(t *testing.T) {
 						EpochHash:  l2A1.L1Origin.Hash,
 						Timestamp:  l2A1.Time,
 						Transactions: []hexutil.Bytes{
-							[]byte{types.DepositTxType, 0}, // piece of data alike to a deposit
+							[]byte{optypes.DepositTxType, 0}, // piece of data alike to a deposit
 						},
 					},
 				}, uint64(0), big.NewInt(0)),

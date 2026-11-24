@@ -68,6 +68,7 @@ func TestCLIVerify(t *testing.T) {
 		"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 		"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 		"--challenger", challenger.Hex(),
+		"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
 	}, nil)
 
 	var implsOutput opcm.DeployImplementationsOutput

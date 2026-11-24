@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -37,7 +36,7 @@ func (l *TestBatchSubmitter) JamTxPool(ctx context.Context) error {
 	} else if candidate, err = l.blobTxCandidate(emptyTxData); err != nil {
 		return err
 	}
-	if candidate.GasLimit, err = core.FloorDataGas(candidate.TxData); err != nil {
+	if candidate.GasLimit, err = maxFloorDataGas(l.Txmgr.From(), candidate.To, candidate.TxData); err != nil {
 		return err
 	}
 

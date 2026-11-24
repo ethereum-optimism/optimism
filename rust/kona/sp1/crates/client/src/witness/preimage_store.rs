@@ -9,7 +9,7 @@ use kona_preimage::{
 use kona_proof::FlushableCache;
 use serde::{Deserialize as SerdeDeserialize, Serialize as SerdeSerialize};
 use sha2::Digest;
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::{BTreeMap, btree_map::Entry};
 
 /// In-memory preimage store for use in the zkVM.
 #[derive(
@@ -23,7 +23,8 @@ use std::collections::{HashMap, hash_map::Entry};
     rkyv::Deserialize,
 )]
 pub struct PreimageStore {
-    preimage_map: HashMap<PreimageKey, Vec<u8>>,
+    /// Not a `HashMap`: std's hasher is unseeded in the zkVM, so keys could be made to collide.
+    preimage_map: BTreeMap<PreimageKey, Vec<u8>>,
 }
 
 impl PreimageStore {
@@ -142,4 +143,33 @@ impl PreimageOracleClient for WitnessOracle {
 
 impl FlushableCache for WitnessOracle {
     fn flush(&self) {}
+}
+
+// Host-only: compiled out of the guest.
+#[cfg(not(target_os = "zkvm"))]
+impl PreimageStore {
+    /// The number of stored preimages.
+    pub fn preimage_count(&self) -> usize {
+        self.preimage_map.len()
+    }
+
+    /// The total length of the stored keys and preimages.
+    pub fn preimage_bytes(&self) -> usize {
+        self.preimage_map.values().map(|value| size_of::<PreimageKey>() + value.len()).sum()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Pins the key and value bytes of each stored preimage, once per key.
+    #[test]
+    fn preimage_bytes_counts_keys_and_values() {
+        let mut store = PreimageStore::default();
+        for value in [vec![1u8; 3], vec![2u8; 70], vec![1u8; 3]] {
+            store.save_preimage(PreimageKey::new_keccak256(*keccak256(&value)), value).unwrap();
+        }
+        assert_eq!(store.preimage_bytes(), 2 * size_of::<PreimageKey>() + 3 + 70);
+    }
 }

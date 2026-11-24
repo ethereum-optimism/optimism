@@ -19,51 +19,51 @@ set -euo pipefail
 REPO=${REPO:-ethereum-optimism/optimism}
 
 if [ $# -lt 2 ] || [ ! -w "${1:-}" ]; then
-    echo "usage: retarget-tag.sh <notes-file> <component> [final-version]" >&2
-    exit 2
+  echo "usage: retarget-tag.sh <notes-file> <component> [final-version]" >&2
+  exit 2
 fi
 notes=$1
 component=$2
 
 # The highest RC of the newest version in the file is the release's own tag; any other RC
 # reference is the previous release's base in the compare link.
-rc=$(grep -oE "$component/v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+" "$notes" |
-     sed "s|^$component/||" | sort -V | tail -1 || true)
+rc=$(grep -oE "$component/v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+" "$notes" \
+  | sed "s|^$component/||" | sort -V | tail -1 || true)
 
 if [ -z "$rc" ]; then
-    echo "no RC references found in $notes — nothing to retarget" >&2
-    exit 0
+  echo "no RC references found in $notes — nothing to retarget" >&2
+  exit 0
 fi
 
 final=${3:-${rc%-rc.*}}
 
 # A missing ref makes gh print a 422 body on stdout, so accept only a real commit sha.
 resolve() {
-    gh api "repos/$REPO/commits/$1" --jq .sha 2>/dev/null |
-        grep -xE '[0-9a-f]{40}' || true
+  gh api "repos/$REPO/commits/$1" --jq .sha 2> /dev/null \
+    | grep -xE '[0-9a-f]{40}' || true
 }
 rc_sha=$(resolve "$component/$rc")
 final_sha=$(resolve "$component/$final")
 
 if [ -z "$final_sha" ]; then
-    cat >&2 <<EOF
+  cat >&2 << EOF
 WARNING: $component/$final does not exist yet — left $notes unchanged.
   The notes still advertise the RC ($rc) in the heading, the compare link and the image
   tag. Either finalize the release and re-run this script, or publish knowing that the
   body points operators at an RC image.
 EOF
-    exit 1
+  exit 1
 fi
 
 if [ -n "$rc_sha" ] && [ "$rc_sha" != "$final_sha" ]; then
-    cat >&2 <<EOF
+  cat >&2 << EOF
 WARNING: $component/$final and $component/$rc are different commits — left $notes unchanged.
   final: $final_sha
   rc:    $rc_sha
   The PR list was generated for the RC, so it may not describe what the finalized tag
   contains. Regenerate the draft against $final rather than retagging this one.
 EOF
-    exit 1
+  exit 1
 fi
 
 tmp=$(mktemp)
@@ -91,10 +91,10 @@ cat "$tmp" > "$notes"
 
 # Whatever RC survives is the compare link's base, which this script deliberately does not
 # rewrite. Publishing it that way compares a finalized release against an RC.
-leftover=$(grep -oE "$component/v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+" "$notes" |
-           sort -u | paste -sd' ' - || true)
+leftover=$(grep -oE "$component/v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+" "$notes" \
+  | sort -u | paste -sd' ' - || true)
 if [ -n "$leftover" ]; then
-    cat >&2 <<EOF
+  cat >&2 << EOF
 WARNING: $notes still references $leftover — the compare link's base.
   Set it to the previous finalized release of $component before publishing; a published
   note compares finalized tag to finalized tag.

@@ -30,7 +30,7 @@ problem):
 go run ./docs/public-docs/scripts/gen-flags -check
 ```
 
-The monorepo Go build embeds `op-core/superchain/superchain-configs.zip`
+The monorepo Go build embeds `op-core/superchain/bundle/superchain-configs.zip`
 (gitignored). On a fresh checkout, build it first:
 
 ```bash

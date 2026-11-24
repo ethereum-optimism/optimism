@@ -5,10 +5,9 @@ diataxis: reference
 
 The `kona-node` supports JSON-RPC for interacting with the node.
 
-By default, `kona-node` exposes an HTTP JSON-RPC server. A WebSocket JSON-RPC
-endpoint is also available and can be enabled with the `--rpc.ws-enabled` flag
-or the `KONA_NODE_RPC_WS_ENABLED` environment variable. IPC transport is not
-supported.
+By default, `kona-node` exposes JSON-RPC over HTTP and WebSocket on the same
+listening address and port. All registered methods are available over both
+transports. IPC transport is not supported.
 
 ### Namespaces
 
@@ -23,6 +22,6 @@ JSON-RPC methods are grouped into namespaces, which are listed below:
 
 ### Interacting with the RPC
 
-Kona enables these RPC methods by default.
+Kona always serves these RPC methods, including the `admin` namespace. The RPC binds `127.0.0.1` by default; see [RPC arguments](/node-operators/kona-node/configuration#rpc-arguments) before binding another address.
 
 You can interact with the RPC using any JSON-RPC client, such as `curl`, `httpie`, or a custom client in your preferred programming language.

@@ -13,19 +13,19 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade/embedded"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -93,14 +93,14 @@ func TestContinueFlagsExcludeDeploymentSelectors(t *testing.T) {
 			flagNames[name] = true
 		}
 	}
-	require.False(t, flagNames[UseForgeFlagName])
 	require.False(t, flagNames[DeploymentTargetFlag.Name])
 	require.False(t, flagNames[GenesisTimeOffsetFlagName])
 	require.Equal(t, map[string]bool{
-		WorkdirFlagName:    true,
-		OutdirFlagName:     true,
-		PrivateKeyFlagName: true,
-		L1RPCURLFlagName:   true,
+		WorkdirFlagName:              true,
+		OutdirFlagName:               true,
+		PrivateKeyFlagName:           true,
+		L1RPCURLFlagName:             true,
+		ReceiptQueryIntervalFlagName: true,
 	}, flagNames)
 }
 
@@ -260,19 +260,20 @@ func chainIDRPC(t *testing.T, chainID uint64) string {
 func TestValidateContinuationBroadcast(t *testing.T) {
 	deployer := common.Address{0x01}
 	opcmAddress := common.Address{0x02}
-	valid := script.Broadcast{Type: script.BroadcastCall, From: deployer, To: opcmAddress}
+	valid := broadcaster.Broadcast{Type: broadcaster.BroadcastCall, From: deployer, To: opcmAddress}
 
 	tests := []struct {
 		name       string
-		broadcasts []script.Broadcast
+		broadcasts []broadcaster.Broadcast
 		wantErr    string
 	}{
-		{name: "valid", broadcasts: []script.Broadcast{valid}},
+		{name: "valid", broadcasts: []broadcaster.Broadcast{valid}},
 		{name: "none", wantErr: "exactly one"},
-		{name: "multiple", broadcasts: []script.Broadcast{valid, valid}, wantErr: "exactly one"},
-		{name: "type", broadcasts: []script.Broadcast{{Type: script.BroadcastCreate, From: deployer, To: opcmAddress}}, wantErr: "broadcast type"},
-		{name: "target", broadcasts: []script.Broadcast{{Type: script.BroadcastCall, From: deployer, To: common.Address{0x03}}}, wantErr: "target mismatch"},
-		{name: "sender", broadcasts: []script.Broadcast{{Type: script.BroadcastCall, From: common.Address{0x04}, To: opcmAddress}}, wantErr: "sender mismatch"},
+		{name: "multiple", broadcasts: []broadcaster.Broadcast{valid, valid}, wantErr: "exactly one"},
+		{name: "type", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCreate, From: deployer, To: opcmAddress}}, wantErr: "broadcast type"},
+		{name: "target", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCall, From: deployer, To: common.Address{0x03}}}, wantErr: "target mismatch"},
+		{name: "sender", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCall, From: common.Address{0x04}, To: opcmAddress}}, wantErr: "sender mismatch"},
+		{name: "value", broadcasts: []broadcaster.Broadcast{{Type: broadcaster.BroadcastCall, From: deployer, To: opcmAddress, Value: (*hexutil.U256)(uint256.NewInt(1))}}, wantErr: "value"},
 	}
 
 	for _, tt := range tests {
@@ -336,7 +337,7 @@ func TestContinuationExpectedStateUsesPreparedContracts(t *testing.T) {
 }
 
 func TestValidateContinuationGameTypes(t *testing.T) {
-	chain := func(gameType embedded.GameType) continuationChain {
+	chain := func(gameType opcm.GameType) continuationChain {
 		var dci opcm.DeployOPChainInput
 		dci.DisputeGameType = uint32(gameType)
 		return continuationChain{dci: dci}
@@ -346,30 +347,30 @@ func TestValidateContinuationGameTypes(t *testing.T) {
 
 	require.NoError(t, validateContinuationGameTypes(nil, false, opcmAddr))
 	require.NoError(t, validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypePermissionedCannon),
-		chain(embedded.GameTypeCannonKona),
+		chain(opcm.GameTypePermissionedCannon),
+		chain(opcm.GameTypeCannonKona),
 	}, false, opcmAddr))
 	require.NoError(t, validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypeSuperPermissioned),
-		chain(embedded.GameTypeSuperCannonKona),
+		chain(opcm.GameTypeSuperPermissioned),
+		chain(opcm.GameTypeSuperCannonKona),
 	}, true, opcmAddr))
 
 	// The mix check runs first, so it wins over the per-chain family check.
 	require.ErrorContains(t, validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypeCannonKona),
-		chain(embedded.GameTypeSuperCannonKona),
+		chain(opcm.GameTypeCannonKona),
+		chain(opcm.GameTypeSuperCannonKona),
 	}, true, opcmAddr), "cannot mix CANNON_KONA and SUPER_CANNON_KONA")
 
 	// A frozen selector the pinned OPCM cannot deploy fails before the fork simulation.
 	err := validateContinuationGameTypes([]continuationChain{
-		chain(embedded.GameTypeCannonKona),
+		chain(opcm.GameTypeCannonKona),
 	}, true, opcmAddr)
 	require.ErrorContains(t, err, "CANNON_KONA (8) is not deployable by the OPCM")
 	require.ErrorContains(t, err, opcmAddr.Hex())
 }
 
 func TestClassifyContinuationAddresses(t *testing.T) {
-	contracts := continuationVerificationAddresses(embedded.GameTypeCannonKona)
+	contracts := continuationVerificationAddresses(opcm.GameTypeCannonKona)
 	backend := newContinuationVerificationBackend()
 	blockNumber := big.NewInt(123)
 
@@ -480,7 +481,7 @@ func TestStandardValidatorInput(t *testing.T) {
 	selected := common.Hash{0x01}
 	fallback := common.Hash{0x02}
 	var dci opcm.DeployOPChainInput
-	dci.DisputeGameType = uint32(embedded.GameTypeCannonKona)
+	dci.DisputeGameType = uint32(opcm.GameTypeCannonKona)
 	dci.DisputeAbsolutePrestate = selected
 	dci.CannonAbsolutePrestate = fallback
 	dci.OpChainProxyAdminOwner = common.Address{0x03}
@@ -489,13 +490,21 @@ func TestStandardValidatorInput(t *testing.T) {
 	require.Equal(t, contracts.SystemConfigProxy, input.SystemConfig)
 	require.Equal(t, selected, input.CannonKonaPrestate)
 	require.Equal(t, fallback, input.CannonPrestate)
+	// deploy() never registers ZK_DISPUTE_GAME, so continue verification expects no ZK prestate.
+	require.Zero(t, input.ZKPrestate)
 	require.Equal(t, dci.OpChainProxyAdminOwner, input.L1PAOMultisig)
 	require.Equal(t, dci.Challenger, input.Challenger)
 	require.True(t, input.UseDevFeaturesInput)
 
-	dci.DisputeGameType = uint32(embedded.GameTypeSuperCannonKona)
+	require.False(t, input.BridgeHookConfigured)
+
+	dci.DisputeGameType = uint32(opcm.GameTypeSuperCannonKona)
 	input = standardValidatorInput(dci, contracts)
 	require.True(t, input.UseDevFeaturesInput)
+
+	dci.BridgeHook = common.Address{0x05}
+	input = standardValidatorInput(dci, contracts)
+	require.True(t, input.BridgeHookConfigured)
 }
 
 func addressesForValidationTest() addresses.OpChainContracts {

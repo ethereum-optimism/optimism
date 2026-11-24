@@ -19,7 +19,7 @@ ROUTING="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/routing.yml"
 [ -f "${OUTPUT}" ] || echo '{}' > "${OUTPUT}"
 
 to_bool() {
-  case "${1}" in 1|true|True|TRUE) echo "true" ;; *) echo "false" ;; esac
+  case "${1}" in 1 | true | True | TRUE) echo "true" ;; *) echo "false" ;; esac
 }
 
 json=$(cat "${OUTPUT}")
@@ -41,11 +41,11 @@ case "${MODE}" in
     done < <(env | sort)
     ;;
 
-  detect|detect_all)
+  detect | detect_all)
     [[ "${MODE}" == "detect_all" ]] && section=".change_patterns.all" || section=".change_patterns.any"
 
-    CHANGED=$(git diff --name-only "origin/${BASE_REVISION}...HEAD" 2>/dev/null \
-      || git diff --name-only HEAD~1 HEAD || true)
+    CHANGED=$(git diff --name-only --no-renames "origin/${BASE_REVISION}...HEAD" 2> /dev/null \
+      || git diff --name-only --no-renames HEAD~1 HEAD || true)
     echo "=== Changed files ==="
     echo "${CHANGED:-<none>}"
     echo "====================="

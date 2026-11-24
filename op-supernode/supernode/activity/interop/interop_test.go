@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
+	bolt "go.etcd.io/bbolt"
 )
 
 // =============================================================================
@@ -117,24 +120,24 @@ func (h *interopTestHarness) Build() *interopTestHarness {
 		}
 		chains[id] = mock
 	}
-	h.interop = New(testLogger(), h.activationTime, dependencySetForChains(h.t, chains, 0), chains, h.dataDir, nil, h.logBackfillDepth, nil)
-	if h.interop != nil {
-		h.interop.l1Checker = noopL1Checker{}
-		h.interop.ctx = context.Background()
-		// Tests in this harness exercise progressAndRecord / verify paths
-		// directly. Fake cold-start init completion so synchronous accessors
-		// don't return ErrNotStarted. With chains configured the harness
-		// matches the legacy default (one past the default safe time, =
-		// activation+1); with no chains the activation itself is the start.
-		// Dedicated cold-start-init tests bypass the harness.
-		if len(chains) > 0 {
-			h.interop.verificationStartTimestamp = h.activationTime + 1
-		} else {
-			h.interop.verificationStartTimestamp = h.activationTime
-		}
-		h.interop.initialized.Store(true)
-		h.t.Cleanup(func() { _ = h.interop.Stop(context.Background()) })
+	var err error
+	h.interop, err = New(testLogger(), h.activationTime, dependencySetForChains(h.t, chains, 0), chains, h.dataDir, nil, h.logBackfillDepth, nil)
+	require.NoError(h.t, err)
+	h.interop.l1Checker = noopL1Checker{}
+	h.interop.ctx = context.Background()
+	// Tests in this harness exercise progressAndRecord / verify paths
+	// directly. Fake cold-start init completion so synchronous accessors
+	// don't return ErrNotStarted. With chains configured the harness
+	// matches the legacy default (one past the default safe time, =
+	// activation+1); with no chains the activation itself is the start.
+	// Dedicated cold-start-init tests bypass the harness.
+	if len(chains) > 0 {
+		h.interop.verificationStartTimestamp = h.activationTime + 1
+	} else {
+		h.interop.verificationStartTimestamp = h.activationTime
 	}
+	h.interop.initialized.Store(true)
+	h.t.Cleanup(func() { _ = h.interop.Stop(context.Background()) })
 	return h
 }
 
@@ -201,8 +204,8 @@ func TestNew(t *testing.T) {
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
 				dependencySet := dependencySetForChains(t, h.Chains(), 1234)
-				interop := New(testLogger(), h.activationTime, dependencySet, h.Chains(), h.dataDir, nil, 0, nil)
-				require.NotNil(t, interop)
+				interop, err := New(testLogger(), h.activationTime, dependencySet, h.Chains(), h.dataDir, nil, 0, nil)
+				require.NoError(t, err)
 				interop.l1Checker = noopL1Checker{}
 				t.Cleanup(func() { _ = interop.Stop(context.Background()) })
 
@@ -211,7 +214,7 @@ func TestNew(t *testing.T) {
 					ChainID:   eth.ChainIDFromUInt64(10),
 					Timestamp: 2000,
 				}
-				err := interop.verifyExecutingMessage(eth.ChainIDFromUInt64(8453), 3235, 0, execMsg, nil)
+				err = interop.verifyExecutingMessage(eth.ChainIDFromUInt64(8453), 3235, 0, execMsg, nil)
 				require.ErrorIs(t, err, ErrMessageExpired)
 				require.NotNil(t, interop.verifiedDB)
 				require.Len(t, interop.chains, 2)
@@ -226,13 +229,34 @@ func TestNew(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid dataDir returns nil",
+			name: "verified DB open failure returns an error",
 			setup: func(h *interopTestHarness) *interopTestHarness {
-				return h.WithDataDir("/nonexistent/path").SkipBuild()
+				dataDir := filepath.Join(h.t.TempDir(), "not-a-dir")
+				require.NoError(h.t, os.WriteFile(dataDir, nil, 0o600))
+				return h.WithDataDir(dataDir).SkipBuild()
 			},
 			run: func(t *testing.T, h *interopTestHarness) {
-				interop := New(testLogger(), h.activationTime, nil, h.Chains(), h.dataDir, nil, 0, nil)
+				interop, err := New(testLogger(), h.activationTime, nil, h.Chains(), h.dataDir, nil, 0, nil)
+				require.ErrorContains(t, err, "open verified DB")
 				require.Nil(t, interop)
+			},
+		},
+		{
+			name: "logs DB open failure returns an error and closes the verified DB",
+			setup: func(h *interopTestHarness) *interopTestHarness {
+				// A file at the chain directory path makes openLogsDB fail after the verified DB opens.
+				require.NoError(h.t, os.WriteFile(filepath.Join(h.dataDir, "chain-10"), nil, 0o600))
+				return h.WithChain(10, nil).SkipBuild()
+			},
+			run: func(t *testing.T, h *interopTestHarness) {
+				interop, err := New(testLogger(), h.activationTime, nil, h.Chains(), h.dataDir, nil, 0, nil)
+				require.ErrorContains(t, err, "open logs DB")
+				require.Nil(t, interop)
+
+				// bbolt holds a file lock until close, so this open times out if New leaked the verified DB.
+				db, err := bolt.Open(filepath.Join(h.dataDir, verifiedDBName+".db"), 0o600, &bolt.Options{Timeout: time.Second})
+				require.NoError(t, err)
+				require.NoError(t, db.Close())
 			},
 		},
 	}
@@ -1036,8 +1060,8 @@ func TestFirstVerifiableTimestampRestoresSafeHeadHandoffAfterRestart(t *testing.
 	}))
 	require.NoError(t, db.Close())
 
-	interop := New(testLogger(), 100, nil, nil, dataDir, nil, 0, nil)
-	require.NotNil(t, interop)
+	interop, err := New(testLogger(), 100, nil, nil, dataDir, nil, 0, nil)
+	require.NoError(t, err)
 	defer func() { require.NoError(t, interop.Stop(context.Background())) }()
 
 	first, err := interop.firstVerifiableTimestamp()
@@ -1461,8 +1485,8 @@ func TestInterop_FullCycle(t *testing.T) {
 	}
 
 	chains := map[eth.ChainID]cc.InteropChain{mock.id: mock}
-	interop := New(testLogger(), 100, dependencySetForChains(t, chains, 0), chains, dataDir, nil, 0, nil)
-	require.NotNil(t, interop)
+	interop, err := New(testLogger(), 100, dependencySetForChains(t, chains, 0), chains, dataDir, nil, 0, nil)
+	require.NoError(t, err)
 	interop.l1Checker = noopL1Checker{}
 	interop.ctx = context.Background()
 	interop.verificationStartTimestamp = 101
@@ -1612,6 +1636,91 @@ func TestInterop_ProgressAndRecord_L1InconsistencyTriggersRewind(t *testing.T) {
 	require.Nil(t, pending, "WAL cleared after successful rewind")
 
 	require.Empty(t, mock.rewindEngineCalls, "L1 drift rewinds accepted Supernode state only")
+}
+
+func TestInterop_RewindPastBackfill(t *testing.T) {
+	t.Run("halts instead of clearing backfill when the first verified timestamp is reorged out", func(t *testing.T) {
+		h := newInteropTestHarness(t). // newInteropTestHarness calls t.Parallel()
+						WithActivation(100).
+						WithLogBackfillDepth(time.Hour).
+						WithChain(10, func(m *mockChainContainer) {
+				m.currentL1 = eth.BlockRef{Number: 1000, Hash: common.HexToHash("0xL1")}
+				m.blockAtTimestamp = eth.L2BlockRef{Number: 500, Hash: common.HexToHash("0xL2")}
+			}).
+			Build()
+
+		mock := h.Mock(10)
+		h.interop.verifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+			return Result{Timestamp: ts, L1Inclusion: eth.BlockID{Number: 100}, L2Heads: blocks}, nil
+		}
+		h.interop.cycleVerifyFn = func(ts uint64, blocks map[eth.ChainID]eth.BlockID, _ *frontierVerificationView) (Result, error) {
+			return Result{}, nil
+		}
+
+		// The harness starts verification one past activation, so the node holds
+		// backfill below its first verified timestamp.
+		made, err := h.interop.progressAndRecord()
+		require.NoError(t, err)
+		require.True(t, made)
+		first, ok := h.interop.verifiedDB.FirstTimestamp()
+		require.True(t, ok)
+		require.Greater(t, first, h.interop.activationTimestamp)
+
+		trackingDB := &mockLogsDBWithState{
+			latestBlock: eth.BlockID{Number: 500, Hash: common.HexToHash("0xL2")},
+			hasBlocks:   true,
+		}
+		h.interop.logsDBs[mock.id] = trackingDB
+		h.interop.l1Checker = inconsistentL1Checker{}
+
+		_, err = h.interop.progress()
+		require.ErrorIs(t, err, ErrRewindPastBackfill)
+
+		last, ok := h.interop.verifiedDB.LastTimestamp()
+		require.True(t, ok)
+		require.Equal(t, first, last, "first verified entry is kept")
+		pending, err := h.interop.verifiedDB.GetPendingTransition()
+		require.NoError(t, err)
+		require.Nil(t, pending, "halt happens before the rewind is written to the WAL")
+		require.Zero(t, trackingDB.clearCalled, "backfill is not cleared")
+		require.False(t, trackingDB.rewindCalled)
+	})
+
+	// Without backfill below the first verified timestamp, the full rewind keeps clearing.
+	for _, tc := range []struct {
+		name          string
+		backfillDepth time.Duration
+		firstOffset   uint64 // first verified timestamp minus activation
+	}{
+		{name: "clears logsDBs when verification started at activation", backfillDepth: time.Hour, firstOffset: 0},
+		{name: "clears logsDBs when backfill is disabled", backfillDepth: 0, firstOffset: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newInteropTestHarness(t).
+				WithLogBackfillDepth(tc.backfillDepth).
+				WithChain(10, nil).
+				Build()
+
+			mock := h.Mock(10)
+			first := h.interop.activationTimestamp + tc.firstOffset
+			require.NoError(t, h.commitVerified(VerifiedResult{
+				Timestamp:   first,
+				L1Inclusion: eth.BlockID{Number: 50, Hash: common.HexToHash("0xL1a")},
+				L2Heads:     map[eth.ChainID]eth.BlockID{mock.id: {Number: 100, Hash: common.HexToHash("0x1")}},
+			}))
+			trackingDB := &mockLogsDBWithState{
+				latestBlock: eth.BlockID{Number: 100, Hash: common.HexToHash("0x1")},
+				hasBlocks:   true,
+			}
+			h.interop.logsDBs[mock.id] = trackingDB
+
+			plan, err := h.interop.buildRewindPlan(first)
+			require.NoError(t, err)
+			require.Nil(t, plan.TargetHeads)
+			require.NoError(t, h.interop.applyRewindPlan(plan))
+			require.Equal(t, 1, trackingDB.clearCalled)
+		})
+	}
 }
 
 func TestInterop_ProgressAndRecord_StaleFrontierL1Waits(t *testing.T) {

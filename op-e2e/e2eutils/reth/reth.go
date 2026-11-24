@@ -14,9 +14,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"
 
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -38,8 +38,6 @@ type Config struct {
 	// Callers should pass t.TempDir() so the test framework owns cleanup even if
 	// the test panics before Close.
 	DataDir string
-	// ExtraArgs are appended verbatim to the op-reth `node` invocation.
-	ExtraArgs []string
 }
 
 // Instance is a running op-reth process exposed through services.EthInstance.
@@ -94,7 +92,7 @@ func (i *Instance) Close() error {
 // InitL2 initializes the op-reth databases, starts the node, and waits for its
 // RPC endpoints. Set exactly one genesis source: genesis or cfg.GenesisJSONPath.
 // The caller must create cfg.DataDir with t.TempDir().
-func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Genesis, jwtPath string, cfg Config) (*Instance, error) {
+func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *opgenesis.Genesis, jwtPath string, cfg Config) (*Instance, error) {
 	if (genesis == nil) == (cfg.GenesisJSONPath == "") {
 		return nil, errors.New("set exactly one of genesis or GenesisJSONPath")
 	}
@@ -186,7 +184,6 @@ func InitL2(ctx context.Context, lgr log.Logger, name string, genesis *core.Gene
 	if cfg.SequencerHTTP != "" {
 		args = append(args, "--rollup.sequencer-http="+cfg.SequencerHTTP)
 	}
-	args = append(args, cfg.ExtraArgs...)
 
 	inst := &Instance{
 		logger: lgr,

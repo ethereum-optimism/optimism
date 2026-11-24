@@ -160,7 +160,7 @@ var (
 	L2GenesisFlag = NewVMFlag("l2-genesis", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, gameTypeInfo string) cli.Flag {
 		return &cli.StringSliceFlag{
 			Name:    name,
-			Usage:   "Paths to the op-geth genesis file " + gameTypeInfo,
+			Usage:   "Paths to the L2 genesis file " + gameTypeInfo,
 			EnvVars: envVars,
 		}
 	})
@@ -180,7 +180,7 @@ var (
 	})
 	CannonL2CustomFlag = &cli.BoolFlag{
 		Name: "cannon-l2-custom",
-		Usage: "Notify the op-program host that the L2 chain uses custom config to be loaded via the preimage oracle. " +
+		Usage: "Notify the cannon server that the L2 chain uses custom config to be loaded via the preimage oracle. " +
 			"WARNING: This is incompatible with on-chain testing and must only be used for testing purposes.",
 		EnvVars: prefixEnvVars("CANNON_L2_CUSTOM"),
 		Value:   false,
@@ -335,8 +335,8 @@ func checkSuperRootProviderFlags(ctx *cli.Context) error {
 }
 
 func CheckCannonBaseFlags(ctx *cli.Context, enabledTypes []gameTypes.GameType) error {
-	// Permissioned games never reach step() so do not run op-program or load the
-	// absolute prestate; both are only required when an enabled game type can reach step().
+	// Permissioned games never reach step() so do not run the fault proof program or load
+	// the absolute prestate; both are only required when an enabled game type can reach step().
 	canReachStep := slices.ContainsFunc(enabledTypes, func(t gameTypes.GameType) bool {
 		return slices.Contains(gameTypes.CannonFamilyGameTypes, t) && !t.IsPermissioned()
 	})

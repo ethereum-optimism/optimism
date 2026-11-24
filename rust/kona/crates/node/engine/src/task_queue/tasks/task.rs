@@ -2,10 +2,11 @@
 //!
 //! [`Engine`]: crate::Engine
 
-use super::{BuildTask, ConsolidateTask, FinalizeTask, InsertTask};
+use super::{
+    BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, FinalizeTask, InsertTask,
+};
 use crate::{
-    BuildTaskError, ConsolidateTaskError, EngineClient, EngineState, FinalizeTaskError,
-    InsertTaskError,
+    BuildTaskError, ConsolidateTaskError, EngineState, FinalizeTaskError, InsertTaskError,
     task_queue::{SealTask, SealTaskError},
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
@@ -31,6 +32,10 @@ pub enum EngineTaskErrorSeverity {
     /// The error indicates that the engine should be flushed.
     #[display("flush")]
     Flush,
+    /// The task no longer applies to the engine state, so it is discarded instead of retried and
+    /// the engine keeps running.
+    #[display("skip")]
+    Skip,
 }
 
 /// The interface for an engine task error.
@@ -42,16 +47,16 @@ pub trait EngineTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity;
 }
 
-/// The interface for an engine task.
+/// The execution contract every engine task implements. [`EngineTask`] dispatches to it.
 #[async_trait]
-pub trait EngineTaskExt {
+pub trait ExecutableEngineTask {
     /// The output type of the task.
     type Output;
 
     /// The error type of the task.
     type Error: EngineTaskError;
 
-    /// Executes the task, taking a shared lock on the engine state and `self`.
+    /// Executes the task with exclusive access to the engine state.
     async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, Self::Error>;
 }
 
@@ -67,6 +72,9 @@ pub enum EngineTaskErrors {
     /// An error that occurred while sealing a block.
     #[error(transparent)]
     Seal(#[from] SealTaskError),
+    /// An error that occurred while canonicalizing a sequenced block.
+    #[error(transparent)]
+    Canonicalize(#[from] CanonicalizeTaskError),
     /// An error that occurred while consolidating the engine state.
     #[error(transparent)]
     Consolidate(#[from] ConsolidateTaskError),
@@ -81,6 +89,7 @@ impl EngineTaskError for EngineTaskErrors {
             Self::Insert(inner) => inner.severity(),
             Self::Build(inner) => inner.severity(),
             Self::Seal(inner) => inner.severity(),
+            Self::Canonicalize(inner) => inner.severity(),
             Self::Consolidate(inner) => inner.severity(),
             Self::Finalize(inner) => inner.severity(),
         }
@@ -91,22 +100,23 @@ impl EngineTaskError for EngineTaskErrors {
 ///
 /// [`Engine`]: crate::Engine
 #[derive(Debug, Clone)]
-pub enum EngineTask<EngineClient_: EngineClient> {
+pub enum EngineTask {
     /// Inserts an unsafe payload into the execution engine.
-    Insert(Box<InsertTask<EngineClient_>>),
+    Insert(Box<InsertTask>),
     /// Begins building a new block with the given attributes, producing a new payload ID.
-    Build(Box<BuildTask<EngineClient_>>),
-    /// Seals the block with the given payload ID and attributes, inserting it into the execution
-    /// engine.
-    Seal(Box<SealTask<EngineClient_>>),
-    /// Performs consolidation on the engine state, reverting to payload attribute processing
-    /// via the [`BuildTask`] if consolidation fails.
-    Consolidate(Box<ConsolidateTask<EngineClient_>>),
+    Build(Box<BuildTask>),
+    /// Fetches the block with the given payload ID and optionally imports it.
+    Seal(Box<SealTask>),
+    /// Imports a sequenced payload after its conductor commit has succeeded.
+    Canonicalize(Box<CanonicalizeTask>),
+    /// Performs consolidation on the engine state. If consolidation fails, a block is built from
+    /// the payload attributes and imported instead.
+    Consolidate(Box<ConsolidateTask>),
     /// Finalizes an L2 block
-    Finalize(Box<FinalizeTask<EngineClient_>>),
+    Finalize(Box<FinalizeTask>),
 }
 
-impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
+impl EngineTask {
     /// Executes the task without consuming it.
     async fn execute_inner(&self, state: &mut EngineState) -> Result<(), EngineTaskErrors> {
         match self {
@@ -122,6 +132,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
                 Ok(_) => {}
             },
             Self::Seal(task) => task.execute(state).await?,
+            Self::Canonicalize(task) => task.execute(state).await?,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
             Self::Build(task) => {
@@ -134,7 +145,7 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
 
     const fn task_metrics_label(&self) -> &'static str {
         match self {
-            Self::Insert(_) => crate::Metrics::INSERT_TASK_LABEL,
+            Self::Insert(_) | Self::Canonicalize(_) => crate::Metrics::INSERT_TASK_LABEL,
             Self::Consolidate(_) => crate::Metrics::CONSOLIDATE_TASK_LABEL,
             Self::Build(_) => crate::Metrics::BUILD_TASK_LABEL,
             Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
@@ -143,28 +154,29 @@ impl<EngineClient_: EngineClient> EngineTask<EngineClient_> {
     }
 }
 
-impl<EngineClient_: EngineClient> PartialEq for EngineTask<EngineClient_> {
+impl PartialEq for EngineTask {
     fn eq(&self, other: &Self) -> bool {
         matches!(
             (self, other),
             (Self::Insert(_), Self::Insert(_)) |
                 (Self::Build(_), Self::Build(_)) |
                 (Self::Seal(_), Self::Seal(_)) |
+                (Self::Canonicalize(_), Self::Canonicalize(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
                 (Self::Finalize(_), Self::Finalize(_))
         )
     }
 }
 
-impl<EngineClient_: EngineClient> Eq for EngineTask<EngineClient_> {}
+impl Eq for EngineTask {}
 
-impl<EngineClient_: EngineClient> PartialOrd for EngineTask<EngineClient_> {
+impl PartialOrd for EngineTask {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
+impl Ord for EngineTask {
     fn cmp(&self, other: &Self) -> Ordering {
         // Order (descending): BuildBlock -> InsertUnsafe -> Consolidate -> Finalize
         //
@@ -183,7 +195,12 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
             (Self::Consolidate(_), Self::Consolidate(_)) |
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
+            (Self::Canonicalize(_), Self::Canonicalize(_)) |
             (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
+
+            // Finish importing a sequenced block before starting another build.
+            (Self::Canonicalize(_), _) => Ordering::Greater,
+            (_, Self::Canonicalize(_)) => Ordering::Less,
 
             // SealBlock tasks are prioritized over all others
             (Self::Seal(_), _) => Ordering::Greater,
@@ -205,7 +222,7 @@ impl<EngineClient_: EngineClient> Ord for EngineTask<EngineClient_> {
 }
 
 #[async_trait]
-impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
+impl ExecutableEngineTask for EngineTask {
     type Output = ();
 
     type Error = EngineTaskErrors;
@@ -214,15 +231,12 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
         // The queue retains failed work. Its owner schedules the next attempt so a dependency
         // outage cannot monopolize the actor or turn into a tight retry loop.
         if let Err(e) = self.execute_inner(state).await {
-            kona_macros::inc!(
-                counter,
-                crate::Metrics::ENGINE_TASK_FAILURE,
-                self.task_metrics_label() => e.severity().to_string()
-            );
+            metrics::counter!(crate::Metrics::ENGINE_TASK_FAILURE, self.task_metrics_label() => e.severity().to_string()).increment(1);
             return Err(e);
         }
 
-        kona_macros::inc!(counter, crate::Metrics::ENGINE_TASK_SUCCESS, self.task_metrics_label());
+        metrics::counter!(crate::Metrics::ENGINE_TASK_SUCCESS, "type" => self.task_metrics_label())
+            .increment(1);
 
         Ok(())
     }
@@ -231,14 +245,43 @@ impl<EngineClient_: EngineClient> EngineTaskExt for EngineTask<EngineClient_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::MockEngineClient;
+    use crate::{EngineBuildError, SynchronizeTaskError, test_utils::test_engine_client};
     use alloy_consensus::Block;
-    use alloy_primitives::Bytes;
-    use alloy_rpc_types_engine::{ExecutionPayloadV1, PayloadStatus};
+    use alloy_eips::eip4895::Withdrawal;
+    use alloy_primitives::{Address, Bytes};
+    use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatus};
     use kona_genesis::RollupConfig;
     use op_alloy_consensus::OpTxEnvelope;
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
     use std::{sync::Arc, time::Duration};
+
+    // Exercise the nested errors seen by the queue, including a rejected final FCU after
+    // newPayload accepted a derived block. ACCEPTED remains retryable rather than resetting.
+    #[rstest::rstest]
+    #[case::invalid(PayloadStatusEnum::Invalid { validation_error: "invalid block".into() }, EngineTaskErrorSeverity::Reset)]
+    #[case::accepted(PayloadStatusEnum::Accepted, EngineTaskErrorSeverity::Temporary)]
+    fn forkchoice_rejection_severity(
+        #[case] status: PayloadStatusEnum,
+        #[case] expected: EngineTaskErrorSeverity,
+    ) {
+        let build_error = match &status {
+            PayloadStatusEnum::Invalid { validation_error } => {
+                EngineBuildError::InvalidPayload(validation_error.clone())
+            }
+            _ => EngineBuildError::UnexpectedPayloadStatus(status.clone()),
+        };
+        let errors = [
+            ConsolidateTaskError::BuildTaskFailed(BuildTaskError::EngineBuildError(build_error)),
+            ConsolidateTaskError::SealTaskFailed(SealTaskError::PayloadInsertionFailed(Box::new(
+                InsertTaskError::ForkchoiceUpdateFailed(
+                    SynchronizeTaskError::UnexpectedPayloadStatus(status),
+                ),
+            ))),
+        ];
+        for error in errors {
+            assert_eq!(EngineTaskErrors::Consolidate(error).severity(), expected);
+        }
+    }
 
     /// Records the blocks the engine hands over after a successful import.
     #[derive(Debug, Default)]
@@ -271,18 +314,13 @@ mod tests {
             ..Default::default()
         });
         let valid = || PayloadStatus::from_status(PayloadStatusEnum::Valid);
-        let client = Arc::new(
-            MockEngineClient::builder()
-                .with_config(config.clone())
-                .with_new_payload_v1_response(valid())
-                .with_fork_choice_updated_v2_response(
-                    alloy_rpc_types_engine::ForkchoiceUpdated::new(valid()),
-                )
-                .with_fork_choice_updated_v3_response(
-                    alloy_rpc_types_engine::ForkchoiceUpdated::new(valid()),
-                )
-                .build(),
+        let (client, l1, l2) = test_engine_client(config.clone());
+        l2.expect("engine_newPayloadV2", valid());
+        l2.expect(
+            "engine_forkchoiceUpdatedV3",
+            alloy_rpc_types_engine::ForkchoiceUpdated::new(valid()),
         );
+        let client = Arc::new(client);
 
         let sink = Arc::new(RecordingSink::default());
         let task = EngineTask::Insert(Box::new(InsertTask::new(
@@ -300,19 +338,21 @@ mod tests {
             &[(imported_hash, 0)],
             "a successfully imported block must reach the sink"
         );
+        l1.assert_finished();
+        l2.assert_finished();
     }
 
     #[tokio::test]
     async fn invalid_unsafe_payload_completes_without_retry() {
         let config = Arc::new(RollupConfig::default());
-        let client = Arc::new(
-            MockEngineClient::builder()
-                .with_config(config.clone())
-                .with_new_payload_v1_response(PayloadStatus::from_status(
-                    PayloadStatusEnum::Invalid { validation_error: "invalid transaction".into() },
-                ))
-                .build(),
+        let (client, l1, l2) = test_engine_client(config.clone());
+        l2.expect(
+            "engine_newPayloadV2",
+            PayloadStatus::from_status(PayloadStatusEnum::Invalid {
+                validation_error: "invalid transaction".into(),
+            }),
         );
+        let client = Arc::new(client);
         let mut payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
         payload.transactions = vec![Bytes::from_static(&[0xff])];
         let task = EngineTask::Insert(Box::new(InsertTask::new(
@@ -327,5 +367,40 @@ mod tests {
             .await
             .expect("invalid unsafe payload task should not retry")
             .unwrap();
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    #[tokio::test]
+    async fn canyon_payload_insert_carries_its_withdrawals() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let payload = ExecutionPayloadV2 {
+            payload_inner: ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default()),
+            withdrawals: vec![Withdrawal {
+                index: 1,
+                validator_index: 2,
+                address: Address::repeat_byte(0x11),
+                amount: 3,
+            }],
+        };
+        l2.expect_params(
+            "engine_newPayloadV2",
+            serde_json::json!([payload]),
+            PayloadStatus::from_status(PayloadStatusEnum::Invalid {
+                validation_error: "invalid block".into(),
+            }),
+        );
+        let task = EngineTask::Insert(Box::new(InsertTask::new(
+            Arc::new(client),
+            config,
+            OpExecutionPayloadEnvelope::V2(payload),
+            false,
+            Arc::new(crate::NoopBlockSink),
+        )));
+
+        task.execute(&mut EngineState::default()).await.unwrap();
+        l1.assert_finished();
+        l2.assert_finished();
     }
 }

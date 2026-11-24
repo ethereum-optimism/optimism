@@ -13,9 +13,11 @@ type StubGamePlayer struct {
 	StatusValue   types.GameStatus
 	Dir           string
 	PrestateErr   error
+	ValidateCount int
 }
 
 func (g *StubGamePlayer) ValidatePrestate(_ context.Context) error {
+	g.ValidateCount++
 	return g.PrestateErr
 }
 

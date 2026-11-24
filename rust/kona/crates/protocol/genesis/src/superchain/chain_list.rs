@@ -50,7 +50,6 @@ impl ChainList {
     derive(serde::Serialize, serde::Deserialize),
     serde(rename_all = "camelCase")
 )]
-#[cfg_attr(feature = "tabled", derive(tabled::Tabled))]
 pub struct Chain {
     /// The name of the chain.
     pub name: String,
@@ -59,25 +58,19 @@ pub struct Chain {
     /// Chain ID.
     pub chain_id: u64,
     /// List of RPC Endpoints.
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub rpc: Vec<String>,
     /// List of Explorer Endpoints.
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub explorers: Vec<String>,
     /// Governed by Optimism flag.
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub governed_by_optimism: Option<bool>,
     /// The data availability type.
     pub data_availability_type: String,
     /// The Superchain Parent.
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub parent: SuperchainParent,
     /// The gas paying token.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub gas_paying_token: Option<String>,
     /// Fault Proofs information.
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub fault_proofs: Option<FaultProofs>,
 }
 

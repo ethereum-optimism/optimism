@@ -57,7 +57,6 @@ type L1Client interface {
 	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error)
-	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
 	GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error)
 	GetStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockTag string) (common.Hash, error)
@@ -712,7 +711,7 @@ func initP2P(cfg *config.Config, node *OpNode) (*p2p.NodeP2P, error) {
 		}
 		// embed syncDeriver and tracer(optional) to the blockReceiver to handle unsafe payloads via p2p
 		rec := p2p.NewBlockReceiver(node.log, node.metrics, node.l2Driver.SyncDeriver, node.cfg.Tracer)
-		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.l2Source, node.runCfg, node.metrics, node.clock)
+		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.runCfg, node.metrics, node.clock)
 		if err != nil {
 			return nil, err
 		}

@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/params/forks"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/loadtest"
 	sfp "github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/superfaultproofs"
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherflags "github.com/ethereum-optimism/optimism/op-batcher/flags"
@@ -101,6 +101,9 @@ func TestAutoDASwitchesFromCalldataToBlobsAtGlamsterdam(gt *testing.T) {
 	prepareGlamsterdamOpReth(t)
 	sys := presets.NewMinimal(t,
 		glamsterdamL1Geth(t),
+		// The blob fee reasoning in withGlamsterdamAutoDABlobFee needs Amsterdam within 20 L1
+		// blocks, and 20 faster blocks leave too little time to start up and submit a batch.
+		presets.WithL1BlockTime(6),
 		presets.WithDeployerOptions(
 			// Activate the stable test blob schedule before setting the large excess blob gas.
 			sysgo.WithForkAtL1Genesis(forks.BPO2),
@@ -187,7 +190,7 @@ func TestGlamsterdamP2PUnsafeBlockBecomesSafe(gt *testing.T) {
 		sys.L2EL.ReachedFn(eth.Safe, target, 120),
 		sys.L2ELB.ReachedFn(eth.Safe, target, 120),
 	)
-	t.Require().NoError(sys.L2CLB.MatchedFn(sys.L2CL, safety.CrossSafe, 30)(),
+	t.Require().NoError(sys.L2CLB.InSyncFn(sys.L2CL, safety.CrossSafe, 30)(),
 		"sequencer and verifier must match after the P2P block becomes safe")
 	t.Require().Equal(sequencerBlock.ID(), sys.L2EL.BlockRefByNumber(target).ID())
 	t.Require().Equal(sequencerBlock.ID(), sys.L2ELB.BlockRefByNumber(target).ID())
@@ -238,12 +241,9 @@ func withGlamsterdamAutoDABlobFee(_ devtest.T, _ devkeys.Keys, builder intentbui
 		WithL1BlobSchedule(&params.BlobScheduleConfig{
 			Cancun: params.DefaultCancunBlobConfig,
 			Prague: params.DefaultPragueBlobConfig,
-			Osaka:  params.DefaultOsakaBlobConfig,
 			BPO1:   params.DefaultBPO1BlobConfig,
 			// BPO3-5 are unscheduled, so BPO2 sets the blob fee both before and after Amsterdam.
 			BPO2: stableBlobConfig,
-			// Geth requires an entry for every scheduled fork, but does not price blobs with it.
-			Amsterdam: stableBlobConfig,
 		}).
 		WithExcessBlobGas(genesisExcessBlobGas)
 }

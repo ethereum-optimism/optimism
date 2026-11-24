@@ -287,13 +287,18 @@ func querySuperRootProposal(ctx context.Context, caller *batching.MultiCaller, l
 		return record, nil
 	}
 	ourRoot := common.Hash(resp.Data.SuperRoot)
-	// Super fault games treat a super root that was not derivable from L1 data up to the game's
-	// l1Head as the invalid transition (trace/super/provider.go). ZK games compare the root as is.
-	if g.gameType != gameTypes.ZKDisputeGameType && resp.Data.VerifiedRequiredL1.Number > record.L1HeadNumber {
+	// A super root that was not derivable from L1 data up to the game's l1Head is invalid for every
+	// super-root game type: fault games treat it as the invalid transition (trace/super/provider.go)
+	// and the ZK actor challenges it.
+	notDerivable := resp.Data.VerifiedRequiredL1.Number > record.L1HeadNumber
+	if notDerivable {
 		ourRoot = eth.InvalidTransitionHash
 	}
 	record.SuperRoot = ourRoot.Hex()
-	record.RootMatch = ptr.New(ourRoot == meta.ProposedRoot)
+	// A ZK proof cannot prove the invalid transition hash, so the ZK actor challenges every proposal
+	// here, including one of that hash.
+	zkUnprovable := notDerivable && g.gameType == gameTypes.ZKDisputeGameType
+	record.RootMatch = ptr.New(ourRoot == meta.ProposedRoot && !zkUnprovable)
 	return record, nil
 }
 

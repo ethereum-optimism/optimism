@@ -199,7 +199,6 @@ func NewDriverConfig(ctx cliiface.Context) *driver.Config {
 		SequencerConfDepth:       ctx.Uint64(flags.SequencerL1Confs.Name),
 		SequencerEnabled:         ctx.Bool(flags.SequencerEnabledFlag.Name),
 		SequencerStopped:         ctx.Bool(flags.SequencerStoppedFlag.Name),
-		SequencerMaxSafeLag:      ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
 		RecoverMode:              ctx.Bool(flags.SequencerRecoverMode.Name),
 		SequencerSealingDuration: ctx.Duration(flags.SequencerSealingDurationFlag.Name),
 	}
@@ -288,8 +287,7 @@ func NewL1ChainConfig(chainId *big.Int, ctx cliiface.Context, log log.Logger) (*
 	if cf.ChainID.Cmp(chainId) != 0 {
 		return nil, fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", cf.ChainID, chainId)
 	}
-	if !cf.IsOptimism() && cf.BlobScheduleConfig == nil {
-		// No error if the chain config is an OP-Stack chain and doesn't have a blob schedule config
+	if cf.BlobScheduleConfig == nil {
 		return nil, fmt.Errorf("L1 chain config does not have a blob schedule config")
 	}
 	return cf, nil
@@ -297,6 +295,24 @@ func NewL1ChainConfig(chainId *big.Int, ctx cliiface.Context, log log.Logger) (*
 
 func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.ChainConfig, error) {
 	l1ChainConfigPath := ctx.String(flags.L1ChainConfig.Name)
+
+	// An OP Stack chain is not supported as L1. Its chain config, or its genesis file's .config,
+	// has an optimism key.
+	type opChainSpec struct {
+		Optimism *struct{}    `json:"optimism"`
+		Config   *opChainSpec `json:"config"`
+	}
+	spec, err := jsonutil.LoadJSON[opChainSpec](l1ChainConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read chain spec: %w", err)
+	}
+	if spec.Config != nil {
+		spec = spec.Config
+	}
+	if spec.Optimism != nil {
+		return nil, errors.New("the L1 chain config is that of an OP Stack chain, which is not supported as L1")
+	}
+
 	file, err := os.Open(l1ChainConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read chain spec: %w", err)
@@ -307,13 +323,19 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.Chai
 	var chainConfig params.ChainConfig
 	dec := json.NewDecoder(file)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&chainConfig); err == nil {
+	directErr := dec.Decode(&chainConfig)
+	if directErr == nil {
 		return &chainConfig, nil
 	}
 
 	// If that fails, try to load the config from the .config property.
 	// This should work if the provided file is a genesis file / chainspec
-	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
+	cfg, err := jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
+	if err != nil {
+		// Either decode can be the one that names the problem, e.g. an unknown key.
+		return nil, fmt.Errorf("failed to decode as a chain config (%w) and as a genesis file (%w)", directErr, err)
+	}
+	return cfg, nil
 }
 
 // NewDependencySetFromCLI returns the dep set from --interop.dependency-set if

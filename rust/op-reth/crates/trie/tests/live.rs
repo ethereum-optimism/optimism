@@ -2,7 +2,7 @@
 
 use alloy_consensus::{BlockHeader, Header, TxEip2930, constants::ETH_TO_WEI};
 use alloy_genesis::{Genesis, GenesisAccount};
-use alloy_primitives::{Address, B256, TxKind, U256, keccak256};
+use alloy_primitives::{Address, B256, Bytes, TxKind, U256, keccak256};
 use derive_more::Constructor;
 use reth_chainspec::{ChainSpec, ChainSpecBuilder, EthereumHardfork, MAINNET, MIN_TRANSACTION_GAS};
 use reth_db::Database;
@@ -12,18 +12,21 @@ use reth_evm::{ConfigureEvm, execute::Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_optimism_trie::{
-    MdbxProofsStorage, OpProofStoragePruner, OpProofsStorage, OpProofsStore, RethTrieStorageLayout,
-    engine::{EngineError, EngineHandle},
+    MdbxProofsStorage, OpProofStoragePruner, OpProofsProviderRO, OpProofsStorage, OpProofsStore,
+    RethTrieStorageLayout,
+    engine::{EngineConfig, EngineError, EngineHandle},
     initialize::InitializationJob,
 };
 use reth_primitives_traits::{Block as _, RecoveredBlock};
 use reth_provider::{
     BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
-    ProviderFactory, StateRootProvider, StorageSettingsCache,
+    ProviderFactory, StageCheckpointWriter as _, StateProvider, StateRootProvider,
+    StorageSettingsCache,
     providers::{BlockchainProvider, ProviderNodeTypes},
     test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
+use reth_stages_types::{StageCheckpoint, StageId};
 use secp256k1::{Keypair, Secp256k1, rand::rng};
 use serial_test::serial;
 use std::sync::Arc;
@@ -53,8 +56,12 @@ fn sign_tx_with_key_pair(key_pair: Keypair, tx: Transaction) -> TransactionSigne
 /// Specification for a transaction within a block
 #[derive(Debug, Clone)]
 struct TxSpec {
-    /// Recipient address for the transaction
-    to: Address,
+    /// Call recipient or contract creation.
+    to: TxKind,
+    /// Transaction input, including initcode for deployments.
+    data: Bytes,
+    /// Maximum execution gas.
+    gas_limit: u64,
     /// Value to transfer (in wei)
     value: U256,
     /// Nonce for the transaction (will be automatically assigned if None)
@@ -64,7 +71,13 @@ struct TxSpec {
 impl TxSpec {
     /// Create a simple transfer transaction
     const fn transfer(to: Address, value: U256) -> Self {
-        Self { to, value, nonce: None }
+        Self {
+            to: TxKind::Call(to),
+            data: Bytes::new(),
+            gas_limit: MIN_TRANSACTION_GAS,
+            value,
+            nonce: None,
+        }
     }
 }
 
@@ -126,9 +139,10 @@ fn create_block_from_spec(
                 TxEip2930 {
                     chain_id: chain_spec.chain.id(),
                     nonce,
-                    gas_limit: MIN_TRANSACTION_GAS,
+                    gas_limit: tx_spec.gas_limit,
+                    input: tx_spec.data.clone(),
                     gas_price: 1_500_000_000,
-                    to: TxKind::Call(tx_spec.to),
+                    to: tx_spec.to,
                     value: tx_spec.value,
                     ..Default::default()
                 }
@@ -137,7 +151,7 @@ fn create_block_from_spec(
         })
         .collect();
 
-    let gas_total = transactions.len() as u64 * MIN_TRANSACTION_GAS;
+    let gas_total = spec.txs.iter().map(|tx| tx.gas_limit).sum::<u64>();
 
     Block {
         header: Header {
@@ -170,7 +184,9 @@ where
         > + NodeTypesWithDB,
 {
     let provider = provider_factory.provider()?;
-    let db = StateProviderDatabase::new(LatestStateProviderRef::new(&provider));
+    let db = StateProviderDatabase::new(
+        LatestStateProviderRef::new(&provider).into_evm_state_provider(),
+    );
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
     let block_executor = evm_config.batch_executor(db);
 
@@ -216,18 +232,48 @@ where
         &execution_outcome,
         hashed_state.into_sorted(),
     )?;
+    // Marks the block as persisted by reth. The proofs pruner stops at reth's persisted head.
+    provider_rw.save_stage_checkpoint(StageId::Finish, StageCheckpoint::new(block.number()))?;
     provider_rw.commit()?;
 
     Ok(())
 }
 
-/// Runs a test scenario with the given configuration
+/// Runs a test scenario with the default engine configuration and a proofs window of 1000 blocks
 fn run_test_scenario<N, S>(
     scenario: TestScenario,
     provider_factory: ProviderFactory<N>,
     chain_spec: Arc<ChainSpec>,
     key_pair: Keypair,
     raw_storage: S,
+) -> eyre::Result<()>
+where
+    N: ProviderNodeTypes<
+            Primitives: NodePrimitives<Block = Block, BlockBody = BlockBody, Receipt = Receipt>,
+        > + NodeTypesWithDB,
+    S: OpProofsStore + Send + Sync + Clone + std::fmt::Debug + 'static,
+{
+    run_test_scenario_with_config(
+        scenario,
+        provider_factory,
+        chain_spec,
+        key_pair,
+        raw_storage,
+        EngineConfig::default(),
+        1000,
+    )
+}
+
+/// Runs a test scenario with the given engine configuration, pruning proofs older than
+/// `proofs_window` blocks
+fn run_test_scenario_with_config<N, S>(
+    scenario: TestScenario,
+    provider_factory: ProviderFactory<N>,
+    chain_spec: Arc<ChainSpec>,
+    key_pair: Keypair,
+    raw_storage: S,
+    config: EngineConfig,
+    proofs_window: u64,
 ) -> eyre::Result<()>
 where
     N: ProviderNodeTypes<
@@ -277,8 +323,9 @@ where
     // state between iterations (the new async-persistence architecture requires this).
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
     let blockchain_db = BlockchainProvider::new(provider_factory.clone())?;
-    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), 1000);
-    let engine_handle = EngineHandle::spawn(evm_config, blockchain_db, storage, pruner);
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain_db.clone(), proofs_window);
+    let engine_handle =
+        EngineHandle::spawn_with_config(evm_config, blockchain_db, storage, pruner, config);
 
     for (idx, block_spec) in scenario.blocks_after_initialization.iter().enumerate() {
         let block_number = last_block_number + idx as u64 + 1;
@@ -618,4 +665,128 @@ where
     );
 
     run_test_scenario(scenario, provider_factory, chain_spec, key_pair, storage)
+}
+
+/// Page-cache warming only reads, so blocks persisted and pruned with it enabled must still
+/// produce the state roots the engine verifies on every block.
+#[test_case(create_mdbx_proofs_storage(); "Mdbx")]
+#[serial]
+fn test_blocks_with_prefetch<S>(storage: Arc<S>) -> Result<(), eyre::Error>
+where
+    S: OpProofsStore + Send + Sync + std::fmt::Debug + 'static,
+{
+    let key_pair = Keypair::new(&Secp256k1::new(), &mut rng());
+    let chain_spec = chain_spec_with_address(public_key_to_address(key_pair.public_key()));
+    let provider_factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&provider_factory).unwrap();
+
+    let blocks = (0u8..8)
+        .map(|i| {
+            BlockSpec::new(vec![
+                TxSpec::transfer(Address::repeat_byte(0x50 + i), U256::from(1)),
+                TxSpec::transfer(Address::repeat_byte(0x60 + i), U256::from(2)),
+            ])
+        })
+        .collect();
+    // Every block is persisted alone, and from block 3 on each one prunes the window to 2 blocks.
+    let config =
+        EngineConfig { persistence_threshold: 1, backpressure_threshold: 2, prefetch_threads: 4 };
+
+    run_test_scenario_with_config(
+        TestScenario::new(vec![], blocks),
+        provider_factory,
+        chain_spec,
+        key_pair,
+        storage.clone(),
+        config,
+        2,
+    )?;
+    let provider = storage.provider_ro()?;
+    assert_eq!(provider.get_latest_block()?.number, 8);
+    assert_eq!(provider.get_earliest_block()?.number, 6);
+    Ok(())
+}
+
+/// Re-execution uses proofs state and persisted bytecode even when reth cannot construct the
+/// parent-state provider. The parent deploys a contract; its child executes the deployed code.
+#[test]
+#[serial]
+fn execute_deployed_contract_without_reth_parent_state() -> eyre::Result<()> {
+    use reth_db::{tables, transaction::DbTxMut};
+    use reth_provider::StateProviderFactory;
+
+    let key_pair = Keypair::new(&Secp256k1::new(), &mut rng());
+    let sender = public_key_to_address(key_pair.public_key());
+    let contract = sender.create(0);
+    let chain_spec = chain_spec_with_address(sender);
+    let factory = create_test_provider_factory_with_chain_spec(chain_spec.clone());
+    init_genesis(&factory)?;
+    let storage: OpProofsStorage<Arc<MdbxProofsStorage>> = create_mdbx_proofs_storage().into();
+    {
+        let tx = factory.db_ref().tx()?;
+        InitializationJob::new(storage.clone(), tx, RethTrieStorageLayout::Legacy)
+            .run(0, chain_spec.genesis_hash())?;
+    }
+    let blockchain = BlockchainProvider::new(factory.clone())?;
+    let pruner = OpProofStoragePruner::new(storage.clone(), blockchain.clone(), 1000);
+    let engine = EngineHandle::spawn_with_thresholds(
+        EthEvmConfig::ethereum(chain_spec.clone()),
+        blockchain.clone(),
+        storage.clone(),
+        pruner,
+        1,
+        2,
+    );
+    let mut nonce = 0;
+    // Initcode returns runtime code that writes 1 to storage slot 0.
+    let deployment = BlockSpec::new(vec![TxSpec {
+        to: TxKind::Create,
+        data: Bytes::from_static(&[
+            0x60, 0x06, 0x60, 0x0c, 0x60, 0x00, 0x39, 0x60, 0x06, 0x60, 0x00, 0xf3, 0x60, 0x01,
+            0x60, 0x00, 0x55, 0x00,
+        ]),
+        gas_limit: 100_000,
+        value: U256::ZERO,
+        nonce: None,
+    }]);
+    let mut parent = create_block_from_spec(
+        &deployment,
+        1,
+        chain_spec.genesis_hash(),
+        &chain_spec,
+        key_pair,
+        &mut nonce,
+    );
+    let output = execute_block(&mut parent, &factory, &chain_spec)?;
+    engine.execute_block(&parent)?;
+    commit_block_to_database(&parent, &output, &factory)?;
+
+    let call = BlockSpec::new(vec![TxSpec {
+        to: TxKind::Call(contract),
+        data: Bytes::new(),
+        gas_limit: 100_000,
+        value: U256::ZERO,
+        nonce: None,
+    }]);
+    let mut child =
+        create_block_from_spec(&call, 2, parent.hash(), &chain_spec, key_pair, &mut nonce);
+    let output = execute_block(&mut child, &factory, &chain_spec)?;
+    assert_eq!(
+        output.state.account(&contract).unwrap().storage_slot(U256::ZERO),
+        Some(U256::from(1))
+    );
+
+    // Model the unavailable-parent failure without deleting the bytecode or proofs state.
+    let rw = factory.provider_rw()?;
+    rw.tx_ref().delete::<tables::HeaderNumbers>(parent.hash(), None)?;
+    rw.commit()?;
+    assert!(matches!(
+        blockchain.state_by_block_hash(parent.hash()),
+        Err(reth_provider::ProviderError::StateForHashNotFound(_))
+    ));
+
+    engine.execute_block(&child)?;
+    engine.flush();
+    assert_eq!(storage.provider_ro()?.get_latest_block()?.number, 2);
+    Ok(())
 }

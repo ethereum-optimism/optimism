@@ -638,7 +638,7 @@ mod tests {
             source_hash: Default::default(),
             from: Address::left_padding_from(&[7]),
             to: TxKind::Create,
-            mint: 0,
+            mint: U256::ZERO,
             value: U256::from(7_u64),
             gas_limit: 5,
             is_system_transaction: false,

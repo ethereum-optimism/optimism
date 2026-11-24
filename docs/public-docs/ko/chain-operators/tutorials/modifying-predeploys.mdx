@@ -1,0 +1,80 @@
+---
+title: 사전 배포된 컨트랙트 수정하기
+description: proxy를 업그레이드하여 OP Stack 체인의 사전 배포된 컨트랙트를 수정하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+import OpStackHacksWarning from "/ko/snippets/op-stack-hacks-warning.mdx"
+
+<OpStackHacksWarning />
+
+OP Stack 블록체인에는 중요한 기능을 제공하는 여러 [사전 배포된 컨트랙트(predeployed contract)](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/libraries/Predeploys.sol)가 있습니다.
+이러한 컨트랙트 대부분은 네트워크를 처음 배포할 때 구성한 `proxyAdminOwner`를 사용하여 업그레이드할 수 있는 proxy입니다.
+
+## 시작하기 전에
+
+이 튜토리얼에서는 proxy를 업그레이드하여 OP Stack 체인의 사전 배포된 컨트랙트를 수정하는 방법을 알아봅니다. predeploy는 [`ProxyAdmin`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/ProxyAdmin.sol)이라는 predeploy에서 제어하며, 그 주소는 `0x4200000000000000000000000000000000000018`입니다.
+호출할 함수는 [`upgrade(address,address)`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/universal/ProxyAdmin.sol#L152-L168)입니다.
+첫 번째 매개변수는 업그레이드할 proxy이고, 두 번째 매개변수는 새 구현의 주소입니다.
+
+## 레거시 `L1BlockNumber` 컨트랙트 수정
+
+예를 들어, 레거시 `L1BlockNumber` 컨트랙트는 `0x420...013`에 있습니다.
+이 기능을 비활성화하기 위해 구현을 `0x00...00`으로 설정하겠습니다.
+이 작업에는 [Foundry](https://book.getfoundry.sh/) 명령인 `cast`를 사용합니다.
+
+<Steps>
+  <Step title="몇 가지 상수가 필요합니다.">
+  *   터미널에서 다음 주소를 변수로 설정합니다.
+  
+        ```sh
+        L1BLOCKNUM=0x4200000000000000000000000000000000000013
+        PROXY_ADMIN=0x4200000000000000000000000000000000000018
+        ZERO_ADDR=0x0000000000000000000000000000000000000000
+        ```
+  
+    *   `PRIVKEY`를 ADMIN 주소의 개인 키로 설정합니다.
+  
+    *   `ETH_RPC_URL`을 설정합니다. 블록체인을 실행하는 컴퓨터에서 작업 중이라면 다음 명령을 사용합니다.
+  
+        ```sh
+        export ETH_RPC_URL=http://localhost:8545
+        ```
+  </Step>
+
+  <Step title="`L1BlockNumber`가 올바르게 동작하는지 확인합니다.">
+  컨트랙트를 호출하면 블록 번호가 반환되고, 12초 후에는 다음 블록 번호가 반환되는지 확인합니다(L1의 블록 시간은 12초입니다).
+  
+    ```sh
+    cast call $L1BLOCKNUM 'number()' | cast --to-dec
+    sleep 12 && cast call $L1BLOCKNUM 'number()' | cast --to-dec
+    ```
+  </Step>
+
+  <Step title="컨트랙트의 현재 구현을 가져옵니다.">
+  ```sh
+    L1BLOCKNUM_IMPLEMENTATION=`cast call $L1BLOCKNUM "implementation()" | sed 's/000000000000000000000000//'`
+    echo $L1BLOCKNUM_IMPLEMENTATION 
+    ```
+  </Step>
+
+  <Step title="구현을 zero 주소로 변경합니다">
+  ```sh
+    cast send --private-key $PRIVKEY $PROXY_ADMIN "upgrade(address,address)" $L1BLOCKNUM $ZERO_ADDR
+    ```
+  </Step>
+
+  <Step title="구현이 zero 주소이고 호출이 실패하는지 확인합니다.">
+  ```sh
+    cast call $L1BLOCKNUM 'implementation()'
+    cast call $L1BLOCKNUM 'number()'
+    ```
+  </Step>
+
+  <Step title="predeploy를 이전 구현으로 되돌려 복구하고, 정상적으로 동작하는지 확인합니다.">
+  ```sh
+    cast send --private-key $PRIVKEY $PROXY_ADMIN "upgrade(address,address)" $L1BLOCKNUM $L1BLOCKNUM_IMPLEMENTATION
+    cast call $L1BLOCKNUM 'number()' | cast --to-dec
+    ```
+  </Step>
+</Steps>

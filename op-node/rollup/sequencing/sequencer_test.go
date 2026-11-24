@@ -980,83 +980,6 @@ func TestSequencerProcessPayloadErrors(t *testing.T) {
 	}
 }
 
-// TestSequencerMaxSafeLagStall checks that the maxSafeLag stall overrides the
-// head-advancement arming within a single forkchoice update, and that sequencing
-// resumes once the safe head catches up.
-func TestSequencerMaxSafeLagStall(t *testing.T) {
-	s := newSeqSetup(t)
-	require.NoError(t, s.seq.SetMaxSafeLag(context.Background(), 2))
-
-	// Unsafe head advances, but safe head lags too far: the stall check runs
-	// after the head-advance arming and must win.
-	deliver(s.seq, engine.ForkchoiceUpdateEvent{
-		UnsafeL2Head: eth.L2BlockRef{Hash: common.Hash{0x31}, Number: s.head.Number + 1, Time: s.head.Time + 2},
-		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x30}, Number: s.head.Number - 1},
-	})
-	_, ok := s.seq.NextAction()
-	require.False(t, ok, "stalled by max safe lag despite advancing head")
-
-	// Still lagging: stays stalled.
-	deliver(s.seq, engine.ForkchoiceUpdateEvent{
-		UnsafeL2Head: eth.L2BlockRef{Hash: common.Hash{0x32}, Number: s.head.Number + 2, Time: s.head.Time + 4},
-		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x30}, Number: s.head.Number - 1},
-	})
-	_, ok = s.seq.NextAction()
-	require.False(t, ok, "still stalled while safe head lags")
-
-	// Safe head catches up: resume immediately.
-	deliver(s.seq, engine.ForkchoiceUpdateEvent{
-		UnsafeL2Head: eth.L2BlockRef{Hash: common.Hash{0x33}, Number: s.head.Number + 3, Time: s.head.Time + 6},
-		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x32}, Number: s.head.Number + 2},
-	})
-	next, ok := s.seq.NextAction()
-	require.True(t, ok, "resumed after safe head caught up")
-	require.Equal(t, s.clock.Now(), next, "resume immediately")
-}
-
-// TestSequencerMaxSafeLagDirectPath checks that the maxSafeLag bound is also
-// enforced when the schedule advances via the direct-call insertion path, not
-// only on ingested forkchoice updates: the sequencer must not outrun the bound
-// while the stalling forkchoice echo is still queued behind derivation events.
-func TestSequencerMaxSafeLagDirectPath(t *testing.T) {
-	s := newSeqSetup(t)
-	require.NoError(t, s.seq.SetMaxSafeLag(context.Background(), 1))
-
-	// Safe head is exactly at the bound: building the next block will exceed it.
-	deliver(s.seq, engine.ForkchoiceUpdateEvent{
-		UnsafeL2Head: s.head,
-		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x30}, Number: s.head.Number},
-	})
-	_, ok := s.seq.NextAction()
-	require.True(t, ok, "not stalled yet at the bound")
-
-	// Build, seal, and insert one block via direct calls.
-	info := s.startBuild(t)
-	envelope, ref := s.sealedPayload()
-	s.deps.eng.sealBuildFn = func(ctx context.Context, gotInfo eth.PayloadInfo, buildStarted time.Time) (*engine.SealResult, error) {
-		require.Equal(t, info, gotInfo)
-		return &engine.SealResult{Envelope: envelope, Ref: ref}, nil
-	}
-	s.deps.eng.processPayloadFn = func(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, buildStarted time.Time) error {
-		return nil
-	}
-	s.seq.RunAction()
-	require.Equal(t, ref, s.seq.unsafeHead, "block inserted via direct path")
-
-	// The insertion armed the next block, but the safe head (as of the last
-	// ingested forkchoice update) now lags beyond the bound: stalled.
-	_, ok = s.seq.NextAction()
-	require.False(t, ok, "stalled on the direct path, before any forkchoice echo")
-
-	// The safe head catches up: resume.
-	deliver(s.seq, engine.ForkchoiceUpdateEvent{
-		UnsafeL2Head: ref,
-		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x31}, Number: ref.Number},
-	})
-	_, ok = s.seq.NextAction()
-	require.True(t, ok, "resumed after safe head caught up")
-}
-
 // TestSequencerActionHonorsParkingDrain checks the replay-to-action boundary:
 // when an action fires, RunAction first replays the inbox; if that replay
 // parks the schedule (e.g. a reset arrived while the timer was pending), the
@@ -1216,27 +1139,6 @@ func TestSequencerRearmsOnRewoundHead(t *testing.T) {
 	require.NotEqual(t, ref.Hash, s.seq.unsafeHead.Hash)
 }
 
-// TestSequencerSetMaxSafeLagResumes checks that relaxing the bound at runtime
-// resumes a stalled sequencer immediately: while stalled its goroutine is
-// parked with no timer armed, so nothing else would re-evaluate the bound.
-func TestSequencerSetMaxSafeLagResumes(t *testing.T) {
-	s := newSeqSetup(t)
-	require.NoError(t, s.seq.SetMaxSafeLag(context.Background(), 2))
-	deliver(s.seq, engine.ForkchoiceUpdateEvent{
-		UnsafeL2Head: eth.L2BlockRef{Hash: common.Hash{0x31}, Number: s.head.Number + 1, Time: s.head.Time + 2},
-		SafeL2Head:   eth.L2BlockRef{Hash: common.Hash{0x30}, Number: s.head.Number - 1},
-	})
-	_, ok := s.seq.NextAction()
-	require.False(t, ok, "stalled by max safe lag")
-	<-s.seq.wakeCh // drain the wake from the ingest above
-
-	require.NoError(t, s.seq.SetMaxSafeLag(context.Background(), 0))
-	next, ok := s.seq.NextAction()
-	require.True(t, ok, "disabling the bound resumes sequencing without a forkchoice update")
-	require.Equal(t, s.clock.Now(), next, "resume immediately")
-	require.Len(t, s.seq.wakeCh, 1, "the parked goroutine is woken to re-plan")
-}
-
 type sequencerTestDeps struct {
 	cfg              *rollup.Config
 	attribBuilder    *FakeAttributesBuilder
@@ -1321,39 +1223,6 @@ func TestSequencerStaysParkedUntilResetConfirmed(t *testing.T) {
 	require.True(t, ok, "the confirmation resumes sequencing")
 	require.Equal(t, s.clock.Now().Add(s.blockTime()), next,
 		"the confirmation applies the one-block cool-down")
-}
-
-// TestSequencerMaxSafeLagHoldsThroughRecovery covers the two re-arm paths that
-// can release a maxSafeLag stall: an engine temporary error, and a reset
-// confirmation. Both must re-check the bound instead of arming unconditionally,
-// or the sequencer builds a block past a bound that is still exceeded.
-func TestSequencerMaxSafeLagHoldsThroughRecovery(t *testing.T) {
-	stall := func(t *testing.T) *seqTestSetup {
-		s := newSeqSetup(t)
-		require.NoError(t, s.seq.SetMaxSafeLag(context.Background(), 1))
-		ahead := s.head
-		ahead.Hash = common.Hash{0x44}
-		ahead.Number = s.head.Number + 5
-		deliver(s.seq, engine.ForkchoiceUpdateEvent{UnsafeL2Head: ahead, SafeL2Head: s.head})
-		_, ok := s.seq.NextAction()
-		require.False(t, ok, "unsafe head past the lag bound stalls the sequencer")
-		return s
-	}
-
-	t.Run("engine temporary error", func(t *testing.T) {
-		s := stall(t)
-		deliver(s.seq, rollup.EngineTemporaryErrorEvent{Err: errors.New("mock temp error")})
-		_, ok := s.seq.NextAction()
-		require.False(t, ok, "a temporary-error backoff must not release the stall")
-	})
-
-	t.Run("reset confirmation", func(t *testing.T) {
-		s := stall(t)
-		deliver(s.seq, rollup.ResetEvent{Err: errors.New("mock reset")})
-		deliver(s.seq, engine.EngineResetConfirmedEvent{})
-		_, ok := s.seq.NextAction()
-		require.False(t, ok, "a reset confirmation must not release the stall")
-	})
 }
 
 // TestSequencerPayloadSuccessClearsGossip covers the retained ingest path for

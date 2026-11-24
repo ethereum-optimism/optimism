@@ -1,7 +1,8 @@
 //! [`EngineHandle`] — the public, cloneable, Send + Sync interface.
 
 use super::{
-    DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD, EngineAction,
+    CanonicalInMemoryStateProvider, DEFAULT_BACKPRESSURE_THRESHOLD, DEFAULT_PERSISTENCE_THRESHOLD,
+    EngineAction,
     error::EngineError,
     runner::Engine,
     service_guard::ServiceGuard,
@@ -12,12 +13,32 @@ use alloy_eips::eip1898::BlockWithParent;
 use crossbeam_channel::{Sender, bounded};
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::{NodePrimitives, RecoveredBlock};
-use reth_provider::{
-    BlockHashReader, BlockReader, DatabaseProviderFactory, StateProviderFactory, StateReader,
-};
+use reth_provider::{BlockHashReader, BlockReader, DatabaseProviderFactory, StageCheckpointReader};
 use reth_trie_common::{HashedPostStateSorted, updates::TrieUpdatesSorted};
 use std::{panic, sync::Arc, thread};
 use tracing::error;
+
+/// Tuning for the collector engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EngineConfig {
+    /// Blocks buffered in memory before they are persisted in one batch.
+    pub persistence_threshold: u64,
+    /// Buffered blocks at which the engine stops accepting new blocks while a save is running.
+    pub backpressure_threshold: u64,
+    /// Parallel readers warming the page cache ahead of persistence. `0` disables warming, and
+    /// no more than 64 are used.
+    pub prefetch_threads: usize,
+}
+
+impl Default for EngineConfig {
+    fn default() -> Self {
+        Self {
+            persistence_threshold: DEFAULT_PERSISTENCE_THRESHOLD,
+            backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
+            prefetch_threads: 0,
+        }
+    }
+}
 
 /// A thin, cloneable handle used to communicate with the collector engine.
 ///
@@ -40,22 +61,15 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
     where
         Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>> + 'static,
         Provider: BlockHashReader
-            + StateReader
+            + CanonicalInMemoryStateProvider
+            + StageCheckpointReader
             + DatabaseProviderFactory
-            + StateProviderFactory
             + BlockReader<Block = Block>
             + Clone
             + 'static,
         Store: OpProofsStore + Clone + 'static,
     {
-        Self::spawn_with_thresholds(
-            evm_config,
-            provider,
-            storage,
-            pruner,
-            DEFAULT_PERSISTENCE_THRESHOLD,
-            DEFAULT_BACKPRESSURE_THRESHOLD,
-        )
+        Self::spawn_with_config(evm_config, provider, storage, pruner, EngineConfig::default())
     }
 
     /// Spawn the collector engine with custom persistence and backpressure thresholds.
@@ -70,18 +84,40 @@ impl<Block: reth_primitives_traits::Block + Send + 'static> EngineHandle<Block> 
     where
         Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>> + 'static,
         Provider: BlockHashReader
-            + StateReader
+            + CanonicalInMemoryStateProvider
+            + StageCheckpointReader
             + DatabaseProviderFactory
-            + StateProviderFactory
+            + BlockReader<Block = Block>
+            + Clone
+            + 'static,
+        Store: OpProofsStore + Clone + 'static,
+    {
+        let config =
+            EngineConfig { persistence_threshold, backpressure_threshold, prefetch_threads: 0 };
+        Self::spawn_with_config(evm_config, provider, storage, pruner, config)
+    }
+
+    /// Spawn the collector engine with `config`.
+    pub fn spawn_with_config<Evm, Provider, Store>(
+        evm_config: Evm,
+        provider: Provider,
+        storage: Store,
+        pruner: OpProofStoragePruner<Store, Provider>,
+        config: EngineConfig,
+    ) -> Self
+    where
+        Evm: ConfigureEvm<Primitives: NodePrimitives<Block = Block>> + 'static,
+        Provider: BlockHashReader
+            + CanonicalInMemoryStateProvider
+            + StageCheckpointReader
+            + DatabaseProviderFactory
             + BlockReader<Block = Block>
             + Clone
             + 'static,
         Store: OpProofsStore + Clone + 'static,
     {
         let (tx, rx) = bounded(10);
-        let engine = Engine::new(evm_config, provider, storage, pruner, rx)
-            .with_persistence_threshold(persistence_threshold)
-            .with_backpressure_threshold(backpressure_threshold);
+        let engine = Engine::new(evm_config, provider, storage, pruner, rx, config);
 
         let join_handle = thread::Builder::new()
             .name("live-trie-collector".into())

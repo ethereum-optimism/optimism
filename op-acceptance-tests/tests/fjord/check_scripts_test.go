@@ -7,8 +7,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -84,7 +86,7 @@ func checkGasPriceOracle(t devtest.T, ctx context.Context, sys *presets.Minimal)
 func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Minimal, wallet *dsl.EOA) {
 	require := t.Require()
 
-	l2Client := sys.L2EL.Escape().EthClient()
+	l2Client := sys.L2EL.Escape().L2EthClient()
 	gasPriceOracle := txib.NewGasPriceOracle(
 		txib.WithClient(l2Client),
 		txib.WithTo(predeploys.GasPriceOracleAddr),
@@ -113,7 +115,7 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 
 	for _, tc := range testCases {
 		walletAddr := wallet.Address()
-		var receipt *types.Receipt
+		var receipt *optypes.Receipt
 		var signedTx *types.Transaction
 
 		if len(tc.data) == 0 {
@@ -123,7 +125,7 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 			require.NoError(err)
 			require.NotNil(receipt)
 
-			_, txs, err := l2Client.InfoAndTxsByHash(ctx, receipt.BlockHash)
+			_, txs, err := l2Client.InfoAndUserTxsByHash(ctx, receipt.BlockHash)
 			require.NoError(err)
 
 			for _, tx := range txs {
@@ -162,12 +164,14 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		gpoFee, err := dsl.ReadGasPriceOracleL1FeeAt(ctx, l2Client, gasPriceOracle, txUnsigned, receipt.BlockHash)
 		require.NoError(err)
 
-		fastLzSize := uint64(types.FlzCompressLen(txUnsigned) + 68)
-		gethGPOFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, types.RollupCostData{FastLzSize: fastLzSize}, receipt.BlockHash)
+		fastLzSize := uint64(opfees.FlzCompressLen(txUnsigned) + 68)
+		gethGPOFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, opfees.RollupCostData{FastLzSize: fastLzSize}, receipt.BlockHash)
 		require.NoError(err)
 		require.Equalf(bigs.Uint64Strict(gethGPOFee), bigs.Uint64Strict(gpoFee), "GPO L1 fee mismatch (expected=%v actual=%v)", gethGPOFee, gpoFee)
 
-		expectedFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, signedTx.RollupCostData(), receipt.BlockHash)
+		txSigned, err := signedTx.MarshalBinary()
+		require.NoError(err)
+		expectedFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, opfees.NewRollupCostData(txSigned), receipt.BlockHash)
 		require.NoError(err)
 		require.NotNil(receipt.L1Fee)
 		dsl.ValidateL1FeeMatches(t, expectedFee, receipt.L1Fee)
@@ -176,7 +180,7 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		require.NoError(err)
 		txLenGPO := len(txUnsigned) + 68
 		flzUpperBound := uint64(txLenGPO + txLenGPO/255 + 16)
-		upperBoundCost, err := dsl.CalculateFjordL1Cost(ctx, l2Client, types.RollupCostData{FastLzSize: flzUpperBound}, receipt.BlockHash)
+		upperBoundCost, err := dsl.CalculateFjordL1Cost(ctx, l2Client, opfees.RollupCostData{FastLzSize: flzUpperBound}, receipt.BlockHash)
 		require.NoError(err)
 		require.Equalf(bigs.Uint64Strict(upperBoundCost), bigs.Uint64Strict(upperBound), "GPO L1 upper bound mismatch (expected=%v actual=%v)", upperBoundCost, upperBound)
 

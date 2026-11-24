@@ -10,6 +10,7 @@ pub struct TestEngineStateBuilder {
     local_safe_head: Option<L2BlockInfo>,
     safe_head: Option<L2BlockInfo>,
     finalized_head: Option<L2BlockInfo>,
+    el_applied_last_forkchoice: bool,
     el_sync_finished: bool,
 }
 
@@ -33,6 +34,7 @@ impl TestEngineStateBuilder {
             local_safe_head: None,
             safe_head: None,
             finalized_head: None,
+            el_applied_last_forkchoice: true,
             el_sync_finished: true,
         }
     }
@@ -55,10 +57,19 @@ impl TestEngineStateBuilder {
         self
     }
 
-    /// Sets whether EL sync is finished
+    /// Sets whether EL sync is finished. An execution layer still syncing has not applied the last
+    /// forkchoice either, so this sets both flags.
     #[allow(dead_code)]
     pub const fn with_el_sync_finished(mut self, finished: bool) -> Self {
+        self.el_applied_last_forkchoice = finished;
         self.el_sync_finished = finished;
+        self
+    }
+
+    /// Sets whether the execution layer applied the last forkchoice update.
+    #[allow(dead_code)]
+    pub const fn with_el_applied_last_forkchoice(mut self, applied: bool) -> Self {
+        self.el_applied_last_forkchoice = applied;
         self
     }
 
@@ -74,6 +85,7 @@ impl TestEngineStateBuilder {
             finalized_head: Some(self.finalized_head.unwrap_or(self.unsafe_head)),
         });
 
+        state.el_applied_last_forkchoice = self.el_applied_last_forkchoice;
         state.el_sync_finished = self.el_sync_finished;
         state
     }

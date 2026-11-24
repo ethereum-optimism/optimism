@@ -1,6 +1,6 @@
 [package]
 name = "reth-optimism-exex"
-version = "1.11.3"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -42,6 +42,7 @@ reth-optimism-node.workspace = true
 reth-optimism-chainspec.workspace = true
 reth-primitives-traits.workspace = true
 reth-ethereum-primitives.workspace = true
+reth-evm-ethereum.workspace = true
 reth-exex-test-utils.workspace = true
 tempfile.workspace = true
 

@@ -32,6 +32,13 @@ hide. For each changed file, walk the relevant items and look for the bad patter
   `required-rust-e2e`. These are fan-in jobs (no work, just `requires:`). A merge
   is gated *only* by what they transitively require; anything outside their
   `requires:` chain can fail without blocking merge. Gates use `utils/ci-gate`.
+  Release branches (`proposal/**`) run the same workflows but their ruleset
+  requires only `ci-gate-proposals` and `required-contracts-ci`.
+  `ci-gate-proposals` fans in on the `main` jobs that validate op-contracts and
+  op-deployer, and `ci-gate` requires it, so a job added there gates both
+  branches; every other job still runs on a release branch without blocking it.
+  A required check must be produced on every routing path, so `ci-gate-skip`
+  emits both `ci-gate` and `ci-gate-proposals`.
 - **Continuation limits**: a setup pipeline continues exactly once, within 6h, no
   setup→setup. A param declared in both `config.yml` and a fragment with
   different defaults fails with "Conflicting pipeline parameters".
@@ -172,54 +179,144 @@ here. Treat items 1–4 as **blocking**.
    change, then compare job durations (and the critical-path total) against the
    base. Cite the real numbers in review rather than guessing.
 
-9. **Validate locally.** Never `circleci config validate` a single fragment (fails
-   on duplicate keys). Always produce the merged output by running the repo's own
-   script — `bash .circleci/scripts/merge-configs.sh`, which writes
-   `/tmp/merged-config.yml` — so you validate exactly what CI builds; don't
-   re-run the `yq` merge by hand. Then validate `/tmp/merged-config.yml`, first
-   stubbing the private `ethereum-optimism/circleci-utils` orb (inline orb with
-   `checkout-with-mise`, `ci-gate`, `github-event-handler-setup`, `github-stale`;
-   `name` is reserved). Also run `bash .circleci/scripts/test-decision-tree.sh`.
-   Validation catches schema and missing-`requires:`-target errors, not semantics
-   (items 1–6).
+9. **Don't assume the PR targets `develop`.** PRs also target release branches
+   (`proposal/*`). These are cut from `develop` and then drift: they keep older
+   NUT bundles, dependency pins and generated artifacts. A job that compares
+   against `develop` passes on `develop` PRs but fails on every release-branch PR
+   once `develop` moves, for reasons unrelated to the PR. Look for
+   `origin/develop`, `git show develop:<file>`, `git checkout origin/develop` or
+   `BASE_BRANCH="develop"`, both in the config and in any script a CI command runs
+   (e.g. `ops/scripts/`). Resolve the base with the `get-target-branch` command
+   and `git fetch origin "$TARGET_BRANCH"` before use, since the checkout may not
+   include other branches. Also check that:
+   - branch names are not parsed with `[^/]+`, because base branches contain
+     slashes (`proposal/op-contracts/v9.0.0`);
+   - builds with no PR (branch pushes, post-merge) compare against a deliberate
+     base. A branch compared with itself gives an empty diff, which silently
+     disables path-gated routing.
 
-   **`validate` is not enough — use `process` with pipeline parameters.** Jobs
-   reachable only from a `when: << pipeline.parameters.c-run_* >>` workflow are
-   skipped when the parameter is false, which is the default, so a job that fails
-   to compile validates clean. Process the merged config with the gated params
-   turned on:
+   `develop`-only post-merge jobs and the `develop` default for PR-less
+   feature-branch pushes are fine.
 
-   ```sh
-   printf '{"c-run_release":true,"c-run_kona_publish_prestates":true}' > /tmp/pp.json
-   circleci config process --pipeline-parameters /tmp/pp.json /tmp/merged-config.yml
-   ```
+10. **Validate locally.** Never `circleci config validate` a single fragment (fails
+    on duplicate keys). Always produce the merged output by running the repo's own
+    script — `bash .circleci/scripts/merge-configs.sh`, which writes
+    `/tmp/merged-config.yml` — so you validate exactly what CI builds; don't
+    re-run the `yq` merge by hand. Then validate `/tmp/merged-config.yml`, first
+    stubbing the private `ethereum-optimism/circleci-utils` orb (inline orb with
+    `checkout-with-mise`, `ci-gate`, `github-stale`;
+    `name` is reserved). Also run `bash .circleci/scripts/test-decision-tree.sh`.
+    Validation catches schema and missing-`requires:`-target errors, not semantics
+    (items 1–6).
 
-   **Never write `<<` inside a `command:`.** CircleCI 2.1 treats `<<` as a
-   parameter-tag opener before any shell sees it, so bash here-strings (`<<<`) and
-   heredocs (`<<EOF`) fail the whole continuation with `Unclosed '<<' tag` — and a
-   continuation that fails to compile produces *no* workflows at all, so every
-   check silently disappears from the PR instead of going red. This bites shell
-   comments too: a comment merely *mentioning* the token fails compilation.
-   Escape as `\<<` if you truly need the literal, or restructure to avoid it —
-   but mind what the restructure costs:
+    **`validate` is not enough — use `process` with pipeline parameters.** Jobs
+    reachable only from a `when: << pipeline.parameters.c-run_* >>` workflow are
+    skipped when the parameter is false, which is the default, so a job that fails
+    to compile validates clean. Process the merged config with the gated params
+    turned on:
 
-   ```sh
-   ARR=(); while IFS= read -r L; do ARR+=("$L"); done < <(cmd)
-                                    # no '<<', but swallows cmd's exit status:
-                                    # a failing cmd reads as an empty array
-   TMP=$(mktemp); cmd > "$TMP"      # keeps set -e, and keeps the stream off the
-   ARR=(); while IFS= read -r L; do ARR+=("$L"); done < "$TMP"   # Prefer this.
-   rm -f "$TMP"
-   (( ${#ARR[@]} > 0 )) || { echo "empty" >&2; exit 1; }
-   ```
+    ```sh
+    printf '{"c-run_release":true,"c-run_kona_publish_prestates":true}' > /tmp/pp.json
+    circleci config process --pipeline-parameters /tmp/pp.json /tmp/merged-config.yml
+    ```
 
-   Process substitution trades the `<<` bug for a swallowed-exit-status bug, so
-   assert on the result either way. For a heredoc, write the body to a temp file.
+    **Never write `<<` inside a `command:`.** CircleCI 2.1 treats `<<` as a
+    parameter-tag opener before any shell sees it, so bash here-strings (`<<<`) and
+    heredocs (`<<EOF`) fail the whole continuation with `Unclosed '<<' tag` — and a
+    continuation that fails to compile produces *no* workflows at all, so every
+    check silently disappears from the PR instead of going red. This bites shell
+    comments too: a comment merely *mentioning* the token fails compilation.
+    Escape as `\<<` if you truly need the literal, or restructure to avoid it —
+    but mind what the restructure costs:
 
-   Read the lines with `while read`, not `mapfile`: `mapfile` is a bash 4
-   builtin, and macOS ships bash 3.2, so any snippet copied from a CI command
-   into a justfile recipe would break local runs. Same for the rest of bash 4
-   (`declare -A`, `${var^^}`, `local -n`).
+    ```sh
+    ARR=(); while IFS= read -r L; do ARR+=("$L"); done < <(cmd)
+                                     # no '<<', but swallows cmd's exit status:
+                                     # a failing cmd reads as an empty array
+    TMP=$(mktemp); cmd > "$TMP"      # keeps set -e, and keeps the stream off the
+    ARR=(); while IFS= read -r L; do ARR+=("$L"); done < "$TMP"   # Prefer this.
+    rm -f "$TMP"
+    (( ${#ARR[@]} > 0 )) || { echo "empty" >&2; exit 1; }
+    ```
+
+    Process substitution trades the `<<` bug for a swallowed-exit-status bug, so
+    assert on the result either way. For a heredoc, write the body to a temp file.
+
+    Read the lines with `while read`, not `mapfile`: `mapfile` is a bash 4
+    builtin, and macOS ships bash 3.2, so any snippet copied from a CI command
+    into a justfile recipe would break local runs. Same for the rest of bash 4
+    (`declare -A`, `${var^^}`, `local -n`).
+
+11. **Callers the PR never runs.** PR CI runs only the workflows the routing policy
+    enables for a PR. `scheduled-*`, `develop`-only, release and API-dispatch workflows,
+    and GitHub Actions workflows on `schedule`, `workflow_dispatch` or tag triggers, run
+    after merge. A change that breaks only them merges green and fails later, often as an
+    on-call page. This applies to any diff that changes something a CI command runs, even
+    with no CI file in the diff: a justfile recipe or one it depends on, a script, tool config
+    (`foundry.toml`, lint config), or a job's parameter defaults.
+    - Find the jobs that reach the changed thing. Run `merge-configs.sh` (item 10) and grep
+      `/tmp/merged-config.yml` and `.github/workflows/` for the recipe or script name. Follow
+      each CircleCI job to the workflows that run it and to the `routing.yml` triggers that
+      enable them. For config every job reads, such as `mise.toml`, check only the jobs that
+      override it with their own arguments or env.
+    - For each job that doesn't run on a PR, compare its parameters, `build_args` and env
+      with the PR-path copy of the same job. A combination used only after merge is never
+      tested before merge.
+    - Reason through what the changed code does with that combination. Item 10's
+      `config process` with the workflow's `c-run_*` flag set shows what the job receives.
+      Don't run the job itself. Report each caller you can't clear as a finding that names
+      the workflow, its trigger and the differing arguments.
+    - Don't count a check as protection if it runs only after merge. If the only job that
+      would catch the break is off the PR path, say so in the finding.
+    - Grade by what fails after merge. A likely break in a workflow that pages on-call or
+      publishes artifacts is high severity, just below the blocking items 1–4.
+    - Merge-queue-only jobs (`gh-readonly-queue/*`) run before merge but after review. A
+      break there blocks the queue rather than paging, so grade it below post-merge
+      breaks. For example, the queue always runs the full `contracts_feature_tests`, while
+      a PR with no contracts change runs only `contracts_feature_tests_short`.
+
+    Example: #23642 removed `--deny-warnings` from four `contracts-bedrock-build`
+    callers and missed the one in `scheduled-shipped-binaries`. #24103 then removed
+    `--deny never` from the `forge-build` recipe. That nightly build then denied
+    warnings, which turns forge's compile cache off, and `warm-script-cache.sh`
+    failed. #24103 merged green, and #24162 fixed the nightly build.
+
+12. **Cost cuts must not regress coverage, maintainability or security.** A diff
+    that saves CI time or credits (skipped tests, fewer shards, a narrower matrix, a
+    job moved off the PR path) must not buy the saving with a loss on any of these.
+    Each small trade looks harmless, and together they wear CI down. This covers
+    skips in test code (`t.Skip`, build tags, test filters) as well as CI config.
+    - **Coverage.** Name what stops running and show which job still runs it, on
+      the same trigger (PR, merge queue), with the same binaries, config and inputs,
+      or show that the difference doesn't reach what the tests exercise. A run that
+      looks duplicated can differ in image, env or client kind, so check rather than
+      assume. Moving a job to develop-only or scheduled keeps coverage but loses
+      pre-merge signal: judge it by "Choosing where a new job runs" and item 11.
+    - **Security.** A cut must not drop a security check (`cargo deny`, digest or
+      signature verification) or move it off the PR path, and must not let PR code
+      write a cache that privileged jobs restore.
+    - **Drift.** If the saving depends on contributors remembering something (a
+      skip call in each new constructor, a list kept in sync, a doc rule), require
+      a check that fails when they forget. Without one, the duplication or the
+      coverage gap creeps back with no signal. Better still, derive the decision
+      from data the code already has, so there is nothing to remember.
+    - **Skip expiry.** A skip must end when its reason does. Check that something
+      notices when the skipped variant gains the support it lacked; otherwise the
+      skip keeps dropping coverage after it is no longer needed.
+    - **Numbers.** Item 8 applies: cite before/after wall time and cost from a real
+      run.
+
+    Grade a coverage loss that no other run covers like item 11, by what then fails
+    after merge. Grade drift and skip-expiry gaps below that.
+
+    Example: the acceptance job that sets `DEVSTACK_L2CL_KIND=kona-node` can skip
+    tests whose preset starts only op-node, but only with a check that fails when a
+    new op-node-only preset doesn't skip. A hand-written list of the presets that
+    skip is not such a check: a new preset is on no list, so nothing fails and the
+    job silently runs the op-node tests a second time. Checks that catch it: a test
+    that requires every exported preset to declare which CL kinds it starts, or a
+    guard that fails a test in that job that never started a CL of the kind
+    `DEVSTACK_L2CL_KIND` selects.
 
 ## General best practices
 

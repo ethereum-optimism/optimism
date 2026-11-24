@@ -1,0 +1,155 @@
+---
+title: Pectra 호환성을 깨는 변경 사항 대비
+description: Pectra 업그레이드의 호환성을 깨는 변경 사항에 대비하는 방법을 알아봅니다.
+diataxis: reference
+content_type: notice
+---
+
+<Info>
+  이 공지 페이지는 2025년 3월 11일에 업데이트되었습니다. 이전 op-node 릴리스에서 L1 Block의 blob 기본 수수료(L1 수수료 계산용)가 Prague 파라미터 대신 Prague 이전(=Cancun)의 blob 스케줄 파라미터로 계산되는 버그가 발견되었습니다. 이 버그는 op-node 최신 릴리스에서 수정되었습니다.
+
+  이는 어떤 OP Sepolia 체인에서도 치명적인 문제는 아닙니다. 그러나 Sepolia의 L1 blob 기본 수수료가 100 Mwei 이상으로 상승하면 L1 수수료를 과다 청구하게 되므로 일시적인 활성(liveness) 위험이 발생합니다. 요컨대 현재 L1 비용 계산은 1.5 지수만큼 과다 청구하며, BBF\_Cancun = `BBF_Prague^1.5`입니다(BBF=blob base fee).
+
+  네트워크에서 이 문제를 방지하려면 Sepolia node를 op-node 최신 릴리스로 업데이트하고 하드포크 활성화 시간을 예약해야 합니다. 이 문제를 완화하는 데 도움이 되는 새로운 안내가 노드 운영자 섹션에 추가되었습니다.
+
+  자세한 내용은 다음 공지 페이지를 참조하십시오: [Superchain testnet의 blob 수수료 버그](/ko/notices/archive/blob-fee-bug).
+</Info>
+
+이 페이지에서는 OP Stack 체인의 체인 운영자와 노드 운영자를 위해 Ethereum Pectra(Prague-Electra) 하드포크와 관련된 호환성을 깨는 변경 사항(breaking changes)을 설명합니다. OP Stack은 Pectra 업그레이드를 두 부분으로 나누어 진행합니다.
+
+1.  **L1 Pectra 업그레이드가 활성화될 때 OP Stack 체인이 중단되지 않도록 필요한 업그레이드를 수행합니다.** L1 Pectra 업그레이드 이후에도 OP Stack 체인이 정상적으로 작동하도록 OP Stack의 새 버전을 릴리스할 예정입니다. 결함 증명(fault proof)이 활성화된 체인을 운영하는 경우 아래에 설명된 추가 단계를 따라야 합니다.
+2.  **L2에 적용되는 Pectra의 새 기능을 지원하도록 OP Stack 체인을 업그레이드합니다.** L2에 적용되는 Pectra의 모든 기능을 구현하고, 이러한 기능이 포함된 OP Stack의 새 버전을 릴리스할 예정입니다. 엔지니어링 작업이 마무리되면 더 많은 정보를 제공하겠습니다. 사양 작업은 이 [이슈](https://github.com/ethereum-optimism/specs/issues/499)에서 추적하고 있습니다. 예정된 Isthmus 하드포크에는 모든 Prague 기능이 포함되며, 진행 상황은 이 [프로젝트 보드](https://github.com/orgs/ethereum-optimism/projects/117)에서 확인할 수 있습니다.
+
+이 과정의 어느 단계에서든 어려움이 있다면 [개발자 지원](https://github.com/ethereum-optimism/developers/discussions)에 문의하십시오.
+
+<Info>
+  이 페이지는 업그레이드 런북과 일정에 관한 정보가 나오는 대로 계속 업데이트됩니다. 다음은 2월 6일에 열린 ACDC에 따른 잠정적인 L1 Pectra 하드포크 시간입니다.
+
+  L1 클라이언트 testnet 릴리스는 2월 13일(ACDE)까지 배포됩니다.
+
+  *   Holesky 슬롯: `1740434112` (2월 24일(월) 21:55:12 UTC)
+  *   Sepolia 슬롯: `1741159776` (3월 5일(수) 07:29:36 UTC)
+  *   +30일 mainnet 슬롯: `1744154711` (4월 8일(화) 23:25:11 UTC)
+</Info>
+
+## Pectra에 포함된 내용
+
+Pectra에는 다양한 EIP가 포함되어 있으며, 그중 일부는 OP Stack에 적용되고 일부는 적용되지 않습니다. [Pectra Devnet 5 노트](https://notes.ethereum.org/@ethpandaops/pectra-devnet-5)에 명시된 대로 Pectra에는 다음 EIP가 포함됩니다.
+
+*   [EIP-2537: Precompile for BLS12-381 curve operations](https://github.com/ethereum/EIPs/blob/d96625a4dcbbe2572fa006f062bd02b4582eefd5/EIPS/eip-2537.md)
+*   [EIP-2935: Save historical block hashes in state](https://github.com/ethereum/EIPs/blob/d96625a4dcbbe2572fa006f062bd02b4582eefd5/EIPS/eip-2935.md)
+*   [EIP-6110: Supply validator deposits on chain](https://github.com/ethereum/EIPs/blob/d96625a4dcbbe2572fa006f062bd02b4582eefd5/EIPS/eip-6110.md)
+*   [EIP-7002: Execution layer triggerable withdrawals](https://github.com/ethereum/EIPs/blob/d96625a4dcbbe2572fa006f062bd02b4582eefd5/EIPS/eip-7002.md)
+*   [EIP-7251: Increase the MAX\_EFFECTIVE\_BALANCE](https://github.com/ethereum/EIPs/blob/d96625a4dcbbe2572fa006f062bd02b4582eefd5/EIPS/eip-7251.md)
+*   [EIP-7549: Move committee index outside Attestation](https://github.com/ethereum/EIPs/blob/d96625a4dcbbe2572fa006f062bd02b4582eefd5/EIPS/eip-7549.md)
+*   [EIP-7623: Increase calldata cost](https://github.com/ethereum/EIPs/blob/d96625a4dcbbe2572fa006f062bd02b4582eefd5/EIPS/eip-7623.md)
+*   [EIP-7685: General purpose execution layer requests](https://github.com/ethereum/EIPs/blob/d96625a4dcbbe2572fa006f062bd02b4582eefd5/EIPS/eip-7685.md)
+*   [EIP-7691: Blob throughput increase](https://github.com/ethereum/EIPs/blob/d96625a4dcbbe2572fa006f062bd02b4582eefd5/EIPS/eip-7691.md)
+*   [EIP-7702: Set EOA account code](https://github.com/ethereum/EIPs/blob/d96625a4dcbbe2572fa006f062bd02b4582eefd5/EIPS/eip-7702.md)
+*   [EIP-7840: Add blob schedule to EL config files](https://github.com/ethereum/EIPs/pull/9129)
+
+## 노드 운영자 대상
+
+노드 운영자는 활성화 날짜 이전에 해당 릴리스로 업그레이드해야 합니다. 모든 노드 운영자는 다음 단계를 수행해야 합니다.
+
+### 최신 릴리스로 업데이트
+
+<Info>
+  풀 node 운영자, 즉 `gc-mode=full`로 op-geth를 실행하는 운영자는 최신 릴리스로 업그레이드하기 전에 중간 업그레이드 단계를 처리하기 위해 [`op-geth v1.101411.8` 릴리스 노트](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101411.8)를 참조해야 합니다. 아카이브 node 운영자(`gc-mode=archive`)는 이 단계를 건너뛰고 최신 릴리스로 바로 업그레이드할 수 있습니다.
+</Info>
+
+*   `op-node` [`v1.12.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.12.0)
+*   `op-geth` [`v1.101503.0`](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101503.0)
+*   `op-reth` [`v1.2.0`](https://github.com/paradigmxyz/reth/releases/tag/v1.2.0)에도 L1 Pectra 지원이 포함되어 있습니다.
+
+<Info>
+  네트워크가 올바른 수수료 계산을 사용하도록 op-node 바이너리를 업그레이드할 때 하드포크 활성화 시간을 예약하십시오. Superchain Registry [구성](https://github.com/ethereum-optimism/superchain-registry/tree/main/superchain/configs/sepolia)을 검토하여 네트워크가 Superchain 활성화 시간과 별도로 이를 조정해야 하는지 확인하십시오.
+</Info>
+
+[하드포크 활성화 상속 동작(hardfork activation inheritance behavior)](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md)에 포함되지 않은 체인의 노드 운영자는 활성화를 수동으로 구성해야 합니다. 다음 두 가지 방법 중 하나를 사용할 수 있습니다.
+
+*   **옵션 1:** `op-node`의 `rollup.json`에 `pectrablobschedule` 활성화 시간을 설정합니다. 
+*   **옵션 2:** `op-node`에서 오버라이드(CLI)를 통해 활성화 시간을 설정합니다. sequencer와 다른 모든 node의 `op-node`에 이를 설정해야 합니다.
+
+`op-geth`에는 오버라이드를 지정할 필요가 없지만 최신 릴리스로 업데이트해야 합니다.
+
+## 체인 운영자 대상
+
+다음 섹션에서는 체인 운영자가 OP Stack의 Pectra L1 지원 첫 번째 부분을 준비하는 방법을 설명합니다. 이를 통해 L1 Pectra 업그레이드가 활성화될 때 OP Stack 체인이 중단되지 않도록 합니다. 모든 체인 운영자는 다음을 수행해야 합니다.
+
+<Steps>
+  <Step title="node 바이너리 업데이트">
+  [노드 운영자 섹션](#update-to-the-latest-release)에 설명된 안내에 따라 node를 최신 릴리스로 업데이트하십시오.
+  </Step>
+
+  <Step title="batcher 및 proposer 업데이트">
+  바이너리를 다음 버전으로 업데이트하십시오.
+  
+    *   [`op-batcher/v1.11.5`](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.11.5).
+    *   [`op-proposer/v1.10.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-proposer%2Fv1.10.0).
+  </Step>
+
+  <Step title="수수료 scalar 재확인">
+  [L1 Pectra 업그레이드 이후 수수료 scalar 수정에 관한 공지](/ko/notices/archive/pectra-changes)를 참조하십시오.
+  </Step>
+</Steps>
+
+## 결함 증명이 활성화된 체인 대상
+
+<Info>
+  다음 안내는 체인이 최신 컨트랙트 릴리스 `op-contracts/v1.8.0`을 사용하고 있으며 Holocene이 활성화되어 있다고 가정합니다.
+</Info>
+
+결함 증명이 활성화된 모든 체인(permissionless 및 permissioned 결함 증명 시스템 모두)은 `op-challenger` 바이너리를 [`op-challenger/v1.3.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.3.2)로 업데이트해야 합니다.
+
+다음 단계는 새 분쟁 게임(dispute game) 컨트랙트로 absolute prestate를 업데이트하는 방법입니다. **이는 permissionless 결함 증명을 운영하는 체인에 반드시 필요합니다.** permissioned 게임으로 결함 증명 시스템(Fault Proof System)을 운영하는 체인은 게임이 실제로 진행되지 않고 absolute prestate가 사용되지 않으므로 이 섹션을 건너뛸 수 있습니다.
+
+Pectra 업그레이드는 도출(derivation) 규칙을 변경하므로, permissionless 결함 증명 체인은 이러한 변경 사항을 지원하도록 결함 증명 시스템에서 사용하는 `op-program` 버전을 업그레이드해야 합니다. 사용되는 `op-program` 버전은 `FaultDisputeGame` 및 `PermissionedDisputeGame` 컨트랙트의 일부로 배포되는 `faultGameAbsolutePrestate` 설정으로 지정됩니다.
+
+<Steps>
+  <Step title="새 absolute prestate 검증">
+  absolute prestate는 [op-program/v1.5.0-rc.4](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.5.0-rc.4)로 생성됩니다(`op-program/v1.5.0-rc.4` 기준). 다음 체인에는 새 absolute prestate(`0x0354eee87a1775d96afee8977ef6d5d6bd3612b256170952a01bf1051610ee01`)를 사용할 수 있습니다.
+  
+    *   Sepolia: Base, OP, Metal, Mode, Zora, Ethernity, Unichain, Ink, Minato (Soneium)
+    *   Mainnet: Base, OP, Orderly, Lyra, Metal, Mode, Zora, Lisk, Ethernity, Binary, Ink, Unichain, Soneium
+  
+    `op-program/v1.5.0-rc.4` 태그에서 모노레포 루트에 다음 [명령](https://github.com/ethereum-optimism/optimism/blob/0026006e6a7a482332a7833876f915acb9dff4c6/Makefile#L129-L131)(`0026006` 기준)을 실행하여 이 absolute prestate를 검증할 수 있습니다.
+  
+    ```shell
+    make reproducible-prestate
+    ```
+  
+    명령이 끝날 때 다음과 같은 출력이 나와야 합니다.
+  
+    ```shell
+    Cannon Absolute prestate hash:
+    0x0354eee87a1775d96afee8977ef6d5d6bd3612b256170952a01bf1051610ee01
+    Cannon64 Absolute prestate hash:
+    0x03ee2917da962ec266b091f4b62121dc9682bb0db534633707325339f99ee405
+    CannonInterop Absolute prestate hash:
+    0x03673e05a48799e6613325a3f194114c0427d5889cefc8f423eed02dfb881f23
+    ```
+  </Step>
+
+  <Step title="새 preimage 파일 업로드">
+  이전 단계에서 absolute prestate의 preimage도 함께 생성되었습니다. 이는 기본적으로 op-program을 바이너리 파일로 직렬화한 것입니다. 새 파일은 `optimism/op-program/bin/prestate.bin.gz`에 있습니다. 파일 이름을 absolute prestate 해시로 변경하여 `0x0354eee87a1775d96afee8977ef6d5d6bd3612b256170952a01bf1051610ee01.bin.gz` 형식이 되도록 하십시오.
+  
+    이 파일을 다른 absolute preimage 파일을 저장하는 위치에 업로드하십시오. 이 위치는 `--cannon-prestates-url`이 가리키는 곳이어야 합니다. `op-challenger`는 게임에 이의를 제기해야 할 때 이 파일을 가져와 사용합니다.
+  </Step>
+
+  <Step title="새 분쟁 게임 컨트랙트 배포">
+  그런 다음 absolute prestate 값을 사용하여 새 `FaultDisputeGame` 및 `PermissionedDisputeGame` 컨트랙트를 배포합니다. [Holocene 스크립트](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.8.0-rc.4/packages/contracts-bedrock/scripts/upgrades/holocene)(`op-contracts/v1.8.0-rc.4` 기준)를 재사용하여 새 컨트랙트를 배포할 수 있습니다. 변경해야 할 유일한 부분은 [deploy-config](https://github.com/ethereum-optimism/optimism/blob/2073f4059bd806af3e8b76b820aa3fa0b42016d0/packages/contracts-bedrock/scripts/upgrades/holocene/README.md?plain=1#L53-L54)(`2073f40` 기준)의 `absolutePrestate` 값입니다. 또는 새 컨트랙트 배포에 사용할 수 있는 `OPPrestateUpdater`를 릴리스할 예정입니다.
+  </Step>
+
+  <Step title="DisputeGameFactory 업데이트">
+  그런 다음 `DisputeGameFactory.setImplementation`을 호출하여 `DisputeGameFactory`가 새 `FaultDisputeGame` 및 `PermissionedDisputeGame` 컨트랙트를 가리키도록 업데이트해야 합니다. 이 [템플릿](https://github.com/ethereum-optimism/superchain-ops/tree/main/tasks/sep/fp-recovery/005-set-game-implementation)을 활용하여 이 단계의 트랜잭션과 검증 스크립트를 생성할 수 있습니다. 실행하기 전에 op-challenger를 업데이트해야 합니다.
+  </Step>
+
+  <Step title="업그레이드 실행">
+  `op-challenger`가 새 preimage로 준비되면 "Set Dispute Game Implementation" 트랜잭션을 실행할 수 있습니다. 트랜잭션을 실행하기 전에 예상 결과를 시뮬레이션하고 검증하십시오.
+  </Step>
+</Steps>
+
+## OP Stack 포크 대상
+
+Pectra 업그레이드 이후 L1을 동기화할 수 있는 기능을 포함하는 PR을 작업하고 있습니다. L1에서 Pectra가 활성화되기 전에 새 node 릴리스의 커밋을 체인에 적용해야 합니다. PR이 완료되면 링크를 제공하겠습니다.

@@ -1,8 +1,9 @@
 use super::{
     CommittedTxGas, ExecutionInfo, OpPayloadBuilderCtx, PayloadTransactionsWithCommitHook,
-    RethPayloadTransactions, build_post_exec_recovered_tx, try_include_post_exec_tx,
+    RethPayloadTransactions, build_post_exec_recovered_tx, is_invalid_derived_payload_error,
+    try_include_post_exec_tx,
 };
-use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig};
+use crate::{OpPayloadBuilderAttributes, config::OpBuilderConfig, error::OpPayloadBuilderError};
 use alloy_consensus::{
     Header, Sealable, SignableTransaction, Transaction, TxEip1559, Typed2718,
     transaction::{Recovered, TxHashRef},
@@ -12,18 +13,23 @@ use alloy_eips::{
     eip2930::{AccessList, AccessListItem},
     eip7702::SignedAuthorization,
 };
-use alloy_evm::RecoveredTx;
+use alloy_evm::{RecoveredTx, block::BlockExecutionError as AlloyBlockExecutionError};
+use alloy_op_evm::block::OpBlockExecutionError;
 use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxHash, TxKind, U256};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
+use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_util::layers::{Layer, PrefixLayer};
 use op_alloy_consensus::{
-    POST_EXEC_PAYLOAD_VERSION, PostExecPayload, SDMGasEntry, TxDeposit, build_post_exec_tx,
+    POST_EXEC_PAYLOAD_VERSION, PostExecPayload, PostExecPayloadValidationError, SDMGasEntry,
+    TxDeposit, build_post_exec_tx,
 };
 use reth_basic_payload_builder::PayloadConfig;
 use reth_chainspec::MIN_TRANSACTION_GAS;
-use reth_evm::execute::{BlockBuilder, BlockExecutionError};
+use reth_evm::execute::{BlockBuilder, BlockExecutionError, BlockValidationError};
+use reth_metrics::metrics::with_local_recorder;
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
-use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed};
-use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed, RevertToCheckpointError};
+use reth_optimism_primitives::OpTransactionSigned;
 use reth_optimism_txpool::{
     OpPooledTransaction, OpPooledTx,
     conditional::MaybeConditionalTransaction,
@@ -35,7 +41,10 @@ use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_util::PayloadTransactionsFixed;
 use reth_primitives_traits::{Account, InMemorySize, SealedHeader};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
+use reth_storage_api::{StateProvider, errors::ProviderError};
 use reth_transaction_pool::PoolTransaction;
+use revm::context::result::{EVMError, InvalidTransaction};
+use rstest::rstest;
 use std::{borrow::Cow, cell::Cell, sync::Arc};
 
 fn entries(specs: &[(u64, u64)]) -> Vec<SDMGasEntry> {
@@ -69,11 +78,7 @@ fn interop_ctx(
     no_tx_pool: bool,
     opt_in: bool,
     embedded_post_exec: Option<Vec<SDMGasEntry>>,
-) -> OpPayloadBuilderCtx<
-    OpEvmConfig<OpChainSpec, OpPrimitives>,
-    OpChainSpec,
-    OpPayloadBuilderAttributes<OpTransactionSigned>,
-> {
+) -> OpPayloadBuilderCtx<OpEvmConfig> {
     let gas_limit = 1_000_000;
     let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().lagoon_activated().build());
     let parent = SealedHeader::seal_slow(Header {
@@ -128,11 +133,7 @@ fn unwrap_post_exec(tx: Recovered<OpTransactionSigned>) -> (u8, u64, Vec<SDMGasE
 fn payload_builder_ctx(
     chain_spec: Arc<OpChainSpec>,
     gas_limit: u64,
-) -> OpPayloadBuilderCtx<
-    OpEvmConfig<OpChainSpec, OpPrimitives>,
-    OpChainSpec,
-    OpPayloadBuilderAttributes<OpTransactionSigned>,
-> {
+) -> OpPayloadBuilderCtx<OpEvmConfig> {
     let parent = SealedHeader::seal_slow(Header {
         gas_limit,
         number: 0,
@@ -162,7 +163,7 @@ fn payload_builder_ctx(
 
 /// Signs `tx` with the test signature and wraps it as an [`OpPooledTransaction`] recovered to
 /// `signer`. Shared tail of every pool-tx helper.
-fn op_pooled_tx_from(signer: Address, tx: TxEip1559) -> OpPooledTransaction {
+pub(super) fn op_pooled_tx_from(signer: Address, tx: TxEip1559) -> OpPooledTransaction {
     let tx: OpTransactionSigned = tx.into_signed(Signature::test_signature()).into();
     let encoded_len = tx.encode_2718_len();
     OpPooledTransaction::new(Recovered::new_unchecked(tx, signer), encoded_len)
@@ -234,11 +235,7 @@ where
 }
 
 fn run_execute_best_transactions_with_ctx<T>(
-    ctx: OpPayloadBuilderCtx<
-        OpEvmConfig<OpChainSpec, OpPrimitives>,
-        OpChainSpec,
-        OpPayloadBuilderAttributes<OpTransactionSigned>,
-    >,
+    ctx: OpPayloadBuilderCtx<OpEvmConfig>,
     signer: Address,
     txs: Vec<T>,
     gas_limit_cap: Option<u64>,
@@ -258,7 +255,7 @@ where
     let best_txs = PayloadTransactionsFixed::new(txs);
 
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
@@ -336,7 +333,7 @@ fn rebuilds_derived_block_with_embedded_post_exec_tx_regardless_of_opt_in() {
 
         let state_provider = StateProviderTest::default();
         let mut db = State::builder()
-            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
             .with_bundle_update()
             .build();
         let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
@@ -364,7 +361,7 @@ fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
     let produce_ctx = interop_ctx(false, false, Some(Vec::new()));
     let provider = StateProviderTest::default();
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&provider))
+        .with_database(StateProviderDatabase::new((&provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = produce_ctx
@@ -378,7 +375,7 @@ fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
     let disabled_ctx = interop_ctx(false, true, Some(Vec::new()));
     let provider = StateProviderTest::default();
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&provider))
+        .with_database(StateProviderDatabase::new((&provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = disabled_ctx
@@ -523,7 +520,7 @@ fn execute_best_transactions_on_commit_hook_execution() {
     // Re-execute each tx that should be committed so we know the gas passed to on_commit.
     let expected_committed_gas: Vec<ReportedGas> = {
         let mut oracle_db = State::builder()
-            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
             .with_bundle_update()
             .build();
         let mut oracle = ctx.block_builder(&mut oracle_db).expect("oracle block builder");
@@ -547,7 +544,7 @@ fn execute_best_transactions_on_commit_hook_execution() {
     };
 
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
@@ -643,7 +640,7 @@ fn on_commit_reports_canonical_and_pre_refund_gas_separately_under_sdm_refund() 
     };
 
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = ctx
@@ -987,4 +984,235 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
     // build's `mark_invalid` did not permanently exclude it.
     failsafe.set(false);
     assert_eq!(build(&failsafe), vec![normal_hash, interop_hash]);
+}
+
+/// Builds a ctx rebuilding a derived block whose embedded `0x7D` tx anchors to
+/// `post_exec_anchor`. The parent is block 0, so block 1 is the only valid anchor, and Lagoon is
+/// either active from genesis or not at all.
+fn derived_ctx(lagoon_active: bool, post_exec_anchor: u64) -> OpPayloadBuilderCtx<OpEvmConfig> {
+    let spec = OpChainSpecBuilder::optimism_mainnet();
+    let spec = if lagoon_active { spec.lagoon_activated() } else { spec };
+    let chain_spec = Arc::new(spec.build());
+    let parent = SealedHeader::seal_slow(Header { number: 0, timestamp: 0, ..Default::default() });
+    let attributes = OpPayloadBuilderAttributes {
+        no_tx_pool: true,
+        timestamp: 1,
+        transactions: vec![
+            deposit_with_encoded(),
+            post_exec_with_encoded(post_exec_anchor, entries(&[(0, 1)])),
+        ],
+        ..Default::default()
+    };
+
+    OpPayloadBuilderCtx {
+        evm_config: OpEvmConfig::optimism(chain_spec.clone()),
+        builder_config: OpBuilderConfig::default(),
+        chain_spec,
+        config: PayloadConfig {
+            parent_header: Arc::new(parent),
+            parent_block_info: None,
+            payload_id: attributes.id,
+            attributes,
+        },
+        cancel: Default::default(),
+        best_payload: None,
+    }
+}
+
+/// The rules the encoded-transaction preflight cannot check — activation and the anchor — are
+/// applied when the builder parses the decoded attributes, and a rejection there reaches the
+/// same counters.
+#[rstest]
+#[case::wrong_anchor(/* lagoon_active */ true, /* post_exec_anchor */ 2, "block_number_mismatch")]
+#[case::before_activation(/* lagoon_active */ false, /* post_exec_anchor */ 1, "unexpected_post_exec_tx")]
+fn rejected_embedded_post_exec_counts_under_the_failed_rule(
+    #[case] lagoon_active: bool,
+    #[case] post_exec_anchor: u64,
+    #[case] reason: &str,
+) {
+    use crate::sdm_metrics::test_support::{FAILURES, RESULTS, recorder, series};
+
+    let (recorder, handle) = recorder();
+    let result = with_local_recorder(&recorder, || {
+        derived_ctx(lagoon_active, post_exec_anchor).post_exec_mode()
+    });
+    let exposition = handle.render();
+
+    assert!(result.is_err(), "the embedded post-exec tx is rejected");
+    assert_eq!(series(&exposition, FAILURES, "reason", reason), Some(1.0), "{exposition}");
+    assert_eq!(series(&exposition, RESULTS, "result", "fail"), Some(1.0), "{exposition}");
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("unrelated executor failure")]
+struct UnrelatedExecutionError;
+
+#[rstest]
+#[case::refund_policy_cannot_revert(
+    BlockExecutionError::other(RevertToCheckpointError::new("foreign checkpoint")),
+    false
+)]
+#[case::other_internal_error(BlockExecutionError::other(UnrelatedExecutionError), true)]
+#[case::invalid_transaction(BlockValidationError::IncrementBalanceFailed.into(), true)]
+fn sdm_production_is_disabled_only_when_the_refund_policy_cannot_revert(
+    #[case] err: BlockExecutionError,
+    #[case] expected_opt_in: bool,
+) {
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let ctx = payload_builder_ctx(chain_spec, 1_000_000);
+    ctx.builder_config.operator_sdm_opt_in.set(true);
+
+    ctx.disable_sdm_on_refund_policy_failure(&err);
+
+    assert_eq!(ctx.builder_config.operator_sdm_opt_in.enabled(), expected_opt_in);
+}
+
+/// An automatic disable is counted under its reason, so an alert can tell it from an operator
+/// calling `admin_setOperatorSdmOptIn(false)`; any other fatal error counts nothing.
+#[rstest]
+#[case::refund_policy_cannot_revert(
+    BlockExecutionError::other(RevertToCheckpointError::new("foreign checkpoint")),
+    Some(1.0)
+)]
+#[case::other_internal_error(BlockExecutionError::other(UnrelatedExecutionError), None)]
+fn automatic_disable_is_counted_by_reason(
+    #[case] err: BlockExecutionError,
+    #[case] expected_count: Option<f64>,
+) {
+    let recorder = PrometheusBuilder::new().build_recorder();
+    let handle = recorder.handle();
+    let recorder = PrefixLayer::new("reth").layer(recorder);
+    let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build());
+    let ctx = payload_builder_ctx(chain_spec, 1_000_000);
+
+    with_local_recorder(&recorder, || ctx.disable_sdm_on_refund_policy_failure(&err));
+
+    let exposition = handle.render();
+    let series = "reth_op_sdm_operator_opt_in_auto_disabled_total{reason=\"refund_policy_revert\"}";
+    let count =
+        exposition.lines().find_map(|line| line.strip_prefix(series)?.trim().parse::<f64>().ok());
+    assert_eq!(count, expected_count, "{exposition}");
+}
+
+/// Only errors caused by the payload's transactions may be classified as invalid: a state-access
+/// error reported as invalid would make the rollup node derive a wrong deposit-only block.
+#[test]
+fn derived_payload_error_classification() {
+    let validation =
+        |err: BlockValidationError| PayloadBuilderError::from(BlockExecutionError::from(err));
+    let op_execution =
+        |err: OpBlockExecutionError| validation(BlockValidationError::Other(Box::new(err)));
+    let op_payload = PayloadBuilderError::other::<OpPayloadBuilderError>;
+    let invalid_post_exec = || OpBlockExecutionError::InvalidPostExecPayload("x".into());
+    let cases = [
+        (
+            validation(BlockValidationError::InvalidTx {
+                hash: B256::ZERO,
+                error: Box::new(InvalidTransaction::NonceTooHigh { tx: 5, state: 0 }),
+            }),
+            true,
+        ),
+        (validation(BlockValidationError::BlockGasExceeded), true),
+        (
+            validation(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
+                transaction_gas_limit: 2,
+                block_available_gas: 1,
+            }),
+            true,
+        ),
+        (op_execution(invalid_post_exec()), true),
+        (
+            op_execution(OpBlockExecutionError::TransactionDaFootprintAboveGasLimit {
+                transaction_da_footprint: 2,
+                available_block_da_footprint: 1,
+            }),
+            true,
+        ),
+        (op_execution(OpBlockExecutionError::UnexpectedNonDepositTxInForkActivationBlock), true),
+        (
+            op_execution(OpBlockExecutionError::PostExecSettlementUnderflow {
+                address: Address::ZERO,
+                delta: U256::from(1),
+            }),
+            true,
+        ),
+        (PayloadBuilderError::other(alloy_rlp::Error::UnexpectedLength), true),
+        (
+            PayloadBuilderError::other(PostExecPayloadValidationError::UnexpectedPostExecTx {
+                tx_index: 0,
+            }),
+            true,
+        ),
+        (op_payload(OpPayloadBuilderError::TransactionEcRecoverFailed), true),
+        (op_payload(OpPayloadBuilderError::BlobTransactionRejected), true),
+        (op_payload(OpPayloadBuilderError::L1BlockInfoParseFailed), false),
+        (op_payload(OpPayloadBuilderError::AccountLoadFailed(Address::ZERO)), false),
+        (op_payload(OpPayloadBuilderError::ForceCreate2DeployerFail), false),
+        (PayloadBuilderError::invalid_attributes(alloy_rlp::Error::UnexpectedLength), true),
+        (PayloadBuilderError::MissingParentHeader(B256::ZERO), false),
+        // Pins only the classifier. The node test's "empty refund entries" case, rejected during
+        // pre-execution, is what catches `OpBuilder::build` reporting that error as `Internal`.
+        (
+            PayloadBuilderError::Internal(
+                BlockExecutionError::from(BlockValidationError::Other(Box::new(
+                    invalid_post_exec(),
+                )))
+                .into(),
+            ),
+            false,
+        ),
+        // The parent's state is unavailable.
+        (ProviderError::StateForHashNotFound(B256::ZERO).into(), false),
+        (BlockExecutionError::other(ProviderError::StateForHashNotFound(B256::ZERO)).into(), false),
+        // A state read fails while a transaction executes.
+        (
+            PayloadBuilderError::from(AlloyBlockExecutionError::evm(
+                EVMError::<ProviderError, InvalidTransaction>::Database(
+                    ProviderError::StateForHashNotFound(B256::ZERO),
+                ),
+                B256::ZERO,
+            )),
+            false,
+        ),
+    ];
+
+    for (err, expected) in cases {
+        assert_eq!(is_invalid_derived_payload_error(&err), expected, "{err:?}");
+    }
+}
+
+/// A derived block must be reproduced exactly, so an invalid transaction in its attributes fails
+/// the rebuild. A sequencer's own block skips it instead.
+#[test]
+fn invalid_forced_transaction_fails_only_a_derived_rebuild() {
+    let tx = TxEip1559 {
+        chain_id: 10,
+        nonce: 5,
+        gas_limit: MIN_TRANSACTION_GAS,
+        max_fee_per_gas: 1,
+        to: TxKind::Call(Address::ZERO),
+        ..Default::default()
+    };
+    let tx = OpTransactionSigned::Eip1559(tx.into_signed(Signature::test_signature()));
+    let invalid = WithEncoded::new(Bytes::from(tx.encoded_2718()), tx);
+
+    for no_tx_pool in [false, true] {
+        let mut ctx = interop_ctx(no_tx_pool, false, None);
+        ctx.config.attributes.transactions = vec![deposit_with_encoded(), invalid.clone()];
+        let state_provider = StateProviderTest::default();
+        let mut db = State::builder()
+            .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
+            .with_bundle_update()
+            .build();
+        let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
+
+        let result = ctx.execute_sequencer_transactions(&mut builder, None);
+
+        if no_tx_pool {
+            let err = result.expect_err("a derived rebuild must fail on an invalid transaction");
+            assert!(is_invalid_derived_payload_error(&err), "{err:?}");
+        } else {
+            assert!(result.is_ok(), "a sequencer skips an invalid forced transaction: {result:?}");
+        }
+    }
 }

@@ -2,7 +2,7 @@
 
 use crate::InteropProvider;
 use alloc::vec::Vec;
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, U256};
 use core::fmt::Debug;
 use kona_registry::HashMap;
 use thiserror::Error;
@@ -46,6 +46,15 @@ pub enum MessageGraphError<E: Debug> {
         /// The actual message hash
         actual: B256,
     },
+    /// The committed log at the message's index does not have the message's origin and payload
+    /// hash.
+    #[error("Log {log_index} on chain ID {chain_id} does not match the message")]
+    InvalidMessageLog {
+        /// The remote chain ID
+        chain_id: u64,
+        /// The log index
+        log_index: u64,
+    },
     /// Invalid message timestamp
     #[error("Invalid message timestamp. Expected {expected}, got {actual}")]
     InvalidMessageTimestamp {
@@ -53,6 +62,15 @@ pub enum MessageGraphError<E: Debug> {
         expected: u64,
         /// The actual timestamp
         actual: u64,
+    },
+    /// The message identifier's block number is not the block the initiating chain produced at
+    /// the identifier's timestamp.
+    #[error("Invalid message block number {block_number} for initiating timestamp {timestamp}")]
+    InvalidMessageBlockNumber {
+        /// The block number claimed by the message identifier.
+        block_number: U256,
+        /// The initiating timestamp claimed by the message identifier.
+        timestamp: u64,
     },
     /// Interop has not been activated for at least one block on the initiating message's chain.
     #[error(

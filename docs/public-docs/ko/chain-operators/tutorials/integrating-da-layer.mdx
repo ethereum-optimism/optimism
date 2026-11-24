@@ -1,0 +1,44 @@
+---
+title: Alt-DA로 새 DA 계층 통합하기
+description: OP Stack에 새 DA 계층 지원을 추가하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+<Info>
+  Alt-DA Mode 기능은 현재 MIT 라이선스 OP Stack 내에서 <strong>베타</strong> 단계입니다. 베타 기능은 Optimism Collective 핵심 기여자들이 구축하고 검토하며, 많은 요청을 받은 구성을 개발자가 조기에 사용할 수 있도록 제공합니다.
+  이러한 기능은 안정성 문제가 발생할 수 있으며, 초기 사용자의 피드백을 환영합니다.
+</Info>
+
+[Alt-DA Mode](/ko/op-stack/features/experimental/alt-da-mode)를 사용하면 커밋먼트 유형에 관계없이 모든 DA 계층을 OP Stack에 원활하게 통합할 수 있습니다. DA 계층용 DA Server가 구축되면, 모든 체인 운영자가 해당 DA 계층을 사용하여 지속적으로 낮은 비용으로 OP Stack 체인을 시작할 수 있습니다.
+
+## DA server 구축하기
+
+각 DA 계층이 OP Labs 팀의 지원을 받으며 자체 DA Server를 구축하고 유지 관리할 것을 권장합니다. DA Server는 모든 노드 운영자가 실행해야 하므로, DA Server를 오픈 소스로 공개하고 MIT 라이선스를 적용할 것을 적극 권장합니다.
+
+<Steps>
+  <Step title="커밋먼트 바이너리 인코딩 설계">
+  *   DA 계층의 데이터를 가리켜야 합니다(예: 블록 높이 / 해시).
+    *   반환된 데이터를 검증할 수 있어야 합니다(즉, 해시, 머클 증명, 다항식 커밋먼트와 같은 데이터에 대한 암호학적 커밋먼트를 포함해야 하며, 이는 복잡한 증명을 통해 블록 해시를 기준으로 수행할 수도 있습니다).
+  
+    <Info>
+      커밋먼트 제출에 대한 자세한 내용은 [스펙](https://specs.optimism.io/experimental/alt-da.html?highlight=input-commitment-submission?utm_source=op-docs&utm_medium=docs#input-commitment-submission)을 참조하십시오.
+    </Info>
+  </Step>
+
+  <Step title="da\_layer 바이트 할당받기">
+  *   [바이트](https://github.com/ethereum-optimism/specs/discussions/135)를 할당받으십시오
+  </Step>
+
+  <Step title="DA server 구현">
+  *   `get`과 `put`을 지원하는 간단한 HTTP 서버를 작성합니다
+    *   `put`은 batcher가 사용하며, 응답 본문에 커밋먼트를 담아 batcher에 반환할 수 있습니다. 데이터가 DA 계층에 제출된 것이 확인될 때까지 반환해서는 안 됩니다.
+    *   `get`은 데이터를 가져와야 합니다. 데이터를 사용할 수 없으면 `404` not found를 반환해야 합니다. 다른 오류가 있는 경우에는 다른 오류를 반환해야 합니다.
+  </Step>
+</Steps>
+
+## Alt-DA 실행하기
+[Alt-DA Mode 체인 운영 방법](/ko/chain-operators/guides/features/alt-da-mode-guide) 가이드를 따르되, S3 DA server 대신 직접 구축한 DA server를 사용하십시오.
+
+## 다음 단계
+
+*   DA Server 구현에 대한 자세한 내용은 [스펙을 참조하십시오](https://specs.optimism.io/experimental/alt-da.html?utm_source=op-docs&utm_medium=docs#da-server).

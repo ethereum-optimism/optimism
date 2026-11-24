@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
 // TestConductorClusterMembershipChanges verifies an operator can take a
@@ -15,8 +14,6 @@ import (
 // change.
 func TestConductorClusterMembershipChanges(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node conductor support is tracked by #21906")
-
 	sys := presets.NewMinimalWithConductors(t)
 
 	leader := sys.Conductors.AwaitLeader()
@@ -41,8 +38,6 @@ func TestConductorClusterMembershipChanges(gt *testing.T) {
 // untouched.
 func TestConductorRejectsStaleMembershipVersion(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnKonaNode(t, "kona-node conductor support is tracked by #21906")
-
 	sys := presets.NewMinimalWithConductors(t)
 
 	leader := sys.Conductors.AwaitLeader()

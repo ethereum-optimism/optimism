@@ -58,7 +58,7 @@ pub mod proof;
 pub mod provider;
 
 pub mod engine;
-pub use engine::EngineHandle;
+pub use engine::{CanonicalInMemoryStateProvider, EngineHandle};
 
 pub mod cursor;
 #[cfg(not(feature = "metrics"))]

@@ -236,9 +236,6 @@ func (f *FakePoS) Start() error {
 					f.log.Error("failed to finish building L1 block", "err", err)
 					continue
 				}
-				if isAmsterdam {
-					EnsureAmsterdamBlockAccessList(envelope.ExecutionPayload)
-				}
 
 				blobHashes := make([]common.Hash, 0) // must be non-nil even when empty, due to geth engine API checks
 				if envelope.BlobsBundle != nil {
