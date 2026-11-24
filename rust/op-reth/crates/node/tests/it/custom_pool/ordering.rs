@@ -1,13 +1,12 @@
 //! Behavioral tests that the pool's [`TransactionOrdering`] actually drives block composition.
 
-use super::{build_components_with_pool, funded_signers, node_test_setup, signed_transfer_raw};
+use super::{funded_signers, node_test_setup, signed_transfer_raw};
 use alloy_consensus::Transaction as _;
 use alloy_primitives::B256;
 use reth_e2e_test_utils::{node::NodeTestContext, transaction::TransactionTestContext};
-use reth_node_builder::{EngineNodeLauncher, NodeBuilder};
+use reth_node_builder::{EngineNodeLauncher, NodeBuilder, components::BasicPayloadServiceBuilder};
 use reth_optimism_node::{OpNode, node::OpPoolBuilder, utils::optimism_payload_attributes};
 use reth_optimism_txpool::OpPooledTransaction;
-use reth_provider::providers::BlockchainProvider;
 use reth_transaction_pool::{Priority, TransactionOrdering};
 use std::collections::HashMap;
 
@@ -50,16 +49,14 @@ async fn run_ordering_test<Ordering>(
     txs: Vec<TxSpec>,
     expected_order: Vec<TxSpec>,
 ) where
-    Ordering: TransactionOrdering<Transaction = OpPooledTransaction>,
+    Ordering: TransactionOrdering<Transaction = OpPooledTransaction> + Clone + Unpin,
 {
     let (config, db, runtime, chain_id) = node_test_setup();
-    let node_handle = NodeBuilder::new(config.clone())
+    let node = OpNode::default();
+    let payload = BasicPayloadServiceBuilder::new(node.payload_builder());
+    let node_handle = NodeBuilder::new(config)
         .with_database(db)
-        .with_types_and_provider::<OpNode, BlockchainProvider<_>>()
-        .with_components(build_components_with_pool(pool))
-        // `OpNode::add_ons()` is pre-typed to the default-ordering pool; the add-ons builder is
-        // generic over the node's components, so it specializes to this node's pool.
-        .with_add_ons(OpNode::new(Default::default()).add_ons_builder().build())
+        .node(node.with_pool(pool).with_payload(payload))
         .launch_with_fn(|builder| {
             let launcher = EngineNodeLauncher::new(
                 runtime.clone(),

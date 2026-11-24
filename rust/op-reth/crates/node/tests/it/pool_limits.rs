@@ -66,7 +66,7 @@ async fn pool_knows_the_node_limits() {
     let pool = &node_handle.node.pool;
 
     // `miner_setGasLimit` writes this handle after startup, and the pool must see it.
-    op_node.gas_limit_config.set_gas_limit(100_000);
+    op_node.builder_config().gas_limit_config.set_gas_limit(100_000);
     let tx: OpTransactionSigned = TxEip1559 {
         gas_limit: 200_000,
         to: TxKind::Call(Address::with_last_byte(0x42)),

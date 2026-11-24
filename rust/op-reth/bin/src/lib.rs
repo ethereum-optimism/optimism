@@ -33,7 +33,7 @@ pub use overrides::{OpRethArgs, OpRethOverrides};
 
 use reth_node_core::version::{RethCliVersionConsts, try_init_version_metadata};
 use reth_optimism_chainspec::{is_superchain_chain_id, superchain_block_time};
-use reth_optimism_node::{OpNode, args::RollupArgs, launch_node};
+use reth_optimism_node::{OpNode, args::RollupArgs};
 use std::{borrow::Cow, fmt};
 use tracing::{info, warn};
 
@@ -98,7 +98,7 @@ pub fn main() -> eyre::Result<()> {
 ///
 /// The global allocator is the embedding binary's: op-reth declares jemalloc in its own `main.rs`,
 /// not here.
-pub fn main_with<Ext>(overrides: OpRethOverrides<Ext>) -> eyre::Result<()>
+pub fn main_with<Ext, Node>(overrides: OpRethOverrides<Ext, Node>) -> eyre::Result<()>
 where
     Ext: clap::Args + fmt::Debug + 'static,
 {
@@ -111,7 +111,7 @@ where
         }
     }
 
-    let OpRethOverrides { version, customize } = overrides;
+    let OpRethOverrides { version, customize, launch } = overrides;
     // Install the build metadata before clap reads it during parsing.
     try_init_version_metadata(version.unwrap_or_else(op_reth_version))
         .map_err(|_| eyre::eyre!("build info is already embedded. This is a bug."))?;
@@ -121,7 +121,7 @@ where
             let node = op_node(builder.config().chain.chain.id(), rollup)?;
             let (node, hooks) = customize(builder.config_mut(), ext, node).await?;
             info!(target: "reth::cli", "Launching node");
-            launch_node(builder, node, hooks).await
+            launch(builder, node, hooks).await
         },
     )
 }

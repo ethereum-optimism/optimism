@@ -27,11 +27,11 @@ use reth_node_api::{
     PrimitivesTy, TxTy,
 };
 use reth_node_builder::{
-    BuilderContext, DebugNode, Node, NodeAdapter, NodeBuilder, NodeComponentsBuilder,
-    WithLaunchContext,
+    BuilderContext, DebugNode, DebugNodeLauncher, LaunchNode, Node, NodeAdapter, NodeBuilder,
+    NodeBuilderWithComponents, NodeHandle, RethFullAdapter, WithLaunchContext,
     components::{
-        ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
-        PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
+        Components, ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
+        PayloadBuilderBuilder, PayloadServiceBuilder, PoolBuilder, PoolBuilderConfigOverrides,
     },
     node::{FullNodeTypes, NodeTypes},
     rpc::{
@@ -175,43 +175,32 @@ impl<N> OpNodeTypes for N where
 {
 }
 
-/// Type configuration for a regular Optimism node.
+/// An Optimism node with a configurable pool builder and payload service builder.
+///
+/// The node keeps its boot-time configuration private so that its components and add-ons share
+/// the same settings and runtime handles.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct OpNode {
-    /// Additional Optimism args
-    pub args: RollupArgs,
-    /// Data availability configuration for the OP builder.
-    ///
-    /// Used to throttle the size of the data availability payloads (configured by the batcher via
-    /// the `miner_` api).
-    ///
-    /// By default no throttling is applied.
-    pub da_config: OpDAConfig,
-    /// Gas limit configuration for the OP builder.
-    /// Used to control the gas limit of the blocks produced by the OP builder.(configured by the
-    /// batcher via the `miner_` api)
-    pub gas_limit_config: OpGasLimitConfig,
-    /// Local operator opt-in for SDM `PostExec` production. Shared (via Arc clones) between the
-    /// payload builder and the `admin_setOperatorSdmOptIn` RPC handler.
-    pub operator_sdm_opt_in: OperatorSdmOptIn,
-    /// Interop failsafe gate, shared between the txpool's interop filter client (writer) and the
-    /// payload builder (reader, to exclude interop txs while it is active).
-    pub interop_failsafe: InteropFailsafe,
+pub struct OpNode<Pool = OpPoolBuilder, Payload = OpPayloadServiceBuilder> {
+    args: RollupArgs,
+    builder_config: OpBuilderConfig,
+    pool: Pool,
+    payload: Payload,
 }
 
-/// The component builder used by the stock node configuration.
+/// The component builder of an [`OpNode`] with pool builder `Pool` and payload service `Payload`.
 ///
 /// A caller that replaces the payload service through [`ComponentsBuilder::payload`] must wrap it
 /// in [`DerivedPayloadServiceBuilder`].
-pub type OpNodeComponentBuilder<Node> = ComponentsBuilder<
-    Node,
-    OpPoolBuilder,
-    DerivedPayloadServiceBuilder<OpPayloadServiceBuilder>,
-    OpNetworkBuilder,
-    OpExecutorBuilder,
-    OpConsensusBuilder,
->;
+pub type OpNodeComponentBuilder<Node, Pool = OpPoolBuilder, Payload = OpPayloadServiceBuilder> =
+    ComponentsBuilder<
+        Node,
+        Pool,
+        DerivedPayloadServiceBuilder<Payload>,
+        OpNetworkBuilder,
+        OpExecutorBuilder,
+        OpConsensusBuilder,
+    >;
 
 impl Default for OpNode {
     fn default() -> Self {
@@ -222,113 +211,31 @@ impl Default for OpNode {
 impl OpNode {
     /// Creates a new instance of the Optimism node type.
     pub fn new(args: RollupArgs) -> Self {
-        let operator_sdm_opt_in = OperatorSdmOptIn::configured(args.operator_sdm_opt_in);
-        Self {
-            args,
+        let builder_config = OpBuilderConfig {
             da_config: OpDAConfig::default(),
             gas_limit_config: OpGasLimitConfig::default(),
-            operator_sdm_opt_in,
+            operator_sdm_opt_in: OperatorSdmOptIn::configured(args.operator_sdm_opt_in),
             interop_failsafe: InteropFailsafe::default(),
-        }
+            max_uncompressed_block_size: args.max_uncompressed_block_size,
+        };
+        let pool = Self::pool_builder_from_config(&args, &builder_config);
+        let payload = Self::payload_service_from_config(&args, builder_config.clone());
+        Self { args, builder_config, pool, payload }
     }
 
-    /// Configure the data availability configuration for the OP builder.
+    /// Configure data availability throttling for the stock payload service and RPC.
     pub fn with_da_config(mut self, da_config: OpDAConfig) -> Self {
-        self.da_config = da_config;
+        self.payload.builder_config_mut().da_config = da_config.clone();
+        self.builder_config.da_config = da_config;
         self
     }
 
-    /// Configure the gas limit configuration for the OP builder.
+    /// Use the same operator gas limit in the stock pool, payload service and RPC.
     pub fn with_gas_limit_config(mut self, gas_limit_config: OpGasLimitConfig) -> Self {
-        self.gas_limit_config = gas_limit_config;
+        self.pool.gas_limit_config = gas_limit_config.clone();
+        self.payload.builder_config_mut().gas_limit_config = gas_limit_config.clone();
+        self.builder_config.gas_limit_config = gas_limit_config;
         self
-    }
-
-    /// The [`OpBuilderConfig`] this node's payload builder is configured with.
-    ///
-    /// This is the single assembly site for the payload builder's config: [`components`] and any
-    /// downstream node that replaces the payload component consume it wholesale, so they stay in
-    /// lockstep as [`OpBuilderConfig`] gains fields. Because [`OpBuilderConfig`] is not
-    /// `#[non_exhaustive]`, adding a field forces a compile error here until it is threaded
-    /// through.
-    ///
-    /// [`components`]: OpNode::components
-    pub fn builder_config(&self) -> OpBuilderConfig {
-        OpBuilderConfig {
-            da_config: self.da_config.clone(),
-            gas_limit_config: self.gas_limit_config.clone(),
-            operator_sdm_opt_in: self.operator_sdm_opt_in.clone(),
-            interop_failsafe: self.interop_failsafe.clone(),
-            max_uncompressed_block_size: self.args.max_uncompressed_block_size,
-        }
-    }
-
-    /// The pool builder configured the way every OP node's pool expects: tx-conditional support,
-    /// interop endpoints and quorum, the shared interop failsafe gate, and the shared operator gas
-    /// limit.
-    ///
-    /// Generic over the pooled-transaction type so a downstream node can start from this base and
-    /// chain [`with_ordering`](OpPoolBuilder::with_ordering) /
-    /// [`with_validator_wrapper`](OpPoolBuilder::with_validator_wrapper) to swap in a custom `T`,
-    /// ordering, or validator wrapper.
-    pub fn standard_pool_builder<T>(&self) -> OpPoolBuilder<T> {
-        OpPoolBuilder::<T>::default()
-            .with_enable_tx_conditional(self.args.enable_tx_conditional)
-            .with_interop(
-                self.args.interop_http.clone(),
-                self.args.interop_min_responses,
-                self.args.interop_safety_level,
-            )
-            .with_interop_failsafe(self.interop_failsafe.clone())
-            .with_gas_limit_config(self.gas_limit_config.clone())
-    }
-
-    /// Returns the payload builder stock components install.
-    ///
-    /// Exposed so a wrapper node that replaces only the payload *service* still builds payloads
-    /// from the same configured builder. That payload service must be wrapped in
-    /// [`DerivedPayloadServiceBuilder`].
-    pub fn payload_builder(&self) -> OpPayloadBuilder {
-        OpPayloadBuilder::new(self.args.compute_pending_block)
-            .with_builder_config(self.builder_config())
-    }
-
-    /// Returns the components for the given [`RollupArgs`].
-    ///
-    /// The payload service is wrapped in [`DerivedPayloadServiceBuilder`], which a node that
-    /// assembles its own components must keep.
-    pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
-    where
-        Node: FullNodeTypes<Types: OpNodeTypes>,
-    {
-        let RollupArgs { disable_txpool_gossip, discovery_v4, .. } = self.args;
-        ComponentsBuilder::default()
-            .node_types::<Node>()
-            .executor(OpExecutorBuilder::default())
-            .pool(self.standard_pool_builder())
-            .payload(DerivedPayloadServiceBuilder::new(OpPayloadServiceBuilder::new(
-                self.payload_builder(),
-                self.args.testing_sdm_fixed_policy,
-            )))
-            .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
-            .consensus(OpConsensusBuilder::default())
-    }
-
-    /// Returns [`OpAddOnsBuilder`] with configured arguments.
-    pub fn add_ons_builder(&self) -> OpAddOnsBuilder {
-        OpAddOnsBuilder::default()
-            .with_sequencer(self.args.sequencer.clone())
-            .with_sequencer_headers(self.args.sequencer_headers.clone())
-            .with_da_config(self.da_config.clone())
-            .with_gas_limit_config(self.gas_limit_config.clone())
-            .with_operator_sdm_opt_in(self.operator_sdm_opt_in.clone())
-            .with_enable_tx_conditional(self.args.enable_tx_conditional)
-            .with_min_suggested_priority_fee(self.args.min_suggested_priority_fee)
-            .with_historical_rpc(self.args.historical_rpc.clone())
-            .with_flashblocks(self.args.flashblocks_url.clone())
-            .with_flashblock_consensus(self.args.flashblock_consensus)
-            .with_retain_forwarded_txs(self.args.retain_forwarded_txs)
-            .with_block_time(self.args.block_time)
     }
 
     /// Instantiates the [`ProviderFactoryBuilder`] for an opstack node.
@@ -368,6 +275,121 @@ impl OpNode {
     /// ```
     pub fn provider_factory_builder() -> ProviderFactoryBuilder<Self> {
         ProviderFactoryBuilder::default()
+    }
+}
+
+impl<Pool, Payload> OpNode<Pool, Payload> {
+    /// Returns the rollup arguments used to configure this node.
+    pub const fn args(&self) -> &RollupArgs {
+        &self.args
+    }
+
+    /// Returns the stock payload configuration, including the shared runtime handles.
+    pub fn builder_config(&self) -> OpBuilderConfig {
+        self.builder_config.clone()
+    }
+
+    /// Returns a stock pool builder configured for this node.
+    ///
+    /// Use [`with_ordering`](OpPoolBuilder::with_ordering) or
+    /// [`with_validator_wrapper`](OpPoolBuilder::with_validator_wrapper) to customize it.
+    pub fn standard_pool_builder<T>(&self) -> OpPoolBuilder<T> {
+        Self::pool_builder_from_config(&self.args, &self.builder_config)
+    }
+
+    fn pool_builder_from_config<T>(
+        args: &RollupArgs,
+        config: &OpBuilderConfig,
+    ) -> OpPoolBuilder<T> {
+        OpPoolBuilder::<T>::default()
+            .with_enable_tx_conditional(args.enable_tx_conditional)
+            .with_interop(
+                args.interop_http.clone(),
+                args.interop_min_responses,
+                args.interop_safety_level,
+            )
+            .with_interop_failsafe(config.interop_failsafe.clone())
+            .with_gas_limit_config(config.gas_limit_config.clone())
+    }
+
+    /// Returns the stock payload builder configured for this node.
+    pub fn payload_builder(&self) -> OpPayloadBuilder {
+        Self::payload_builder_from_config(&self.args, self.builder_config())
+    }
+
+    const fn payload_builder_from_config(
+        args: &RollupArgs,
+        config: OpBuilderConfig,
+    ) -> OpPayloadBuilder {
+        OpPayloadBuilder {
+            compute_pending_block: args.compute_pending_block,
+            builder_config: config,
+        }
+    }
+
+    /// Returns the stock payload service configured for this node, before wrapping it in
+    /// [`DerivedPayloadServiceBuilder`].
+    pub fn payload_service(&self) -> OpPayloadServiceBuilder {
+        Self::payload_service_from_config(&self.args, self.builder_config())
+    }
+
+    const fn payload_service_from_config(
+        args: &RollupArgs,
+        config: OpBuilderConfig,
+    ) -> OpPayloadServiceBuilder {
+        OpPayloadServiceBuilder::new(
+            Self::payload_builder_from_config(args, config),
+            args.testing_sdm_fixed_policy,
+        )
+    }
+
+    /// Replaces the transaction pool builder. Start with [`Self::standard_pool_builder`] to
+    /// retain this node's settings and shared handles.
+    pub fn with_pool<NewPool>(self, pool: NewPool) -> OpNode<NewPool, Payload> {
+        let Self { args, builder_config, payload, .. } = self;
+        OpNode { args, builder_config, pool, payload }
+    }
+
+    /// Replaces the payload service. Start with [`Self::builder_config`] to retain this node's
+    /// settings and shared handles. The node wraps the service in [`DerivedPayloadServiceBuilder`].
+    pub fn with_payload<NewPayload>(self, payload: NewPayload) -> OpNode<Pool, NewPayload> {
+        let Self { args, builder_config, pool, .. } = self;
+        OpNode { args, builder_config, pool, payload }
+    }
+
+    /// Returns the configured components, including the derived payload service wrapper.
+    pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node, Pool, Payload>
+    where
+        Node: FullNodeTypes<Types: OpNodeTypes>,
+        Pool: PoolBuilder<Node, OpEvmConfig> + Clone,
+        Payload: Clone,
+        DerivedPayloadServiceBuilder<Payload>: PayloadServiceBuilder<Node, Pool::Pool, OpEvmConfig>,
+    {
+        let RollupArgs { disable_txpool_gossip, discovery_v4, .. } = self.args;
+        ComponentsBuilder::default()
+            .node_types::<Node>()
+            .executor(OpExecutorBuilder::default())
+            .pool(self.pool.clone())
+            .payload(DerivedPayloadServiceBuilder::new(self.payload.clone()))
+            .network(OpNetworkBuilder::new(disable_txpool_gossip, !discovery_v4))
+            .consensus(OpConsensusBuilder::default())
+    }
+
+    /// Returns [`OpAddOnsBuilder`] with configured arguments.
+    pub fn add_ons_builder(&self) -> OpAddOnsBuilder {
+        OpAddOnsBuilder::default()
+            .with_sequencer(self.args.sequencer.clone())
+            .with_sequencer_headers(self.args.sequencer_headers.clone())
+            .with_da_config(self.builder_config.da_config.clone())
+            .with_gas_limit_config(self.builder_config.gas_limit_config.clone())
+            .with_operator_sdm_opt_in(self.builder_config.operator_sdm_opt_in.clone())
+            .with_enable_tx_conditional(self.args.enable_tx_conditional)
+            .with_min_suggested_priority_fee(self.args.min_suggested_priority_fee)
+            .with_historical_rpc(self.args.historical_rpc.clone())
+            .with_flashblocks(self.args.flashblocks_url.clone())
+            .with_flashblock_consensus(self.args.flashblock_consensus)
+            .with_retain_forwarded_txs(self.args.retain_forwarded_txs)
+            .with_block_time(self.args.block_time)
     }
 }
 
@@ -423,138 +445,231 @@ impl std::fmt::Debug for OpLaunchHooks {
 /// Launches an OP node, optionally installing proof history, then waits for it to exit.
 ///
 /// Fails if the engine config enables state masking, which op-reth does not support.
+///
+/// Not generic on purpose: a generic launch is compiled in its caller's crate and takes about
+/// 10 GB of memory to compile. Embedders with custom builders use [`LaunchOpNode`].
 pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     node: OpNode,
     hooks: OpLaunchHooks,
 ) -> eyre::Result<(), ErrReport> {
-    // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
-    // callers that build a `NodeConfig` without that CLI.
-    eyre::ensure!(
-        builder.config().engine.num_state_masking_blocks() == 0,
-        "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
-    );
-
-    let proofs_mdbx = if node.args.proofs_history {
-        // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
-        // [`ProofsHistoryStorageArgs::resolve_storage_path`].
-        let path = node.args.history.resolve_storage_path(builder.config().datadir().as_ref());
-
-        info!(target: "reth::cli", "Using on-disk storage for proofs history");
-        let mdbx = Arc::new(
-            MdbxProofsStorage::new(&path)
-                .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
-        );
-        if mdbx.holds_only_legacy_v1_data()? {
-            eyre::bail!(
-                "Proofs storage at {} only holds legacy v1 data. Delete the proofs storage \
-                 directory (or use a fresh --proofs-history.storage-path), then run \
-                 'op-reth proofs init --proofs-history.storage-path <PATH>'.",
-                path.display()
-            );
-        }
-        Some(mdbx)
-    } else {
-        None
-    };
-    let window = node.args.proofs_history_window.window;
-    let verification_interval = node.args.proofs_history_verification_interval;
-    let prefetch_threads = node.args.proofs_history_prefetch_threads as usize;
-
-    let proofs_storage: Option<OpProofsStorage<Arc<MdbxProofsStorage>>> =
-        proofs_mdbx.clone().map(Into::into);
-
-    let mut builder = builder.node(node);
-    if let (Some(mdbx), Some(storage_exec)) = (proofs_mdbx, proofs_storage.clone()) {
-        builder = builder
-            .on_node_started(move |node| {
-                let metrics_report_interval = node.config.metrics.push_gateway_interval;
-                node.task_executor.spawn_critical_task("op-proofs-storage-metrics", async move {
-                    info!(
-                        target: "reth::cli",
-                        ?metrics_report_interval,
-                        "Starting op-proofs-storage metrics task"
-                    );
-
-                    loop {
-                        sleep(metrics_report_interval).await;
-                        mdbx.report_metrics();
-                    }
-                });
-                Ok(())
-            })
-            .install_exex("proofs-history", async move |exex_context| {
-                Ok(OpProofsExEx::builder(exex_context, storage_exec)
-                    .with_proofs_history_window(window)
-                    .with_verification_interval(verification_interval)
-                    .with_prefetch_threads(prefetch_threads)
-                    .build()
-                    .run()
-                    .boxed())
-            });
-    }
-
-    let OpLaunchHooks { extend_rpc_modules, on_node_started } = hooks;
-    let builder = builder.extend_rpc_modules(move |ctx| {
-        if let Some(storage) = proofs_storage {
-            info!(
-                target: "reth::cli",
-                "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)"
-            );
-            let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
-            let auth_api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
-            let debug_ext = DebugApiExt::new(
-                ctx.node().provider().clone(),
-                ctx.registry.eth_api().clone(),
-                storage,
-                ctx.node().task_executor().clone(),
-                ctx.node().evm_config().clone(),
-            );
-            let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
-            let auth_eth_replaced =
-                ctx.auth_module.replace_auth_methods(auth_api_ext.into_rpc())?;
-            let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
-            info!(
-                target: "reth::cli",
-                eth_replaced,
-                auth_eth_replaced,
-                debug_replaced,
-                "Proofs-history RPC overrides installed"
-            );
-        }
-        if let Some(hook) = extend_rpc_modules {
-            hook(ctx.modules, ctx.auth_module)?;
-        }
-        Ok(())
-    });
-
-    let handle = builder.launch_with_debug_capabilities().await?;
-    match handle.node.provider.database_provider_ro() {
-        Ok(provider) if !provider.cached_storage_settings().is_v2() => {
-            warn!(
-                target: "reth::cli",
-                "Storage V1 is deprecated and will be removed in January 2027. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
-            );
-        }
-        Ok(_) => {}
-        Err(err) => {
-            warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
-        }
-    }
-    if let Some(hook) = on_node_started {
-        hook(&handle.node.task_executor);
-    }
-    handle.node_exit_future.await
+    node.launch(builder, hooks).await
 }
 
-impl<N> Node<N> for OpNode
+/// Launches an [`OpNode`] with its configured pool and payload service builders.
+///
+/// The launch is compiled in the caller's crate, which takes about 10 GB of memory.
+pub trait LaunchOpNode: Sized {
+    /// Launches the node with `hooks`, then waits for it to exit.
+    fn launch(
+        self,
+        builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+        hooks: OpLaunchHooks,
+    ) -> impl Future<Output = eyre::Result<()>>;
+}
+
+/// The node adapter the CLI launches an [`OpNode`] with.
+type OpFullAdapter<Pool, Payload> = RethFullAdapter<DatabaseEnv, OpNode<Pool, Payload>>;
+
+/// The transaction pool built by `Pool` when an [`OpNode`] launches.
+type OpLaunchPool<Pool, Payload> =
+    <Pool as PoolBuilder<OpFullAdapter<Pool, Payload>, OpEvmConfig>>::Pool;
+
+/// The node components of a launched [`OpNode`].
+type OpLaunchAdapter<Pool, Payload> =
+    OpNodeAdapter<OpFullAdapter<Pool, Payload>, OpLaunchPool<Pool, Payload>>;
+
+impl<Pool, Payload> LaunchOpNode for OpNode<Pool, Payload>
+where
+    Pool: PoolBuilder<
+            OpFullAdapter<Pool, Payload>,
+            OpEvmConfig,
+            Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>>
+                      + Unpin
+                      + 'static,
+        > + Clone
+        + std::fmt::Debug
+        + Sync
+        + Unpin
+        + 'static,
+    Payload: Clone + std::fmt::Debug + Send + Sync + Unpin + 'static,
+    DerivedPayloadServiceBuilder<Payload>:
+        PayloadServiceBuilder<OpFullAdapter<Pool, Payload>, Pool::Pool, OpEvmConfig>,
+    Self: DebugNode<OpLaunchAdapter<Pool, Payload>> + OpNodeTypes,
+    DebugNodeLauncher: LaunchNode<
+            NodeBuilderWithComponents<
+                OpFullAdapter<Pool, Payload>,
+                OpNodeComponentBuilder<OpFullAdapter<Pool, Payload>, Pool, Payload>,
+                OpAddOns<OpLaunchAdapter<Pool, Payload>>,
+            >,
+            Node = NodeHandle<
+                OpLaunchAdapter<Pool, Payload>,
+                OpAddOns<OpLaunchAdapter<Pool, Payload>>,
+            >,
+        >,
+{
+    async fn launch(
+        self,
+        builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+        hooks: OpLaunchHooks,
+    ) -> eyre::Result<()> {
+        let args = &self.args;
+        // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
+        // callers that build a `NodeConfig` without that CLI.
+        eyre::ensure!(
+            builder.config().engine.num_state_masking_blocks() == 0,
+            "--engine.num-state-masking-blocks must be 0 on op-reth: state masking is not supported"
+        );
+
+        let proofs_mdbx = if args.proofs_history {
+            // Defaults to `<reth-data-dir>/historical-proofs` when not supplied — see
+            // [`ProofsHistoryStorageArgs::resolve_storage_path`].
+            let path = args.history.resolve_storage_path(builder.config().datadir().as_ref());
+
+            info!(target: "reth::cli", "Using on-disk storage for proofs history");
+            let mdbx = Arc::new(
+                MdbxProofsStorage::new(&path)
+                    .map_err(|e| eyre::eyre!("Failed to create MdbxProofsStorage: {e}"))?,
+            );
+            if mdbx.holds_only_legacy_v1_data()? {
+                eyre::bail!(
+                    "Proofs storage at {} only holds legacy v1 data. Delete the proofs storage \
+                     directory (or use a fresh --proofs-history.storage-path), then run \
+                     'op-reth proofs init --proofs-history.storage-path <PATH>'.",
+                    path.display()
+                );
+            }
+            Some(mdbx)
+        } else {
+            None
+        };
+        let window = args.proofs_history_window.window;
+        let verification_interval = args.proofs_history_verification_interval;
+        let prefetch_threads = args.proofs_history_prefetch_threads as usize;
+
+        let proofs_storage: Option<OpProofsStorage<Arc<MdbxProofsStorage>>> =
+            proofs_mdbx.clone().map(Into::into);
+
+        let mut builder = builder.node(self);
+        if let (Some(mdbx), Some(storage_exec)) = (proofs_mdbx, proofs_storage.clone()) {
+            builder = builder
+                .on_node_started(move |node| {
+                    let metrics_report_interval = node.config.metrics.push_gateway_interval;
+                    node.task_executor.spawn_critical_task(
+                        "op-proofs-storage-metrics",
+                        async move {
+                            info!(
+                                target: "reth::cli",
+                                ?metrics_report_interval,
+                                "Starting op-proofs-storage metrics task"
+                            );
+
+                            loop {
+                                sleep(metrics_report_interval).await;
+                                mdbx.report_metrics();
+                            }
+                        },
+                    );
+                    Ok(())
+                })
+                .install_exex("proofs-history", async move |exex_context| {
+                    Ok(OpProofsExEx::builder(exex_context, storage_exec)
+                        .with_proofs_history_window(window)
+                        .with_verification_interval(verification_interval)
+                        .with_prefetch_threads(prefetch_threads)
+                        .build()
+                        .run()
+                        .boxed())
+                });
+        }
+
+        let OpLaunchHooks { extend_rpc_modules, on_node_started } = hooks;
+        let builder = builder.extend_rpc_modules(move |ctx| {
+            if let Some(storage) = proofs_storage {
+                info!(
+                    target: "reth::cli",
+                    "Installing proofs-history RPC overrides (eth_getProof, debug_executePayload)"
+                );
+                let api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                let auth_api_ext = EthApiExt::new(ctx.registry.eth_api().clone(), storage.clone());
+                let debug_ext = DebugApiExt::new(
+                    ctx.node().provider().clone(),
+                    ctx.registry.eth_api().clone(),
+                    storage,
+                    ctx.node().task_executor().clone(),
+                    ctx.node().evm_config().clone(),
+                );
+                let eth_replaced = ctx.modules.replace_configured(api_ext.into_rpc())?;
+                let auth_eth_replaced =
+                    ctx.auth_module.replace_auth_methods(auth_api_ext.into_rpc())?;
+                let debug_replaced = ctx.modules.replace_configured(debug_ext.into_rpc())?;
+                info!(
+                    target: "reth::cli",
+                    eth_replaced,
+                    auth_eth_replaced,
+                    debug_replaced,
+                    "Proofs-history RPC overrides installed"
+                );
+            }
+            if let Some(hook) = extend_rpc_modules {
+                hook(ctx.modules, ctx.auth_module)?;
+            }
+            Ok(())
+        });
+
+        let handle = builder.launch_with_debug_capabilities().await?;
+        match handle.node.provider.database_provider_ro() {
+            Ok(provider) if !provider.cached_storage_settings().is_v2() => {
+                warn!(
+                    target: "reth::cli",
+                    "Storage V1 is deprecated and will be removed in January 2027. Stop the node, then migrate to Storage V2 with `op-reth db migrate-v2` using the same chain and data-directory arguments."
+                );
+            }
+            Ok(_) => {}
+            Err(err) => {
+                warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
+            }
+        }
+        if let Some(hook) = on_node_started {
+            hook(&handle.node.task_executor);
+        }
+        handle.node_exit_future.await
+    }
+}
+
+/// The components of an [`OpNode`] whose transaction pool is `Pool`.
+type OpNodeComponents<N, Pool> = Components<
+    N,
+    NetworkHandle<BasicNetworkPrimitives<OpPrimitives, PoolPooledTx<Pool>>>,
+    Pool,
+    OpEvmConfig,
+    Arc<OpBeaconConsensus>,
+>;
+
+/// The node adapter of an [`OpNode`] whose transaction pool is `Pool`.
+type OpNodeAdapter<N, Pool> = NodeAdapter<N, OpNodeComponents<N, Pool>>;
+
+impl<N, Pool, Payload> Node<N> for OpNode<Pool, Payload>
 where
     N: FullNodeTypes<Types: OpNodeTypes>,
+    Pool: PoolBuilder<
+            N,
+            OpEvmConfig,
+            Pool: TransactionPool<Transaction: OpPooledTx<Consensus = OpTransactionSigned>>
+                      + Unpin
+                      + 'static,
+        > + Clone
+        + std::fmt::Debug
+        + Sync
+        + Unpin
+        + 'static,
+    Payload: Clone + std::fmt::Debug + Send + Sync + Unpin + 'static,
+    DerivedPayloadServiceBuilder<Payload>: PayloadServiceBuilder<N, Pool::Pool, OpEvmConfig>,
+    OpAddOns<OpNodeAdapter<N, Pool::Pool>>: NodeAddOns<OpNodeAdapter<N, Pool::Pool>>,
 {
-    type ComponentsBuilder = OpNodeComponentBuilder<N>;
+    type ComponentsBuilder = OpNodeComponentBuilder<N, Pool, Payload>;
 
-    type AddOns =
-        OpAddOns<NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>>;
+    type AddOns = OpAddOns<OpNodeAdapter<N, Pool::Pool>>;
 
     fn components_builder(&self) -> Self::ComponentsBuilder {
         Self::components(self)
@@ -565,9 +680,10 @@ where
     }
 }
 
-impl<N> DebugNode<N> for OpNode
+impl<N, Pool, Payload> DebugNode<N> for OpNode<Pool, Payload>
 where
     N: FullNodeComponents<Types = Self>,
+    Self: Node<N> + OpNodeTypes,
 {
     type RpcBlock = alloy_rpc_types_eth::Block<op_alloy_consensus::OpTxEnvelope>;
 
@@ -582,7 +698,11 @@ where
     }
 }
 
-impl NodeTypes for OpNode {
+impl<Pool, Payload> NodeTypes for OpNode<Pool, Payload>
+where
+    Pool: Clone + std::fmt::Debug + Send + Sync + Unpin + 'static,
+    Payload: Clone + std::fmt::Debug + Send + Sync + Unpin + 'static,
+{
     type Primitives = OpPrimitives;
     type ChainSpec = OpChainSpec;
     type Storage = OpStorage;
@@ -1748,6 +1868,7 @@ pub type OpNetworkPrimitives = BasicNetworkPrimitives<OpPrimitives, OpPooledTran
 mod tests {
     use super::*;
     use jsonrpsee::{RpcModule, types::ErrorObjectOwned};
+    use reth_node_builder::components::BasicPayloadServiceBuilder;
     use reth_rpc_api::IntoEngineApiRpcModule;
 
     /// Lets a plain [`RpcModule`] stand in for the engine API when building an [`AuthRpcModule`].
@@ -1854,16 +1975,65 @@ mod tests {
         assert_eq!(pool.interop_safety_level, args.interop_safety_level);
 
         assert!(!pool.interop_failsafe.enabled(), "failsafe starts disabled");
-        node.interop_failsafe.set(true);
+        node.pool.interop_failsafe.set(true);
         assert!(
             pool.interop_failsafe.enabled(),
             "pool must observe writes to the node's interop failsafe gate"
         );
-        node.interop_failsafe.set(false);
+        node.pool.interop_failsafe.set(false);
         assert!(
             !pool.interop_failsafe.enabled(),
             "pool must observe the gate being cleared, proving a single shared handle"
         );
+    }
+
+    /// A validator wrapper that is not op-reth's, standing in for an embedder's.
+    #[derive(Debug, Clone, Copy)]
+    struct OtherValidatorWrapper;
+
+    impl<Provider, T, Evm> OpValidatorWrapper<Provider, T, Evm> for OtherValidatorWrapper
+    where
+        OpTransactionValidator<Provider, T, Evm>: TransactionValidator,
+    {
+        type Validator = OpTransactionValidator<Provider, T, Evm>;
+
+        fn wrap(
+            self,
+            validator: OpTransactionValidator<Provider, T, Evm>,
+            _provider: Provider,
+        ) -> Self::Validator {
+            validator
+        }
+    }
+
+    /// Only checks the bounds: a node with a replaced pool builder and payload service can be
+    /// launched. Nothing calls the launch, so it is not compiled.
+    #[test]
+    fn custom_nodes_launch() {
+        fn assert_launches<N: LaunchOpNode>(_: &N) {}
+
+        let node = OpNode::new(RollupArgs::default());
+        let pool = node
+            .standard_pool_builder::<crate::txpool::OpPooledTransaction>()
+            .with_validator_wrapper(OtherValidatorWrapper);
+        let payload = BasicPayloadServiceBuilder::new(node.payload_builder());
+        assert_launches(&node.with_pool(pool).with_payload(payload));
+    }
+
+    #[test]
+    fn replaced_components_share_the_node_config() {
+        let node = OpNode::new(RollupArgs { enable_tx_conditional: true, ..Default::default() });
+        let pool = node
+            .standard_pool_builder::<crate::txpool::OpPooledTransaction>()
+            .with_validator_wrapper(OtherValidatorWrapper);
+        let node = node.with_pool(pool);
+
+        assert!(node.pool.enable_tx_conditional);
+        node.builder_config().interop_failsafe.set(true);
+        assert!(node.pool.interop_failsafe.enabled(), "pool shares the node's failsafe gate");
+        let gas_limit_config = node.builder_config().gas_limit_config;
+        gas_limit_config.set_gas_limit(7);
+        assert_eq!(node.pool.gas_limit_config.gas_limit(), Some(7));
     }
 
     #[test]
@@ -1882,25 +2052,33 @@ mod tests {
     }
 
     #[test]
-    fn builder_config_reflects_node_fields() {
-        // Set every node field to a non-default value so a field the accessor forgets to thread
-        // through would surface as a failed assertion below.
-        let node = OpNode::new(RollupArgs {
+    fn builder_config_matches_stock_components() {
+        let mut node = OpNode::new(RollupArgs {
             max_uncompressed_block_size: Some(7_340_032),
             operator_sdm_opt_in: true,
             ..Default::default()
-        });
-        node.da_config.set_max_da_size(100, 200);
-        node.gas_limit_config.set_gas_limit(30_000_000);
-        node.interop_failsafe.set(true);
-
+        })
+        .with_da_config(OpDAConfig::new(100, 200))
+        .with_gas_limit_config(OpGasLimitConfig::new(30_000_000));
+        node.pool.interop_failsafe.set(true);
+        let add_ons = node.add_ons_builder();
         let cfg = node.builder_config();
+
+        add_ons.gas_limit_config.unwrap().set_gas_limit(29_000_000);
+        assert_eq!(node.pool.gas_limit_config.gas_limit(), Some(29_000_000));
+        assert_eq!(
+            node.payload.builder_config_mut().gas_limit_config.gas_limit(),
+            Some(29_000_000)
+        );
+
+        add_ons.da_config.unwrap().set_max_block_size(300);
+        assert_eq!(node.payload.builder_config_mut().da_config.max_da_block_size(), Some(300));
 
         assert_eq!(cfg.max_uncompressed_block_size, Some(7_340_032));
         assert_eq!(cfg.da_config.max_da_tx_size(), Some(100));
-        assert_eq!(cfg.da_config.max_da_block_size(), Some(200));
+        assert_eq!(cfg.da_config.max_da_block_size(), Some(300));
         assert!(cfg.constrained_da_config().is_some());
-        assert_eq!(cfg.gas_limit_config.gas_limit(), Some(30_000_000));
+        assert_eq!(cfg.gas_limit_config.gas_limit(), Some(29_000_000));
         assert!(cfg.operator_sdm_opt_in.enabled());
         assert!(cfg.interop_failsafe.enabled());
     }
@@ -1910,7 +2088,7 @@ mod tests {
         let node = OpNode::new(RollupArgs::default());
         let cfg = node.builder_config();
 
-        node.da_config.set_max_da_size(1, 2);
+        node.add_ons_builder().da_config.unwrap().set_max_da_size(1, 2);
 
         assert_eq!(
             cfg.da_config.max_da_block_size(),
@@ -1928,13 +2106,13 @@ mod tests {
         let node = OpNode::new(RollupArgs::default());
         let cfg = node.builder_config();
 
-        node.interop_failsafe.set(true);
+        node.pool.interop_failsafe.set(true);
         assert!(
             cfg.interop_failsafe.enabled(),
             "builder_config must carry the node's live interop failsafe handle, not a detached copy"
         );
 
-        node.interop_failsafe.set(false);
+        node.pool.interop_failsafe.set(false);
         assert!(
             !cfg.interop_failsafe.enabled(),
             "builder_config must observe the failsafe being cleared, proving one shared handle"
@@ -1947,7 +2125,7 @@ mod tests {
         let node = OpNode::new(RollupArgs::default());
         let cfg = node.builder_config();
 
-        node.operator_sdm_opt_in.set(true);
+        node.add_ons_builder().operator_sdm_opt_in.unwrap().set(true);
 
         assert!(
             cfg.operator_sdm_opt_in.enabled(),

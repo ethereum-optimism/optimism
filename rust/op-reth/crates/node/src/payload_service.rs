@@ -1,6 +1,8 @@
 //! OP payload-service configuration.
 //!
-//! Normal launches delegate to [`BasicPayloadServiceBuilder`] with the stock EVM configuration.
+//! Normal launches delegate to
+//! [`BasicPayloadServiceBuilder`](reth_node_builder::components::BasicPayloadServiceBuilder)
+//! with the stock EVM configuration.
 //! The hidden, default-off SDM testing control replaces that configuration once, when the payload
 //! service is constructed, so policy selection never occurs during transaction execution.
 
@@ -15,6 +17,7 @@ use reth_node_builder::{
     components::{BasicPayloadServiceBuilder, PayloadBuilderBuilder, PayloadServiceBuilder},
 };
 use reth_optimism_evm::{OpEvmConfig, OpEvmFactory, OpTx, PostExecEvmFactoryAdapter};
+use reth_optimism_payload_builder::config::OpBuilderConfig;
 use reth_payload_builder::PayloadBuilderHandle;
 use reth_transaction_pool::TransactionPool;
 /// EVM configuration used only by the fixed SDM test policy.
@@ -46,6 +49,10 @@ impl OpPayloadServiceBuilder {
         testing_sdm_fixed_policy: Option<Option<Address>>,
     ) -> Self {
         Self { payload_builder, testing_sdm_fixed_policy }
+    }
+
+    pub(crate) const fn builder_config_mut(&mut self) -> &mut OpBuilderConfig {
+        &mut self.payload_builder.builder_config
     }
 }
 
