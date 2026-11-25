@@ -9,7 +9,7 @@ run_case() {
   local expected=$2
   local root
   root=$(mktemp -d)
-  mkdir -p "$root/ops/prestate-reproducibility" "$root/bin" "$root/rust/kona/sp1"
+  mkdir -p "$root/ops/prestate-reproducibility" "$root/bin"
   cp "$SOURCE_DIR/build-prestates.sh" "$root/ops/prestate-reproducibility/"
   cat > "$root/bin/git" << 'STUB'
 #!/usr/bin/env bash
@@ -92,7 +92,7 @@ case "$1" in
         [[ "$TEST_SCENARIO" != "zero-vkey" ]] || hash=0x0000000000000000000000000000000000000000000000000000000000000000
         printf 'super-aggregation = "%s"\n' "$hash" > elf/vkeys.toml
         case "$TEST_SCENARIO" in
-          log-commitment|log-vkey-mismatch|pin-mismatch)
+          log-commitment|log-vkey-mismatch)
             printf 'elf' > elf/log-commitment-elf
             printf 'log-commitment = "%s"\n' "$hash" >> elf/vkeys.toml ;;
           log-missing-elf) printf 'log-commitment = "%s"\n' "$hash" >> elf/vkeys.toml ;;
@@ -106,8 +106,10 @@ case "$1" in
         esac
         [[ "$TEST_SCENARIO" != "test-build-marker" ]] || printf 'git_sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test"\n' >> elf/vkeys.toml
         [[ "$TEST_SCENARIO" != "duplicate-vkey" ]] || printf 'super-aggregation = "%s"\n' "$hash" >> elf/vkeys.toml ;;
+      "just --show")
+        [[ "$TEST_SCENARIO" == "verify-elfs" || "$TEST_SCENARIO" == "pin-mismatch" ]] ;;
       "just verify-elfs")
-        printf '%s %s\n' "$PWD" "$3" >> "$TEST_ROOT/verify.calls"
+        printf '%s\n' "$PWD" >> "$TEST_ROOT/verify.calls"
         [[ "$TEST_SCENARIO" != "pin-mismatch" ]] || { echo 'FAIL: super-range-elf embeds the log-commitment vkey 0 times' >&2; exit 1; } ;;
       "cargo metadata")
         [[ "$TEST_SCENARIO" != "failed-metadata" ]] || exit 1
@@ -221,14 +223,14 @@ STUB
       cat "$root/output"
       exit 1
     }
-  elif [[ "$scenario" == "log-commitment" ]]; then
-    grep -Eq "^$root/rust/kona/sp1 .*/optimism/rust/kona/sp1/elf\$" "$root/verify.calls" || {
-      echo 'verify-elfs did not run on the rebuilt guest set' >&2
+  elif [[ "$scenario" == "verify-elfs" ]]; then
+    grep -q '/optimism/rust/kona/sp1$' "$root/verify.calls" || {
+      echo 'verify-elfs did not run in the tag checkout' >&2
       exit 1
     }
   elif [[ "$scenario" == "success" ]]; then
     [[ ! -f "$root/verify.calls" ]] || {
-      echo 'verify-elfs ran on a tag without the log-commitment guest' >&2
+      echo 'verify-elfs ran on a tag without the recipe' >&2
       exit 1
     }
   elif [[ "$scenario" == "symlink-parent" ]]; then
@@ -242,6 +244,7 @@ STUB
 
 run_case success success
 run_case log-commitment success
+run_case verify-elfs success
 run_case zero zero
 run_case sudo-fails success
 run_case symlink-parent success

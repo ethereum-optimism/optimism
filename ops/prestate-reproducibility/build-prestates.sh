@@ -211,8 +211,10 @@ function build_kona_sp1() {
       fail_kona_sp1 "$version" "manifest log-commitment vkey ${log_hash} differs from ELF vkey ${derived}"
       return 1
     fi
-    # Uses this checkout's recipe, which older tags lack.
-    if ! (cd "${REPO_ROOT}/rust/kona/sp1" && mise exec -- just verify-elfs "${WORKTREE_DIR}/rust/kona/sp1/elf") 2>&1 | tee -a "$log_file"; then
+  fi
+  # Tags from before the verify-elfs recipe skip the pin check.
+  if (cd rust/kona/sp1 && mise exec -- just --show verify-elfs) > /dev/null 2>&1; then
+    if ! (cd rust/kona/sp1 && mise exec -- just verify-elfs) 2>&1 | tee -a "$log_file"; then
       fail_kona_sp1 "$version" "guest ELFs do not pin each other's vkeys"
       return 1
     fi
