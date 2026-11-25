@@ -67,18 +67,21 @@ func TestChallengedValidProposalAnchors(gt *testing.T) {
 	sys.AnchorStateRegistry(sys.L2ChainA).WaitForAnchorRootAtLeast(game)
 }
 
-// TestProposerDefendsForeignValidGame proves, resolves, and claims prover
-// credit on a challenged valid game that the proposer did not create.
-func TestProposerDefendsForeignValidGame(gt *testing.T) {
-	t := devtest.SerialT(gt)
-	// The honest challenger resolves games and claims credit on the
-	// proposer's behalf; disable it so every assertion below binds to the
-	// proposer.
-	sys := presets.NewSimpleInterop(t, presets.WithZK(), presets.WithoutHonestChallenger())
+// TestProposerDoesNotDefendForeignValidGame pins the defense boundary on
+// ownership: the proposer never defends a challenged game from a creator it
+// does not own, even though its claim is valid.
+func TestProposerDoesNotDefendForeignValidGame(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	// The honest challenger resolves games; disable it so only the test and the proposer act on them.
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
+		presets.WithoutHonestChallenger(),
+		presets.WithoutHonestProposer(),
+	)
 	factory := sys.DisputeGameFactory()
-	proposerAddr := zkProposerAddress(t, sys)
-	weth := factory.DelayedWETH(factory.ZKGameImpl().Args.Weth)
 	creator, challenger := fundedActors(sys)
+	proposer := sys.StartZKProposer()
 
 	// The DSL derives a valid claim from the supernode. Use an off-grid
 	// timestamp to avoid a factory UUID collision with the proposer's game,
@@ -87,13 +90,48 @@ func TestProposerDefendsForeignValidGame(gt *testing.T) {
 	foreignTimestamp := proposerGame.L2SequenceNumber() + 1
 	factory.WaitForSafeSuperRootAfter(foreignTimestamp)
 	game := factory.StartZKGame(creator, proofs.WithL2SequenceNumber(foreignTimestamp))
+	game.Challenge(challenger)
+
+	// The proposer creates at most one game per loop tick, so the second game it
+	// creates after the challenge comes from a tick that saw the challenged game.
+	factory.WaitForZKGameAtIndex(factory.GameCount() + 1)
+	proposer.VerifyState(zkproposer.DefenseTasksSpawned(0))
+	t.Require().Equal(proofs.ZKProposalChallenged, game.ProposalStatus(),
+		"the proposer must not prove a foreign game")
+}
+
+// TestProposerDefendsListedCreatorGame proves, resolves, and claims prover
+// credit on a challenged valid game from a creator listed in
+// OP_ZK_PROPOSER_OWNED_CREATORS, the key-rotation path.
+func TestProposerDefendsListedCreatorGame(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	// The honest challenger resolves games and claims credit on the
+	// proposer's behalf; disable it so every assertion below binds to the
+	// proposer.
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+		presets.WithZKProposerOption(sysgo.WithZKOwnedCreator(ownedCreatorKey)),
+	)
+	factory := sys.DisputeGameFactory()
+	proposerAddr := zkProposerAddress(t, sys)
+	weth := factory.DelayedWETH(factory.ZKGameImpl().Args.Weth)
+	creator := ownedCreator(t, sys)
+	challenger := sys.FunderL1.NewFundedEOA(eth.OneEther)
+
+	// The DSL derives a valid claim from the supernode. Use an off-grid
+	// timestamp to avoid a factory UUID collision with the proposer's game,
+	// which would have the same claim and extraData.
+	proposerGame := factory.WaitForZKGameAtIndex(0)
+	listedTimestamp := proposerGame.L2SequenceNumber() + 1
+	factory.WaitForSafeSuperRootAfter(listedTimestamp)
+	game := factory.StartZKGame(creator, proofs.WithL2SequenceNumber(listedTimestamp))
 	challengerBond := game.ChallengerBond()
 	challengedClaim := game.Challenge(challenger)
 	t.Require().Equal(challenger.Address(), challengedClaim.Challenger)
 
-	// The proposer's defense set is prestate-based, not creator-based: it
-	// proves the foreign game and its resolution task resolves it; the test
-	// never calls prove or resolve itself.
+	// The proposer proves the listed creator's game and its resolution task
+	// resolves it; the test never calls prove or resolve itself.
 	game.WaitForProposalStatus(proofs.ZKProposalChallengedAndValidProofProvided)
 	t.Require().Equal(proposerAddr, game.ClaimData().Prover)
 	game.WaitForGameStatus(gameTypes.GameStatusDefenderWon)
@@ -110,26 +148,29 @@ func TestProposerDefendsForeignValidGame(gt *testing.T) {
 	game.WaitForClaimedCredit(proposerAddr)
 }
 
-// TestProposerIgnoresInvalidChallengedGame pins the defense boundary: the
-// proposer defends only games whose claims re-derive against its supernode.
-// A foreign proposal with a corrupted output root is challenged, and the
-// proposer must never submit a proof for it - even though the game carries
-// the prestate it can prove - so the challenge wins at the deadline by
-// forfeit.
+// TestProposerIgnoresInvalidChallengedGame pins the defense boundary on
+// validity: the proposer refuses to defend an invalid game even from a creator
+// it owns. A challenged proposal with a corrupted output root must never get a
+// proof, so the challenge wins at the deadline by forfeit.
 func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// The honest challenger would race the test's own challenge; disable it
 	// so the scenario stays deterministic.
-	sys := presets.NewSimpleInterop(t, presets.WithZK(), presets.WithoutHonestChallenger())
+	sys := presets.NewSimpleInterop(t,
+		presets.WithZK(),
+		presets.WithoutHonestChallenger(),
+		presets.WithZKProposerOption(sysgo.WithZKOwnedCreator(ownedCreatorKey)),
+	)
 	factory := sys.DisputeGameFactory()
-	creator, challenger := fundedActors(sys)
+	creator := ownedCreator(t, sys)
+	challenger := sys.FunderL1.NewFundedEOA(eth.OneEther)
 
 	// The honest proposer is live before the invalid game exists.
 	factory.WaitForZKGameAtIndex(0)
 
-	// A foreign EOA proposes a corrupted super root at an already-safe
-	// timestamp (the honest-challenger invalid-proposal recipe), and a
-	// second EOA challenges it.
+	// The owned creator proposes a corrupted super root at an already-safe
+	// timestamp (the honest-challenger invalid-proposal recipe), and another
+	// EOA challenges it.
 	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 	timestamp, outputRoots := factory.WaitForSafeSuperRootAfter(anchorSequence)
 	t.Require().NotEmpty(outputRoots)
@@ -144,7 +185,8 @@ func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 
 	// With no proof by the deadline, the challenger wins by forfeit.
 	// Resolution is permissionless; the test resolves since the honest
-	// challenger is disabled and the proposer does not own the game.
+	// challenger is disabled and the proposer resolves a listed creator's
+	// game only when it wins.
 	advanceL1To(&sys.SingleChainInterop, game.ClaimData().Deadline+1)
 	game.Resolve(challenger)
 	t.Require().Equal(gameTypes.GameStatusChallengerWon, game.GameStatus())
@@ -153,7 +195,7 @@ func TestProposerIgnoresInvalidChallengedGame(gt *testing.T) {
 }
 
 // TestProposerDefendsMultipleChallengedGames verifies that the proposer
-// detects and proves two foreign valid challenged games.
+// detects and proves two of its own games challenged together.
 func TestProposerDefendsMultipleChallengedGames(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	// The honest challenger resolves games and claims credit on the
@@ -164,13 +206,14 @@ func TestProposerDefendsMultipleChallengedGames(gt *testing.T) {
 		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
 		presets.WithoutHonestChallenger(),
 		presets.WithoutHonestProposer(),
+		presets.WithZKProposerOption(sysgo.WithZKOwnedCreator(ownedCreatorKey)),
 	)
 	factory := sys.DisputeGameFactory()
 	proposerAddr := zkProposerAddress(t, sys)
-	creator := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	creator := ownedCreator(t, sys)
 	challenger := sys.FunderL1.NewFundedEOA(eth.Ether(2))
 
-	// Create two foreign valid root games at distinct safe timestamps.
+	// Create two owned valid root games at distinct safe timestamps.
 	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 	timestampA, _ := factory.WaitForSafeSuperRootAfter(anchorSequence)
 	timestampB, _ := factory.WaitForSafeSuperRootAfter(timestampA)
