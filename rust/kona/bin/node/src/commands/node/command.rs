@@ -150,9 +150,9 @@ pub struct NodeCommand {
     #[arg(long = "interop.authority-rpc", env = "KONA_NODE_INTEROP_AUTHORITY_RPC")]
     pub interop_authority_rpc: Option<Url>,
     /// File recording the interop authority epoch the node derives under, so that a restart
-    /// knows whether the authority undid verifications meanwhile. Defaults to
-    /// `<safedb.path>.authority-epoch` when a safe head database is configured; without either,
-    /// every start derives again from the finalized head once the authority answers.
+    /// knows whether the authority undid verifications meanwhile. Defaults to `authority-epoch` in
+    /// the safe head database's directory when one is configured; without either, every start
+    /// derives again from the finalized head once the authority answers.
     #[arg(long = "interop.authority-epoch-path", env = "KONA_NODE_INTEROP_AUTHORITY_EPOCH_PATH")]
     pub interop_authority_epoch_path: Option<PathBuf>,
     /// Number of L1 blocks to keep behind the L1 head before deriving L2 data.
@@ -403,15 +403,12 @@ impl NodeCommand {
     }
 
     /// The file recording the applied interop authority epoch: `--interop.authority-epoch-path`,
-    /// or else next to the safe head database.
+    /// or else in the safe head database's directory, which `RocksDB` shares with files it does
+    /// not know.
     fn authority_epoch_path(&self) -> Option<PathBuf> {
-        self.interop_authority_epoch_path.clone().or_else(|| {
-            self.safedb_path.as_ref().map(|safedb| {
-                let mut path = safedb.clone().into_os_string();
-                path.push(".authority-epoch");
-                PathBuf::from(path)
-            })
-        })
+        self.interop_authority_epoch_path
+            .clone()
+            .or_else(|| self.safedb_path.as_ref().map(|safedb| safedb.join("authority-epoch")))
     }
 
     /// Opens the safe head database when `--safedb.path` is configured.

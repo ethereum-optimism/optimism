@@ -1,8 +1,8 @@
 //! A task making derivation derive again from the finalized head.
 
 use crate::{
-    EngineClient, EngineState, ExecutableEngineTask, UndoTaskError, state::EngineSyncStateUpdate,
-    task_queue::synchronize,
+    EngineClient, EngineState, ExecutableEngineTask, SafeLabel, UndoTaskError,
+    state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use async_trait::async_trait;
 use derive_more::Constructor;
@@ -21,6 +21,10 @@ use tokio::sync::mpsc;
 /// derived block and reorgs the unsafe chain onto it. Only the labels move; the execution layer
 /// keeps its head until derivation reorgs it.
 ///
+/// A node whose local-safe head is before the verifier's activation holds no block derived with
+/// a denial, and derives every later height with the verifier's new denied blocks anyway, so
+/// nothing moves: the undo is done at once.
+///
 /// `done` hears once the forkchoice update moving the labels back succeeded. From then on the
 /// execution layer's safe block is the finalized head, so a restart also derives again from it.
 #[derive(Debug, Clone, Constructor)]
@@ -38,6 +42,14 @@ impl ExecutableEngineTask for UndoTask {
     type Error = UndoTaskError;
 
     async fn execute(&self, state: &mut EngineState) -> Result<(), UndoTaskError> {
+        let local_safe = state.sync_state.local_safe_head();
+        if let SafeLabel::Verified { activation_timestamp } = state.sync_state.safe_label() &&
+            local_safe.block_info.timestamp < activation_timestamp
+        {
+            debug!(target: "engine", local_safe = %local_safe, activation_timestamp, "Nothing to undo before the verifier's activation");
+            let _ = self.done.try_send(());
+            return Ok(());
+        }
         let Some(_) = state.sync_state.established_finalized_head() else {
             return Err(UndoTaskError::NoFinalizedHead);
         };

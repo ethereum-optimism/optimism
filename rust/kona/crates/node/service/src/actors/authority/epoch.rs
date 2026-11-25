@@ -60,7 +60,9 @@ impl AppliedEpoch {
     /// also if the file cannot be written.
     pub fn store(&self, epoch: B256) -> io::Result<()> {
         let written = self.path.as_ref().map_or(Ok(()), |path| {
-            let aside = path.with_extension("tmp");
+            let mut aside = path.clone().into_os_string();
+            aside.push(".new");
+            let aside = PathBuf::from(aside);
             fs::write(&aside, format!("{epoch}\n"))?;
             File::open(&aside)?.sync_all()?;
             fs::rename(&aside, path)?;
@@ -107,7 +109,7 @@ mod tests {
             AppliedEpoch::load(Some(path.clone())).unwrap().get(),
             Some(B256::repeat_byte(8))
         );
-        assert!(!path.with_extension("tmp").exists());
+        assert!(!dir.path().join("authority-epoch.new").exists());
         fs::write(&path, "not an epoch").unwrap();
         assert_eq!(AppliedEpoch::load(Some(path)).unwrap().get(), None);
     }

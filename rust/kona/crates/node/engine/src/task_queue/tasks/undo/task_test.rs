@@ -97,3 +97,27 @@ async fn undo_waits_for_a_finalized_head() {
     l1.assert_finished();
     l2.assert_finished();
 }
+
+/// Before the verifier's activation the local-safe chain holds no block derived with a denial, so
+/// the undo moves nothing and is done at once.
+#[tokio::test]
+async fn undo_before_activation_moves_nothing() {
+    let chain = chain();
+    let activation_timestamp = chain[LOCAL_SAFE as usize + 1].block_info.timestamp;
+    let mut state = TestEngineStateBuilder::new()
+        .with_safe_label(SafeLabel::Verified { activation_timestamp })
+        .with_unsafe_head(chain[UNSAFE as usize])
+        .with_local_safe_head(chain[LOCAL_SAFE as usize])
+        .with_finalized_head(chain[FINALIZED as usize])
+        .build();
+    let state_before = state;
+    let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+    let (done, mut heard) = mpsc::channel(1);
+
+    UndoTask::new(Arc::new(client), done).execute(&mut state).await.unwrap();
+
+    assert_eq!(state, state_before);
+    assert_eq!(heard.try_recv(), Ok(()));
+    l1.assert_finished();
+    l2.assert_finished();
+}
