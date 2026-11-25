@@ -39,8 +39,8 @@ use kona_providers_alloy::{
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
     AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, L1WatcherQueries, OpP2PApiServer,
-    P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminCommand,
-    SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
+    OpStackApiServer, OpStackRpc, P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder,
+    SequencerAdminCommand, SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
 };
 use kona_safedb::SafeDb;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -479,6 +479,11 @@ impl RollupNode {
         Ok(Some(ConfiguredSequencer { actor, prefetcher }))
     }
 
+    /// Whether the RPC server serves the experimental `opstack` block-building namespace.
+    fn serves_opstack_api(&self) -> bool {
+        self.rpc_builder.as_ref().is_some_and(|config| config.experimental_sequencer_api)
+    }
+
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
     /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
     async fn build_rpc_actor(
@@ -487,6 +492,7 @@ impl RollupNode {
         engine_state_rx: watch::Receiver<EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
+        opstack_rpc: Option<OpStackRpc>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
     ) -> Result<Option<RpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
@@ -505,6 +511,12 @@ impl RollupNode {
         modules
             .merge(admin_rpc.into_rpc())
             .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
+        if let Some(opstack_rpc) = opstack_rpc {
+            modules
+                .merge(opstack_rpc.into_rpc())
+                .map_err(|e| format!("Failed to register opstack module: {e:?}"))?;
+            info!(target: "rpc", "Experimental opstack block-building API enabled");
+        }
         modules
             .merge(
                 RollupRpc::new(
@@ -637,6 +649,12 @@ impl RollupNode {
             )
             .await?;
 
+        // A sequencer outside the node builds through the engine actor and gossips its signed
+        // blocks through the network actor, like the node's own sequencer.
+        let opstack_rpc = self
+            .serves_opstack_api()
+            .then(|| OpStackRpc::new(engine_actor_request_tx.clone(), signed_payload_tx.clone()));
+
         // Start the block signer before the network, so a misconfigured or unreachable remote
         // signer fails before the node binds its p2p ports.
         let signer_actor = self
@@ -696,7 +714,14 @@ impl RollupNode {
 
         let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);
         let rpc = self
-            .build_rpc_actor(l2_query_client, engine_state_rx, admin_rpc, p2p_rpc, l1_query_tx)
+            .build_rpc_actor(
+                l2_query_client,
+                engine_state_rx,
+                admin_rpc,
+                p2p_rpc,
+                opstack_rpc,
+                l1_query_tx,
+            )
             .await?;
 
         crate::service::spawn_and_wait!(

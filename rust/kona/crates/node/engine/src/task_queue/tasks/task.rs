@@ -4,7 +4,7 @@
 
 use super::{
     BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, DenyTask, FinalizeTask,
-    InsertTask, PromoteTask,
+    InsertTask, OpStackTask, PromoteTask,
 };
 use crate::{
     BuildTaskError, ConsolidateTaskError, DenyTaskError, EngineState, FinalizeTaskError,
@@ -122,6 +122,8 @@ pub enum EngineTask {
     Seal(Box<SealTask>),
     /// Imports a sequenced payload after its conductor commit has succeeded.
     Canonicalize(Box<CanonicalizeTask>),
+    /// Runs a block-building step of the `opstack` RPC namespace and answers its caller.
+    OpStack(Box<OpStackTask>),
     /// Performs consolidation on the engine state. If consolidation fails, a block is built from
     /// the payload attributes and imported instead.
     Consolidate(Box<ConsolidateTask>),
@@ -150,6 +152,7 @@ impl EngineTask {
             },
             Self::Seal(task) => task.execute(state).await?,
             Self::Canonicalize(task) => task.execute(state).await?,
+            Self::OpStack(task) => task.execute(state).await,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
             Self::Promote(task) => task.execute(state).await?,
@@ -171,6 +174,7 @@ impl EngineTask {
             Self::Finalize(_) => crate::Metrics::FINALIZE_TASK_LABEL,
             Self::Promote(_) => crate::Metrics::PROMOTE_TASK_LABEL,
             Self::Deny(_) => crate::Metrics::DENY_TASK_LABEL,
+            Self::OpStack(_) => crate::Metrics::OPSTACK_TASK_LABEL,
         }
     }
 }
@@ -183,6 +187,7 @@ impl PartialEq for EngineTask {
                 (Self::Build(_), Self::Build(_)) |
                 (Self::Seal(_), Self::Seal(_)) |
                 (Self::Canonicalize(_), Self::Canonicalize(_)) |
+                (Self::OpStack(_), Self::OpStack(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
                 (Self::Finalize(_), Self::Finalize(_)) |
                 (Self::Promote(_), Self::Promote(_)) |
@@ -206,7 +211,9 @@ impl Ord for EngineTask {
         // https://specs.optimism.io/protocol/derivation.html#forkchoice-synchronization
         //
         // - Block building jobs are prioritized above all other tasks, to give priority to the
-        //   sequencer. BuildTask handles forkchoice updates automatically.
+        //   sequencer. BuildTask handles forkchoice updates automatically. A step of an external
+        //   sequencer over the `opstack` API comes right after the import of a sequenced block,
+        //   before the node's own builds.
         // - InsertUnsafe tasks are prioritized over Consolidate tasks, to ensure that unsafe block
         //   gossip is imported promptly.
         // - Consolidate tasks are prioritized over Deny, Promote and Finalize tasks, as they
@@ -223,6 +230,7 @@ impl Ord for EngineTask {
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
             (Self::Canonicalize(_), Self::Canonicalize(_)) |
+            (Self::OpStack(_), Self::OpStack(_)) |
             (Self::Deny(_), Self::Deny(_)) |
             (Self::Promote(_), Self::Promote(_)) |
             (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
@@ -230,6 +238,9 @@ impl Ord for EngineTask {
             // Finish importing a sequenced block before starting another build.
             (Self::Canonicalize(_), _) => Ordering::Greater,
             (_, Self::Canonicalize(_)) => Ordering::Less,
+
+            (Self::OpStack(_), _) => Ordering::Greater,
+            (_, Self::OpStack(_)) => Ordering::Less,
 
             // SealBlock tasks are prioritized over all others
             (Self::Seal(_), _) => Ordering::Greater,

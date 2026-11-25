@@ -6,7 +6,7 @@ use alloy_rpc_types_engine::{
 };
 use kona_engine::{
     ConsolidateInput, DeniedBlock, EngineState, EngineSyncStateUpdate, FinalizeBlockId,
-    NoopBlockSink, ResetRequest,
+    NoopBlockSink, OpStackRequest, ResetRequest,
     test_utils::{
         RpcMock, TestEngineStateBuilder, TestRpcBlock, expect_sync_start, test_block_info,
         test_engine_client, test_l2_block, test_rpc_block,
@@ -549,4 +549,60 @@ fn verifier_finality_is_bounded_by_the_nodes_l1_finality() {
     let behind =
         VerifierHead::Verified { block: test_block_info(9).block_info.id(), timestamp: 18 };
     assert_eq!(actor.finality_target(FinalityUpdate::Verifier(behind)), None, "behind finality");
+}
+
+/// A block committed over the opstack API goes through the engine queue, and is answered once it
+/// is the unsafe head, which the node's sequencer and the RPC readers see then.
+#[tokio::test(start_paused = true)]
+async fn opstack_commit_runs_through_the_engine_queue() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let initial_head = test_block_info(0);
+    let state = TestEngineStateBuilder::new().with_unsafe_head(initial_head).build();
+    let (state_tx, state_rx) = watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(1);
+    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let (unsafe_head_tx, unsafe_head_rx) = watch::channel(initial_head);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        Some(unsafe_head_tx),
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    let payload = ExecutionPayloadV1::from_block_slow(&test_l2_block(1, initial_head.hash(), 0));
+    let imported: OpBlock =
+        OpExecutionPayloadEnvelope::V1(payload.clone()).try_into_block().unwrap();
+    let head =
+        L2BlockInfo::from_block_and_genesis(&imported, &RollupConfig::default().genesis).unwrap();
+    l2.expect_params(
+        "engine_newPayloadV2",
+        serde_json::json!([payload]),
+        PayloadStatus::from_status(PayloadStatusEnum::Valid),
+    );
+    l2.expect_forkchoice_updated(
+        forkchoice(head, initial_head, initial_head),
+        PayloadStatusEnum::Valid,
+    );
+    let (result_tx, mut result_rx) = mpsc::channel(1);
+    requests
+        .send(EngineActorRequest::OpStack(Box::new(OpStackRequest::Commit {
+            payload: Box::new(OpExecutionPayloadEnvelope::V1(payload)),
+            result_tx,
+        })))
+        .await
+        .unwrap();
+
+    // The first step takes the request, the second runs it.
+    actor.step().await.unwrap();
+    drop(requests);
+    assert!(matches!(actor.step().await, Err(EngineError::ChannelClosed)));
+
+    result_rx.recv().await.unwrap().unwrap();
+    assert_eq!(state_rx.borrow().sync_state.unsafe_head(), head);
+    assert_eq!(*unsafe_head_rx.borrow(), head);
+    l1.assert_finished();
+    l2.assert_finished();
 }

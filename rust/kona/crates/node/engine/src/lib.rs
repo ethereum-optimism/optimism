@@ -43,8 +43,9 @@ pub use task_queue::{
     ConsolidateTask, ConsolidateTaskError, DenyTask, DenyTaskError, Engine, EngineBuildError,
     EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors,
     ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask,
-    InsertTaskError, PromoteTask, PromoteTaskError, ReplaceDeniedError, SealTask, SealTaskError,
-    SynchronizeTaskError, VerifierFinality, VerifierHead, verifier_activation_timestamp,
+    InsertTaskError, OpStackTask, OpenBlockError, PromoteTask, PromoteTaskError,
+    ReplaceDeniedError, SealTask, SealTaskError, SynchronizeTaskError, VerifierFinality,
+    VerifierHead, verifier_activation_timestamp,
 };
 
 mod denied;
@@ -64,7 +65,7 @@ pub use client::{EngineClient, EngineClientError, EngineQueryClient};
 mod request;
 pub use request::{
     BuildRequest, CanonicalizeRequest, EngineActorRequest, EngineRequestError, EngineRequestResult,
-    ResetRequest, SealRequest,
+    OpStackRequest, ResetRequest, SealRequest,
 };
 
 mod versions;

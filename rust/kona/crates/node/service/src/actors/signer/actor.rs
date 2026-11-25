@@ -1,20 +1,12 @@
 use crate::NodeActor;
 use alloy_primitives::Address;
-use alloy_signer::Signature;
 use async_trait::async_trait;
 use kona_sources::{BlockSignerError, BlockSignerHandler};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
-/// A payload and the signature to gossip it with.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SignedPayload {
-    /// The payload to gossip.
-    pub payload: OpExecutionPayloadEnvelope,
-    /// The signature over the payload hash.
-    pub signature: Signature,
-}
+pub use kona_gossip::SignedPayload;
 
 /// Signs each payload the sequencer produces, in order, and passes it to the
 /// [`NetworkActor`](crate::NetworkActor) to gossip.
@@ -84,7 +76,7 @@ mod tests {
     use super::*;
     use alloy_primitives::B256;
     use alloy_rpc_types_engine::{ExecutionPayloadV1, ExecutionPayloadV3};
-    use alloy_signer::SignerSync;
+    use alloy_signer::{Signature, SignerSync};
     use alloy_signer_local::PrivateKeySigner;
     use arbitrary::Arbitrary;
     use base64::{Engine, engine::general_purpose::STANDARD};

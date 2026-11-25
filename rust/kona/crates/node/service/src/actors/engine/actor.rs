@@ -7,7 +7,8 @@ use kona_engine::{
     BuildTask, CanonicalizeTask, ConsolidateTask, DeniedBlocks, DeniedBlocksSender, DenyTask,
     Engine, EngineActorRequest, EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
     EngineTaskErrors, FinalizeBlockId, FinalizeTask, HeardDenials, ImportedBlockSink, InsertTask,
-    PromoteTask, SealTask, VerifierFinality, VerifierHead, verifier_activation_timestamp,
+    OpStackTask, PromoteTask, SealTask, VerifierFinality, VerifierHead,
+    verifier_activation_timestamp,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -487,6 +488,15 @@ where
                     payload,
                     parent,
                     result_tx,
+                    self.unsafe_head_tx.clone(),
+                    Arc::clone(&self.block_sink),
+                ))));
+            }
+            EngineActorRequest::OpStack(request) => {
+                self.engine.enqueue(EngineTask::OpStack(Box::new(OpStackTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    *request,
                     self.unsafe_head_tx.clone(),
                     Arc::clone(&self.block_sink),
                 ))));

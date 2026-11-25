@@ -60,6 +60,8 @@ impl Metrics {
     pub const PROMOTE_TASK_LABEL: &str = "promote";
     /// Deny task label.
     pub const DENY_TASK_LABEL: &str = "deny";
+    /// Label of the task that runs a step of the `opstack` RPC namespace.
+    pub const OPSTACK_TASK_LABEL: &str = "opstack";
 
     /// Identifier for the counter that tracks the number of times the engine has been reset.
     pub const ENGINE_RESET_COUNT: &str = "kona_node_engine_reset_count";

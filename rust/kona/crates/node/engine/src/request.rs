@@ -2,11 +2,12 @@
 
 use crate::{
     BuildTaskError, CanonicalizeTaskError, ConsolidateInput, DeniedBlock, FinalizeBlockId,
-    SealTaskError, VerifierHead,
+    InsertTaskError, OpenBlockError, SealTaskError, VerifierHead,
 };
+use alloy_eips::BlockNumHash;
 use alloy_rpc_types_engine::PayloadId;
 use kona_protocol::OpAttributesWithParent;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadAttributes};
 use thiserror::Error;
 use tokio::sync::mpsc;
 
@@ -37,6 +38,8 @@ pub enum EngineActorRequest {
     Seal(Box<SealRequest>),
     /// Request to canonicalize a committed sequenced block.
     Canonicalize(Box<CanonicalizeRequest>),
+    /// Request to run a block-building step of the `opstack` RPC namespace.
+    OpStack(Box<OpStackRequest>),
 }
 
 /// The result of a request to the node engine actor.
@@ -110,4 +113,37 @@ pub struct CanonicalizeRequest {
     pub parent: kona_protocol::L2BlockInfo,
     /// The response, including any import error, is relayed to the sequencer.
     pub result_tx: mpsc::Sender<Result<(), CanonicalizeTaskError>>,
+}
+
+/// A block-building step of the `opstack` RPC namespace, through which a sequencer outside the
+/// node, such as op-test-sequencer, builds blocks on it. Each step sends its outcome on its
+/// channel.
+#[derive(Debug, Clone)]
+pub enum OpStackRequest {
+    /// Starts building a block with the attributes on the parent, which can be any block the
+    /// execution layer has.
+    Open {
+        /// The block to build on.
+        parent: BlockNumHash,
+        /// The attributes of the block to build.
+        attributes: Box<OpPayloadAttributes>,
+        /// The channel on which the build's payload ID, or the failure, is sent.
+        result_tx: mpsc::Sender<Result<PayloadId, OpenBlockError>>,
+    },
+    /// Fetches the payload of a build, without importing it.
+    GetPayload {
+        /// The payload ID of the build.
+        payload_id: PayloadId,
+        /// The timestamp of the block being built, which selects the Engine API version.
+        timestamp: u64,
+        /// The channel on which the payload, or the failure, is sent.
+        result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+    },
+    /// Imports a payload and makes it the unsafe head.
+    Commit {
+        /// The payload to import.
+        payload: Box<OpExecutionPayloadEnvelope>,
+        /// The channel on which the outcome of the import is sent.
+        result_tx: mpsc::Sender<Result<(), InsertTaskError>>,
+    },
 }

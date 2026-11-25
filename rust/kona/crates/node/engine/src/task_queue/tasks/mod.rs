@@ -24,6 +24,9 @@ pub use seal::{SealTask, SealTaskError};
 mod canonicalize;
 pub use canonicalize::{CanonicalizeTask, CanonicalizeTaskError};
 
+mod opstack;
+pub use opstack::{OpStackTask, OpenBlockError};
+
 mod consolidate;
 pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
 

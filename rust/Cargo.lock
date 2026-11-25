@@ -7946,10 +7946,12 @@ version = "0.3.2"
 dependencies = [
  "alloy-consensus 2.5.0",
  "alloy-eips 2.5.0",
+ "alloy-json-rpc 2.5.0",
  "alloy-primitives",
  "alloy-rpc-client",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth 2.5.0",
+ "alloy-transport",
  "async-trait",
  "derive_more 2.1.1",
  "enr 0.14.0",

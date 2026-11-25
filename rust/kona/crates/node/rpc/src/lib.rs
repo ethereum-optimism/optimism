@@ -29,11 +29,16 @@ pub use output::OutputResponse;
 mod jsonrpsee;
 pub use jsonrpsee::{
     AdminApiServer, HealthzApiServer, InteropAuthorityApiServer, MinerApiExtServer,
-    OpAdminApiServer, OpP2PApiServer, RollupNodeApiServer, SuperRootApiServer,
+    OpAdminApiServer, OpP2PApiServer, OpStackApiServer, RollupNodeApiServer, SuperRootApiServer,
 };
 
 #[cfg(feature = "client")]
-pub use jsonrpsee::{InteropAuthorityApiClient, RollupNodeApiClient, SuperRootApiClient};
+pub use jsonrpsee::{
+    InteropAuthorityApiClient, OpStackApiClient, RollupNodeApiClient, SuperRootApiClient,
+};
+
+mod opstack;
+pub use opstack::{OpStackRpc, PayloadInfo, SignedExecutionPayloadEnvelope};
 
 mod rollup;
 pub use rollup::RollupRpc;

@@ -23,6 +23,15 @@ pub struct RpcArgs {
     /// RPC listening port.
     #[arg(long = "port", alias = "rpc.port", default_value = "9545", env = "KONA_NODE_RPC_PORT")]
     pub listen_port: u16,
+    /// Serves the experimental `opstack` block-building namespace on the RPC port, through which
+    /// op-test-sequencer builds, commits and publishes blocks on the node. Like the admin API, it
+    /// is unauthenticated.
+    #[arg(
+        long = "experimental.sequencer-api",
+        default_value = "false",
+        env = "KONA_NODE_EXPERIMENTAL_SEQUENCER_API"
+    )]
+    pub experimental_sequencer_api: bool,
 }
 
 impl Default for RpcArgs {
@@ -38,7 +47,10 @@ impl From<RpcArgs> for Option<RpcBuilder> {
         if args.rpc_disabled {
             return None;
         }
-        Some(RpcBuilder { socket: SocketAddr::new(args.listen_addr, args.listen_port) })
+        Some(RpcBuilder {
+            socket: SocketAddr::new(args.listen_addr, args.listen_port),
+            experimental_sequencer_api: args.experimental_sequencer_api,
+        })
     }
 }
 
@@ -53,6 +65,7 @@ mod tests {
     #[case::disable_rpc(&["--rpc.addr", "1.1.1.1"], |args: &mut RpcArgs| { args.listen_addr = IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)); })]
     #[case::disable_rpc(&["--port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
     #[case::disable_rpc_alias(&["--rpc.port", "8743"], |args: &mut RpcArgs| { args.listen_port = 8743; })]
+    #[case::experimental_sequencer_api(&["--experimental.sequencer-api"], |args: &mut RpcArgs| { args.experimental_sequencer_api = true; })]
     fn test_parse_rpc_args(#[case] args: &[&str], #[case] mutate: impl Fn(&mut RpcArgs)) {
         let args = [&["kona-node"], args].concat();
         let cli = RpcArgs::parse_from(args);
