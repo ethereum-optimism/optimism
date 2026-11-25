@@ -58,6 +58,7 @@ var konaCapablePresets = []presetCase{
 // skip before it starts anything.
 var konaOnlyPresets = []presetCase{
 	{"NewTwoL2Lokahi", func(t devtest.T) { NewTwoL2Lokahi(t) }},
+	{"NewTwoL2LokahiWithInteropDelay", func(t devtest.T) { NewTwoL2LokahiWithInteropDelay(t, 0) }},
 }
 
 // notPresets take a devtest.T but start nothing themselves.
