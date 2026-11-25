@@ -98,13 +98,27 @@ The [maximum input sizes](https://specs.optimism.io/protocol/lagoon/exec-engine.
 | `BLS12-381 G2 MSM` | 278,784 bytes (968 pairs) | 130,752 bytes (454 pairs) |
 | `BLS12-381 Pairing` | 156,672 bytes (408 pairs) | 130,560 bytes (340 pairs) |
 
+### Per-chain withdrawal delays
+
+The withdrawal delays are now stored per chain instead of being fixed in the contract implementations.
+After the upgrade, a chain's L1 ProxyAdmin owner can change each delay within these bounds:
+
+| Delay | Setter | Bounds |
+| --- | --- | --- |
+| Proof maturity delay | `OptimismPortal2.setProofMaturityDelaySeconds` | 1 to 7 days |
+| Dispute game finality delay | `AnchorStateRegistry.setDisputeGameFinalityDelaySeconds` | 12 hours to 3.5 days |
+| Bond withdrawal delay | `DelayedWETH.setDelay` | 12 hours to 7 days |
+
+* The upgrade carries each chain's current delays into the new contracts unchanged. Only these setters change them afterwards.
+* A new value applies at once to withdrawals that are already proven and to games that have already resolved.
+* On OP Mainnet and Unichain, the shared `AnchorStateRegistry` and `DelayedWETH` hold one finality delay and one bond withdrawal delay for both chains. Each chain's `OptimismPortal2` keeps its own proof maturity delay.
+* A shorter proof maturity delay does not make every withdrawal faster: a withdrawal also waits for its dispute game to resolve and for the finality delay.
+
 ### Other contract changes
 
 * `L2ERC721Bridge` accepts all past `OptimismMintableERC721` interface IDs. Deposits into older L2 NFT tokens that failed before can now be replayed.
 
-See the [`op-contracts/v10.0.0-rc.1` release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv10.0.0-rc.1) for the full list and contract versions.
-
-{/* TODO: op-contracts/v10.0.0-rc.1 rejects withdrawals that target the L1StandardBridge unconditionally; optimism#24011 on develop narrows that to chains with a bridge hook set. Decide whether to document it once the final v10.0.0 tag is cut, and swap the rc.1 links for the final release. */}
+See the [`op-contracts/v10.0.0` release notes](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv10.0.0) for the full list and contract versions.
 
 ### ZK proofs on OP Mainnet and Unichain
 
@@ -141,6 +155,7 @@ Update an integration if it does any of the following:
 * **Proves or finalizes withdrawals from OP Mainnet or Unichain.** After the migration, read the dispute game factory from `OptimismPortal2.disputeGameFactory()` rather than a stored address, and prove against super-root games on the shared factory, using `rootClaimByChainId(uint256)` to get the chain's output root. Prompt users with unfinalized proofs from before the migration to prove again.
 * **Uses `viem/op-stack` for withdrawals.** Upgrade to [`viem@2.58.4`](https://github.com/wevm/viem/releases/tag/viem%402.58.4) or later before the migration on your network. It reads the dispute game factory from the portal, treats the ZK dispute game (game type `10`) as a super-root game, and formats the `opGasRefund` receipt field. Earlier versions keep looking for games on the old per-chain factory, so `waitToProve` never resolves after the migration. Stop passing a hardcoded `disputeGameFactoryAddress` to viem's withdrawal actions: an explicit address overrides the one viem reads from the portal, so a stored per-chain factory address keeps pointing at the old factory after the migration. viem does not yet type transaction type `0x7D`.
 * **Parses blocks, transactions, or receipts.** Handle transaction type `0x7D` as the last transaction of a block, and the `opGasRefund` receipt field. See [What changes at Lagoon](/op-stack/features/sdm#what-changes-at-lagoon) for the transaction's shape.
+* **Shows withdrawal wait times.** Read `proofMaturityDelaySeconds()` from `OptimismPortal2` and `disputeGameFinalityDelaySeconds()` from the `AnchorStateRegistry` instead of assuming 7 days and 3.5 days. The values can differ between chains and can change for withdrawals that are already proven. The `ProofMaturityDelaySecondsSet` and `DisputeGameFinalityDelaySecondsSet` events signal a change. viem's `getTimeToFinalize` already reads both values onchain.
 * **Calls the BLS12-381 precompiles** with inputs above the new limits.
 * **Sends interop messages or ETH between OP Mainnet and Unichain.** Handle expiry with `expiredMessages(messageHash)` or the `MessageExpired` event, and refund expired ETH sends with `SuperchainETHBridge.refundETH`.
 
@@ -171,6 +186,7 @@ Upgrade your sequencer and other nodes to the Lagoon releases listed in [Node op
 | `op-zk-proposer` | To be published | Chain operators of OP Mainnet and Unichain | Runs the ZK proposer from the ZK switch. See [Configure op-zk-proposer](/chain-operators/guides/configuration/zk-proposer). |
 
 * To issue SDM rebates after activation, follow the [SDM operator guide](/chain-operators/guides/features/sequencer-defined-metering).
+* To change a withdrawal delay after the upgrade, have the L1 ProxyAdmin owner call the setters listed in [Per-chain withdrawal delays](#per-chain-withdrawal-delays). The `StandardValidator` accepts any value within the bounds. On OP Mainnet and Unichain, the finality and bond withdrawal delays are shared by both chains.
 * Lagoon is scheduled per chain in the superchain-registry and is not a superchain-wide default. Chains other than those named in this notice are not scheduled to activate Lagoon with Upgrade 22.
 
 #### For permissionless fault proof chains
@@ -179,28 +195,28 @@ Lagoon changes the fault proof program, so every permissionless chain that activ
 The hardfork does not change the respected game type. `OP_PROPOSER_GAME_TYPE` stays `9` (`SUPER_CANNON_KONA`) on a permissionless chain.
 
 * **OP Mainnet and Unichain** move to the shared `DisputeGameFactory` at the migration. Optimism sets the interop prestate onchain as part of the governed upgrade. Third-party `op-challenger` and `op-dispute-mon` operators run two sets of instances after the migration:
-  * **Keep one of each per chain on that chain's old factory.** The migration clears the old factories' game implementations, so no new games are created there, but games already in flight still resolve and pay bonds through the old `AnchorStateRegistry` and `DelayedWETH`. Set `--game-factory-address` to the old factory, and point `--superroot-rpc` at a per-chain source: the chain's op-node, or the op-supernode's `/<chainID>` path. Do not use the op-supernode's root endpoint for these instances, because it returns a super root for both chains. Retire them once their games are resolved and bonds claimed; see [Drain Pre-Migration Games and Reclaim Bonds](/chain-operators/tutorials/merge-shared-dispute-game#drain-pre-migration-games-and-reclaim-bonds) and [Tear Down After the Drain](/chain-operators/tutorials/merge-shared-dispute-game#tear-down-after-the-drain).
+  * **Keep one of each per chain on that chain's old factory.** The migration clears the old factories' game implementations, so no new games are created there, but games already in flight still resolve and pay bonds through the old `AnchorStateRegistry` and `DelayedWETH`. Set `--game-factory-address` to the old factory, and point `--superroot-rpc` at the op-supernode's `/<chainID>` path. Do not use a Light CL op-node as the source: it records safe heads without the L1 block they were derived from, so the challenger cannot tell which roots were derivable at a game's L1 head. Do not use the op-supernode's root endpoint for these instances, because it returns a super root for both chains. Retire them once their games are resolved and bonds claimed; see [Drain Pre-Migration Games and Reclaim Bonds](/chain-operators/tutorials/merge-shared-dispute-game#drain-pre-migration-games-and-reclaim-bonds) and [Tear Down After the Drain](/chain-operators/tutorials/merge-shared-dispute-game#tear-down-after-the-drain).
   * **Add one of each on the shared factory.** Read its address from `OptimismPortal2.disputeGameFactory()` once the migration has executed, set `--game-factory-address` to it, and point `--superroot-rpc` at the op-supernode's root endpoint, which derives both chains.
 
   <Warning>
     An `op-challenger` or `op-dispute-mon` configured with `--network` and no `--game-factory-address` reads the factory address from the superchain-registry compiled into the binary. Once a release ships with the registry updated to the shared factory, it moves there without any configuration change, and the old factory's in-flight games are no longer watched. Set `--game-factory-address` explicitly on every old-factory instance.
   </Warning>
-* **Other permissionless chains in the superchain registry** use the standard prestate for the Lagoon `kona-client` release. Update `op-challenger` and confirm it can fetch the new prestate.
+* **Other permissionless chains in the superchain registry** use the standard `cannon64-kona-interop` prestate for the Lagoon `kona-client` release. `SUPER_CANNON_KONA` games use the interop prestate even on chains without interop; do not use the `cannon64-kona` hash. Update `op-challenger` and confirm it can fetch the new prestate.
 * **Permissionless chains outside the superchain registry** that adopt Lagoon need a custom prestate. Build it, host it for `op-challenger`, and set it onchain in your OPCM upgrade by following the steps below.
 
-{/* TODO: fill in the Lagoon kona-client/kona-host release tag, the reviewed prestate hashes (standard and interop), and the op-challenger version once the prestate review is Compatible and the final kona tags are cut. Confirm how Ink and Soneium receive the standard prestate. */}
+{/* TODO: fill in the Lagoon kona-client/kona-host release tag, the reviewed `cannon64-kona-interop` prestate hash, and the op-challenger version once the prestate review is Compatible and the final kona tags are cut. Confirm how Ink and Soneium receive the standard prestate. */}
 
 <Steps>
   <Step title="Build or verify the absolute prestate">
     <Tabs>
       <Tab title="Standard chain configuration">
-        The standard prestate hash for the Lagoon `kona-client` release will be listed here and in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml) when the release is published.
+        The standard `cannon64-kona-interop` prestate hash for the Lagoon `kona-client` release will be listed here and in [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml) when the release is published.
 
         Check out the Lagoon `kona-client` tag in the monorepo, reproduce the prestate, and confirm the hash matches the published value:
 
         ```bash
         just reproducible-prestate-kona
-        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
         ```
       </Tab>
 
@@ -211,7 +227,7 @@ The hardfork does not change the respected game type. `OP_PROPOSER_GAME_TYPE` st
         ```bash
         KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs \
           just reproducible-prestate-kona
-        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
         ```
 
         Confirm your chain is embedded in the build. A build that silently drops your chain produces the standard hash instead.

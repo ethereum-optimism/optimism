@@ -10,7 +10,7 @@ import { SuperchainOpsPrereqs } from "/snippets/superchain-ops-prereqs.mdx"
 
 # Upgrading a Chain From Output Roots to Super Roots
 
-<Warning>This guide depends on the interop feature, which is still in development. Do not follow it on production chains.</Warning>
+<Note>This guide depends on interop, which is under active development and will be ready for production chains with [Upgrade 22](/notices/upgrade-22).</Note>
 
 This runbook walks you through upgrading a single OP Stack chain from output-root dispute games (`PERMISSIONED_CANNON`, `CANNON` or `CANNON_KONA`) to super-root dispute games (`SUPER_PERMISSIONED` or `SUPER_CANNON_KONA`). It runs as a single `opcm.upgrade` call against the chain's existing per-chain `AnchorStateRegistry` and `DisputeGameFactory`. The chain's permission model is preserved: a permissioned chain stays permissioned with `SUPER_PERMISSIONED` only; a permissionless chain runs both super game types with `SUPER_CANNON_KONA` as the respected one. Differences between the two are called out inline.
 
