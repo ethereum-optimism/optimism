@@ -405,6 +405,18 @@ func WithoutHonestChallenger() Option {
 	}
 }
 
+// WithFollowSourceCLKind starts the two-verifiers preset's sequencer and deriving verifier
+// L2CLB on kind, while the follow-source verifier L2CLC keeps the kind DEVSTACK_L2CL_KIND
+// selects. A test uses it to check that one CL follows the other.
+func WithFollowSourceCLKind(kind sysgo.MixedL2CLKind) Option {
+	return option{
+		kinds: optionKindFollowSourceCLKind,
+		applyFn: func(cfg *sysgo.PresetConfig) {
+			cfg.FollowSourceCLKind = kind
+		},
+	}
+}
+
 // WithConductorFastHealthChecks runs conductor health checks every second so
 // health-based failover reacts to sequencer failures within test timescales.
 // The default conductor preset effectively disables health monitoring (hourly

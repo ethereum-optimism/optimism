@@ -912,6 +912,10 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 		m.metr.RPCError()
 		m.l.Warn("Receipt and error are both nil", "tx", txHash)
 		return nil
+	} else if receipt.BlockNumber == nil || !receipt.BlockNumber.IsUint64() {
+		m.metr.RPCError()
+		m.l.Warn("Receipt has an invalid block number", "tx", txHash, "block", receipt.BlockNumber)
+		return nil
 	}
 
 	// Receipt is confirmed to be valid from this point on
@@ -924,8 +928,15 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 		m.l.Error("Unable to fetch tip", "err", err)
 		return nil
 	}
+	if tip.Number == nil || !tip.Number.IsUint64() {
+		m.metr.RPCError()
+		m.l.Error("Tip has an invalid block number", "number", tip.Number)
+		return nil
+	}
 
-	m.metr.RecordBaseFee(tip.BaseFee)
+	if tip.BaseFee != nil {
+		m.metr.RecordBaseFee(tip.BaseFee)
+	}
 
 	if blobFee, err := m.backend.BlobBaseFee(ctx); err != nil {
 		m.metr.RPCError()

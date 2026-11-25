@@ -142,7 +142,7 @@ op-node and kona must agree on each item in this section.
 
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
-| Gas limit of batch transactions (`op-batcher/batcher/driver.go`) | L1 | Fixed gas | The batcher sets the gas limit from a floor formula and does not estimate. `maxFloorDataGas` takes the larger `core.FloorDataGas` under the pre-Amsterdam and the Amsterdam rules, so the limit follows go-ethereum's draft EIP-2780 and EIP-7976 values. The cost model (`config.go`, `channel_config_provider.go`) copies those values as `amsterdamTxBaseGas` and `amsterdamCalldataFloorGasPerByte`. |
+| Gas limit of batch transactions (`op-batcher/batcher/driver.go`) | L1 | Fixed gas | The batcher sets the gas limit from a floor formula and does not estimate. `MaxFloorDataGas` takes the larger `core.FloorDataGas` under the pre-Amsterdam and the Amsterdam rules, so the limit follows go-ethereum's draft EIP-2780 and EIP-7976 values. The cost model (`config.go`, `channel_config_provider.go`) copies those values as `amsterdamTxBaseGas` and `amsterdamCalldataFloorGasPerByte`. |
 | `maxL1CalldataSize` (`op-batcher/batcher/config.go`) | L1 | Limit bound | The maximum `MaxL1TxSize` comes from `MaxTxGas` and the Amsterdam constants. |
 | Default size of calldata frames (120000 bytes) (`op-batcher/flags/flags.go`, `op-batcher/batcher/service.go`) | L1 | Limit bound | A higher calldata floor can push one frame above the EIP-7825 cap. |
 | Blob or calldata choice (`op-batcher/batcher/channel_config_provider.go`) | L1 | Copied schedule | The choice uses `TxGas`, the calldata floors, and `BlobTxBlobGasPerBlob`. The batcher finds Amsterdam from the block access list hash, not from the L1 chain config. |
@@ -262,7 +262,7 @@ search for these patterns:
 
 - `op-e2e/actions/upgrades/fjord_fork_test.go` expects an exact `getL1GasUsed` result.
 - Many `op-e2e/actions/` tests send transfers with `Gas: params.TxGas`.
-- `op-e2e/actions/helpers/l2_batcher.go` uses `TxGas` or 1,000,000 gas for batch transactions.
+- `op-e2e/actions/helpers/l2_batcher.go` uses `TxGas` for blob batches, 1,000,000 gas for a set-code batch, and op-batcher's `MaxFloorDataGas` for calldata batches.
 - `op-e2e/actions/helpers/enginetest/sequencer_smoke_test.go` expects a transfer to use exactly `TxGas`.
 - `op-e2e/system/da/da_throttling_test.go` computes gas as `21000 + len * 16`.
 - `op-e2e/system/helpers/`, `op-e2e/system/bridge/`, `op-e2e/system/fees/`, and `op-e2e/e2eutils/` use fixed gas limits.

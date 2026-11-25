@@ -47,6 +47,8 @@ func (d *jsonDecoder) Decode(v interface{}) error {
 
 type tomlDecoder struct {
 	r io.Reader
+	// undecoded holds the source keys that the last Decode mapped to no field.
+	undecoded []toml.Key
 }
 
 func newTOMLDecoder(r io.Reader) Decoder {
@@ -56,9 +58,11 @@ func newTOMLDecoder(r io.Reader) Decoder {
 }
 
 func (d *tomlDecoder) Decode(v interface{}) error {
-	if _, err := toml.NewDecoder(d.r).Decode(v); err != nil {
+	md, err := toml.NewDecoder(d.r).Decode(v)
+	if err != nil {
 		return fmt.Errorf("failed to decode TOML: %w", err)
 	}
+	d.undecoded = md.Undecoded()
 	return nil
 }
 
@@ -71,12 +75,12 @@ func (d *tomlDecoder) Decode(v interface{}) error {
 // load error rather than a silently-dropped value. allowUnknown is a predicate rather than a set so
 // callers can choose how to match (slice membership, map lookup, prefix, …).
 func DecodeTOMLStrict(r io.Reader, v any, allowUnknown func(key string) bool) error {
-	md, err := toml.NewDecoder(r).Decode(v)
-	if err != nil {
-		return fmt.Errorf("failed to decode TOML: %w", err)
+	d := tomlDecoder{r: r}
+	if err := d.Decode(v); err != nil {
+		return err
 	}
 	var unknown []string
-	for _, key := range md.Undecoded() {
+	for _, key := range d.undecoded {
 		if k := key.String(); allowUnknown == nil || !allowUnknown(k) {
 			unknown = append(unknown, k)
 		}
@@ -130,6 +134,21 @@ func LoadJSON[X any](inputPath string) (*X, error) {
 
 func LoadTOML[X any](inputPath string) (*X, error) {
 	return load[X](inputPath, newTOMLDecoder)
+}
+
+// LoadTOMLWithUndecoded loads like LoadTOML and also returns the keys of the source that no field
+// of X captures, which LoadTOML drops silently. The decoder matches a key part to a field with
+// strings.EqualFold, so callers should compare key parts the same way.
+func LoadTOMLWithUndecoded[X any](inputPath string) (*X, []toml.Key, error) {
+	var d *tomlDecoder
+	value, err := load[X](inputPath, func(r io.Reader) Decoder {
+		d = &tomlDecoder{r: r}
+		return d
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return value, d.undecoded, nil
 }
 
 func load[X any](inputPath string, dec DecoderFactory) (*X, error) {

@@ -24,7 +24,7 @@ The system is optimistic: a proposal is assumed correct unless someone challenge
 
 A proposal is a claim about the state of the chain at a point in time, submitted to the `DisputeGameFactory` contract on L1. Each proposal creates a new [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game), and the proposer posts a bond with it.
 
-Every proposal is a **super root**: a single hash that commits to the output root of every chain in the chain's interop set at one timestamp. A chain that is not part of an interop set is a set of one, so the same game and the same proof system serve both cases.
+Every proposal is a **super root**: a single hash that commits to the output root of every chain in the chain's interop set at one timestamp. A chain that is not part of an interop set is a set of one, so the same game and the same proof system serve both cases. See [ZK proofs for interop sets](/op-stack/zk-proofs/interop-sets) for what changes when a set has more than one chain.
 
 Each proposal builds on an earlier one. A game names a parent game, and its claim is that the chain moved from the parent's super root to its own. The first game in a sequence builds on the anchor state recorded in the `AnchorStateRegistry`. A proof therefore only needs to cover the blocks between two proposals, not the chain's whole history.
 

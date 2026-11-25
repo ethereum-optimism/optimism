@@ -1,7 +1,7 @@
 //! Proposer service for super-root ZK dispute games.
 //!
 //! Handles super-root claims sourced from a supernode, `parentIndex || superRootProof`
-//! extra data, prestate-based ownership, two-phase `DelayedWETH` bond claims, and defense
+//! extra data, creator-plus-prestate ownership, two-phase `DelayedWETH` bond claims, and defense
 //! of challenged games in the owned set. Witness collection and native output computation
 //! live in [`proving`]; SP1 proof providers live in [`prover`].
 

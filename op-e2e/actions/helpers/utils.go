@@ -6,12 +6,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 )
 
+// L1BlockTime is the L1 block time, and the beacon slot length, that the action helpers assume.
+const L1BlockTime = 12
+
 func DefaultRollupTestParams() *e2eutils.TestParams {
 	return &e2eutils.TestParams{
 		MaxSequencerDrift:   40,
 		SequencerWindowSize: 120,
 		ChannelTimeout:      120,
-		L1BlockTime:         12, // Many of the action helpers assume a 12s L1 block time
+		L1BlockTime:         L1BlockTime,
 		AllocType:           config.DefaultAllocType,
 	}
 }

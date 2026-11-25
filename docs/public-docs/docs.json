@@ -3505,6 +3505,7 @@
                       "op-stack/zk-proofs/zk-dispute-game",
                       "op-stack/zk-proofs/proof-system",
                       "op-stack/zk-proofs/components",
+                      "op-stack/zk-proofs/interop-sets",
                       "op-stack/zk-proofs/security",
                       "op-stack/zk-proofs/reference"
                     ]
@@ -3792,7 +3793,9 @@
                       "ko/chain-operators/guides/configuration/getting-started",
                       "ko/chain-operators/guides/configuration/batcher",
                       "ko/chain-operators/guides/configuration/proposer",
-                      "ko/chain-operators/guides/configuration/op-challenger-config-guide"
+                      "ko/chain-operators/guides/configuration/op-challenger-config-guide",
+                      "ko/chain-operators/guides/configuration/zk-proposer",
+                      "ko/chain-operators/guides/configuration/zk-challenger"
                     ]
                   },
                   {
@@ -3866,7 +3869,9 @@
                       "ko/chain-operators/tutorials/kona-custom-prestate",
                       "ko/chain-operators/tutorials/dispute-games",
                       "ko/chain-operators/tutorials/migrating-permissionless",
-                      "ko/chain-operators/tutorials/merge-shared-dispute-game"
+                      "ko/chain-operators/tutorials/merge-shared-dispute-game",
+                      "ko/chain-operators/tutorials/zk-prestate",
+                      "ko/chain-operators/tutorials/migrate-to-zk-proofs"
                     ]
                   },
                   {
@@ -4493,6 +4498,18 @@
                     ]
                   },
                   {
+                    "group": "ZK 증명",
+                    "pages": [
+                      "ko/op-stack/zk-proofs/index",
+                      "ko/op-stack/zk-proofs/explainer",
+                      "ko/op-stack/zk-proofs/zk-dispute-game",
+                      "ko/op-stack/zk-proofs/proof-system",
+                      "ko/op-stack/zk-proofs/components",
+                      "ko/op-stack/zk-proofs/security",
+                      "ko/op-stack/zk-proofs/reference"
+                    ]
+                  },
+                  {
                     "group": "상호운용성",
                     "pages": [
                       "ko/op-stack/interop/index",
@@ -4559,6 +4576,7 @@
                         "pages": [
                           "ko/op-stack/components/op-proposer",
                           "ko/op-stack/components/op-challenger",
+                          "ko/op-stack/components/op-zk-proposer",
                           "ko/op-stack/components/cannon",
                           "ko/op-stack/components/kona-client",
                           "ko/op-stack/components/kona-host",

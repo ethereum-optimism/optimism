@@ -1,0 +1,73 @@
+---
+title: ZK 분쟁 게임용 op-challenger 구성
+description: ZK 증명을 사용하는 OP Stack 체인에서 op-challenger를 정직한 challenger로 실행하고, 잘못된 제안에 이의를 제기하며 게임을 resolve하는지 검증합니다.
+diataxis: how-to
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+이 가이드는 체인의 ZK 분쟁 게임(dispute game)(game type `10`)을 감시하도록 [`op-challenger`](/ko/op-stack/components/op-challenger)를 구성합니다. challenger는 각 게임에 대해 제안된 super root를 자체 super root 소스가 계산한 값과 비교하고, 다음을 수행합니다.
+
+*   제안이 잘못되었거나 부모 게임이 패배한 경우 게임에 이의를 제기(challenge)합니다.
+*   부모 게임이 resolve되고 게임이 종료되면 게임을 resolve합니다. 부모 게임이 패배한 경우에는 게임 종료를 기다리지 않고 즉시 resolve합니다.
+
+부모 게임이 패배했고 게임이 아직 challenge window 내에서 이의 제기되지 않은 상태라면, challenger는 먼저 최종 확정된(finalized) L1 블록에서 부모 게임의 결과를 확인합니다. 그런 다음 게임을 resolve하기 전에 이의를 제기하여, 게임의 bond가 `address(0)`에 적립되는 대신 challenger에게 돌아가도록 합니다.
+
+challenger는 증명을 생성하지 않습니다. 유효한 제안을 증명으로 방어하는 것은 [`op-zk-proposer`](/ko/chain-operators/guides/configuration/zk-proposer)의 역할입니다. ZK challenge는 단일 트랜잭션이므로 challenger에는 VM, prestate, trace 데이터가 필요하지 않습니다.
+
+## 시작하기 전에 {#before-you-start}
+
+다음이 필요합니다.
+
+*   **체인의 `DisputeGameFactory` 주소.**
+*   `superroot_atTimestamp`를 제공하는 **super root 소스**. interop set의 경우 [`op-supernode`](/ko/node-operators/guides/configuration/supernode)를, 단독 체인의 경우 safe head 데이터베이스(`--safedb.path`)가 활성화된 체인의 `op-node`를 사용합니다. 이 소스는 super root에 포함된 모든 체인을 다루어야 합니다. 그렇지 않으면 challenger가 다른 super root를 계산하여 유효한 제안에 이의를 제기하게 됩니다.
+*   **L1 실행 node와 L1 beacon node.**
+*   체인의 **L2 실행 node**. `op-challenger`는 시작 시 이를 필요로 합니다.
+*   challenger bond와 gas를 위한 ETH가 충전된 **L1 트랜잭션 서명자**. 각 challenge는 게임이 resolve되고 bond가 청구될 때까지 challenger bond 하나를 잠급니다.
+
+`op-zk-proposer`가 사용하는 것과 다른 super root 소스를 사용하십시오. proposer와 동일한 node를 신뢰하는 challenger는 해당 node의 오류를 잡아낼 수 없습니다.
+
+## Challenger 구성 {#configure-the-challenger}
+
+```bash
+op-challenger \
+  --game-types zk \
+  --l1-eth-rpc <L1 execution RPC> \
+  --l1-beacon <L1 beacon RPC> \
+  --l2-eth-rpc <L2 execution RPC> \
+  --superroot-rpc <super root RPC> \
+  --game-factory-address <DisputeGameFactory address> \
+  --datadir /data \
+  --private-key <L1 signer key>
+```
+
+모든 플래그에는 `OP_CHALLENGER_` 접두사가 붙은 환경 변수가 있습니다(예: `OP_CHALLENGER_GAME_TYPES=zk`, `OP_CHALLENGER_SUPERROOT_RPC`). 프로덕션 환경에서는 `--private-key` 대신 원격 서명자를 사용하십시오. 서명자 옵션을 포함한 모든 플래그는 [challenger 구성 레퍼런스](/ko/chain-operators/reference/challenger-configuration)를 참조하십시오.
+
+마이그레이션 중에 다른 game type의 게임도 계속 감시하려면 `--game-types super-cannon-kona,zk`처럼 함께 나열하십시오. 각 game type에는 해당 game type 전용 플래그가 필요합니다.
+
+## Challenger 검증 {#verify-the-challenger}
+
+시작 시 로그에 `challenger game service start completed`가 표시되고 super root 소스에 대한 연결 오류가 없는지 확인하십시오. ZK 게임이 생성되면 challenger는 확인하는 각 게임에 대해 `Game info` 줄을 기록합니다.
+
+challenger는 게임을 판단하기 전에 super root 소스가 해당 게임의 L1 head 이후까지 L1을 처리할 때까지 대기합니다. L1보다 크게 뒤처진 소스는 challenge를 지연시키므로, 소스의 동기화 상태를 감시하십시오.
+
+테스트 네트워크에서는 잘못된 root claim으로 게임을 생성하여 challenger가 잘못된 제안에 이의를 제기하는지 확인할 수 있습니다. `--game-type zk`, `--l2-chain-id`, `--parent-index`를 받는 [`create-game` 하위 명령](https://github.com/ethereum-optimism/optimism/tree/develop/op-challenger#create-game)을 참조하십시오. 프로덕션 체인에서는 이 작업을 하지 마십시오. 게임의 init bond를 잃게 됩니다.
+
+게임과 그 상태를 나열하려면 다음을 실행합니다.
+
+```bash
+op-challenger list-games --l1-eth-rpc <L1 RPC> --game-factory-address <DisputeGameFactory address>
+```
+
+## Challenger 모니터링 {#monitor-the-challenger}
+
+challenger와 함께 [`op-dispute-mon`](/ko/chain-operators/tools/chain-monitoring#dispute-mon)을 실행하십시오. 이 도구의 `op_dispute_mon_zk_games_pending_lifecycle_action` 메트릭은 resolve(`action="resolution"`) 또는 종료(`action="bond_distribution"`)를 기다리는 ZK 게임의 수를 집계합니다. 이 값은 한동안 0보다 클 수 있습니다. 예를 들어 부모 게임이 패배한 이의 제기되지 않은 게임에 대해 challenger가 조치하기 전에 L1 최종 확정(finality)을 기다리는 동안이 그렇습니다. 이 값이 그보다 오래 0보다 큰 상태로 유지된다면 challenger 또는 proposer가 게임에 대해 조치하지 않고 있다는 의미입니다.
+
+서명자의 ETH 잔액에 대해서도 알림을 설정하십시오. challenger bond를 지불할 수 없는 challenger는 잘못된 제안을 막을 수 없습니다.
+
+## 다음 단계 {#next-steps}
+
+*   모든 challenge window 동안 최소 한 명의 정직한 challenger가 온라인 상태여야 하는 이유는 [ZK 증명 보안](/ko/op-stack/zk-proofs/security)을 참조하십시오.
+*   challenger bond가 지급되는 방식은 [ZK 분쟁 게임](/ko/op-stack/zk-proofs/zk-dispute-game#bonds)을 참조하십시오.

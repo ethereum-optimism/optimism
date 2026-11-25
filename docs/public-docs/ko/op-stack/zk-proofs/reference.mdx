@@ -1,0 +1,115 @@
+---
+title: ZK 증명 레퍼런스
+description: ZK 분쟁 게임 유형, 관련 컨트랙트와 함수, 체인별 파라미터, 상태에 대한 레퍼런스입니다.
+diataxis: reference
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+이 페이지는 OP Stack ZK 증명 시스템의 컨트랙트, 함수, 파라미터, 상태를 정리합니다. 규범적 정의는 [ZK 분쟁 게임 명세](https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html?utm_source=op-docs&utm_medium=docs)를 참고하십시오.
+
+## 게임 유형 {#game-type}
+
+| 값 | 이름 | 설명 |
+| --- | --- | --- |
+| `10` | `ZK_DISPUTE_GAME` | ZK 증명으로 해결되는 optimistic super-root 분쟁 게임입니다. |
+
+오프체인 도구에서는 이 게임 유형에 `zk`라는 이름을 사용합니다. 예: `op-challenger --game-types zk`.
+
+## 컨트랙트 {#contracts}
+
+| 컨트랙트 | 용도 |
+| --- | --- |
+| [`ZKDisputeGame`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/zk/ZKDisputeGame.sol) | 제안당 하나의 게임: 이의 제기, 증명, resolve, bond 회계 |
+| [`SP1PlonkAdapter`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/zk/SP1PlonkAdapter.sol) | Succinct의 SP1 PLONK verifier를 호출하는 `IZKVerifier` 구현 |
+| [`IZKVerifier`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/dispute/zk/IZKVerifier.sol) | 게임이 호출하는 범용 verifier 인터페이스. [`IZKVerifier` 명세](https://specs.optimism.io/fault-proof/stage-one/zk/zk-interface.html?utm_source=op-docs&utm_medium=docs)에 정의되어 있습니다 |
+| [`DisputeGameFactory`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol) | 게임을 생성하고, 각 게임 유형의 구현, 구성, 필요한 init bond를 저장 |
+| [`AnchorStateRegistry`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol) | 앵커 상태, respected game type, 블랙리스트, retirement 타임스탬프, 최종성 |
+| [`DelayedWETH`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/dispute/DelayedWETH.sol) | 지연 출금이 적용되는 bond 보관 |
+| [`OptimismPortal2`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol) | 유효한 게임을 기준으로 출금을 증명하고 최종 확정 |
+
+`SP1PlonkAdapter`가 감싸는 SP1 PLONK verifier는 Succinct가 배포합니다. [`sp1-contracts` 배포 목록](https://github.com/succinctlabs/sp1-contracts/tree/main/contracts/deployments)을 참고하십시오. `op-deployer`는 Ethereum mainnet과 Sepolia에 대해 릴리스에서 승인된 verifier를 선택하며([소스](https://github.com/ethereum-optimism/optimism/blob/develop/op-deployer/pkg/deployer/standard/standard.go)), 그 외의 L1에서는 `--sp1-verifier-address`가 필요합니다. [구현 부트스트랩](/ko/chain-operators/tools/op-deployer/usage/bootstrap#bootstrap-implementations)을 참고하십시오.
+
+## `ZKDisputeGame` 함수 {#zkdisputegame-functions}
+
+누구나 호출할 수 있는 액션 함수:
+
+| 함수 | 효과 |
+| --- | --- |
+| `challenge()` | 제안에 이의를 제기합니다. 정확히 `challengerBond()`만큼 전송해야 합니다. 게임이 종료되었거나 이미 이의가 제기된 경우 revert합니다. |
+| `prove(bytes proofBytes)` | 증명을 제출합니다. 증명이 유효하지 않거나, 게임이 종료되었거나, 부모가 패배한 경우 revert합니다. |
+| `resolve()` | 부모가 resolve되고 게임이 종료되면 게임을 resolve합니다. 부모가 패배한 경우 즉시 `CHALLENGER_WINS`로 resolve합니다. |
+| `closeGame()` | 게임이 최종 확정되면 일반 bond 분배와 환불 bond 분배 중 하나를 결정하고, 앵커 상태 업데이트를 시도합니다. 게임이 이미 close된 경우가 아니면 시스템이 일시 중지된 동안 revert합니다. 필요한 경우 `claimCredit`이 호출합니다. |
+| `claimCredit(address recipient)` | 첫 번째 호출은 `DelayedWETH`에서 수령인의 bond credit을 잠금 해제하고, `DelayedWETH` 지연 이후의 두 번째 호출은 이를 출금합니다. |
+
+조회 함수:
+
+| 함수 | 반환값 |
+| --- | --- |
+| `rootClaim()` | 제안된 super root |
+| `l2SequenceNumber()` | super root 타임스탬프 |
+| `extraData()` | 부모 인덱스와 그 뒤에 이어지는 super root preimage |
+| `rootClaimByChainId(uint256 chainId)` | super root preimage에 포함된 한 체인의 output root. 해당 체인이 포함되어 있지 않으면 `UnknownChainId`로 revert합니다 |
+| `parentIndex()` | 부모 게임의 factory 인덱스. 게임이 앵커 상태 위에 구축된 경우 `type(uint32).max` |
+| `startingProposal()` | 시작 super root와 타임스탬프: 부모의 claim 또는 앵커 상태 |
+| `l1Head()` | 게임 생성 블록 직전 L1 블록의 해시 |
+| `claimData()` | 부모 인덱스, 제안 상태, challenger, prover, 현재 기한, claim |
+| `gameOver()` | 게임에 증명이 있거나 기한이 지났는지 여부 |
+| `status()` | `GameStatus` |
+| `credit(address recipient)` | 게임이 환불 모드이면 수령인의 환불 credit, 그렇지 않으면 일반 credit. 게임이 close되기 전에는 수령인이 실제로 청구할 수 있는 금액과 다를 수 있습니다. |
+| `absolutePrestate()`, `verifier()`, `maxChallengeDuration()`, `maxProveDuration()`, `challengerBond()` | 게임의 구성 |
+| `wasRespectedGameTypeWhenCreated()` | 게임 생성 시점에 `ZK_DISPUTE_GAME`이 respected game type이었는지 여부 |
+
+## 파라미터 {#parameters}
+
+각 체인은 `OPContractsManager`를 통해 게임을 등록할 때 다음 값을 설정합니다.
+
+| 파라미터 | 위치 | 설명 |
+| --- | --- | --- |
+| `absolutePrestate` | 게임 구성 | `super-aggregation` 프로그램의 verification key. 0이 아니어야 합니다. |
+| `verifier` | 게임 구성 | `IZKVerifier` 컨트랙트. `OPContractsManager`는 이를 자신의 `SP1PlonkAdapter`로 설정합니다. |
+| `maxChallengeDuration` | 게임 구성 | 새 게임에 이의를 제기할 수 있는 시간(초). 0이 아니어야 하며 최대 `type(uint32).max`입니다. |
+| `maxProveDuration` | 게임 구성 | 이의가 제기된 게임을 증명해야 하는 시간(초). 0이 아니어야 하며 최대 `type(uint32).max`입니다. |
+| `challengerBond` | 게임 구성 | 이의 제기에 필요한 금액(wei). 0이 아니어야 합니다. |
+| init bond | `DisputeGameFactory.initBonds(10)` | 게임 생성에 필요한 금액(wei). 0이 아니어야 합니다. |
+
+{/* TODO: add the standard values for maxChallengeDuration, maxProveDuration, challengerBond, and the init bond once they are set for the release. */}
+
+게임은 체인의 공유 분쟁 지연 값도 사용합니다. `OptimismPortal` 증명 성숙 지연, `AnchorStateRegistry` 최종성 지연, `DelayedWETH` 출금 지연이 이에 해당합니다. [이 지연 값의 표준 값](/ko/op-stack/fault-proofs/reference#timing-and-finality)을 참고하십시오.
+
+## 상태 {#statuses}
+
+`GameStatus`는 `AnchorStateRegistry`와 `OptimismPortal`이 읽는 결과입니다.
+
+| 상태 | 의미 |
+| --- | --- |
+| `IN_PROGRESS` | 게임이 아직 resolve되지 않았습니다 |
+| `CHALLENGER_WINS` | 제안에 이의가 제기되었으나 증명되지 않았거나, 부모 게임이 패배했습니다 |
+| `DEFENDER_WINS` | 제안이 증명되었거나, 기한 전까지 이의가 제기되지 않았습니다 |
+
+`ProposalStatus`는 게임의 내부 진행 상태로, `claimData().status`에 있습니다.
+
+| 상태 | 의미 |
+| --- | --- |
+| `Unchallenged` | 생성됨, 이의 제기 없음, 증명 없음 |
+| `Challenged` | 이의가 제기되어 증명을 기다리는 중 |
+| `UnchallengedAndValidProofProvided` | 이의 제기 없이 증명됨 |
+| `ChallengedAndValidProofProvided` | 이의가 제기된 후 증명됨 |
+| `Resolved` | resolve됨. 결과는 `status()`로 확인 |
+
+## 릴리스 아티팩트 {#release-artifacts}
+
+| 아티팩트 | 릴리스 태그 | 내용 |
+| --- | --- | --- |
+| ZK 증명 프로그램 | `kona-sp1-program/vX.Y.Z` | `super-range`, `super-aggregation`, `log-commitment` 바이너리. `super-aggregation` verification key가 `absolutePrestate`입니다. |
+| `op-zk-proposer` | `op-zk-proposer/vX.Y.Z` | proposer 서비스와 그 컨테이너 이미지 `op-zk-proposer:vX.Y.Z` |
+| `op-zk-proposer-cuda` | `op-zk-proposer-cuda/vX.Y.Z` | 로컬 GPU 증명용 proposer 이미지 `op-zk-proposer-cuda:vX.Y.Z`. `op-zk-proposer/vX.Y.Z`의 커밋에서 빌드됩니다 |
+
+가능하면 proposer와 프로그램을 함께 릴리스하십시오. proposer는 프로그램이 읽는 데이터를 수집하므로, 자신이 증명하는 프로그램 버전과 호환되어야 합니다. 프로그램 바이너리가 게시되는 위치는 [ZK absolute prestate 검증하기](/ko/chain-operators/tutorials/zk-prestate)를 참고하십시오.
+
+## 다음 단계 {#next-steps}
+
+*   함수들이 어떻게 맞물려 동작하는지 알아보려면 [ZK 분쟁 게임](/ko/op-stack/zk-proofs/zk-dispute-game)을 읽어 보십시오.
+*   각 함수의 규범적 동작은 [게임 메커니즘 명세](https://specs.optimism.io/fault-proof/stage-one/zk/game-mechanics.html?utm_source=op-docs&utm_medium=docs)를 읽어 보십시오.

@@ -202,6 +202,31 @@ impl SettledBlock {
         }
     }
 
+    /// Prestate diffs of every transaction in the block, from one `debug_traceBlockByHash`.
+    pub(super) async fn block_prestate_diffs(&self) -> eyre::Result<Vec<DiffMode>> {
+        let options =
+            prestate_tracer(PreStateConfig { diff_mode: Some(true), ..Default::default() });
+        let traces = DebugApiClient::<TransactionRequest>::debug_trace_block_by_hash(
+            self.client(),
+            self.block_hash(),
+            Some(options),
+        )
+        .await?;
+        Ok(traces
+            .into_iter()
+            .enumerate()
+            .map(|(index, trace)| match trace {
+                TraceResult::Success {
+                    result: GethTrace::PreStateTracer(PreStateFrame::Diff(diff)),
+                    ..
+                } => diff,
+                other => {
+                    panic!("unexpected block prestate trace of transaction {index}: {other:?}")
+                }
+            })
+            .collect())
+    }
+
     pub(super) async fn prestate_diff(&self, index: usize) -> eyre::Result<DiffMode> {
         let options =
             prestate_tracer(PreStateConfig { diff_mode: Some(true), ..Default::default() });

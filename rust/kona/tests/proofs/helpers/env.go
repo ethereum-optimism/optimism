@@ -269,7 +269,7 @@ func NewBatcherCfg(params ...BatcherCfgParam) *helpers.BatcherCfg {
 	return dfault
 }
 
-const L1BlockTime = 12
+const L1BlockTime = helpers.L1BlockTime
 
 // RotateBatcher updates the on-chain batcher address in the SystemConfig contract and replaces
 // env.Batcher with a new one using the given key. The L1 transaction is mined in a new L1 block.
@@ -295,6 +295,22 @@ func (env *L2FaultProofEnv) RotateBatcher(t helpers.Testing, newBatcherKey *ecds
 		env.Sequencer.RollupClient(), env.Miner.EthClient(),
 		env.engCl,
 	)
+}
+
+// CodeAt returns the code of addr in the state after the L2 block.
+func (env *L2FaultProofEnv) CodeAt(t helpers.Testing, addr common.Address, block eth.L2BlockRef) []byte {
+	t.Helper()
+	code, err := env.Engine.EthClient().CodeAtHash(t.Ctx(), addr, block.Hash)
+	require.NoError(t, err)
+	return code
+}
+
+// StorageAt returns the value of the storage slot of addr in the state after the L2 block.
+func (env *L2FaultProofEnv) StorageAt(t helpers.Testing, addr common.Address, slot common.Hash, block eth.L2BlockRef) common.Hash {
+	t.Helper()
+	value, err := env.Engine.EthClient().StorageAtHash(t.Ctx(), addr, slot, block.Hash)
+	require.NoError(t, err)
+	return common.BytesToHash(value)
 }
 
 // BatchAndMine batches the current unsafe chain to L1 and mines the L1 block containing the

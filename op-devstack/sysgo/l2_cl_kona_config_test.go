@@ -31,7 +31,8 @@ func TestKonaL2CLEnvSupportedOptions(t *testing.T) {
 				"KONA_NODE_P2P_NO_DISCOVERY=false",
 				"KONA_NODE_VERIFIER_L1_CONFS=0",
 				"KONA_NODE_SAFEDB_PATH=/tmp/safe-head.db",
-			}, konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, isSequencer, "", opts), false))
+				// Boot stopped, so the environment holds only the options under test.
+			}, konaL2CLEnv(resolveKonaL2CLConfig(dt, "node", chainID, isSequencer, "", opts), true))
 		})
 	}
 }
@@ -94,8 +95,9 @@ func TestKonaL2CLEnvAcceptsSyncModeCompatibilityInputs(t *testing.T) {
 				})}
 				// Neither compatibility mode emits a flag pretending to select a
 				// native mode: Kona always drives EL sync through Engine API responses.
+				// Boot stopped, so the environment holds only the options under test.
 				require.Equal(t, []string{"KONA_NODE_P2P_NO_DISCOVERY=true", "KONA_NODE_VERIFIER_L1_CONFS=0"},
-					konaL2CLEnv(resolveKonaL2CLConfig(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), isSequencer, "", opts), false))
+					konaL2CLEnv(resolveKonaL2CLConfig(devtest.SerialT(t), "node", eth.ChainIDFromUInt64(901), isSequencer, "", opts), true))
 			})
 		}
 	}
@@ -160,19 +162,28 @@ func TestKonaL2CLConfigRejectsUnsupportedOptions(t *testing.T) {
 	}
 }
 
-func TestKonaL2CLEnvSequencerStopped(t *testing.T) {
+// kona-node boots its sequencer stopped unless KONA_NODE_SEQUENCER_START is
+// set. TestKonaL2CLEnvConductor covers a sequencer with a conductor, which never
+// gets the flag.
+func TestKonaL2CLEnvSequencerStart(t *testing.T) {
 	for _, testCase := range []struct {
-		environment []string
 		name        string
+		isSequencer bool
 		stopped     bool
+		start       bool
 	}{
-		{environment: []string{"KONA_NODE_P2P_NO_DISCOVERY=false", "KONA_NODE_VERIFIER_L1_CONFS=0"}, name: "running"},
-		{environment: []string{"KONA_NODE_P2P_NO_DISCOVERY=false", "KONA_NODE_VERIFIER_L1_CONFS=0", "KONA_NODE_SEQUENCER_STOPPED=true"}, name: "stopped", stopped: true},
+		{name: "sequencer", isSequencer: true, start: true},
+		{name: "stopped sequencer", isSequencer: true, stopped: true},
+		{name: "validator"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			cfg := DefaultL2CLConfig()
-			cfg.IsSequencer = true
-			require.Equal(t, testCase.environment, konaL2CLEnv(cfg, testCase.stopped))
+			cfg.IsSequencer = testCase.isSequencer
+			environment := []string{"KONA_NODE_P2P_NO_DISCOVERY=false", "KONA_NODE_VERIFIER_L1_CONFS=0"}
+			if testCase.start {
+				environment = append(environment, "KONA_NODE_SEQUENCER_START=true")
+			}
+			require.Equal(t, environment, konaL2CLEnv(cfg, testCase.stopped))
 		})
 	}
 }

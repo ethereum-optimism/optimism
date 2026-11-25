@@ -63,6 +63,9 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 		}
 	}
 
+	if res.Balance == nil {
+		return fmt.Errorf("account %s has missing balance", res.Address)
+	}
 	accountClaimed := []any{uint64(res.Nonce), res.Balance.ToInt().Bytes(), res.StorageHash, res.CodeHash}
 	accountClaimedValue, err := rlp.EncodeToBytes(accountClaimed)
 	if err != nil {

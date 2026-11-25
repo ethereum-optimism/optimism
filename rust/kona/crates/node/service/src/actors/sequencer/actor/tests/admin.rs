@@ -13,6 +13,32 @@ use tokio::{
 };
 
 #[tokio::test]
+async fn state_metric_clears_the_replaced_label_set() {
+    use metrics_util::debugging::{DebugValue, DebuggingRecorder};
+
+    let (actor, _) = test_actor_with_config(false, false, None);
+    let recorder = DebuggingRecorder::new();
+    let snapshotter = recorder.snapshotter();
+    metrics::with_local_recorder(&recorder, || {
+        actor.update_state(|_| {});
+        actor.update_state(|state| state.active = true);
+    });
+    let mut active: Vec<_> = snapshotter
+        .snapshot()
+        .into_vec()
+        .into_iter()
+        .filter(|(key, ..)| key.key().name() == crate::Metrics::SEQUENCER_STATE)
+        .filter_map(|(key, _, _, value)| {
+            let label = key.key().labels().find(|l| l.key() == "active")?.value().to_owned();
+            let DebugValue::Gauge(value) = value else { return None };
+            Some((label, value.into_inner()))
+        })
+        .collect();
+    active.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(active, [("false".to_owned(), 0.0), ("true".to_owned(), 1.0)]);
+}
+
+#[tokio::test]
 async fn stalled_leader_check_times_out_without_blocking_queued_stop() {
     use crate::{ConductorClient, SequencerActor};
     use jsonrpsee::{RpcModule, server::ServerBuilder};

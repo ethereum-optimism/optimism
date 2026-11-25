@@ -1020,7 +1020,7 @@ type TxSender[T any] interface {
 // sendTx uses the txmgr queue to send the given transaction candidate after setting its
 // gaslimit. It will block if the txmgr queue has reached its MaxPendingTransactions limit.
 func (l *BatchSubmitter) sendTx(txdata txData, isCancel bool, candidate *txmgr.TxCandidate, queue TxSender[txRef], receiptsCh chan txmgr.TxReceipt[txRef]) {
-	gasLimit, err := maxFloorDataGas(l.Txmgr.From(), candidate.To, candidate.TxData)
+	gasLimit, err := MaxFloorDataGas(l.Txmgr.From(), candidate.To, candidate.TxData)
 	if err != nil {
 		// We log instead of returning an error here because the txmgr will do its own gas estimation.
 		l.Log.Warn("Failed to calculate batch transaction gas limit", "err", err)
@@ -1038,11 +1038,11 @@ const (
 	amsterdamCalldataFloorGasPerByte = uint64(4 * 16)         // EIP-7976: 4 floor tokens per byte at 16 gas per token
 )
 
-// maxFloorDataGas returns a gas limit for a transaction from the sender to the recipient that
+// MaxFloorDataGas returns a gas limit for a transaction from the sender to the recipient that
 // carries data and no value, valid under both the pre-Amsterdam EIP-7623 rules and Amsterdam's
 // EIP-2780/EIP-7976 rules. The pre-Amsterdam floor also exceeds Amsterdam's regular intrinsic
 // gas whenever it exceeds the Amsterdam floor, so the larger floor is sufficient.
-func maxFloorDataGas(from common.Address, to *common.Address, data []byte) (uint64, error) {
+func MaxFloorDataGas(from common.Address, to *common.Address, data []byte) (uint64, error) {
 	preAmsterdam, err := core.FloorDataGas(params.Rules{}, from, to, nil, data, nil)
 	if err != nil {
 		return 0, err

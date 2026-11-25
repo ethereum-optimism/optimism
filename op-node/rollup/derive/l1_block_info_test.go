@@ -137,6 +137,14 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		_, err = deposit(nil, 177*cancunFraction+cancunFraction/2)
 		require.NoError(t, err, "the same excess blob gas is valid under the Prague schedule")
 	})
+	t.Run("no basefee", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(func(l *testutils.MockBlockInfo) {
+			l.InfoBaseFee = nil
+		})(rng)
+		_, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
+		require.ErrorContains(t, err, "has no base fee")
+	})
 	t.Run("no data", func(t *testing.T) {
 		_, err := L1BlockInfoFromBytes(&rollupCfg, 0, nil)
 		assert.Error(t, err)

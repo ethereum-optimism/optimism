@@ -52,13 +52,13 @@ CI runs two variants of the `op-acceptance-tests` job: `memory-all-opn-op-reth-<
 A test that cannot run under kona-node skips itself in code with `sysgo.SkipOnKonaNode` rather
 than being left out of a list. Skip only for a real client gap.
 
-The supernode presets (`NewSimpleInterop`, `NewTwoL2SupernodeInterop`, ...) and the interop
-presets without a supernode (`NewSingleChainInteropNoSupernode`, ...) start only op-node and
-op-supernode CLs, whatever `DEVSTACK_L2CL_KIND` says, so under kona-node they would repeat the
-op-node job. Each of them calls `skipOpNodeOnlyPresetOnKonaNode` first, which skips the test
+The supernode presets (`NewSimpleInterop`, `NewTwoL2SupernodeInterop`, ...) start only op-node
+and op-supernode CLs, whatever `DEVSTACK_L2CL_KIND` says, so under kona-node they would repeat
+the op-node job. Each of them calls `skipOpNodeOnlyPresetOnKonaNode` first, which skips the test
 under kona-node before anything starts, so a new test on those presets needs no handling of its
-own. A test that starts both CLs itself, through `sysgo.NewMixedSingleChainRuntime` with
-explicit CL kinds, still runs in both jobs.
+own. The interop presets without a supernode (`NewSingleChainInteropNoSupernode`, ...) start the
+CL kind `DEVSTACK_L2CL_KIND` selects and run in both jobs. A test that starts both CLs itself,
+through `sysgo.NewMixedSingleChainRuntime` with explicit CL kinds, still runs in both jobs.
 
 ### Kona Prestate
 
