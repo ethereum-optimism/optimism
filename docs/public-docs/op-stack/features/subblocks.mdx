@@ -9,7 +9,7 @@ A subblock arrives every 200 ms, so an application can act on a transaction's ou
 
 This page explains what a subblock is, what its payload does and does not carry, and how production is arranged.
 To read pre-confirmed state from an application, follow the [app integration guide](/app-developers/guides/transactions/integrating-subblocks).
-For the current interval and payload changes on OP Sepolia and OP Mainnet, see the [Subblocks notice](/notices/subblocks).
+For the current interval and payload changes on OP Sepolia and OP Mainnet, see the [Subblocks notice](/notices/archive/subblocks).
 
 ## How it works
 
@@ -124,7 +124,7 @@ Before subblocks, pre-confirmations were produced by the Flashblocks stack: `rol
   The Flashblocks stack may still run, but OP Labs offers **no support** for it.
   It may stop working at a future fork.
   Chains running `rollup-boost` and `op-rbuilder` should plan a migration.
-  See the [preconfirmation architecture transition notice](/notices/preconfirmation-architecture-transition) for the wind-down timeline.
+  See the [preconfirmation architecture transition notice](/notices/archive/preconfirmation-architecture-transition) for the wind-down timeline.
 </Warning>
 
 For availability information, see [Enabling Subblocks](/chain-operators/guides/features/subblocks-guide).
@@ -136,7 +136,7 @@ For availability information, see [Enabling Subblocks](/chain-operators/guides/f
 <AccordionGroup>
   <Accordion title="How often are subblocks produced?">
     Every 200ms, but configurable to lower values.
-    OP Sepolia and OP Mainnet both move to 200 ms; see the [Subblocks notice](/notices/subblocks) for the rollout dates.
+    OP Sepolia and OP Mainnet both move to 200 ms; see the [Subblocks notice](/notices/archive/subblocks) for the rollout dates.
   </Accordion>
 
   <Accordion title="Will a block always contain the maximum number of subblocks?">
@@ -176,5 +176,5 @@ For availability information, see [Enabling Subblocks](/chain-operators/guides/f
 ## Next steps
 
 *   Read pre-confirmed state from your app with the [Subblocks integration guide](/app-developers/guides/transactions/integrating-subblocks).
-*   Check the [Subblocks notice](/notices/subblocks) for rollout dates and the payload fields to audit.
+*   Check the [Subblocks notice](/notices/archive/subblocks) for rollout dates and the payload fields to audit.
 *   Learn how subblocks change [gas availability within a block](/app-developers/guides/transactions/subblocks-and-gas-usage).
