@@ -88,7 +88,11 @@ pub(crate) enum Wait {
 impl Wait {
     /// Whether the verifier stops rather than retry.
     const fn is_fatal(&self) -> bool {
-        matches!(self, Self::Store(_) | Self::FinalityViolation { .. })
+        match self {
+            Self::Store(_) | Self::FinalityViolation { .. } => true,
+            Self::Source(err) => err.is_inconsistent(),
+            _ => false,
+        }
     }
 }
 
@@ -469,11 +473,12 @@ impl Verifier {
     }
 
     /// The blocks produced at exactly `timestamp`, with their receipts, each checked to build on
-    /// its chain's verified block before it. A block carried over from an earlier timestamp must
-    /// be the verified block there.
+    /// its chain's verified block before it and to match its source's output. A block carried
+    /// over from an earlier timestamp must be the verified block there.
     ///
     /// A block that does not build on the verified one waits, as during a reorg of its source,
-    /// unless the verified one is final, which stops the verifier.
+    /// unless the verified one is final, which stops the verifier. Receipts or an output that do
+    /// not match the block's header stop it too: no retry fixes a source that contradicts itself.
     async fn read_blocks(
         &self,
         timestamp: u64,
@@ -500,6 +505,15 @@ impl Verifier {
             }
             let block = source.block_with_receipts(at.block.hash).await?;
             let header = block.header.inner();
+            if header.number != at.block.number || header.state_root != at.output.state_root {
+                return Err(Wait::Source(SourceError::Inconsistent {
+                    block: at.block.hash,
+                    reason: format!(
+                        "the output names block {} with state root {}, the header is block {} with state root {}",
+                        at.block.number, at.output.state_root, header.number, header.state_root
+                    ),
+                }));
+            }
             if let Some(verified) = verified &&
                 (verified.number + 1 != at.block.number || verified.hash != header.parent_hash)
             {
@@ -738,9 +752,16 @@ pub(crate) mod tests {
         l2_genesis_tagged(chain_id, b"")
     }
 
-    /// Chain B's block at genesis that has an invalid executing message.
+    /// Chain B's block at genesis that has an invalid executing message, with the receipts root
+    /// of [`invalid_executing_receipts`].
     pub(crate) fn invalid_block() -> Header {
-        l2_genesis_tagged(CHAIN_B, b"invalid")
+        let receipts = serde_json::from_value(invalid_executing_receipts(B256::ZERO)).unwrap();
+        Header {
+            receipts_root: alloy_consensus::proofs::calculate_receipt_root(
+                &crate::source::receipt_envelopes(receipts),
+            ),
+            ..l2_genesis_tagged(CHAIN_B, b"invalid")
+        }
     }
 
     /// Chain B's deposits-only replacement of [`invalid_block`].
@@ -1451,6 +1472,50 @@ pub(crate) mod tests {
         let records = denials();
         assert_eq!(records.len(), 1);
         assert_eq!((records[0].block.hash, records[0].l1), (invalid, l1_inclusion()));
+    }
+
+    /// Receipts that do not hash to their header's receipts root stop the verifier: no retry fixes
+    /// a source that contradicts itself.
+    #[tokio::test]
+    async fn receipts_off_their_header_stop_the_verifier() {
+        let genesis_b = l2_genesis(CHAIN_B).hash_slow();
+        let (execution, _server) = serve_execution(HashMap::from_iter([(
+            genesis_b,
+            invalid_executing_receipts(genesis_b),
+        )]))
+        .await;
+        let source = ChainSource::connect(
+            rollup_config(CHAIN_B),
+            &"http://127.0.0.1:1".parse().unwrap(),
+            &execution,
+        )
+        .await
+        .unwrap();
+
+        let err = source.block_with_receipts(genesis_b).await.unwrap_err();
+
+        assert!(err.is_inconsistent(), "got {err:?}");
+        assert!(Wait::Source(err).is_fatal());
+    }
+
+    /// An output whose state root is not its block's stops the verifier.
+    #[tokio::test]
+    async fn an_output_off_its_block_stops_the_verifier() {
+        let fixture = fixture([chain_a_at_genesis(), vec![at_genesis(&l2_genesis(CHAIN_B))]]).await;
+        let block = BlockNumHash { number: 0, hash: l2_genesis(CHAIN_B).hash_slow() };
+        let frontier = BTreeMap::from([(
+            CHAIN_B,
+            LocalSafeAt {
+                block,
+                l1_inclusion: l1_inclusion(),
+                output: OutputRoot::from_parts(B256::repeat_byte(1), B256::ZERO, block.hash),
+            },
+        )]);
+
+        let wait = fixture.verifier.read_blocks(GENESIS_TIME, &frontier).await.unwrap_err();
+
+        assert!(matches!(&wait, Wait::Source(err) if err.is_inconsistent()), "got {wait:?}");
+        assert!(wait.is_fatal());
     }
 
     /// A chain's block that is not its verified block before it, here one carried over a

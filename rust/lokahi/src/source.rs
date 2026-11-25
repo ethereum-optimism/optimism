@@ -1,7 +1,7 @@
 //! The source node of one chain: where the verifier reads its local-safe blocks and their data.
 
 use crate::{state::Verified, store::StoreError};
-use alloy_consensus::{Header, Sealed, TxReceipt};
+use alloy_consensus::{Header, Sealed, proofs::calculate_receipt_root};
 use alloy_eips::{BlockId, BlockNumHash};
 use alloy_primitives::{B256, Log, U64, map::HashMap};
 use alloy_provider::{Provider, RootProvider};
@@ -17,6 +17,7 @@ use kona_protocol::{OutputRoot, SyncStatus};
 use kona_rpc::{DecimalChainId, InteropNodeApiClient, SuperRootApiClient};
 use op_alloy_consensus::OpReceiptEnvelope;
 use op_alloy_network::Optimism;
+use op_alloy_rpc_types::OpTransactionReceipt;
 use std::{collections::BTreeMap, sync::RwLock, time::Duration};
 use thiserror::Error;
 use url::Url;
@@ -24,8 +25,9 @@ use url::Url;
 /// Timeout of each request to a source node.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// A failed read from a source node. Every one is retried: a source that is down or behind only
-/// holds the verifier back.
+/// A failed read from a source node. Every one is retried, as a source that is down or behind only
+/// holds the verifier back, except [`SourceError::Inconsistent`], an answer that contradicts the
+/// source's own data, which stops the verifier.
 #[derive(Debug, Error)]
 pub(crate) enum SourceError {
     /// The consensus RPC failed.
@@ -72,6 +74,22 @@ pub(crate) enum SourceError {
     /// The consensus RPC answered a sync status that does not decode.
     #[error("sync status: {0}")]
     SyncStatus(#[from] serde_json::Error),
+    /// The source answered data about block `block` that contradicts its own: receipts that do
+    /// not hash to the header's receipts root, or an output that is not the block's.
+    #[error("block {block}: {reason}")]
+    Inconsistent {
+        /// The block.
+        block: B256,
+        /// What contradicts what.
+        reason: String,
+    },
+}
+
+impl SourceError {
+    /// Whether no retry can help: the source answers data that contradicts itself.
+    pub(crate) const fn is_inconsistent(&self) -> bool {
+        matches!(self, Self::Inconsistent { .. })
+    }
 }
 
 /// The source of each chain, by chain ID.
@@ -157,18 +175,32 @@ impl ChainSource {
         let at_timestamp = response
             .optimistic_at_timestamp
             .get(&DecimalChainId(self.chain_id()))
-            .map(|output| LocalSafeAt {
-                block: BlockNumHash {
-                    number: self.rollup_config.block_number_from_timestamp(timestamp),
-                    hash: output.output.block_hash,
-                },
-                l1_inclusion: output.required_l1,
-                output: OutputRoot::from_parts(
+            .map(|output| {
+                let preimage = OutputRoot::from_parts(
                     output.output.state_root,
                     output.output.message_passer_storage_root,
                     output.output.block_hash,
-                ),
-            });
+                );
+                if preimage.hash() != output.output_root {
+                    return Err(SourceError::Inconsistent {
+                        block: output.output.block_hash,
+                        reason: format!(
+                            "output root {} is not the hash {} of its preimage",
+                            output.output_root,
+                            preimage.hash()
+                        ),
+                    });
+                }
+                Ok(LocalSafeAt {
+                    block: BlockNumHash {
+                        number: self.rollup_config.block_number_from_timestamp(timestamp),
+                        hash: output.output.block_hash,
+                    },
+                    l1_inclusion: output.required_l1,
+                    output: preimage,
+                })
+            })
+            .transpose()?;
         Ok(SourceProgress {
             at_timestamp,
             current_l1: response.current_l1,
@@ -190,29 +222,42 @@ impl ChainSource {
         Ok((raw, status))
     }
 
-    /// The block with hash `hash` and its receipts.
+    /// The block with hash `hash` and its receipts, checked to be the block's.
     pub(crate) async fn block_with_receipts(
         &self,
         hash: B256,
     ) -> Result<BlockWithReceipts, SourceError> {
         let header = self.header_by_hash(hash).await?;
-        let receipts = self
-            .el
-            .get_block_receipts(BlockId::hash(hash))
-            .await?
-            .ok_or(SourceError::BlockNotFound(BlockId::hash(hash)))?
-            .into_iter()
-            .map(|receipt| {
-                OpReceiptEnvelope::from(
-                    receipt.inner.inner.map_receipt(|receipt| receipt.map_logs(|log| log.inner)),
-                )
-            })
-            .collect();
+        let receipts = self.receipts(hash, header.receipts_root).await?;
         Ok(BlockWithReceipts { header: Sealed::new_unchecked(header, hash), receipts })
     }
 
+    /// The receipts of the block with hash `hash`, checked to hash to its `receipts_root`.
+    async fn receipts(
+        &self,
+        hash: B256,
+        receipts_root: B256,
+    ) -> Result<Vec<OpReceiptEnvelope>, SourceError> {
+        let receipts = receipt_envelopes(
+            self.el
+                .get_block_receipts(BlockId::hash(hash))
+                .await?
+                .ok_or(SourceError::BlockNotFound(BlockId::hash(hash)))?,
+        );
+        let root = calculate_receipt_root(&receipts);
+        if root != receipts_root {
+            return Err(SourceError::Inconsistent {
+                block: hash,
+                reason: format!(
+                    "receipts hash to {root}, the header's receipts root is {receipts_root}"
+                ),
+            });
+        }
+        Ok(receipts)
+    }
+
     /// The header of the block with hash `hash`, checked to hash to it.
-    async fn header_by_hash(&self, hash: B256) -> Result<Header, SourceError> {
+    pub(crate) async fn header_by_hash(&self, hash: B256) -> Result<Header, SourceError> {
         let block = self
             .el
             .get_block_by_hash(hash)
@@ -234,18 +279,27 @@ impl ChainSource {
         Ok(block.header.inner)
     }
 
-    async fn logs_by_hash(&self, hash: B256) -> Result<Vec<Log>, SourceError> {
+    /// The logs of the block `header`, from receipts checked to be the block's.
+    async fn logs(&self, header: &Header) -> Result<Vec<Log>, SourceError> {
         Ok(self
-            .el
-            .get_block_receipts(BlockId::hash(hash))
+            .receipts(header.hash_slow(), header.receipts_root)
             .await?
-            .ok_or(SourceError::BlockNotFound(BlockId::hash(hash)))?
             .into_iter()
-            .flat_map(|receipt| {
-                receipt.inner.inner.receipt.into_logs().into_iter().map(|log| log.inner)
-            })
+            .flat_map(|receipt| receipt.into_receipt().logs)
             .collect())
     }
+}
+
+/// The consensus receipt envelopes of the RPC `receipts`.
+pub(crate) fn receipt_envelopes(receipts: Vec<OpTransactionReceipt>) -> Vec<OpReceiptEnvelope> {
+    receipts
+        .into_iter()
+        .map(|receipt| {
+            OpReceiptEnvelope::from(
+                receipt.inner.inner.map_receipt(|receipt| receipt.map_logs(|log| log.inner)),
+            )
+        })
+        .collect()
 }
 
 /// Serves [`kona_interop::MessageGraph`] the initiating blocks it checks, from the chains' source
@@ -309,7 +363,7 @@ impl InteropProvider for SourceProvider<'_> {
         header: &Header,
     ) -> Result<InitiatingLogs, SourceError> {
         let source = self.sources.get(&chain_id).ok_or(SourceError::UnknownChain(chain_id))?;
-        Ok(InitiatingLogs::Receipts(source.logs_by_hash(header.hash_slow()).await?))
+        Ok(InitiatingLogs::Receipts(source.logs(header).await?))
     }
 }
 
