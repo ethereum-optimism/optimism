@@ -17,7 +17,7 @@ to be installed on your system.
 Given an absolute prestate hash and a list of chains (with their canonical network names), the tool can be run like the following:
 ```sh
 HASH=0x03ee2917da962ec266b091f4b62121dc9682bb0db534633707325339f99ee405
-CHAINS=op-sepolia,ink-sepolia,base-sepolia,unichain-sepolia,soneium-minato-sepolia,op-mainnet,ink-mainnet,base-mainnet,unichain-mainnet,soneium-mainnet
+CHAINS=op-sepolia,ink-sepolia,unichain-sepolia,soneium-minato-sepolia,op-mainnet,ink-mainnet,unichain-mainnet,soneium-mainnet
 go run . --prestate-hash $HASH --chains $CHAINS | tee check.json | pbcopy
 ```
 This will write the output JSON report to file `check.json` and also copy it to your clipboard (on MacOS).
