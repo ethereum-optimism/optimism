@@ -6,6 +6,7 @@ contents:
   packages:
     - ca-certificates-bundle>=20260909-r3
     - wolfi-baselayout
+    - busybox
     - op-supernode@local
 
 environment:

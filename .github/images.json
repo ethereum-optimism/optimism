@@ -162,7 +162,10 @@
             },
             {
               "config": "apko/kona-node-slim.yaml",
-              "tag_suffix": "-slim"
+              "tag_suffix": "-slim",
+              "allow_packages": [
+                "busybox"
+              ]
             }
           ]
         }
@@ -653,7 +656,10 @@
             },
             {
               "config": "apko/op-reth-slim.yaml",
-              "tag_suffix": "-slim"
+              "tag_suffix": "-slim",
+              "allow_packages": [
+                "busybox"
+              ]
             }
           ]
         }
@@ -683,7 +689,10 @@
             },
             {
               "config": "apko/op-supernode-slim.yaml",
-              "tag_suffix": "-slim"
+              "tag_suffix": "-slim",
+              "allow_packages": [
+                "busybox"
+              ]
             }
           ]
         }
