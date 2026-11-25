@@ -1,12 +1,13 @@
 # check-prestate
 
 The `check-prestate` tool can be used to generate a status report for an absolute prestate hash.
-It outputs JSON to stdout that contains useful information like its kona-client version tag and commit of the monorepo,
+It outputs JSON to stdout that contains useful information like its release tag and commit of the monorepo,
 its type, and the underlying superchain-registry commit.
 It then also checks for each specified chain if the included chain configuration has changed
 compared to the latest changes in the superchain-registry.
 
-Only kona prestates (types `cannon64-kona` and `cannon64-kona-interop`) are supported.
+Only kona prestates are supported: `cannon64-kona` and `cannon64-kona-interop` (kona-client tags) and
+`kona-sp1` (kona-sp1-program tags).
 
 ## Usage
 

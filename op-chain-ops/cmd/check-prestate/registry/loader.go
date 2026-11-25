@@ -91,7 +91,7 @@ func cloneRegistryAtCommit(dir, ref string) error {
 
 // opCoreSyncScriptPath locates op-core/superchain/bundle/sync-superchain.sh by walking up
 // from the working directory until it's found. check-prestate is run from a monorepo
-// checkout (it resolves kona-client release tags via git), so the script is always an
+// checkout (it resolves kona release tags via git), so the script is always an
 // ancestor of the working directory. Walking up — rather than `git rev-parse
 // --show-toplevel` — also works without a .git dir (e.g. a downloaded source archive)
 // and isn't confused by nested or worktree git setups.
