@@ -42,10 +42,6 @@ useInterop = false
 l1ContractsLocator = "embedded"
 l2ContractsLocator = "embedded"
 
-[superchainRoles]
-  proxyAdminOwner = "0xeAAA3fd0358F476c86C26AE77B7b89a069730570"
-  guardian = "0xeAAA3fd0358F476c86C26AE77B7b89a069730570"
-
 [[chains]]
   id = "0x0000000000000000000000000000000000000000000000000000000000002390"
   baseFeeVaultRecipient = "0x0000000000000000000000000000000000000000"
@@ -70,6 +66,9 @@ l2ContractsLocator = "embedded"
 Before you can use your intent file for a deployment, you will need to update all zero values to whatever is
 appropriate for your chain. For dev environments, it is ok to use all EOAs/hot-wallets.
 </Warning>
+
+OP Deployer rejects an intent file that contains a key it does not know, and names the key in the error. The only
+exceptions are the free-form `globalDeployOverrides` and `deployOverrides` tables.
 
 ## Production Setup
 

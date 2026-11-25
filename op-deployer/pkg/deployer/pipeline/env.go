@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"reflect"
@@ -68,50 +69,43 @@ func NoopStateWriter() StateWriter {
 	})
 }
 
-// ReadIntent reads the workdir's intent.toml. Unknown keys are ignored except under
-// l1DevGenesisParams.blobSchedule, where dropping a fork's entry would silently reprice its blobs.
+// ReadIntent reads the workdir's intent.toml. It rejects a key that the intent type does not have,
+// except in the free-form override maps.
 func ReadIntent(workdir string) (*state.Intent, error) {
 	intent, undecoded, err := jsonutil.LoadTOMLWithUndecoded[state.Intent](path.Join(workdir, "intent.toml"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read intent file: %w", err)
 	}
-	if err := checkBlobScheduleKeys(undecoded); err != nil {
+	if err := checkIntentKeys(undecoded); err != nil {
 		return nil, fmt.Errorf("failed to read intent file: %w", err)
 	}
 	return intent, nil
 }
 
-// checkBlobScheduleKeys returns an error that names each unknown key under
-// l1DevGenesisParams.blobSchedule, if there are any.
-func checkBlobScheduleKeys(undecoded []toml.Key) error {
-	schedule := reflect.TypeFor[params.BlobScheduleConfig]()
+// checkIntentKeys returns an error that names each undecoded key of an intent, if there are any
+// outside globalDeployOverrides and chains.deployOverrides.
+func checkIntentKeys(undecoded []toml.Key) error {
+	// Compare per key part with EqualFold, as the decoder matches key parts to fields.
+	isBelow := func(key toml.Key, prefix ...string) bool {
+		return len(key) > len(prefix) && slices.EqualFunc(key[:len(prefix)], prefix, strings.EqualFold)
+	}
 	var unknown []string
+	inBlobSchedule := false
 	for _, key := range undecoded {
-		// Compare per key part with EqualFold, as the decoder matches key parts to fields.
-		if len(key) <= 2 || !strings.EqualFold(key[0], "l1DevGenesisParams") || !strings.EqualFold(key[1], "blobSchedule") {
+		// The decoder lists the keys of nested tables in a map[string]any as undecoded.
+		if isBelow(key, "globalDeployOverrides") || isBelow(key, "chains", "deployOverrides") {
 			continue
 		}
-		// Every key below an unknown table is undecoded too, and the table itself is not listed
-		// when it is only implied by a dotted key. Report the first key part that names no field.
-		t := schedule
-		for i := 2; i < len(key) && t.Kind() == reflect.Struct; i++ {
-			field, ok := t.FieldByNameFunc(func(name string) bool { return strings.EqualFold(name, key[i]) })
-			if !ok {
-				key = key[:i+1]
-				break
-			}
-			t = field.Type
-			if t.Kind() == reflect.Pointer {
-				t = t.Elem()
-			}
+		// An unknown table that has a header or is inline is listed together with every key below it.
+		if slices.ContainsFunc(undecoded, func(parent toml.Key) bool {
+			return len(parent) < len(key) && slices.Equal(key[:len(parent)], parent)
+		}) {
+			continue
 		}
 		name := key.String()
-		// The two unknown keys an intent is likely to hold: a fork entry and a blob config field.
-		switch last := key[len(key)-1]; {
-		case len(key) == 3 && strings.EqualFold(last, "osaka"):
-			name += " (Osaka has no entry of its own and uses prague)"
-		case len(key) == 4 && strings.EqualFold(last, "baseFeeUpdateFraction"):
-			name += " (the TOML key is updateFraction)"
+		if isBelow(key, "l1DevGenesisParams", "blobSchedule") {
+			inBlobSchedule = true
+			name = blobScheduleKeyName(key)
 		}
 		if !slices.Contains(unknown, name) {
 			unknown = append(unknown, name)
@@ -120,12 +114,41 @@ func checkBlobScheduleKeys(undecoded []toml.Key) error {
 	if len(unknown) == 0 {
 		return nil
 	}
-	entries := make([]string, schedule.NumField())
-	for i := range entries {
-		entries[i] = strings.ToLower(schedule.Field(i).Name)
+	msg := "unknown keys: " + strings.Join(unknown, ", ")
+	if inBlobSchedule {
+		schedule := reflect.TypeFor[params.BlobScheduleConfig]()
+		entries := make([]string, schedule.NumField())
+		for i := range entries {
+			entries[i] = strings.ToLower(schedule.Field(i).Name)
+		}
+		msg += fmt.Sprintf("; valid blobSchedule entries are %s, each with target, max and updateFraction", strings.Join(entries, ", "))
 	}
-	return fmt.Errorf("unknown blob schedule keys: %s; valid entries are %s, each with target, max and updateFraction",
-		strings.Join(unknown, ", "), strings.Join(entries, ", "))
+	return errors.New(msg)
+}
+
+// blobScheduleKeyName names the first part of an undecoded key under l1DevGenesisParams.blobSchedule
+// that is no field of the blob schedule, with a hint for the keys an intent is likely to hold.
+func blobScheduleKeyName(key toml.Key) string {
+	// A table that is only implied by a dotted key is not listed itself, only the keys below it.
+	t := reflect.TypeFor[params.BlobScheduleConfig]()
+	for i := 2; i < len(key) && t.Kind() == reflect.Struct; i++ {
+		field, ok := t.FieldByNameFunc(func(name string) bool { return strings.EqualFold(name, key[i]) })
+		if !ok {
+			key = key[:i+1]
+			break
+		}
+		t = field.Type
+		if t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
+	}
+	switch last := key[len(key)-1]; {
+	case len(key) == 3 && strings.EqualFold(last, "osaka"):
+		return key.String() + " (Osaka has no entry of its own and uses prague)"
+	case len(key) == 4 && strings.EqualFold(last, "baseFeeUpdateFraction"):
+		return key.String() + " (the TOML key is updateFraction)"
+	}
+	return key.String()
 }
 
 func ReadState(workdir string) (*state.State, error) {

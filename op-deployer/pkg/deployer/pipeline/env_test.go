@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -215,7 +216,7 @@ func TestReadIntent_RejectsUnknownBlobScheduleKeys(t *testing.T) {
 
 			_, err := ReadIntent(dir)
 			// The entry list is matched by its start, so that a fork added by go-ethereum does not break the test.
-			require.ErrorContains(t, err, "failed to read intent file: unknown blob schedule keys: "+tt.keys+"; valid entries are cancun, prague, bpo1, ")
+			require.ErrorContains(t, err, "failed to read intent file: unknown keys: "+tt.keys+"; valid blobSchedule entries are cancun, prague, bpo1, ")
 			require.ErrorContains(t, err, ", each with target, max and updateFraction")
 		})
 	}
@@ -240,15 +241,148 @@ func TestReadIntent_AcceptsKnownBlobSchedule(t *testing.T) {
 	require.Equal(t, schedule, got.L1DevGenesisParams.BlobSchedule)
 }
 
-// Intents in use carry keys the intent type does not know (e.g. superchainRoles.guardian).
-func TestReadIntent_IgnoresUnknownKeysOutsideBlobSchedule(t *testing.T) {
+func TestReadIntent_RejectsUnknownKeys(t *testing.T) {
+	const chain = "[[chains]]\nid = \"0x0000000000000000000000000000000000000000000000000000000000000001\"\n"
+	tests := []struct {
+		name string
+		toml string
+		// keys is the reported key list, which must hold each unknown key once, without the keys below it.
+		keys string
+	}{
+		{
+			name: "top-level key",
+			toml: "useInterops = true\n",
+			keys: "useInterops",
+		},
+		{
+			name: "keys of a known table",
+			toml: "[superchainRoles]\nguardian = \"0x0000000000000000000000000000000000000001\"\nproxyAdminOwner = \"0x0000000000000000000000000000000000000002\"\n",
+			keys: "superchainRoles.guardian, superchainRoles.proxyAdminOwner",
+		},
+		{
+			name: "chain key lists once for several chains",
+			toml: chain + "chainFeesRecipient = \"0x0000000000000000000000000000000000000001\"\n" +
+				chain + "chainFeesRecipient = \"0x0000000000000000000000000000000000000002\"\n",
+			keys: "chains.chainFeesRecipient",
+		},
+		{
+			name: "unknown table",
+			toml: "[superchain]\nguardian = 1\n[superchain.roles]\nchallenger = 2\n",
+			keys: "superchain",
+		},
+		{
+			name: "unknown inline table",
+			toml: "superchain = { guardian = 1, roles = { challenger = 2 } }\n",
+			keys: "superchain",
+		},
+		{
+			name: "unknown table implied by dotted keys",
+			toml: "superchain.guardian = 1\nsuperchain.roles.challenger = 2\n",
+			keys: "superchain.guardian, superchain.roles.challenger",
+		},
+		{
+			name: "key below a table that differs in case from an unknown key",
+			toml: "Superchain = 1\nsuperchain.guardian = 2\n",
+			keys: "Superchain, superchain.guardian",
+		},
+		{
+			name: "key next to an override map",
+			toml: chain + "deployOverride = 1\n[globalDeployOverrides]\nl2BlockTime = 1\n",
+			keys: "chains.deployOverride",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			intentTOML := "configType = \"custom\"\nl1ChainID = 900\n" + tt.toml
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "intent.toml"), []byte(intentTOML), 0o644))
+
+			_, err := ReadIntent(dir)
+			require.EqualError(t, err, "failed to read intent file: unknown keys: "+tt.keys)
+		})
+	}
+}
+
+// The override maps are free-form, and the decoder lists the keys of their nested tables as undecoded.
+func TestReadIntent_AcceptsNestedOverrides(t *testing.T) {
 	dir := t.TempDir()
-	intentTOML := "configType = \"custom\"\nl1ChainID = 900\n[superchainRoles]\nguardian = \"0x0000000000000000000000000000000000000001\"\n"
+	intentTOML := `configType = "custom"
+l1ChainID = 900
+
+[GlobalDeployOverrides]
+l2BlockTime = 1
+inline = { a = { b = 2 } }
+[globalDeployOverrides.nested]
+c = 3
+[[globalDeployOverrides.list]]
+d = 4
+
+[[chains]]
+id = "0x0000000000000000000000000000000000000000000000000000000000000001"
+[chains.deployOverrides.customGasToken]
+name = "Token"
+[chains.deployOverrides.customGasToken.nested]
+e = 5
+`
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "intent.toml"), []byte(intentTOML), 0o644))
 
 	intent, err := ReadIntent(dir)
 	require.NoError(t, err)
-	require.Equal(t, uint64(900), intent.L1ChainID)
+	require.Equal(t, map[string]any{
+		"l2BlockTime": int64(1),
+		"inline":      map[string]any{"a": map[string]any{"b": int64(2)}},
+		"nested":      map[string]any{"c": int64(3)},
+		"list":        []map[string]any{{"d": int64(4)}},
+	}, intent.GlobalDeployOverrides)
+	require.Equal(t, map[string]any{
+		"customGasToken": map[string]any{"name": "Token", "nested": map[string]any{"e": int64(5)}},
+	}, intent.Chains[0].DeployOverrides)
+}
+
+// ReadIntent must accept every key that op-deployer itself writes.
+func TestReadIntent_AcceptsWrittenIntent(t *testing.T) {
+	addr := common.HexToAddress("0x0000000000000000000000000000000000000001")
+	for _, configType := range []state.IntentType{state.IntentTypeStandard, state.IntentTypeCustom, state.IntentTypeStandardOverrides} {
+		t.Run(string(configType), func(t *testing.T) {
+			intent, err := state.NewIntent(configType, 11155111, []common.Hash{common.BigToHash(big.NewInt(901))})
+			require.NoError(t, err)
+			intent.SuperchainConfigProxy = &addr
+			intent.SuperchainRoles = &addresses.SuperchainRoles{SuperchainProxyAdminOwner: addr, SuperchainGuardian: addr, Challenger: addr}
+			intent.GlobalDeployOverrides = map[string]any{"l2BlockTime": int64(1), "nested": map[string]any{"a": int64(1)}}
+			intent.L1DevGenesisParams = &state.L1DevGenesisParams{
+				PragueTimeOffset: new(uint64),
+				BlobSchedule:     &params.BlobScheduleConfig{Cancun: params.DefaultCancunBlobConfig},
+			}
+			chain := intent.Chains[0]
+			chain.DeployOverrides = map[string]any{"customGasToken": map[string]any{"name": "Token"}}
+			chain.AdditionalDisputeGames = []state.AdditionalDisputeGame{{
+				VMType:        state.VMTypeCannon,
+				ZKDisputeGame: &state.ZKDisputeGameParams{ChallengerBond: (*hexutil.Big)(big.NewInt(1))},
+			}}
+			chain.CustomGasToken = state.CustomGasToken{Name: "Token", Symbol: "TKN", InitialLiquidity: (*hexutil.Big)(big.NewInt(1))}
+			chain.L1StartBlockHash = &common.Hash{1}
+			chain.DangerousAltDAConfig = genesis.AltDADeployConfig{UseAltDA: true, DACommitmentType: "KeccakCommitment"}
+			chain.OperatorFeeScalar = 1
+			chain.OperatorFeeConstant = 1
+			chain.MinBaseFee = 1
+			chain.DAFootprintGasScalar = 1
+			chain.BridgeHook = &addr
+			chain.L2DevGenesisParams = &state.L2DevGenesisParams{}
+
+			dir := t.TempDir()
+			intentPath := filepath.Join(dir, "intent.toml")
+			require.NoError(t, intent.WriteToFile(intentPath))
+			written, err := os.ReadFile(intentPath)
+			require.NoError(t, err)
+
+			got, err := ReadIntent(dir)
+			require.NoError(t, err)
+			require.NoError(t, got.WriteToFile(intentPath))
+			rewritten, err := os.ReadFile(intentPath)
+			require.NoError(t, err)
+			require.Equal(t, string(written), string(rewritten))
+		})
+	}
 }
 
 // Every state file written before DeploymentCalldata was removed has the field, as null or as
