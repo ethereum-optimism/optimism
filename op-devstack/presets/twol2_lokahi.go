@@ -8,10 +8,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
-// TwoL2Lokahi is two chains with interop active at genesis whose kona-nodes follow one lokahi
-// process for their safe and finalized labels.
+// TwoL2Lokahi is two interop chains whose kona-nodes follow one lokahi process for their safe
+// and finalized labels.
 type TwoL2Lokahi struct {
 	TwoL2
+
+	// TestSequencer controls L1: a test stops L1's own block production to build or reorg L1 by
+	// hand.
+	TestSequencer *dsl.TestSequencer
+
+	// InteropActivationTime is when interop activates on both chains, the genesis time unless a
+	// delay was asked for.
+	InteropActivationTime uint64
 
 	L2ELA *dsl.L2ELNode
 	L2ELB *dsl.L2ELNode
@@ -25,12 +33,18 @@ type TwoL2Lokahi struct {
 	Lokahi *sysgo.Lokahi
 }
 
-// NewTwoL2Lokahi starts a [TwoL2Lokahi] system for the current test. With
-// DEVSTACK_L2CL_KIND=op-reth each chain runs kona inside its op-reth process, with kona-node as a
-// kona-node process. It skips the test under op-node.
+// NewTwoL2Lokahi starts a [TwoL2Lokahi] system with interop active at genesis for the current
+// test. With DEVSTACK_L2CL_KIND=op-reth each chain runs kona inside its op-reth process, with
+// kona-node as a kona-node process. It skips the test under op-node.
 func NewTwoL2Lokahi(t devtest.T) *TwoL2Lokahi {
+	return NewTwoL2LokahiWithInteropDelay(t, 0)
+}
+
+// NewTwoL2LokahiWithInteropDelay is [NewTwoL2Lokahi] with interop activating delaySeconds after
+// genesis.
+func NewTwoL2LokahiWithInteropDelay(t devtest.T, delaySeconds uint64) *TwoL2Lokahi {
 	skipKonaOnlyPresetOnOpNode(t)
-	runtime := sysgo.NewTwoL2LokahiRuntime(t)
+	runtime := sysgo.NewTwoL2LokahiRuntimeWithInteropDelay(t, delaySeconds)
 	inOpReth := sysgo.ResolveMixedL2CLKind(t) == sysgo.MixedL2CLOpReth
 	for name, chain := range runtime.Chains {
 		if inOpReth {
@@ -47,12 +61,16 @@ func NewTwoL2Lokahi(t devtest.T) *TwoL2Lokahi {
 		"lokahi", runtime.Lokahi.ExecPath(), "lokahi_rpc", runtime.Lokahi.UserRPC())
 
 	twoL2, components := twoL2FromRuntime(t, runtime)
+	testSequencer := newTestSequencerFrontend(t, runtime.TestSequencer.Name, runtime.TestSequencer.AdminRPC,
+		runtime.TestSequencer.ControlRPC, runtime.TestSequencer.JWTSecret)
 	preset := &TwoL2Lokahi{
-		TwoL2:  *twoL2,
-		L2ELA:  dsl.NewL2ELNode(components.l2AEL),
-		L2ELB:  dsl.NewL2ELNode(components.l2BEL),
-		Wallet: dsl.NewRandomHDWallet(t, 30),
-		Lokahi: runtime.Lokahi,
+		TwoL2:                 *twoL2,
+		TestSequencer:         dsl.NewTestSequencer(testSequencer),
+		InteropActivationTime: twoL2.L2A.Escape().RollupConfig().Genesis.L2Time + delaySeconds,
+		L2ELA:                 dsl.NewL2ELNode(components.l2AEL),
+		L2ELB:                 dsl.NewL2ELNode(components.l2BEL),
+		Wallet:                dsl.NewRandomHDWallet(t, 30),
+		Lokahi:                runtime.Lokahi,
 	}
 	preset.FunderA = newFunderEOA(t, runtime.Keys, preset.L2ELA, preset.Wallet)
 	preset.FunderB = newFunderEOA(t, runtime.Keys, preset.L2ELB, preset.Wallet)

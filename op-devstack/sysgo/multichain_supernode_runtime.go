@@ -773,8 +773,6 @@ func startTestSequencerForL2Chains(
 	require := t.Require()
 	logger := t.Logger().New("component", "test-sequencer")
 
-	require.NotEmpty(targets, "at least one L2 target is required")
-
 	l1ELClient, err := ethclient.DialContext(t.Ctx(), l1EL.UserRPC())
 	require.NoError(err, "failed to dial L1 EL RPC for test-sequencer")
 	t.Cleanup(l1ELClient.Close)
