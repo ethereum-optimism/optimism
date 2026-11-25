@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -139,6 +140,115 @@ func TestRenderGenesisAndRollup_NilStartBlock(t *testing.T) {
 
 	_, _, err := RenderGenesisAndRollup(st, chainID, intent)
 	require.ErrorContains(t, err, "has no pinned start block")
+}
+
+func TestReadIntent_RejectsUnknownBlobScheduleKeys(t *testing.T) {
+	const (
+		osakaHint    = " (Osaka has no entry of its own and uses prague)"
+		fractionHint = " (the TOML key is updateFraction)"
+		blobConfig   = "target = 6\nmax = 9\nupdateFraction = 5007716\n"
+	)
+	tests := []struct {
+		name string
+		toml string
+		// keys is the reported key list, which must hold each unknown key once, without the keys below it.
+		keys string
+	}{
+		{
+			name: "osaka",
+			toml: "[l1DevGenesisParams.blobSchedule.osaka]\n" + blobConfig,
+			keys: "l1DevGenesisParams.blobSchedule.osaka" + osakaHint,
+		},
+		{
+			name: "osaka as dotted keys",
+			toml: "[l1DevGenesisParams.blobSchedule]\nosaka.target = 6\nosaka.max = 9\n",
+			keys: "l1DevGenesisParams.blobSchedule.osaka" + osakaHint,
+		},
+		{
+			name: "verkle",
+			toml: "[l1DevGenesisParams.blobSchedule.verkle]\n" + blobConfig,
+			keys: "l1DevGenesisParams.blobSchedule.verkle",
+		},
+		{
+			name: "amsterdam",
+			toml: "[l1DevGenesisParams.blobSchedule.amsterdam]\n" + blobConfig,
+			keys: "l1DevGenesisParams.blobSchedule.amsterdam",
+		},
+		{
+			name: "case-insensitive section names",
+			toml: "[L1DevGenesisParams.BlobSchedule.Osaka]\n" + blobConfig,
+			keys: "L1DevGenesisParams.BlobSchedule.Osaka" + osakaHint,
+		},
+		{
+			// The decoder case-folds each key part, so the long s binds to BlobSchedule.
+			name: "key part matched by unicode case folding",
+			toml: "[l1DevGenesisParams.\"blob\u017fchedule\".osaka]\n" + blobConfig,
+			keys: "l1DevGenesisParams.\"blob\u017fchedule\".osaka" + osakaHint,
+		},
+		{
+			name: "unknown blob config field",
+			toml: "[l1DevGenesisParams.blobSchedule.prague]\ntarget = 6\nmax = 9\nbaseFeeUpdateFraction = 5007716\n",
+			keys: "l1DevGenesisParams.blobSchedule.prague.baseFeeUpdateFraction" + fractionHint,
+		},
+		{
+			name: "array of tables lists the key once",
+			toml: "[[l1DevGenesisParams.blobSchedule.verkle]]\ntarget = 6\n[[l1DevGenesisParams.blobSchedule.verkle]]\ntarget = 3\n",
+			keys: "l1DevGenesisParams.blobSchedule.verkle",
+		},
+		{
+			name: "no fork hint below a known entry",
+			toml: "[l1DevGenesisParams.blobSchedule.prague]\nosaka = 1\n",
+			keys: "l1DevGenesisParams.blobSchedule.prague.osaka",
+		},
+		{
+			name: "several unknown keys",
+			toml: "[l1DevGenesisParams.blobSchedule.prague]\nbaseFeeUpdateFraction = 5007716\n[l1DevGenesisParams.blobSchedule.osaka]\n" + blobConfig,
+			keys: "l1DevGenesisParams.blobSchedule.prague.baseFeeUpdateFraction" + fractionHint +
+				", l1DevGenesisParams.blobSchedule.osaka" + osakaHint,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			intentTOML := "configType = \"custom\"\nl1ChainID = 900\n" + tt.toml
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "intent.toml"), []byte(intentTOML), 0o644))
+
+			_, err := ReadIntent(dir)
+			// The entry list is matched by its start, so that a fork added by go-ethereum does not break the test.
+			require.ErrorContains(t, err, "failed to read intent file: unknown blob schedule keys: "+tt.keys+"; valid entries are cancun, prague, bpo1, ")
+			require.ErrorContains(t, err, ", each with target, max and updateFraction")
+		})
+	}
+}
+
+func TestReadIntent_AcceptsKnownBlobSchedule(t *testing.T) {
+	schedule := &params.BlobScheduleConfig{
+		Cancun: params.DefaultCancunBlobConfig,
+		Prague: params.DefaultPragueBlobConfig,
+		BPO1:   &params.BlobConfig{Target: 10, Max: 15, UpdateFraction: 8346193},
+	}
+	intent := &state.Intent{
+		ConfigType:         state.IntentTypeCustom,
+		L1ChainID:          900,
+		L1DevGenesisParams: &state.L1DevGenesisParams{BlobSchedule: schedule},
+	}
+	dir := t.TempDir()
+	require.NoError(t, intent.WriteToFile(filepath.Join(dir, "intent.toml")))
+
+	got, err := ReadIntent(dir)
+	require.NoError(t, err)
+	require.Equal(t, schedule, got.L1DevGenesisParams.BlobSchedule)
+}
+
+// Intents in use carry keys the intent type does not know (e.g. superchainRoles.guardian).
+func TestReadIntent_IgnoresUnknownKeysOutsideBlobSchedule(t *testing.T) {
+	dir := t.TempDir()
+	intentTOML := "configType = \"custom\"\nl1ChainID = 900\n[superchainRoles]\nguardian = \"0x0000000000000000000000000000000000000001\"\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "intent.toml"), []byte(intentTOML), 0o644))
+
+	intent, err := ReadIntent(dir)
+	require.NoError(t, err)
+	require.Equal(t, uint64(900), intent.L1ChainID)
 }
 
 // Every state file written before DeploymentCalldata was removed has the field, as null or as

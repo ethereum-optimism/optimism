@@ -214,6 +214,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param proofSubmitter Address of the proof submitter.
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
 
+    /// @notice Emitted when a withdrawal transaction is proven. Exists as a separate event to
+    ///         allow for backwards compatibility for tooling that observes the WithdrawalProven
+    ///         and WithdrawalProvenExtension1 events.
+    /// @param withdrawalHash   Hash of the withdrawal transaction.
+    /// @param proofSubmitter   Address of the proof submitter.
+    /// @param disputeGameProxy Dispute game the withdrawal was proven against.
+    event WithdrawalProvenExtension2(
+        bytes32 indexed withdrawalHash, address indexed proofSubmitter, IDisputeGame indexed disputeGameProxy
+    );
+
     /// @notice Emitted when a withdrawal transaction is finalized.
     /// @param withdrawalHash Hash of the withdrawal transaction.
     /// @param success        Whether the withdrawal transaction was successful.
@@ -324,9 +334,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 7.7.0
+    /// @custom:semver 7.9.1
     function version() public pure virtual returns (string memory) {
-        return "7.7.0";
+        return "7.9.1";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -342,6 +352,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Initializer. If `_bridgeHook` is nonzero, sets it as the current hook and emits
     ///         BridgeHookSet. Upgrades pass the zero address to keep the current hook.
+    ///         WARNING: Do not set a bridge hook on a chain that carries migrated pre-Bedrock
+    ///         withdrawals, such as OP Mainnet. Already-relayed legacy (version 0) withdrawals can
+    ///         still be proven, and the hold path unlocks their ETH from the lockbox before the
+    ///         L1CrossDomainMessenger's already-relayed check runs, so the ETH ends up held and
+    ///         can never complete. See https://github.com/ethereum-optimism/optimism/issues/24397
     ///
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
@@ -593,6 +608,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Emit a WithdrawalProven events.
         emit WithdrawalProven(withdrawalHash, _tx.sender, _tx.target);
         emit WithdrawalProvenExtension1(withdrawalHash, msg.sender);
+        emit WithdrawalProvenExtension2(withdrawalHash, msg.sender, disputeGameProxy);
     }
 
     /// @notice Finalizes a withdrawal transaction. If a bridge hook is set, the hook can hold the
@@ -721,6 +737,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             if (_tx.value > 0) _unlockETH(_tx.value);
         }
 
+        // NOTE: ETH is unlocked before screening; legacy already-relayed messages are not
+        // rejected here (see https://github.com/ethereum-optimism/optimism/issues/24397).
         if (_isUsingBridgeHook()) {
             ProvenWithdrawal memory proven = provenWithdrawals[withdrawalHash][_proofSubmitter];
             uint256 maturedAt = proven.timestamp + proofMaturityDelaySeconds;
@@ -1083,7 +1101,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         _held[id_] = true;
 
         if (_item.asset == BridgeHookTypes.Asset.ERC20) {
-            _l1StandardBridge().holdERC20(_item.direction, _message);
+            _l1StandardBridge().holdERC20(id_, _item.direction, _message);
         }
     }
 
@@ -1102,7 +1120,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         if (_item.asset == BridgeHookTypes.Asset.ERC20) {
             (, bytes memory message) = BridgeHookDecoder.extractTokenMessage(_item);
-            _l1StandardBridge().restoreERC20(_item.direction, message);
+            _l1StandardBridge().restoreERC20(id, _item.direction, message);
         }
     }
 
@@ -1200,13 +1218,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         emit ProofMaturityDelaySecondsSet(_proofMaturityDelaySeconds);
     }
 
-    /// @notice Checks if a target address is unsafe. The L1StandardBridge is always unsafe, and
-    ///         the bridge hook is unsafe while it is set.
+    /// @notice Checks if a target address is unsafe. The L1StandardBridge and the bridge hook are
+    ///         unsafe only while a hook is set.
     function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
         if (_target == address(this) || _target == address(ethLockbox)) return true;
-        if (_target == address(_l1StandardBridge())) return true;
-        return _isUsingBridgeHook() && _target == address(bridgeHook);
+        if (!_isUsingBridgeHook()) return false;
+        return _target == address(_l1StandardBridge()) || _target == address(bridgeHook);
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.

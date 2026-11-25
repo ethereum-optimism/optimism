@@ -73,16 +73,16 @@ func TestSupernodeInteropRPCGatedDuringReorg(gt *testing.T) {
 	sys.L2ELB.ReorgTriggered(invalidRef, reorgWaitAttempts)
 
 	sys.Supernode.AwaitValidatedTimestamp(invalidBlockTimestamp)
-	sys.L2ELB.AssertTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
+	sys.L2ELB.AssertUserTxNotInBlock(invalidBlockNumber, execMsg.Receipt.TxHash)
 
 	bruce := sys.FunderB.NewFundedEOA(eth.OneEther)
 	tx := bruce.Transfer(alice.Address(), eth.OneHundredthEther)
 	txBlock := bigs.Uint64Strict(tx.Included.Value().BlockNumber)
-	sys.L2ELB.AssertTxInBlock(txBlock, tx.Included.Value().TxHash)
+	sys.L2ELB.AssertUserTxInBlock(txBlock, tx.Included.Value().TxHash)
 
 	txTimestamp := sys.L2B.TimestampForBlockNum(txBlock)
 	sys.Supernode.AwaitValidatedTimestamp(txTimestamp)
-	sys.L2ELB.AssertTxInBlock(txBlock, tx.Included.Value().TxHash)
+	sys.L2ELB.AssertUserTxInBlock(txBlock, tx.Included.Value().TxHash)
 
 	// The route must keep serving across the swap, never returning method-not-found
 	// or a route-missing 404.

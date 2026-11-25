@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -87,6 +87,14 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 			assert.Equal(t, res.L1FeeScalar, l1Cfg.Scalar)
 		})
 	}
+	t.Run("no basefee", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(func(l *testutils.MockBlockInfo) {
+			l.InfoBaseFee = nil
+		})(rng)
+		_, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
+		require.ErrorContains(t, err, "has no base fee")
+	})
 	t.Run("no data", func(t *testing.T) {
 		_, err := L1BlockInfoFromBytes(&rollupCfg, 0, nil)
 		assert.Error(t, err)
@@ -207,7 +215,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoJovianLen, len(depTx.Data))
-		dafgs, err := types.ExtractDAFootprintGasScalar(depTx.Data)
+		dafgs, err := opfees.ExtractDAFootprintGasScalar(depTx.Data)
 		require.NoError(t, err)
 		// randomL1Cfg has scalar 0, which should be translated to the default value.
 		require.Equal(t, uint16(DAFootprintGasScalarDefault), dafgs)

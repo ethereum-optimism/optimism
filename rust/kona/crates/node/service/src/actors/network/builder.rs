@@ -139,6 +139,12 @@ impl NetworkBuilder {
         Self { discovery: self.discovery.with_interval(interval), ..self }
     }
 
+    /// Sets how often the [`Discv5Builder`]'s driver saves the bootstore, and hands its records
+    /// to gossip again.
+    pub fn with_discovery_store_interval(self, interval: Duration) -> Self {
+        Self { discovery: self.discovery.with_store_interval(interval), ..self }
+    }
+
     /// Sets the address for the [`Discv5Builder`].
     pub fn with_discovery_address(self, address: LocalNode) -> Self {
         Self { discovery: self.discovery.with_local_node(address), ..self }
@@ -309,6 +315,30 @@ mod tests {
         };
 
         assert!(builder().build().is_err());
+        let driver = builder().with_discovery_enabled(false).build().unwrap();
+        assert!(driver.discovery.is_none());
+    }
+
+    /// Nor is its bootstore opened, so a bootstore that can't be opened, here a directory, fails
+    /// the build only if discovery is enabled.
+    #[test]
+    fn test_build_without_discovery_ignores_its_bootstore() {
+        let dir = tempfile::tempdir().unwrap();
+        let builder = || {
+            network_builder(Default::default())
+                .with_bootstore(Some(BootStoreFile::Custom(dir.path().to_path_buf())))
+        };
+
+        let err = builder().build().unwrap_err();
+        assert!(
+            matches!(
+                err,
+                NetworkBuilderError::DiscoveryDriverBuilder(
+                    kona_disc::Discv5BuilderError::Bootstore(_)
+                )
+            ),
+            "{err}"
+        );
         let driver = builder().with_discovery_enabled(false).build().unwrap();
         assert!(driver.discovery.is_none());
     }

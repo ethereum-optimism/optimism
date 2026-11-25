@@ -35,7 +35,7 @@ type PlannedTx struct {
 	Unsigned      plan.Lazy[types.TxData]
 	Signed        plan.Lazy[*types.Transaction]
 	Submitted     plan.Lazy[struct{}]
-	Included      plan.Lazy[*types.Receipt]
+	Included      plan.Lazy[*optypes.Receipt] // OP Stack fields are nil through FromGethReceipts
 	IncludedBlock plan.Lazy[eth.BlockRef]
 	Success       plan.Lazy[struct{}]
 
@@ -326,7 +326,9 @@ type GethReceiptGetter interface {
 }
 
 // FromGethReceipts adapts a go-ethereum receipt getter to ReceiptGetter.
-// The JSON-only OP fee fields stay nil — suitable for L1 clients.
+// The JSON-only OP fee fields stay nil, and a deposit receipt is an error:
+// suitable for L1 clients, and for L2 clients when only user transactions
+// are looked up.
 func FromGethReceipts(cl GethReceiptGetter) ReceiptGetter {
 	return gethReceiptGetter{inner: cl}
 }
@@ -338,7 +340,7 @@ func (g gethReceiptGetter) TransactionReceipt(ctx context.Context, txHash common
 	if err != nil || receipt == nil {
 		return nil, err
 	}
-	return optypes.FromGethReceipt(receipt), nil
+	return optypes.FromGethReceipt(receipt)
 }
 
 // WithAssumedInclusion assumes inclusion at the time of evaluation,
@@ -346,12 +348,8 @@ func (g gethReceiptGetter) TransactionReceipt(ctx context.Context, txHash common
 func WithAssumedInclusion(cl ReceiptGetter) Option {
 	return func(tx *PlannedTx) {
 		tx.Included.DependOn(&tx.Signed, &tx.Submitted)
-		tx.Included.Fn(func(ctx context.Context) (*types.Receipt, error) {
-			receipt, err := cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
-			if err != nil {
-				return nil, err
-			}
-			return &receipt.Receipt, nil
+		tx.Included.Fn(func(ctx context.Context) (*optypes.Receipt, error) {
+			return cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
 		})
 	}
 }
@@ -359,16 +357,12 @@ func WithAssumedInclusion(cl ReceiptGetter) Option {
 func WithRetryInclusion(cl ReceiptGetter, maxAttempts int, strategy retry.Strategy) Option {
 	return func(tx *PlannedTx) {
 		tx.Included.DependOn(&tx.Signed, &tx.Submitted)
-		tx.Included.Fn(func(ctx context.Context) (*types.Receipt, error) {
-			receipt, err := cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
-			if err != nil {
-				return nil, err
-			}
-			return &receipt.Receipt, nil
+		tx.Included.Fn(func(ctx context.Context) (*optypes.Receipt, error) {
+			return cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
 		})
-		tx.Included.Wrap(func(fn plan.Fn[*types.Receipt]) plan.Fn[*types.Receipt] {
-			return func(ctx context.Context) (*types.Receipt, error) {
-				return retry.Do(ctx, maxAttempts, strategy, func() (*types.Receipt, error) {
+		tx.Included.Wrap(func(fn plan.Fn[*optypes.Receipt]) plan.Fn[*optypes.Receipt] {
+			return func(ctx context.Context) (*optypes.Receipt, error) {
+				return retry.Do(ctx, maxAttempts, strategy, func() (*optypes.Receipt, error) {
 					return fn(ctx)
 				})
 			}
@@ -487,11 +481,8 @@ func WithBlobs(blobs []*eth.Blob, config *params.ChainConfig) Option {
 			return uint256.MustFromBig(tx.AgainstBlock.Value().BlobBaseFee(config)), nil
 		})
 		var blobHashes []common.Hash
-		tx.Sidecar.DependOn(&tx.AgainstBlock)
 		tx.Sidecar.Fn(func(_ context.Context) (*types.BlobTxSidecar, error) {
-			againstBlock := tx.AgainstBlock.Value()
-			useCellProofs := config.IsOsaka(new(big.Int).SetUint64(againstBlock.NumberU64()), againstBlock.Time())
-			sidecar, hashes, err := txmgr.MakeSidecar(blobs, useCellProofs)
+			sidecar, hashes, err := txmgr.MakeSidecar(blobs)
 			if err != nil {
 				return nil, fmt.Errorf("make blob tx sidecar: %w", err)
 			}

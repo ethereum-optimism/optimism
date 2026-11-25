@@ -37,6 +37,7 @@ type TwoL2 struct {
 // NewTwoL2Supernode creates a fresh TwoL2 target backed by a shared supernode for the
 // current test.
 func NewTwoL2Supernode(t devtest.T, opts ...Option) *TwoL2 {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2Supernode", opts, twoL2SupernodePresetSupportedOptionKinds)
 	return twoL2SupernodeFromRuntime(t, sysgo.NewTwoL2SupernodeRuntimeWithConfig(t, presetCfg))
 }
@@ -109,7 +110,7 @@ func (s *TwoL2SupernodeInterop) L2UserRPCURLs() []string {
 // AdvanceTime advances the time-travel clock if enabled.
 func (s *TwoL2SupernodeInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
-	s.L1EL.AdvanceTime(s.timeTravel, amount)
+	s.L1EL.AdvanceTime(s.timeTravel, amount, s.L1CL.BlockTime())
 }
 
 // SuperNodeClient returns an API for calling supernode-specific RPC methods
@@ -166,24 +167,17 @@ func (s *TwoL2SupernodeInterop) BootstrapLightSequencersViaVNHandoff() {
 
 // NewTwoL2SupernodeInterop creates a fresh TwoL2SupernodeInterop target for the current
 // test.
-//
-// When WithInteropFilter() is set the test is skipped on op-geth: the interop filter
-// is only supported with op-reth, since op-geth does not call the interop_ namespace.
 func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeInterop", opts, twoL2SupernodeInteropPresetSupportedOptionKinds)
-	if presetCfg.UseInteropFilter {
-		sysgo.SkipOnOpGeth(t, "interop filter is only supported with op-reth")
-	}
 	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
 }
 
 // NewTwoL2SupernodeLightSequencerInterop creates a two-L2 interop setup where
 // light op-node CLs sequence blocks and the shared supernode derives safe heads.
 func NewTwoL2SupernodeLightSequencerInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeLightSequencerInterop", opts, twoL2SupernodeLightSequencerPresetSupportedOptionKinds)
-	if presetCfg.UseInteropFilter {
-		sysgo.SkipOnOpGeth(t, "interop filter is only supported with op-reth")
-	}
 	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
 }
 
@@ -278,8 +272,8 @@ func (s *SameTimestampTestSetup) IncludeAndValidate(txsA, txsB []*txplan.Planned
 	require.NotNil(s.t, s.TestSequencer, "TestSequencer is required for deterministic timestamp tests")
 
 	// Assign nonces deterministically within each same-timestamp block. Relying on
-	// mempool-visible pending nonces is racy across clients, and op-reth is stricter
-	// about underpriced replacement transactions than op-geth.
+	// mempool-visible pending nonces is racy, and op-reth rejects underpriced
+	// replacement transactions.
 	baseNonceA := s.Alice.PendingNonce()
 	for i, ptx := range txsA {
 		txplan.WithStaticNonce(baseNonceA + uint64(i))(ptx)

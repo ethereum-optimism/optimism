@@ -63,8 +63,6 @@ type BatcherCfg struct {
 
 	DataAvailabilityType batcherFlags.DataAvailabilityType
 	AltDA                AltDAInputSetter
-
-	EnableCellProofs bool
 }
 
 func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
@@ -73,7 +71,6 @@ func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: batcherFlags.CalldataType,
-		EnableCellProofs:     false, // TODO change to true when Osaka activates on L1
 	}
 }
 
@@ -405,14 +402,15 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 			opt(rawTx)
 		}
 
-		gas, err := core.FloorDataGas(rawTx.Data)
+		// The L1 miner builds no Amsterdam blocks, so the pre-Amsterdam floor applies.
+		gas, err := core.FloorDataGas(params.Rules{}, s.BatcherAddr, rawTx.To, nil, rawTx.Data, nil)
 		require.NoError(t, err, "need to compute floor data gas")
 		rawTx.Gas = gas
 		txData = rawTx
 	} else if s.l2BatcherCfg.DataAvailabilityType == batcherFlags.BlobsType {
 		var b eth.Blob
 		require.NoError(t, b.FromData(payload), "must turn data into blob")
-		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b}, s.l2BatcherCfg.EnableCellProofs)
+		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b})
 		require.NoError(t, err)
 		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
 		blobBaseFee, err := s.l1.BlobBaseFee(t.Ctx())
@@ -447,7 +445,7 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 }
 
 func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
-	// Update to Prague if L1 changes to Prague and we need more blobs in multi-blob tests.
+	// Osaka caps a transaction at 6 blobs (EIP-7594), the Cancun maximum per block.
 	maxBlobsPerBlock := params.DefaultCancunBlobConfig.Max
 	if s.l2BatcherCfg.DataAvailabilityType != batcherFlags.BlobsType {
 		t.InvalidAction("ActL2BatchSubmitMultiBlob only available for Blobs DA type")
@@ -497,7 +495,7 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 	require.NoError(t, err, "need l1 pending header for gas price estimation")
 	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(pendingHeader.BaseFee, big.NewInt(2)))
 
-	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs, s.l2BatcherCfg.EnableCellProofs)
+	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs)
 	require.NoError(t, err)
 	blobBaseFee, err := s.l1.BlobBaseFee(t.Ctx())
 	require.NoError(t, err, "need blob base fee")

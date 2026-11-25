@@ -3,12 +3,13 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 [--force|-f]"
+  echo "Usage: $0 [--force|-f|--check]"
   echo ""
   echo "Publish contract artifacts to GCS using op-deployer's build process."
   echo ""
   echo "Options:"
   echo "  --force, -f    Force upload even if artifacts already exist"
+  echo "  --check        Exit 0 if the artifacts are already published, non-zero if not or on error. Builds nothing."
   echo "  --help, -h     Show this help message"
   echo ""
   echo "Uses 'just build-contracts' and 'just copy-contract-artifacts' from op-deployer."
@@ -38,10 +39,23 @@ if [ ! -d "$OP_DEPLOYER_DIR" ]; then
 fi
 
 FORCE=false
-if [ "${1:-}" = "--force" ] || [ "${1:-}" = "-f" ]; then
-  FORCE=true
-  echoerr "> Force mode enabled - will overwrite existing artifacts"
+CHECK=false
+if [ "$#" -gt 1 ]; then
+  echoerr "> ERROR: pass at most one option"
+  exit 2
 fi
+case "${1:-}" in
+  "") ;;
+  --force | -f)
+    FORCE=true
+    echoerr "> Force mode enabled - will overwrite existing artifacts"
+    ;;
+  --check) CHECK=true ;;
+  *)
+    echoerr "> ERROR: unknown option $1"
+    exit 2
+    ;;
+esac
 
 checksum=$(bash "$CONTRACTS_DIR/scripts/ops/calculate-checksum.sh")
 
@@ -55,6 +69,11 @@ exists_zst=$(curl -s -o /dev/null --fail -LI "$upload_url_zst" || echo "fail")
 if [ "$exists_zst" != "fail" ] && [ "$FORCE" = false ]; then
   echoerr "> Existing artifacts found (.tar.zst), nothing to do. Use --force to overwrite."
   exit 0
+fi
+
+if [ "$CHECK" = true ]; then
+  echoerr "> No published artifacts for this checksum."
+  exit 1
 fi
 
 echoerr "> Building contracts and creating artifacts..."

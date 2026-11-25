@@ -1,8 +1,8 @@
 // Package genesis holds the OP Stack L2 genesis specification and its JSON encoding.
 //
 // The JSON layout is that of a go-ethereum genesis file (core.Genesis): header fields and
-// the alloc in go-ethereum's encodings, plus a "config" object. Upstream go-ethereum's
-// chain config has no OP Stack fields, so "config" is the JSON encoding of the op-core
+// the alloc in go-ethereum's encodings, plus a "config" object. go-ethereum's chain
+// config has no OP Stack fields, so "config" is the JSON encoding of the op-core
 // params.ChainConfig instead, which carries the go-ethereum fork schedule it derives.
 package genesis
 

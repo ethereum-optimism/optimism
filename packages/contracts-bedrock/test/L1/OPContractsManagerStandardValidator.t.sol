@@ -810,6 +810,18 @@ contract OPContractsManagerStandardValidator_L1ERC721Bridge_Test is OPContractsM
 /// @title OPContractsManagerStandardValidator_OptimismPortal_Test
 /// @notice Tests validation of `OptimismPortal` configuration
 contract OPContractsManagerStandardValidator_OptimismPortal_Test is OPContractsManagerStandardValidator_TestInit {
+    /// @notice Tests that the validate function returns PORTAL-110 when the portal has a bridge
+    ///         hook. A hook makes the chain a non Stage-1 rollup, so it is never standard and is
+    ///         always reported.
+    function test_validate_optimismPortalBridgeHookSet_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2),
+            abi.encodeCall(IOptimismPortal2.bridgeHook, ()),
+            abi.encode(makeAddr("bridgeHook"))
+        );
+        assertEq("PORTAL-110", _validate(true));
+    }
+
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         OptimismPortal version is invalid.
     function test_validate_optimismPortalInvalidVersion_succeeds() public {
@@ -1921,6 +1933,18 @@ contract OPContractsManagerStandardValidator_SuperModeCoreValidation_Test is
             abi.encode(GameTypes.SUPER_CANNON_KONA)
         );
         assertEq("SPDG-ANCHORP-70,SCKDG-ANCHORP-70", _validate(true));
+    }
+
+    /// @notice Tests that the validate function returns PORTAL-110 when the portal has a bridge
+    ///         hook. A hook makes the chain a non-Stage-1 rollup, so it is never standard and is
+    ///         always reported.
+    function test_validate_optimismPortalBridgeHookSet_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2),
+            abi.encodeCall(IOptimismPortal2.bridgeHook, ()),
+            abi.encode(makeAddr("bridgeHook"))
+        );
+        assertEq("PORTAL-110", _validate(true));
     }
 
     /// @notice Tests that the validate function returns PORTAL-100 when the portal's proof maturity

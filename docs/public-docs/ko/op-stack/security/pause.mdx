@@ -58,16 +58,12 @@ Guardian은 일시 중지 식별자(identifier)를 사용하여 일시 중지의
 
 *   영(zero) 주소(`address(0)`)는 `SuperchainConfig`를 사용하는 모든 체인을 일시 중지합니다.
 *   체인의 `ETHLockbox` 주소는 해당 체인 또는 해당 `ETHLockbox`를 공유하는 체인 그룹만 일시 중지합니다.
-    `SystemConfig`에서 `ETH_LOCKBOX` 기능이 활성화되지 않은 체인은, `OptimismPortal`에 `ETHLockbox` 주소가 설정되어 있더라도 대신 `OptimismPortal` 주소를 사용합니다.
 
-<Info>
-  Upgrade 21은 이 규칙을 변경합니다.
-  Upgrade 21은 Optimism 거버넌스 승인을 기다리고 있으며, 이 변경 사항은 해당 업그레이드가 체인에 실행된 후에만 그 체인에 적용됩니다.
+[Upgrade 21](/ko/notices/upgrade-21)이 배포하는 `op-contracts/v9.0.0` 이상에서는 모든 체인이 `ETHLockbox`를 가지며 `ETH_LOCKBOX` 기능을 비활성화할 수 없으므로, `ETHLockbox` 주소가 해당 체인의 유일한 체인별 일시 중지 식별자입니다.
+체인의 `OptimismPortal` 주소를 사용한 일시 중지는 해당 체인을 일시 중지하지 않습니다.
 
-  체인이 `op-contracts/v9.0.0`으로 업그레이드되면 `ETHLockbox`를 가지게 되며 `ETH_LOCKBOX` 기능을 비활성화할 수 없으므로, `ETHLockbox` 주소가 유일한 체인별 일시 중지 식별자가 됩니다.
-  체인의 `OptimismPortal` 주소를 사용한 일시 중지는 더 이상 해당 체인을 일시 중지하지 않습니다.
-  체인에서 `ETH_LOCKBOX`가 아직 활성화되지 않은 경우, 체인이 `OptimismPortal` 주소로 일시 중지된 동안에는 업그레이드가 revert되므로, 식별자를 전환하는 방식으로 체인의 일시 중지를 해제할 수 없습니다.
-</Info>
+컨트랙트 릴리스 v4.1.0부터 v8.0.0까지는 `SystemConfig`에서 `ETH_LOCKBOX` 기능이 활성화되지 않은 체인이, `OptimismPortal`에 `ETHLockbox` 주소가 설정되어 있더라도 대신 `OptimismPortal` 주소를 사용합니다.
+이러한 체인이 `OptimismPortal` 주소로 일시 중지된 동안에는 `op-contracts/v9.0.0`으로의 업그레이드가 revert되므로, 식별자를 전환하는 방식으로 체인의 일시 중지를 해제할 수 없습니다.
 
 체인별 일시 중지 또는 전역 일시 중지 중 하나라도 활성화되어 있으면 해당 체인은 일시 중지된 상태입니다.
 두 가지를 한 번에 확인하려면 체인의 `OptimismPortal` 또는 `SystemConfig`에서 `paused()`를 호출하십시오.

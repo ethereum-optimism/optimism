@@ -340,7 +340,7 @@ op-reth에서 출금 증명을 위한 과거 상태는 `--rpc.eth-proof-window`(
 - [아카이브 node 가이드](/ko/node-operators/guides/management/archive-node) — 두 방식 모두에 대한 플래그 개요
 - [OP Mainnet 스냅샷](https://datadirs.optimism.io/) — 부트스트랩에 사용할 수 있는 사전 동기화된 op-reth 데이터 디렉터리
 
-### Legacy Geth (Bedrock 이전, 선택 사항)
+### Legacy Geth (Bedrock 이전, 선택 사항) {#legacy-geth-pre-bedrock-optional}
 
 Bedrock 업그레이드 이전에 OP Mainnet에 포함된 블록과 트랜잭션은 최신 OP Mainnet node에서 실행할 수 없습니다. 최신 node는 이러한 블록을 제공하지만 `eth_call`과 같은 상태 기반 쿼리는 실행할 수 없습니다. Bedrock 이전 OP Mainnet 상태까지 완전한 아카이브 범위를 확보하려면 최신 node와 함께 Legacy Geth(`l2geth`) node를 실행하십시오. 이는 OP Mainnet 아카이브 node에**만** 해당합니다. 풀 node나 OP Sepolia를 실행하는 경우에는 건너뛰십시오.
 

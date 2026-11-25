@@ -139,9 +139,11 @@ where
             .map_err(|_| header_not_found())?
             .ok_or_else(header_not_found)?;
 
-        // Ensure that the condition can still be met by checking the max bounds
-        if condition.has_exceeded_block_number(header.header().number()) ||
-            condition.has_exceeded_timestamp(header.header().timestamp())
+        // Ensure that the next block can still meet the max bounds. The payload builder does not
+        // check conditions, so it would include a tx whose bounds that block breaks. Its timestamp
+        // is at least one more than the latest block's.
+        if condition.has_exceeded_block_number(header.header().number() + 1) ||
+            condition.has_exceeded_timestamp(header.header().timestamp() + 1)
         {
             return Err(TxConditionalErr::InvalidCondition.into());
         }

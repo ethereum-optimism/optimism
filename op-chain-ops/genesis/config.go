@@ -264,13 +264,13 @@ type GasPriceOracleDeployConfig struct {
 	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
 	// GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used for fee calculations.
-	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar" evm:"basefeeScalar"`
+	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar"`
 	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
-	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar" evm:"blobbasefeeScalar"`
+	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar"`
 	// GasPriceOracleOperatorFeeScalar represents the value of the operator fee scalar used for fee calculations.
-	GasPriceOracleOperatorFeeScalar uint32 `json:"gasPriceOracleOperatorFeeScalar" evm:"operatorfeeScalar"`
+	GasPriceOracleOperatorFeeScalar uint32 `json:"gasPriceOracleOperatorFeeScalar"`
 	// GasPriceOracleOperatorFeeConstant represents the value of the operator fee constant used for fee calculations.
-	GasPriceOracleOperatorFeeConstant uint64 `json:"gasPriceOracleOperatorFeeConstant" evm:"operatorfeeConstant"`
+	GasPriceOracleOperatorFeeConstant uint64 `json:"gasPriceOracleOperatorFeeConstant"`
 }
 
 var _ ConfigChecker = (*GasPriceOracleDeployConfig)(nil)
@@ -343,7 +343,7 @@ func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 // OperatorDeployConfig configures the hot-key addresses for operations such as sequencing and batch-submission.
 type OperatorDeployConfig struct {
 	// P2PSequencerAddress is the address of the key the sequencer uses to sign blocks on the P2P layer.
-	P2PSequencerAddress common.Address `json:"p2pSequencerAddress" evm:"p2pSequencerAddress"`
+	P2PSequencerAddress common.Address `json:"p2pSequencerAddress"`
 	// BatchSenderAddress represents the initial sequencer account that authorizes batches.
 	// Transactions sent from this account to the batch inbox address are considered valid.
 	BatchSenderAddress common.Address `json:"batchSenderAddress"`
@@ -1043,7 +1043,7 @@ type DeployConfig struct {
 	// The L2 genesis timestamp does not affect the initial L2 account state:
 	// the storage of the L1Block contract at genesis is zeroed, since the adoption of
 	// the L2-genesis allocs-generation through solidity script.
-	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag" evm:"-"`
+	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag"`
 
 	// L1 contracts configuration.
 	// The deployer of the contracts chooses which sub-systems to deploy.
@@ -1055,7 +1055,7 @@ type DeployConfig struct {
 	L1DependenciesConfig
 
 	// Legacy, ignored, here for strict-JSON decoding to be accepted.
-	LegacyDeployConfig `evm:"-"`
+	LegacyDeployConfig
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy

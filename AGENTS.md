@@ -33,7 +33,7 @@ The rollup node software and associated services, including:
 - **op-conductor**: High-availability sequencer service
 - **op-supernode**: Multi-chain consensus-layer host that runs multiple OP Stack chains in a single process and performs in-process cross-chain safety verification
 
-The Go module is moving off the op-geth fork to upstream go-ethereum. If a Go change uses a new go-ethereum API — an import, field, method or changed signature — run `just opgeth-ratchet` before pushing. The required CI check of the same name fails on any op-geth-only use that is not in its allowlist. To avoid such a use, see [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md).
+The Go module depends on upstream go-ethereum, which knows nothing of the OP Stack: the OP Stack transaction, receipt, fee and chain-config code lives in `op-core/*`, and go-ethereum cannot decode an L2 block, so L2 bodies are read through `op-service/sources`. See [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md).
 
 ### Smart Contracts (`packages/contracts-bedrock`)
 
@@ -97,7 +97,7 @@ Before writing or refactoring code, read [docs/ai/dev-workflow.md](docs/ai/dev-w
 and the relevant language guide below. More detailed guidance for AI agents can be found in:
 
 - [docs/ai/ci-ops.md](docs/ai/ci-ops.md) - CI/CD operations
-- [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md) - Reviewing changes to CI config (`.circleci/`, `.github/workflows/`): gate coverage, required checks, path filtering, caching, plus general CircleCI/GHA best practices
+- [docs/ai/ci-config-review.md](docs/ai/ci-config-review.md) - Reviewing changes to CI config (`.circleci/`, `.github/workflows/`), or to anything a CI job runs: gate coverage, required checks, path filtering, caching, jobs that never run on a PR, cost cuts that must not regress coverage, maintainability or security, plus general CircleCI/GHA best practices
 - [docs/ai/docker.md](docs/ai/docker.md) - Docker image builds: making every external fetch (apt/apk/curl/wget) retry so registry/CDN blips don't flake CI
 - [docs/ai/contract-dev.md](docs/ai/contract-dev.md) - Smart contract development
 - [docs/ai/standard-validator-review.md](docs/ai/standard-validator-review.md) - Reviewing `StandardValidator` for assertions it should make but doesn't: cross-game symmetry, diff-driven coverage, read-versus-assert, plus the false-positive traps (pass-through getters, implementation-pinned immutables) that make naive gap-hunting noisy. Pairs with the `standard-validator-reviewer` agent
@@ -121,7 +121,7 @@ and the relevant language guide below. More detailed guidance for AI agents can 
 - [docs/ai/devfeatures.md](docs/ai/devfeatures.md) - The `DevFeatures` bitmap system gating in-development smart contract features: where the bitmap is supplied, composed, propagated, and read. Only relevant for contract development and op-deployer — not needed for client (op-node / op-reth / kona) work
 - [docs/ai/acceptance-tests.md](docs/ai/acceptance-tests.md) - Building and running acceptance tests locally
 - [docs/ai/writing-acceptance-tests.md](docs/ai/writing-acceptance-tests.md) - Writing new acceptance tests: DSL patterns, naming, what to avoid
-- [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md) - op-geth decoupling plan: consult when doing any op-geth decoupling work — migrating OP Stack–specific code out of op-geth into `op-core/*`, retiring op-geth-backed execution in tests/tooling, or removing fork-only API uses — so the monorepo can depend on upstream go-ethereum (scope: the whole monorepo — single go.mod; tracking issue #20257)
+- [docs/ai/opgeth-decoupling.md](docs/ai/opgeth-decoupling.md) - How the monorepo runs on upstream go-ethereum without the op-geth fork: where OP Stack types, fees and chain config live (`op-core/*`), how to read L2 blocks and receipts (`op-service/sources`), which code executes OP blocks (op-reth only), and what pins the OP wire formats. Consult before touching OP Stack types or go-ethereum-facing code
 
 ## External References
 

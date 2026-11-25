@@ -6,16 +6,13 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/eip1559"
-	"github.com/ethereum-optimism/optimism/op-core/forks"
 	forkstest "github.com/ethereum-optimism/optimism/op-core/forks/test"
 	"github.com/ethereum-optimism/optimism/op-core/params"
-	"github.com/ethereum-optimism/optimism/op-core/params/opgethtest"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
@@ -50,41 +47,26 @@ func fixtureAlloc() types.GenesisAlloc {
 	}
 }
 
-// fixture returns the same genesis as a Genesis and as the op-geth core.Genesis that
-// op-chain-ops builds for it.
-func fixture(t *testing.T, s forkstest.Schedule) (*Genesis, *core.Genesis) {
-	// Built first so that a fork op-geth's config lacks fails the test by name, before
-	// opChainConfig's SetActivationTime panics on a fork ChainConfig lacks.
-	gethConfig := opgethtest.ChainConfig(t, 901, s)
+// fixture returns a genesis with the fork schedule s, like the ones op-chain-ops builds. It
+// has the blob gas fields only if Ecotone, and with it Cancun, is active at genesis.
+func fixture(s forkstest.Schedule) *Genesis {
 	g := &Genesis{
-		Config:        opChainConfig(s),
-		Nonce:         7,
-		Timestamp:     1234,
-		ExtraData:     eip1559.EncodeJovianExtraData(250, 6, 0),
-		GasLimit:      30_000_000,
-		Difficulty:    big.NewInt(0),
-		Mixhash:       common.Hash{0xaa},
-		Coinbase:      predeploys.SequencerFeeVaultAddr,
-		Alloc:         fixtureAlloc(),
-		BaseFee:       big.NewInt(1_000_000_000),
-		ExcessBlobGas: ptr.New[uint64](0),
-		BlobGasUsed:   ptr.New[uint64](0),
+		Config:     opChainConfig(s),
+		Nonce:      7,
+		Timestamp:  1234,
+		ExtraData:  eip1559.EncodeJovianExtraData(250, 6, 0),
+		GasLimit:   30_000_000,
+		Difficulty: big.NewInt(0),
+		Mixhash:    common.Hash{0xaa},
+		Coinbase:   predeploys.SequencerFeeVaultAddr,
+		Alloc:      fixtureAlloc(),
+		BaseFee:    big.NewInt(1_000_000_000),
 	}
-	gg := &core.Genesis{
-		Config:        gethConfig,
-		Nonce:         g.Nonce,
-		Timestamp:     g.Timestamp,
-		ExtraData:     g.ExtraData,
-		GasLimit:      g.GasLimit,
-		Difficulty:    g.Difficulty,
-		Mixhash:       g.Mixhash,
-		Coinbase:      g.Coinbase,
-		Alloc:         fixtureAlloc(),
-		BaseFee:       g.BaseFee,
-		ExcessBlobGas: g.ExcessBlobGas,
-		BlobGasUsed:   g.BlobGasUsed,
+	if g.Config.IsEcotone(g.Timestamp) {
+		g.ExcessBlobGas = ptr.New[uint64](0)
+		g.BlobGasUsed = ptr.New[uint64](0)
 	}
-	return g, gg
+	return g
 }
 
 // requireGenesisEqual compares big.Int fields by value: a decoded zero and big.NewInt(0)
@@ -107,64 +89,8 @@ func parseJSON(t *testing.T, data []byte) map[string]any {
 	return obj
 }
 
-// TestMarshalMatchesOpGeth pins the encoding to the genesis.json that op-geth's
-// core.Genesis writes for the equivalent op-geth config, built from op-geth's
-// OptimismTestConfig. It is a pre-cutover check: it depends on op-geth's config type and
-// test config, and goes away with op-geth.
-func TestMarshalMatchesOpGeth(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		schedule forkstest.Schedule
-	}{
-		{name: "pre-Karst", schedule: forkstest.AtGenesisThrough(forks.Jovian)},
-		{name: "Karst", schedule: forkstest.Override(forkstest.AtGenesisThrough(forks.Jovian), forks.Karst, ptr.New[uint64](9000))},
-		{name: "staggered", schedule: forkstest.Staggered()},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			g, gg := fixture(t, tc.schedule)
-			g.Number, gg.Number = 3, 3
-			g.GasUsed, gg.GasUsed = 21_000, 21_000
-			g.ParentHash, gg.ParentHash = common.Hash{0xbb}, common.Hash{0xbb}
-			g.SlotNumber, gg.SlotNumber = ptr.New[uint64](9), ptr.New[uint64](9)
-			opGethJSON, err := json.Marshal(gg)
-			require.NoError(t, err)
-
-			got, err := json.Marshal(g)
-			require.NoError(t, err)
-			obj := parseJSON(t, got)
-			require.Equal(t, parseJSON(t, opGethJSON), obj)
-
-			config := obj["config"].(map[string]any)
-			if karst := tc.schedule(forks.Karst); karst != nil {
-				require.Equal(t, float64(*karst), config["osakaTime"], "Osaka activates with Karst")
-			} else {
-				require.NotContains(t, config, "osakaTime")
-			}
-		})
-	}
-}
-
-// TestUnmarshalOpGeth decodes the genesis.json that op-geth's core.Genesis encodes, and
-// the same without osakaTime, as op-chain-ops writes it for Karst.
-func TestUnmarshalOpGeth(t *testing.T) {
-	for name, withOsaka := range map[string]bool{"with osakaTime": true, "without osakaTime": false} {
-		t.Run(name, func(t *testing.T) {
-			want, gg := fixture(t, forkstest.Staggered())
-			if !withOsaka {
-				gg.Config.OsakaTime = nil
-			}
-			data, err := json.Marshal(gg)
-			require.NoError(t, err)
-
-			var got Genesis
-			require.NoError(t, json.Unmarshal(data, &got))
-			requireGenesisEqual(t, want, &got)
-		})
-	}
-}
-
 func TestRoundTrip(t *testing.T) {
-	g, _ := fixture(t, forkstest.Staggered())
+	g := fixture(forkstest.Staggered())
 	g.Number = 3
 	g.GasUsed = 21_000
 	g.ParentHash = common.Hash{0xbb}
@@ -182,7 +108,7 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestEncoding(t *testing.T) {
-	g, _ := fixture(t, forkstest.Staggered())
+	g := fixture(forkstest.Staggered())
 	data, err := json.Marshal(g)
 	require.NoError(t, err)
 	obj := parseJSON(t, data)
@@ -208,7 +134,7 @@ func TestEncoding(t *testing.T) {
 }
 
 func TestNilConfig(t *testing.T) {
-	g, _ := fixture(t, forkstest.Staggered())
+	g := fixture(forkstest.Staggered())
 	g.Config = nil
 	data, err := json.Marshal(g)
 	require.NoError(t, err)
@@ -217,7 +143,7 @@ func TestNilConfig(t *testing.T) {
 	var got Genesis
 	require.NoError(t, json.Unmarshal(data, &got))
 	require.Nil(t, got.Config)
-	require.Nil(t, got.GethGenesis().Config)
+	require.Nil(t, got.gethGenesis().Config)
 }
 
 func TestUnmarshalMinimal(t *testing.T) {
@@ -229,7 +155,7 @@ func TestUnmarshalMinimal(t *testing.T) {
 // TestUnmarshalConfigKeys checks how decoding treats "config" keys that Genesis does not
 // store: unknown keys are ignored, and a derived key must match its derivation.
 func TestUnmarshalConfigKeys(t *testing.T) {
-	g, _ := fixture(t, forkstest.Staggered())
+	g := fixture(forkstest.Staggered())
 	data, err := json.Marshal(g)
 	require.NoError(t, err)
 
@@ -251,7 +177,7 @@ func TestUnmarshalConfigKeys(t *testing.T) {
 }
 
 func TestUnmarshalRejects(t *testing.T) {
-	g, _ := fixture(t, forkstest.Staggered())
+	g := fixture(forkstest.Staggered())
 	data, err := json.Marshal(g)
 	require.NoError(t, err)
 
@@ -272,6 +198,72 @@ func TestUnmarshalRejects(t *testing.T) {
 			require.NoError(t, err)
 			var got Genesis
 			require.ErrorContains(t, json.Unmarshal(edited, &got), tc.errMsg)
+		})
+	}
+}
+
+// setBlockFields sets the block fields that are zero or absent in a genesis.json
+// op-chain-ops writes.
+func setBlockFields(g *Genesis) {
+	g.Number = 3
+	g.GasUsed = 21_000
+	g.ParentHash = common.Hash{0xbb}
+	g.ExcessBlobGas = ptr.New[uint64](0)
+	g.BlobGasUsed = ptr.New[uint64](0)
+	g.SlotNumber = ptr.New[uint64](9)
+}
+
+// fixtureAllocJSON is the encoding of fixtureAlloc.
+const fixtureAllocJSON = `"alloc":{"00000000000000000000000000000000000beef0":{"balance":"0x100000000000000000000000000000000000000000000000000"},` +
+	`"4200000000000000000000000000000000000016":{"code":"0x60006000f3","storage":{"0x0100000000000000000000000000000000000000000000000000000000000000":"0x0200000000000000000000000000000000000000000000000000000000000000","0x0300000000000000000000000000000000000000000000000000000000000000":"0x0400000000000000000000000000000000000000000000000000000000000000"},"balance":"0x0","nonce":"0x1"}}`
+
+// TestMarshalGoldenVector pins the encoding of the staggered fixture with the block fields
+// that are zero in a genesis.json op-chain-ops writes, as op-geth encodes it.
+func TestMarshalGoldenVector(t *testing.T) {
+	const want = `{"config":{"chainId":901,"homesteadBlock":0,"eip150Block":0,"eip155Block":0,"eip158Block":0,"byzantiumBlock":0,"constantinopleBlock":0,"petersburgBlock":0,"istanbulBlock":0,"muirGlacierBlock":0,"berlinBlock":0,"londonBlock":0,"arrowGlacierBlock":0,"grayGlacierBlock":0,"mergeNetsplitBlock":0,` +
+		`"shanghaiTime":2000,"cancunTime":3000,"pragueTime":7000,"osakaTime":9000,"terminalTotalDifficulty":0,"depositContractAddress":"0x0000000000000000000000000000000000000000",` +
+		`"bedrockBlock":0,"regolithTime":1000,"canyonTime":2000,"ecotoneTime":3000,"fjordTime":4000,"graniteTime":5000,"holoceneTime":6000,"isthmusTime":7000,"jovianTime":8000,"karstTime":9000,"lagoonTime":10000,` +
+		`"optimism":{"eip1559Elasticity":6,"eip1559Denominator":50,"eip1559DenominatorCanyon":250}},` +
+		`"nonce":"0x7","timestamp":"0x4d2","extraData":"0x01000000fa000000060000000000000000","gasLimit":"0x1c9c380","difficulty":"0x0","mixHash":"0xaa00000000000000000000000000000000000000000000000000000000000000","coinbase":"0x4200000000000000000000000000000000000011",` +
+		fixtureAllocJSON + `,` +
+		`"number":"0x3","gasUsed":"0x5208","parentHash":"0xbb00000000000000000000000000000000000000000000000000000000000000","baseFeePerGas":"0x3b9aca00","excessBlobGas":"0x0","blobGasUsed":"0x0","slotNumber":9}`
+
+	g := fixture(forkstest.Staggered())
+	setBlockFields(g)
+	data, err := json.Marshal(g)
+	require.NoError(t, err)
+	require.JSONEq(t, want, string(data))
+}
+
+// opGethGenesisJSON is the genesis.json that op-geth's core.Genesis writes for the
+// staggered fixture, which has the OP Stack config keys among the Ethereum keys, and
+// opGethGenesisJSONWithoutOsaka the same without osakaTime, as op-chain-ops writes it for
+// Karst.
+const (
+	opGethGenesisJSONHead = `{"config":{"chainId":901,"homesteadBlock":0,"eip150Block":0,"eip155Block":0,"eip158Block":0,"byzantiumBlock":0,"constantinopleBlock":0,"petersburgBlock":0,"istanbulBlock":0,"muirGlacierBlock":0,"berlinBlock":0,"londonBlock":0,"arrowGlacierBlock":0,"grayGlacierBlock":0,"mergeNetsplitBlock":0,` +
+		`"shanghaiTime":2000,"cancunTime":3000,"pragueTime":7000,`
+	opGethGenesisJSONTail = `"bedrockBlock":0,"regolithTime":1000,"canyonTime":2000,"ecotoneTime":3000,"fjordTime":4000,"graniteTime":5000,"holoceneTime":6000,"isthmusTime":7000,"jovianTime":8000,"karstTime":9000,"lagoonTime":10000,` +
+		`"terminalTotalDifficulty":0,"depositContractAddress":"0x0000000000000000000000000000000000000000","optimism":{"eip1559Elasticity":6,"eip1559Denominator":50,"eip1559DenominatorCanyon":250}},` +
+		`"nonce":"0x7","timestamp":"0x4d2","extraData":"0x01000000fa000000060000000000000000","gasLimit":"0x1c9c380","difficulty":"0x0","mixHash":"0xaa00000000000000000000000000000000000000000000000000000000000000","coinbase":"0x4200000000000000000000000000000000000011",` +
+		fixtureAllocJSON + `,` +
+		`"number":"0x0","gasUsed":"0x0","parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000","baseFeePerGas":"0x3b9aca00","excessBlobGas":null,"blobGasUsed":null,"slotNumber":null}`
+
+	opGethGenesisJSON             = opGethGenesisJSONHead + `"osakaTime":9000,` + opGethGenesisJSONTail
+	opGethGenesisJSONWithoutOsaka = opGethGenesisJSONHead + opGethGenesisJSONTail
+)
+
+// TestUnmarshalOpGethGoldenVector decodes the genesis.json that op-geth's core.Genesis
+// writes, and the same without osakaTime.
+func TestUnmarshalOpGethGoldenVector(t *testing.T) {
+	for name, data := range map[string]string{
+		"with osakaTime":    opGethGenesisJSON,
+		"without osakaTime": opGethGenesisJSONWithoutOsaka,
+	} {
+		t.Run(name, func(t *testing.T) {
+			var got Genesis
+			require.NoError(t, json.Unmarshal([]byte(data), &got))
+			want := fixture(forkstest.Staggered())
+			requireGenesisEqual(t, want, &got)
 		})
 	}
 }

@@ -46,9 +46,15 @@ sequenceDiagram
     This message is provided to `_target` as calldata, which means it includes a function selector and the parameters for that function call.
 
 3.  `L2ToL2CrossDomainMessenger` on the source chain verifies the message is legitimate:
-    *   The destination chain is one to which this chain can send messages.
     *   The destination chain is *not* the source chain.
     *   The target is not `L2ToL2CrossDomainMessenger`, `L2CrossDomainMessenger` or `L2ToL1MessagePasser`.
+
+    <Warning>
+      `sendMessage` does not check that the destination chain is in the same [interop cluster](/op-stack/interop/explainer#superchain-interop-cluster) as the source chain.
+      If the destination is outside the interop cluster, nobody can relay the message and nobody can [expire](/app-developers/guides/interoperability/message-expiration#the-destination-is-outside-the-interop-cluster) it.
+      Any assets that the send burned or locked are lost, for example ETH sent through `SuperchainETHBridge`.
+      Applications must check the destination chain ID before they send.
+    </Warning>
 
 4.  `L2ToL2CrossDomainMessenger` emits a log entry.
     In addition to the parameters, the log entry also includes:
@@ -83,6 +89,14 @@ sequenceDiagram
 
 2.  The autorelayer, the application, or a contract calling on the application's behalf calls `L2ToL2CrossDomainMessenger.relayMessage`.
     This call includes the message that was sent (`_sentMessage`), as well as the [fields required to find that message (`_id`)](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L2/ICrossL2Inbox.sol#L4-L10).
+
+    <Warning>
+      A deposit transaction cannot relay a message.
+      `CrossL2Inbox.validateMessage` reverts when a deposit calls it.
+      Send the relay as a normal L2 transaction.
+      If the destination's sequencer does not include the relay within 7 days, nobody can relay the message.
+      Then the application can [expire the message and undo the send](/app-developers/guides/interoperability/message-expiration#undoing-an-expired-message).
+    </Warning>
 
 3.  The `L2ToL2CrossDomainMessenger` uses `CrossL2Inbox` to verify the message was sent from the source.
 

@@ -35,8 +35,9 @@ supported CLI arg.
 
 ### `--deploy-mock-sp1-verifier`
 
-With `--deployment-target genesis`, deploys a mock SP1 verifier into the genesis for the ZK dispute game to use. The mock
-accepts every proof, so use it for development only.
+Deploys a mock SP1 verifier for the ZK dispute game to use. A genesis contains no SP1 verifier, and neither does a live
+L1 without a release verifier, such as a local devnet. The mock accepts every proof, so use it for development only.
+On an L1 chain ID with a release verifier, such as Sepolia, op-deployer refuses the flag, also for a genesis.
 
 ### `--l1-rpc-url`
 

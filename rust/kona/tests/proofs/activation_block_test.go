@@ -69,7 +69,7 @@ func testActivationBlockTxOmission(gt *testing.T, testCfg *helpers.TestCfg[activ
 	require.Equal(t, tcfg.fork,
 		rollupCfg.IsActivationBlock(actHeader.Time-blockTime, actHeader.Time),
 		"this block should be the activation block")
-	deposits, userTxs := helpers.BlockTxs(t, engine, actHeader.Hash())
+	deposits, userTxs := engine.BlockTxs(t, actHeader.Hash())
 	require.Len(t, deposits, tcfg.numUpgradeTxs+1, "activation block contains unexpected deposits")
 	require.Empty(t, userTxs, "activation block contains unexpected user txs")
 

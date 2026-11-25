@@ -36,6 +36,10 @@ type Backend struct {
 
 	// Manual failsafe override
 	manualFailsafe atomic.Bool
+	// failsafeStatePath is where the manual failsafe is stored across restarts. Empty disables storage.
+	failsafeStatePath string
+	// setFailsafeMu keeps the stored manual failsafe equal to the in-memory value when calls overlap.
+	setFailsafeMu sync.Mutex
 
 	// failsafeMu serializes failsafe metric/log refreshes so concurrent error
 	// transitions cannot latch a stale gauge value or interleave log lines.
@@ -71,6 +75,11 @@ type BackendParams struct {
 
 	ReorgRecoveryEnabled bool
 	FailsafeLogInterval  time.Duration
+
+	// ManualFailsafe is the manual failsafe state at start.
+	ManualFailsafe bool
+	// FailsafeStatePath is where SetFailsafeEnabled stores the manual failsafe. Empty disables storage.
+	FailsafeStatePath string
 }
 
 // Failsafe reason labels that are not chain-ingester errors. Chain errors use
@@ -121,7 +130,9 @@ func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
 		cancel:                      cancel,
 		reorgRecoveryEnabled:        params.ReorgRecoveryEnabled,
 		failsafeLogInterval:         params.FailsafeLogInterval,
+		failsafeStatePath:           params.FailsafeStatePath,
 	}
+	b.manualFailsafe.Store(params.ManualFailsafe)
 	if b.failsafeLogInterval <= 0 {
 		b.failsafeLogInterval = defaultFailsafeLogInterval
 	}
@@ -141,6 +152,9 @@ func NewBackend(parentCtx context.Context, params BackendParams) *Backend {
 	}
 	if o, ok := b.crossValidator.(failsafeObserver); ok {
 		o.SetOnFailsafeChange(b.refreshFailsafe)
+	}
+	if params.ManualFailsafe {
+		b.refreshFailsafe()
 	}
 
 	return b
@@ -205,10 +219,21 @@ func (b *Backend) PassthroughEnabled() bool {
 	return b.passthrough
 }
 
-// SetFailsafeEnabled sets the manual failsafe override.
-func (b *Backend) SetFailsafeEnabled(enabled bool) {
+// SetFailsafeEnabled sets the manual failsafe override and stores it for the next start.
+// The in-memory change applies even if the write fails, so an operator can always act in an incident.
+func (b *Backend) SetFailsafeEnabled(enabled bool) error {
+	b.setFailsafeMu.Lock()
+	defer b.setFailsafeMu.Unlock()
 	b.manualFailsafe.Store(enabled)
 	b.refreshFailsafe()
+	if b.failsafeStatePath == "" {
+		return nil
+	}
+	if err := writeManualFailsafe(b.failsafeStatePath, enabled); err != nil {
+		b.log.Error("Manual failsafe will not survive a restart", "enabled", enabled, "err", err)
+		return fmt.Errorf("failsafe set in memory only, it will not survive a restart: %w", err)
+	}
+	return nil
 }
 
 // refreshFailsafe recomputes the failsafe metrics and logs reason transitions.

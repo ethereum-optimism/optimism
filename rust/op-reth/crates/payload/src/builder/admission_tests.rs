@@ -46,6 +46,7 @@ use reth_payload_util::PayloadTransactionsFixed;
 use reth_primitives_traits::{Account, SealedHeader};
 use reth_provider::test_utils::{ExtendedAccount, MockEthProvider};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
+use reth_storage_api::StateProvider;
 use reth_transaction_pool::{
     BlockInfo, CoinbaseTipOrdering, Pool, PoolConfig, PoolTransaction, TransactionOrigin,
     TransactionPool, TransactionPoolExt, blobstore::InMemoryBlobStore,
@@ -444,13 +445,7 @@ impl Env {
     }
 
     /// The payload builder's context, with the L1-info deposit in its attributes.
-    fn payload_ctx(
-        &self,
-    ) -> OpPayloadBuilderCtx<
-        OpEvmConfig<OpChainSpec, OpPrimitives>,
-        OpChainSpec,
-        OpPayloadBuilderAttributes<OpTransactionSigned>,
-    > {
+    fn payload_ctx(&self) -> OpPayloadBuilderCtx<OpEvmConfig> {
         let attributes = OpPayloadBuilderAttributes {
             timestamp: 2,
             gas_limit: Some(self.block_gas_limit),
@@ -540,7 +535,7 @@ fn run(case: &Case) -> Report {
     let ctx = env.payload_ctx();
     let state_provider = env.state_provider();
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     db.load_cache_account(L1_BLOCK_CONTRACT).expect("L1Block loads");

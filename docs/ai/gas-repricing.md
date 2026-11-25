@@ -142,7 +142,7 @@ op-node and kona must agree on each item in this section.
 
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
-| Gas limit of batch transactions (`op-batcher/batcher/driver.go`) | L1 | Fixed gas | The batcher sets the gas limit from a floor formula and does not estimate. `amsterdamTxBaseGas` and `amsterdamCalldataFloorGasPerByte` copy draft EIP-2780 and EIP-7976 values. |
+| Gas limit of batch transactions (`op-batcher/batcher/driver.go`) | L1 | Fixed gas | The batcher sets the gas limit from a floor formula and does not estimate. `maxFloorDataGas` takes the larger `core.FloorDataGas` under the pre-Amsterdam and the Amsterdam rules, so the limit follows go-ethereum's draft EIP-2780 and EIP-7976 values. The cost model (`config.go`, `channel_config_provider.go`) copies those values as `amsterdamTxBaseGas` and `amsterdamCalldataFloorGasPerByte`. |
 | `maxL1CalldataSize` (`op-batcher/batcher/config.go`) | L1 | Limit bound | The maximum `MaxL1TxSize` comes from `MaxTxGas` and the Amsterdam constants. |
 | Default size of calldata frames (120000 bytes) (`op-batcher/flags/flags.go`, `op-batcher/batcher/service.go`) | L1 | Limit bound | A higher calldata floor can push one frame above the EIP-7825 cap. |
 | Blob or calldata choice (`op-batcher/batcher/channel_config_provider.go`) | L1 | Copied schedule | The choice uses `TxGas`, the calldata floors, and `BlobTxBlobGasPerBlob`. The batcher finds Amsterdam from the block access list hash, not from the L1 chain config. |
@@ -176,11 +176,9 @@ op-node and kona must agree on each item in this section.
 
 | Location | Chain | Kind | Risk |
 |---|---|---|---|
-| `defaultGasLimit` (30M) (`op-deployer/pkg/deployer/broadcaster/calldata.go`) | Both | Fixed gas | The calldata dump gives each transaction 30M gas. This is above the EIP-7825 cap, so tools that send the dump can get rejections. |
 | Standard gas limit (60M) (`op-deployer/pkg/deployer/standard/standard.go`) | L2 | Limit bound | Standard chains must use this value. |
 | Genesis gas limit check (`op-chain-ops/genesis/config.go`) | L2 | Limit bound | The genesis gas limit must be at least `MaxResourceLimit` plus `SystemTxMaxGas`. |
-| Default gas limits of genesis blocks (`op-chain-ops/genesis/genesis.go`, `op-chain-ops/interopgen/recipe.go`) | Both | Fixed gas | The defaults are 30M and 60M. |
-| Script host gas (`op-chain-ops/script/`, `op-deployer/pkg/deployer/opcm/standard_validator.go`) | Both | Fixed gas | Script calls run in an in-process EVM with `int64.max` gas. A repricing changes the reported gas used only. |
+| Default gas limit of genesis blocks (`op-chain-ops/genesis/genesis.go`) | Both | Fixed gas | The default is 30M. |
 | `check-karst` probes (`op-chain-ops/cmd/check-karst/karsttest/checks.go`) | Both | Fixed gas | The probes use exact gas budgets around precompile costs. Some assume 21000 intrinsic gas. |
 | `check-lagoon` checks (`op-chain-ops/cmd/check-lagoon/`) | L2 | Fixed gas | The relay check uses 300000 gas. The SDM check (`op-chain-ops/cmd/check-lagoon/sdmcheck/check.go`) uses 21000 gas, 1,000,000 gas for workload transactions, and 2,000,000 gas for deployment. The workload transactions write many storage slots, so an SSTORE or state gas repricing affects them most. |
 | `check-jovian` and SDM conformance (`op-chain-ops/cmd/check-jovian/main.go`, `op-chain-ops/pkg/sdm/conformance.go`) | L2 | Introspection | They assert exact gas used and DA footprint totals. |
@@ -195,7 +193,6 @@ test frameworks use `txplan`. Only op-acceptance-tests and op-devstack use `txin
 |---|---|---|---|
 | `txplan` defaults (`op-service/txplan/txplan.go`) | Both | Fixed gas | The default `GasRatio` is 1.0. A plan with no estimation step uses `params.TxGas` (21000). |
 | Resubmitter errors (`op-service/txinclude/resubmitter.go`) | Both | Introspection | `ErrGasLimit`, `ErrIntrinsicGas`, and `ErrFloorDataGas` are fatal. A transaction with a fixed limit stops after a repricing and does not retry. |
-| Transaction budget (`op-service/txinclude/cost_oracle.go`, `op-service/txinclude/txbudget.go`) | L2 | Gas-scaled formula | The budget uses the L1 cost and operator cost formulas with gas used. |
 
 ## Test and dev code
 
@@ -258,13 +255,11 @@ search for these patterns:
   - `op-node/rollup/derive/upgrade_transaction_test.go`
   - `op-core/fees/fees_test.go`
   - `op-core/fees/dafootprint_test.go`
-  - `op-service/txinclude/*_test.go`
   - `op-service/txmgr/txmgr_test.go`
 - **Fixture gas only:** many other `*_test.go` files hold gas values in fixtures, but do not check costs. Expect little effect.
 
 ### op-e2e
 
-- `op-e2e/opgeth/op_geth_test.go` has fixed deposit gas, expects exactly 21000 gas used, and compares SSTORE refunds.
 - `op-e2e/actions/upgrades/fjord_fork_test.go` expects an exact `getL1GasUsed` result.
 - Many `op-e2e/actions/` tests send transfers with `Gas: params.TxGas`.
 - `op-e2e/actions/helpers/l2_batcher.go` uses `TxGas` or 1,000,000 gas for batch transactions.
@@ -280,7 +275,7 @@ search for these patterns:
 - `op-acceptance-tests/tests/glamsterdam_test.go` and `op-acceptance-tests/tests/osaka_on_l2_test.go` use fixed limits. One limit is close to the EIP-7825 cap.
 - `op-acceptance-tests/tests/sdm/` asserts exact raw and canonical gas used.
 - Fixed gas limits also occur in these directories under `op-acceptance-tests/tests/`:
-  - `interop/loadtest/`
+  - `loadtest/`
   - `interop/filter/`
   - `interop/expiry/`
   - `superfaultproofs/`

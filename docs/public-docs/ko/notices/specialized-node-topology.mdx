@@ -22,45 +22,46 @@ is_imported_content: 'false'
   **예정된 interop 활성화에 필수입니다.** 이 토폴로지는 **OP Mainnet**과 **Unichain**에서 interop이 활성화되면 해당 체인의 노드 운영자에게 필수입니다. 일정과 조치 체크리스트는 [OP Mainnet 및 Unichain의 interop 준비](/ko/notices/interop-prep) 공지 페이지를 참조하세요.
 </Warning>
 
-## 의미
+## 의미 {#what-this-means}
 
 *   **소스 노드**는 L1에서 전체 체인을 파생합니다. interop이 없는 체인에서는 기존의 `op-node`이고, interop dependency set에 속한 체인에서는 set 내 모든 체인을 함께 파생하고 크로스체인 메시지를 검증하는 `op-supernode`입니다.
 *   **light node**는 `--l2.follow.source=<source RPC endpoint>`로 시작된 `op-node` 인스턴스입니다. L1에서 직접 파생하는 것을 중단하고 지정된 소스로부터 safe 체인을 받습니다. 소스는 interop이 아닌 체인의 경우 op-node RPC이고, interop 체인의 경우 op-supernode RPC(체인의 `/<chainID>` 경로 접두사 포함)입니다.
 *   `op-node`는 지원 중단되지 **않으며**, 동종 토폴로지도 제거되지 **않습니다**. interop이 활성화되지 않은 체인의 경우 이는 필수 마이그레이션이 아니라 권장되는 운영 업그레이드입니다. OP Mainnet, Unichain 및 각각의 Sepolia testnet의 경우 interop 활성화 시점에 필수가 됩니다(위의 경고 참조).
 *   파생 역할만 변경됩니다. light node는 이전과 마찬가지로 RPC를 제공하고, gossip에 참여하며, 연결된 실행 클라이언트를 구동합니다.
+*   **light node는 소스를 신뢰합니다.** light node는 소스의 safe, local-safe, finalized head가 서로 일관되는지, 그리고 이들의 L1 origin이 자신의 L1 체인 위에 있는지를 확인하지만, L2 블록을 다시 파생하지는 않으며 소스와 체인이 갈라지면 소스의 체인으로 reorg합니다. `--l2.follow.source`는 직접 운영하거나 명시적으로 신뢰하는 소스만 가리키도록 하십시오. Optimism은 공개 follow-source 엔드포인트를 운영하지 않습니다.
 
-## 중요한 이유
+## 중요한 이유 {#why-this-matters}
 
-### L1 사용량 감소
+### L1 사용량 감소 {#l1-utilization-reduction}
 
 소스 노드만 파생을 위해 L1 데이터를 수집합니다. light node는 더 이상 파생 파이프라인을 위한 L1 RPC 호출을 하지 않으므로, 많은 노드를 운영하는 운영자의 L1 API 부하와 제공업체 비용이 크게 줄어듭니다.
 
-### 성능 특화
+### 성능 특화 {#performance-specialization}
 
 light node는 L1 파생 작업 부담을 덜고 unsafe 체인 진행과 RPC 제공에 집중할 수 있으며, 소스 노드는 파생에만 집중합니다.
 
-### 비대칭 확장
+### 비대칭 확장 {#asymmetric-scaling}
 
 이제 RPC 제공 용량과 파생 용량을 독립적으로 확장할 수 있습니다. 운영자는 L1 부하를 바꾸지 않고도 읽기 트래픽에 맞춰 light node를 추가하거나 제거할 수 있으며, 파생 요구 사항과 이중화 목표에 따라 소스 계층의 규모를 별도로 정할 수 있습니다.
 
-### 향후 배포 비용 절감
+### 향후 배포 비용 절감 {#lower-cost-for-future-rollouts}
 
 interop을 포함한 향후 업그레이드에는 더 정교한 파생 로직이 필요합니다. 작고 명확하게 정의된 소스 계층으로 파생을 집중시키면, 이러한 업그레이드의 영향을 받는 운영 범위가 최소화되고 노드별 도입 비용이 줄어듭니다.
 
-## 마이그레이션 방법
+## 마이그레이션 방법 {#how-to-migrate}
 
-### 노드 운영자
+### 노드 운영자 {#node-operators}
 
 파생이 활성화된 `op-node` 인스턴스로 이루어진 동종 구성에서 특화된 토폴로지로의 마이그레이션을 계획합니다.
 
 1.  **소스 계층**을 구축합니다. interop이 없는 체인의 경우 하나 이상의 `op-node` 인스턴스를 소스로 지정하고 전체 L1 파생으로 구성합니다. interop dependency set에 속한 체인의 경우 소스 계층은 set 내 모든 체인을 다루는 하나 이상의 `op-supernode` 인스턴스입니다. 어느 경우든 장애 조치(failover)를 위한 이중화를 고려하여 소스 계층의 규모를 정하고 모니터링합니다.
-2.  나머지 `op-node` 인스턴스는 `--l2.follow.source=<source op-node RPC endpoint>`(env: `OP_NODE_L2_FOLLOW_SOURCE`)를 설정하여 **light node**로 프로비저닝합니다. light node가 안정적이고 지연 시간이 짧은 네트워크 경로를 통해 소스 엔드포인트에 접근할 수 있는지 확인합니다.
+2.  나머지 `op-node` 인스턴스는 `--l2.follow.source=<source RPC endpoint>`(env: `OP_NODE_L2_FOLLOW_SOURCE`)를 설정하여 **light node**로 프로비저닝합니다. 소스는 interop이 아닌 체인의 경우 소스 `op-node` RPC이고, interop 체인의 경우 `<op-supernode RPC>/<chainID>`입니다. light node가 안정적이고 지연 시간이 짧은 네트워크 경로를 통해 소스 엔드포인트에 접근할 수 있는지 확인합니다.
 3.  프로덕션 트래픽을 전환하기 전에 light node가 소스 기준으로 safe 체인을 올바르게 추적하는지 검증합니다.
 4.  소스 계층의 상태가 light node 계층의 의존성으로 취급되도록 대시보드와 알림을 업데이트합니다.
 
-#### 합의 인식 proxyd를 사용한 고가용성 토폴로지
+#### 합의 인식 proxyd를 사용한 고가용성 토폴로지 {#highly-available-topology-with-consensus-aware-proxyd}
 
-프로덕션 배포에서는 파생 계층을 [합의 인식(consensus-aware) `proxyd`](/ko/chain-operators/tools/proxyd#consensus-awareness) 뒤에 배치하고, 별도의 RPC 제공 계층을 통해 light node를 사용자에게 노출할 것을 권장합니다.
+프로덕션 배포에서는 파생 계층을 [합의 인식(consensus-aware) `proxyd`](/ko/chain-operators/tools/proxyd#consensus-layer-routing-for-follow-sources) 뒤에 배치하고, 별도의 RPC 제공 계층을 통해 light node를 사용자에게 노출할 것을 권장합니다.
 
 <img src="/public/img/notices/light-node-topology.png" alt="특화된 op-node 토폴로지: EL(Reth)을 갖춘 3개의 소스 op-node가 CL API를 통해 합의 인식 proxyd에 데이터를 제공하고, proxyd는 --l2.follow.source를 통해 2개의 light op-node로 분배합니다" style={{ width: '100%', height: 'auto' }} />
 
@@ -70,7 +71,7 @@ interop을 포함한 향후 업그레이드에는 더 정교한 파생 로직이
 
 어떤 경우든 기존 토폴로지를 고려하여 배포 스택에 가장 적합한 방식으로 노드 특화를 적용하세요. 목표는 최소한으로 명확하게 정의된 소스 계층(체인별로 op-node 또는 op-supernode)과 이를 가리키는 확장 가능한 light node 집합을 갖추는 것입니다.
 
-### 체인 운영자
+### 체인 운영자 {#chain-operators}
 
 노드 운영자를 위한 모든 안내는 체인 운영자에게도 적용됩니다. sequencer 역할을 하는 `op-node` 인스턴스의 경우, 파생 작업을 분산하기 위해 `--l2.follow.source`를 사용할 것을 권장합니다. 벤치마크에 따르면 파생을 제거하면 블록 생성 시 일부 병목이 해소되며,
 sequencer의 역할은 Unsafe 체인을 유지하고 확장하는 것입니다.
@@ -83,8 +84,8 @@ sequencer의 역할은 Unsafe 체인을 유지하고 확장하는 것입니다.
   interop dependency set에 속한 체인에서는 `op-node`만으로는 파생 소스로 충분하지 않습니다. 이러한 체인은 set 내 모든 체인을 함께 파생하고 크로스체인 메시지를 검증하는 [`op-supernode`](/ko/op-stack/interop/supernode)를 사용합니다. 향후 프로토콜 기능이 다른 체인에도 비슷한 요구 사항을 부과할 수 있습니다. 소스 역할이 변경되는 체인에서 파생이 활성화된 대규모 `op-node` 인스턴스 구성을 계속 운영하는 운영자는 더 큰 운영 부담을 예상해야 합니다. 현재는 L1 API 비용이 더 많이 들고, 새로운 파생 요구 사항이 도입될 때마다 파생이 활성화된 모든 인스턴스를 노드별로 업그레이드하는 비용이 발생합니다. 지금 토폴로지를 특화하면 이러한 변경의 영향을 받는 노드 수를 최소화할 수 있습니다.
 </Warning>
 
-## 참고 자료
+## 참고 자료 {#resources}
 
 *   [Interop 준비 공지](/ko/notices/interop-prep) — 이 토폴로지가 권장 사항이 아닌 필수 사항인 OP Mainnet 및 Unichain interop 활성화를 위한 노드 운영자 조치 체크리스트
-*   `--l2.follow.source` 플래그(env: `OP_NODE_L2_FOLLOW_SOURCE`) — `op-node`를 소스 `op-node` RPC 엔드포인트를 가리키는 light node로 구성합니다.
+*   `--l2.follow.source` 플래그(env: `OP_NODE_L2_FOLLOW_SOURCE`) — `op-node`를 소스 RPC 엔드포인트를 가리키는 light node로 구성합니다. 소스는 `op-node`, `op-supernode`의 체인별 경로(`/<chainID>`), 또는 이 둘 중 하나 앞에 둔 합의 인식 `proxyd`일 수 있습니다.
 *   `--l2.follow.source.rpc-timeout` 플래그(env: `OP_NODE_L2_FOLLOW_SOURCE_RPC_TIMEOUT`) — 소스와 통신할 때 사용하는 RPC 호출 타임아웃을 조정합니다(기본값 `10s`).

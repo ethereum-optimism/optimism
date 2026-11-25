@@ -17,6 +17,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
@@ -191,7 +192,8 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             useCustomGasToken: false,
             proofMaturityDelaySeconds: 604800,
             disputeGameFinalityDelaySeconds: 302400,
-            withdrawalDelaySeconds: 302400
+            withdrawalDelaySeconds: 302400,
+            bridgeHook: IBridgeHook(address(0))
         });
 
         cts_ = opcmV2.deploy(deployConfig);
@@ -683,6 +685,14 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
     function test_validate_chainEmpty_succeeds() public view {
         ISystemConfig[] memory chains = new ISystemConfig[](0);
         assertEq("MIG-CHAIN-EMPTY", _validateMigrationCustomChains(chains, true));
+    }
+
+    /// @notice MIG-CHAIN-SINGLE: Only one chain in chainSystemConfigs. An interop set needs at
+    ///         least two chains.
+    function test_validate_chainSingle_succeeds() public view {
+        ISystemConfig[] memory chains = new ISystemConfig[](1);
+        chains[0] = chainContracts1.systemConfig;
+        assertEq("MIG-CHAIN-SINGLE", _validateMigrationCustomChains(chains, true));
     }
 
     // NOTE: MIG-CHAIN-0-10 is tautological — shared ASR is discovered from portal[0],

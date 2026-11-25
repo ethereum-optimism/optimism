@@ -1,0 +1,101 @@
+---
+title: ZK proofs for interop sets
+description: Learn how ZK proofs secure an interop set, where every chain shares one game, one proof, and one set of dispute contracts.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<NormativeSpec
+  what="The ZK proof system across an interop set"
+  title="ZK proof system specification"
+  href="https://specs.optimism.io/fault-proof/zk-proof-system.html"
+  note="This page explains what changes when a ZK dispute game covers more than one chain; it does not restate the spec."
+/>
+
+<ZkProofsStatus />
+
+An interop set is a group of OP Stack chains that share their dispute contracts on L1 and whose state is proven together as one super root. It is the L1 counterpart of the chains' [dependency set](/op-stack/interop/explainer#interop-clusters), the set of chains they accept cross-chain messages from. The ZK proof system treats the whole set as one unit: each proposal covers every chain in the set, and one proof shows that all of them are correct.
+
+The same game and the same programs serve a chain on its own, which is a set of one. This page covers what changes when the set has more than one chain.
+
+## One proposal for the whole set
+
+A ZK dispute game's root claim is a [super root](/op-stack/zk-proofs/zk-dispute-game#the-proposal). Its preimage holds one `(chainId, outputRoot)` pair for each chain in the set, sorted by chain ID. A proposal is valid only if every pair is correct, so a wrong output root for any one chain makes the whole proposal invalid.
+
+Withdrawals still happen on each chain. When a user proves a withdrawal, the chain's `OptimismPortal` calls `rootClaimByChainId` on the game to read its own chain's output root from the stored preimage. Every chain in the set proves its withdrawals against the same games.
+
+A super root at a timestamp needs every chain's state at that timestamp to be verified, including its cross-chain messages. [op-supernode](/op-stack/interop/supernode#safe-heads-advance-together) advances the safe and finalized heads of every chain in the set together, so the latest super root that can be proposed is set by the chain that is furthest behind. If one chain's batcher stalls, new proposals stall for the whole set, and so do withdrawals that are waiting for a newer proposal.
+
+## Shared contracts
+
+The chains in an interop set share these L1 contracts:
+
+| Contract | Shared or per chain | Consequence |
+| --- | --- | --- |
+| `DisputeGameFactory` | Shared | One sequence of games for the set, with one game type configuration: one `absolutePrestate`, one verifier, one pair of durations, and one set of bonds. |
+| `AnchorStateRegistry` | Shared | One anchor state, respected game type, blacklist, and retirement timestamp. The Guardian blacklists or retires a game for every chain at once. |
+| `DelayedWETH` | Shared | One bond pool and one withdrawal delay for every game in the set. |
+| `ETHLockbox` | Shared | One pool of ETH for every chain's deposits and withdrawals. |
+| `OptimismPortal`, `SystemConfig` | Per chain | Each chain keeps its own portal, which reads its output root from the shared games and holds its ETH in the shared `ETHLockbox`. |
+
+Because the contracts are shared:
+
+*   An `OPContractsManager` upgrade of any member chain upgrades them for the whole set.
+*   Every member resolves its pause state and its Guardian through the shared `ETHLockbox`, so one pause covers the whole set.
+*   Every member uses the same `AnchorStateRegistry` finality delay and `DelayedWETH` withdrawal delay. Each portal keeps its own proof maturity delay.
+
+Shared liquidity also means shared risk. A game that wrongly proves one chain's output root lets that chain's portal release ETH from the `ETHLockbox`, which holds the ETH of every chain in the set. The [soundness](/op-stack/zk-proofs/security#soundness) of the proof system, and the safeguards that back it up, protect every chain's funds at once.
+
+## One proof for every chain
+
+A proof for an interop set re-derives and executes every chain, then checks the cross-chain messages between them. The [programs](/op-stack/zk-proofs/proof-system#the-programs) are the same as for a single chain. What changes with more chains:
+
+*   **Range proofs can be split by chain.** A range proof can cover every chain or only some of them, so the proposer can split a timestamp's derivation and execution between chains when it is too large for one request.
+*   **Consolidation cannot.** A consolidation proof always covers every chain at each timestamp, because a message on one chain can depend on any other chain in the set. The consolidation of one timestamp is the smallest request the proposer can make for it.
+*   **Cost grows with the set.** Each chain adds blocks to derive and execute, and each cross-chain message adds a check in consolidation. An attacker can fill blocks on any chain in the set with transactions that are expensive to prove, including cross-chain messages.
+
+So the prove window, `maxProveDuration`, must leave room for the worst-case proving time of the whole set, not of one chain. See [How a proof is built](/op-stack/zk-proofs/proof-system#how-a-proof-is-built) and [Completeness](/op-stack/zk-proofs/security#completeness).
+
+## The prestate pins the chain set
+
+The proof programs read chain configuration only from a registry compiled into them, and that includes the interop set's dependency set. The chain set in a game's starting super root must equal the compiled dependency set, or the programs reject the proof. So the [`absolutePrestate`](/op-stack/zk-proofs/proof-system#absolute-prestate) identifies the exact chain set its proofs can cover.
+
+Two consequences follow:
+
+*   **The chain set is fixed.** Changing the dependency set would need new programs and a governance change of the `absolutePrestate`. A new prestate alone is not enough, and the L1 contracts do not support changing a set either: membership is permanent, and there is no supported way to add a chain to an existing set, split a set, or remove a chain from one.
+*   **A custom interop set needs its own build.** A standard prestate covers the dependency sets in the superchain-registry at its release. A set whose dependency set is not in the registry builds the programs with its own configuration. See [Build a prestate for a custom chain](/chain-operators/tutorials/zk-prestate#build-a-prestate-for-a-custom-chain).
+
+## Off-chain services for a set
+
+The services are the same as for a single chain, run once for the whole set:
+
+*   **One `op-zk-proposer`** proposes and defends the set's games on the shared `DisputeGameFactory`. It reads super roots from an [`op-supernode`](/node-operators/guides/configuration/supernode) that follows every chain in the set, and needs an L2 execution node for every chain to collect the data the proof reads. See [Configure op-zk-proposer](/chain-operators/guides/configuration/zk-proposer).
+*   **`op-challenger`** checks every game against its own `op-supernode`, which must also follow every chain in the set. A source that misses a chain computes different super roots and challenges valid proposals. See [Configure op-challenger for ZK dispute games](/chain-operators/guides/configuration/zk-challenger).
+*   **`op-dispute-mon`** monitors the shared `DisputeGameFactory`. See [Chain monitoring](/chain-operators/tools/chain-monitoring#dispute-mon).
+
+Proposing, proving, and challenging are permissionless, so any member chain's operator, or anyone else, can run these services for the set.
+
+## Form an interop set with ZK proofs
+
+Independent chains become an interop set with `OPContractsManagerMigrator.migrate()`. The migration happens once and cannot be reversed, and it takes every chain joining the set in one call. It deploys the shared `DisputeGameFactory`, `AnchorStateRegistry`, and `ETHLockbox`, reuses the `DelayedWETH` of the chain with the lowest chain ID as the shared one, and moves each chain's portal and ETH to them. It reverts if the chains disagree on the finality delay or the `DelayedWETH` withdrawal delay.
+
+The migration also sets the set's starting anchor state, the super root that the first game builds on. The contracts cannot check this super root against L2 state, so verify it against your own `op-supernode` before you sign.
+
+`migrate()` can register `ZK_DISPUTE_GAME` on the new shared `DisputeGameFactory`, but it cannot make it the respected game type: the starting respected game type must be `SUPER_CANNON_KONA` or `SUPER_PERMISSIONED`. To switch the set to ZK proofs afterwards, either:
+
+*   run `OPContractsManager.upgrade()` on any member chain with the `overrides.cfg.startingRespectedGameType` instruction, as in [Migrating to ZK proofs](/chain-operators/tutorials/migrate-to-zk-proofs#build-the-upgrade), or
+*   have the Guardian call `setRespectedGameType(10)` on the shared `AnchorStateRegistry`.
+
+A set that already shares its contracts registers `ZK_DISPUTE_GAME` the same way, with `upgrade()` on a member chain. Either way, run a funded proposer and a challenger for the whole set before ZK becomes the respected game type.
+
+`migrate()` retires every game created before it, because the shared `AnchorStateRegistry` starts with its retirement timestamp at the migration block. A withdrawal proven before the migration must be proven again against a game from the shared `DisputeGameFactory`, and waits a new proof maturity delay. Games in progress at the migration still resolve against each chain's old contracts, and their bonds can still be claimed. Switching the respected game type later does not retire games.
+
+For the steps of a two-chain `migrate()`, see [Merging two chains into a shared dispute game](/chain-operators/tutorials/merge-shared-dispute-game). See [Path C of the migration specification](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs#path-c-interop-set-shared-contracts) for the normative rules.
+
+## Next steps
+
+*   Read [ZK proof system](/op-stack/zk-proofs/proof-system) for how the programs build a proof.
+*   Read [ZK proofs security](/op-stack/zk-proofs/security) for the safeguards that protect the set.
+*   Read the [interop explainer](/op-stack/interop/explainer) for how cross-chain messages work.

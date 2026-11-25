@@ -1,8 +1,8 @@
 //! Unix-socket JSON-RPC server exposing one [`TestEngine`] over the `engine_*`, `eth_*`,
 //! `debug_*`, and `optest_*` namespaces (reth-ipc, go-ethereum `rpc.DialIPC`-compatible).
 //!
-//! The engine is configured entirely from its genesis (the op-geth `core.Genesis` JSON that the Go
-//! action tests already build): the fork schedule, chain id, and predeploy state all come from
+//! The engine is configured entirely from its genesis (the L2 genesis JSON that the Go action
+//! tests build): the fork schedule, chain id, and predeploy state all come from
 //! there. Logging goes to stderr, which the Go harness drains.
 
 use std::sync::{Arc, Mutex};
@@ -17,8 +17,7 @@ struct Args {
     /// Unix socket path to listen on.
     #[arg(long)]
     socket: String,
-    /// Path to the op-geth `core.Genesis` JSON describing the chain (fork schedule, chain id,
-    /// allocation).
+    /// Path to the L2 genesis JSON describing the chain (fork schedule, chain id, allocation).
     #[arg(long)]
     genesis: String,
 }

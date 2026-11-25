@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math/big"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -59,6 +59,19 @@ func TestImplementationsConfigSP1Verifier(t *testing.T) {
 		cfg := valid
 		cfg.SP1Verifier = common.Address{0x05}
 		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("accepts mock verifier", func(t *testing.T) {
+		cfg := valid
+		cfg.DeployMockSP1Verifier = true
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("mock verifier with verifier rejected", func(t *testing.T) {
+		cfg := valid
+		cfg.SP1Verifier = common.Address{0x05}
+		cfg.DeployMockSP1Verifier = true
+		require.ErrorContains(t, cfg.Check(), "mutually exclusive")
 	})
 
 	t.Run("zero min proof maturity delay rejected", func(t *testing.T) {
@@ -119,7 +132,21 @@ func TestImplementationsConfigResolveSP1Verifier(t *testing.T) {
 		err := cfg.resolveSP1Verifier(big.NewInt(900))
 		require.ErrorContains(t, err, "no default SP1 verifier for L1 chain ID 900")
 		require.ErrorContains(t, err, "--sp1-verifier-address")
+		require.ErrorContains(t, err, "--deploy-mock-sp1-verifier")
 	})
+
+	t.Run("mock permits unknown network", func(t *testing.T) {
+		cfg := ImplementationsConfig{DeployMockSP1Verifier: true}
+		require.NoError(t, cfg.resolveSP1Verifier(big.NewInt(900)))
+		require.Equal(t, common.Address{}, cfg.SP1Verifier)
+	})
+
+	for _, chainID := range []int64{1, 11155111} {
+		t.Run(fmt.Sprintf("mock rejected on release L1 %d", chainID), func(t *testing.T) {
+			cfg := ImplementationsConfig{DeployMockSP1Verifier: true}
+			require.ErrorContains(t, cfg.resolveSP1Verifier(big.NewInt(chainID)), "has a release SP1 verifier")
+		})
+	}
 
 	t.Run("large unknown network fails", func(t *testing.T) {
 		var cfg ImplementationsConfig
@@ -149,7 +176,7 @@ func TestImplementations(t *testing.T) {
 }
 
 func testImplementations(t *testing.T, forkRPCURL string) {
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	testCacheDir := testutil.SharedCacheDir(t)
 
 	if forkRPCURL == "" {
 		t.Skip("forkRPCURL not set")

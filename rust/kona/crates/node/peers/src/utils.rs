@@ -3,6 +3,7 @@
 use discv5::Enr;
 use enr::{CombinedPublicKey, EnrPublicKey, NodeId};
 use libp2p::{Multiaddr, multiaddr::Protocol};
+use std::net::SocketAddr;
 
 use super::PeerId;
 
@@ -19,29 +20,26 @@ pub fn peer_id_to_node_id(peer_id: &libp2p::PeerId) -> Option<NodeId> {
     Some(NodeId::from(key))
 }
 
-/// Converts an [`Enr`] into a [`Multiaddr`].
-pub fn enr_to_multiaddr(enr: &Enr) -> Option<Multiaddr> {
-    let mut addr = if let Some(socket) = enr.tcp4_socket() {
-        let mut addr = Multiaddr::from(*socket.ip());
-        addr.push(Protocol::Tcp(socket.port()));
-        addr
-    } else {
-        let socket = enr.tcp6_socket()?;
-        let mut addr = Multiaddr::from(*socket.ip());
-        addr.push(Protocol::Tcp(socket.port()));
-        addr
-    };
+/// Returns the TCP address to dial the node with `enr` at: its IPv4 one, or else its IPv6 one.
+pub fn enr_tcp_socket(enr: &Enr) -> Option<SocketAddr> {
+    enr.tcp4_socket().map(SocketAddr::V4).or_else(|| enr.tcp6_socket().map(SocketAddr::V6))
+}
 
+/// Converts an [`Enr`] into a [`Multiaddr`]: its [`enr_tcp_socket`], ending in its peer ID.
+pub fn enr_to_multiaddr(enr: &Enr) -> Option<Multiaddr> {
+    let socket = enr_tcp_socket(enr)?;
+    let addr = Multiaddr::from(socket.ip()).with(Protocol::Tcp(socket.port()));
+    Some(addr.with(Protocol::P2p(enr_to_peer_id(enr)?)))
+}
+
+/// Returns the libp2p peer ID of the node with `enr`, or `None` if the record doesn't hold a
+/// secp256k1 key, as every OP Stack node's does.
+fn enr_to_peer_id(enr: &Enr) -> Option<libp2p::PeerId> {
     let CombinedPublicKey::Secp256k1(pub_key) = enr.public_key() else {
         return None;
     };
-
     let pub_key = libp2p_identity::secp256k1::PublicKey::try_from_bytes(&pub_key.encode()).ok()?;
-    let pub_key = libp2p_identity::PublicKey::from(pub_key);
-
-    addr.push(Protocol::P2p(libp2p::PeerId::from_public_key(&pub_key)));
-
-    Some(addr)
+    Some(libp2p::PeerId::from_public_key(&libp2p_identity::PublicKey::from(pub_key)))
 }
 
 /// Converts an uncompressed [`PeerId`] to a [`secp256k1::PublicKey`] by prepending the [`PeerId`]

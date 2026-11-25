@@ -65,7 +65,7 @@ pub enum IncludeNextOutcome {
     /// Force-empty is set, so nothing was included (mirrors `ActL2IncludeTx`'s force-empty skip).
     Skipped,
     /// No parked transaction from the sender was valid for inclusion next (its next expected nonce
-    /// is not present in the buffer). Mirrors `firstValidTx` finding no pending transaction.
+    /// is not present in the buffer).
     NoTx,
 }
 
@@ -116,12 +116,9 @@ impl InFlightPayload {
         let attributes = OpPayloadAttrs(attributes);
         validate_attributes(&chain.chain_spec(), version, parent, &attributes)?;
 
-        let builder_attrs = OpPayloadBuilderAttributes::<OpTransactionSigned>::try_new(
-            parent_hash,
-            attributes.0,
-            PAYLOAD_VERSION,
-        )
-        .map_err(|err| Error::InvalidPayloadAttributes(err.to_string()))?;
+        let builder_attrs =
+            OpPayloadBuilderAttributes::try_new(parent_hash, attributes.0, PAYLOAD_VERSION)
+                .map_err(|err| Error::InvalidPayloadAttributes(err.to_string()))?;
         let next_env = OpNextBlockEnvAttributes::build_next_env(
             &builder_attrs,
             parent,

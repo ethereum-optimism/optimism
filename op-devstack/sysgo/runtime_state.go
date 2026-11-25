@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	challengerconfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -59,10 +58,22 @@ type SyncTesterRuntime struct {
 	CL L2CLNode
 }
 
+// SingleChainInteropSupport is set on a single-chain runtime whose chain runs interop at genesis
+// (PresetConfig.InteropAtGenesis, or a no-supernode interop runtime).
 type SingleChainInteropSupport struct {
-	Migration     *interopMigrationState
-	FullConfigSet config.FullConfigSetMerged
-	DependencySet coredepset.DependencySet
+	Migration *interopMigrationState
+	// DependencySet is the chain's interop dependency set, which every CL of the chain needs.
+	DependencySet *coredepset.StaticConfigDependencySet
+}
+
+// dependencySet returns the dependency set a CL of the chain starts with: nil when s is nil, as
+// on a chain without interop. op-deployer generates a dependency set either way, but a chain
+// without interop starts its CLs without one.
+func (s *SingleChainInteropSupport) dependencySet() coredepset.DependencySet {
+	if s == nil {
+		return nil
+	}
+	return s.DependencySet
 }
 
 type SingleChainRuntime struct {
@@ -142,7 +153,6 @@ type MultiChainNodeRuntime struct {
 type MultiChainRuntime struct {
 	Keys          devkeys.Keys
 	Migration     *interopMigrationState
-	FullConfigSet config.FullConfigSetMerged
 	DependencySet coredepset.DependencySet
 
 	L1Network *L1Network

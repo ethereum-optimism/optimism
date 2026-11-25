@@ -29,7 +29,7 @@ use reth_evm::execute::{BlockBuilder, BlockExecutionError, BlockValidationError}
 use reth_metrics::metrics::with_local_recorder;
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_evm::{OpEvmConfig, PostExecMode, PreRefundGasUsed, RevertToCheckpointError};
-use reth_optimism_primitives::{OpPrimitives, OpTransactionSigned};
+use reth_optimism_primitives::OpTransactionSigned;
 use reth_optimism_txpool::{
     OpPooledTransaction, OpPooledTx,
     conditional::MaybeConditionalTransaction,
@@ -41,7 +41,7 @@ use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_util::PayloadTransactionsFixed;
 use reth_primitives_traits::{Account, InMemorySize, SealedHeader};
 use reth_revm::{database::StateProviderDatabase, db::State, test_utils::StateProviderTest};
-use reth_storage_api::errors::ProviderError;
+use reth_storage_api::{StateProvider, errors::ProviderError};
 use reth_transaction_pool::PoolTransaction;
 use revm::context::result::{EVMError, InvalidTransaction};
 use rstest::rstest;
@@ -78,11 +78,7 @@ fn interop_ctx(
     no_tx_pool: bool,
     opt_in: bool,
     embedded_post_exec: Option<Vec<SDMGasEntry>>,
-) -> OpPayloadBuilderCtx<
-    OpEvmConfig<OpChainSpec, OpPrimitives>,
-    OpChainSpec,
-    OpPayloadBuilderAttributes<OpTransactionSigned>,
-> {
+) -> OpPayloadBuilderCtx<OpEvmConfig> {
     let gas_limit = 1_000_000;
     let chain_spec = Arc::new(OpChainSpecBuilder::optimism_mainnet().lagoon_activated().build());
     let parent = SealedHeader::seal_slow(Header {
@@ -137,11 +133,7 @@ fn unwrap_post_exec(tx: Recovered<OpTransactionSigned>) -> (u8, u64, Vec<SDMGasE
 fn payload_builder_ctx(
     chain_spec: Arc<OpChainSpec>,
     gas_limit: u64,
-) -> OpPayloadBuilderCtx<
-    OpEvmConfig<OpChainSpec, OpPrimitives>,
-    OpChainSpec,
-    OpPayloadBuilderAttributes<OpTransactionSigned>,
-> {
+) -> OpPayloadBuilderCtx<OpEvmConfig> {
     let parent = SealedHeader::seal_slow(Header {
         gas_limit,
         number: 0,
@@ -243,11 +235,7 @@ where
 }
 
 fn run_execute_best_transactions_with_ctx<T>(
-    ctx: OpPayloadBuilderCtx<
-        OpEvmConfig<OpChainSpec, OpPrimitives>,
-        OpChainSpec,
-        OpPayloadBuilderAttributes<OpTransactionSigned>,
-    >,
+    ctx: OpPayloadBuilderCtx<OpEvmConfig>,
     signer: Address,
     txs: Vec<T>,
     gas_limit_cap: Option<u64>,
@@ -267,7 +255,7 @@ where
     let best_txs = PayloadTransactionsFixed::new(txs);
 
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
@@ -345,7 +333,7 @@ fn rebuilds_derived_block_with_embedded_post_exec_tx_regardless_of_opt_in() {
 
         let state_provider = StateProviderTest::default();
         let mut db = State::builder()
-            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
             .with_bundle_update()
             .build();
         let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
@@ -373,7 +361,7 @@ fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
     let produce_ctx = interop_ctx(false, false, Some(Vec::new()));
     let provider = StateProviderTest::default();
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&provider))
+        .with_database(StateProviderDatabase::new((&provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = produce_ctx
@@ -387,7 +375,7 @@ fn block_builder_with_mode_honors_snapshot_over_live_opt_in() {
     let disabled_ctx = interop_ctx(false, true, Some(Vec::new()));
     let provider = StateProviderTest::default();
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&provider))
+        .with_database(StateProviderDatabase::new((&provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = disabled_ctx
@@ -532,7 +520,7 @@ fn execute_best_transactions_on_commit_hook_execution() {
     // Re-execute each tx that should be committed so we know the gas passed to on_commit.
     let expected_committed_gas: Vec<ReportedGas> = {
         let mut oracle_db = State::builder()
-            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
             .with_bundle_update()
             .build();
         let mut oracle = ctx.block_builder(&mut oracle_db).expect("oracle block builder");
@@ -556,7 +544,7 @@ fn execute_best_transactions_on_commit_hook_execution() {
     };
 
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");
@@ -652,7 +640,7 @@ fn on_commit_reports_canonical_and_pre_refund_gas_separately_under_sdm_refund() 
     };
 
     let mut db = State::builder()
-        .with_database(StateProviderDatabase::new(&state_provider))
+        .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
         .with_bundle_update()
         .build();
     let mut builder = ctx
@@ -1001,14 +989,7 @@ fn execute_best_transactions_excludes_interop_txs_when_failsafe_active() {
 /// Builds a ctx rebuilding a derived block whose embedded `0x7D` tx anchors to
 /// `post_exec_anchor`. The parent is block 0, so block 1 is the only valid anchor, and Lagoon is
 /// either active from genesis or not at all.
-fn derived_ctx(
-    lagoon_active: bool,
-    post_exec_anchor: u64,
-) -> OpPayloadBuilderCtx<
-    OpEvmConfig<OpChainSpec, OpPrimitives>,
-    OpChainSpec,
-    OpPayloadBuilderAttributes<OpTransactionSigned>,
-> {
+fn derived_ctx(lagoon_active: bool, post_exec_anchor: u64) -> OpPayloadBuilderCtx<OpEvmConfig> {
     let spec = OpChainSpecBuilder::optimism_mainnet();
     let spec = if lagoon_active { spec.lagoon_activated() } else { spec };
     let chain_spec = Arc::new(spec.build());
@@ -1220,7 +1201,7 @@ fn invalid_forced_transaction_fails_only_a_derived_rebuild() {
         ctx.config.attributes.transactions = vec![deposit_with_encoded(), invalid.clone()];
         let state_provider = StateProviderTest::default();
         let mut db = State::builder()
-            .with_database(StateProviderDatabase::new(&state_provider))
+            .with_database(StateProviderDatabase::new((&state_provider).into_evm_state_provider()))
             .with_bundle_update()
             .build();
         let mut builder = ctx.block_builder(&mut db).expect("block builder can be created");

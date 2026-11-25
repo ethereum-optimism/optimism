@@ -1,10 +1,10 @@
 //! Command that backfills OP proofs storage to an older earliest block.
 
+use crate::chainspec::OpChainSpecParser;
 use clap::Parser;
-use reth_chainspec::EthChainSpec;
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::{
     ProofsHistoryBackfillArgs, ProofsHistoryStorageArgs, ProofsHistoryWindowArg,
 };
@@ -20,9 +20,9 @@ use tracing::info;
 
 /// Backfills the proofs storage to an older earliest block.
 #[derive(Debug, Parser)]
-pub struct BackfillCommand<C: ChainSpecParser> {
+pub struct BackfillCommand {
     #[command(flatten)]
-    env: EnvironmentArgs<C>,
+    env: EnvironmentArgs<OpChainSpecParser>,
 
     /// Shared proofs-history storage flags (storage path + version).
     #[command(flatten)]
@@ -38,9 +38,9 @@ pub struct BackfillCommand<C: ChainSpecParser> {
     pub backfill_args: ProofsHistoryBackfillArgs,
 }
 
-impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> BackfillCommand<C> {
+impl BackfillCommand {
     /// Execute [`BackfillCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
@@ -115,11 +115,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> BackfillCommand<C> {
         }
         Ok(())
     }
-}
 
-impl<C: ChainSpecParser> BackfillCommand<C> {
     /// Returns the underlying chain being used to run this command
-    pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+    pub const fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
         Some(&self.env.chain)
     }
 }

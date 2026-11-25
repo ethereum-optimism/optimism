@@ -1,43 +1,89 @@
 ---
 title: Snapshots
-description: Find download links for data directories and database snapshots for running your own node.
+description: Find op-reth snapshots for OP Mainnet, OP Sepolia, and other OP Enterprise Fully Managed networks, the legacy pre-Bedrock data directory, and third-party snapshot providers.
 diataxis: reference
 ---
 
-
-
 # Node snapshots
 
-This page contains download links for data directories and node snapshots.
-State snapshots are pre-synced node data that let you start an OP Stack execution client from a recent chain state instead of replaying from genesis. You download the snapshot and run your node from it, which dramatically cuts initial sync time.
+This page lists where to download node snapshots for OP Mainnet, OP Sepolia, and other OP Enterprise Fully Managed networks that Optimism publishes snapshots for.
+Snapshots are pre-synced execution client data directories that let you start a node from a recent chain state instead of replaying from genesis.
 For step-by-step instructions on downloading, verifying, and extracting a snapshot, follow the [Restore a node from a snapshot guide](/node-operators/guides/management/restore-from-snapshot).
 
 <Info>
-  Data directories and node snapshots are **not required** in the following cases:
+  Snapshots are **not required** in the following cases:
 
-  *   When using [snap sync](/node-operators/reference/consensus-layer-sync) with op-geth
-  *   When using [Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack) (automatically handles snapshots)
+  *   When running `op-reth` with [execution-layer sync](/node-operators/reference/consensus-layer-sync) on OP Sepolia and most other OP Stack chains
+  *   When using [Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack), which automatically handles snapshots
 
-  They are still required for archive nodes and in instances when you need to trace the entire chain with `op-reth` or `op-geth`.
+  A snapshot is the fastest way to bootstrap an archive node, and on OP Mainnet it is the simplest way to satisfy `op-reth`'s [pre-Bedrock state requirement](#op-mainnet-pre-bedrock-data).
 </Info>
 
+## Optimism snapshots
 
-OP Mainnet underwent a large [database migration](https://web.archive.org/web/20240110231645/https://blog.oplabs.co/reproduce-bedrock-migration/) as part of the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) in 2023.
-Node operators using `op-reth` or `op-geth` must have a migrated OP Mainnet database to run an archival node.
-Migrated OP Mainnet databases can be generated manually or pre-migrated databases can be downloaded from the links below.
-
-
-## Available OP Mainnet Snapshots
+Optimism publishes `op-reth` snapshots at [snapshots.optimism.io](https://snapshots.optimism.io/).
+Select your network and sync type on the site. For each snapshot, the site shows the `op-reth` version it was taken with, the snapshot date, its size, and its SHA256 checksum.
+Use the **Snapshot** picker to choose the latest snapshot or an older dated one, then copy the download command or the snapshot URL.
+Snapshots are `.tar.zst` archives, and each one has a matching `.sha256sum` checksum file.
 
 <Info>
   Using [aria2](https://aria2.github.io/) to download snapshots can significantly speed up the download process.
 </Info>
 
-All snapshots for OP Mainnet can be found at the OP Labs managed [Data Directories](https://datadirs.optimism.io/) website.
-All geth snapshots are configured for pebbleDB and the hash state scheme.
+The site currently offers snapshots for the networks below. The list on [snapshots.optimism.io](https://snapshots.optimism.io/) is authoritative and may grow.
 
+| Network | Client | Sync types |
+| ------- | ------ | ---------- |
+| OP Mainnet | `op-reth` (storage v2) | Full (pruned to the last 30 days of state and history) and archive (unpruned, complete state and history) |
+| OP Sepolia | `op-reth` | Full (pruned to the last 30 days of state and history) and archive (unpruned, complete state and history) |
+| Ink Mainnet | `op-reth` | See [snapshots.optimism.io](https://snapshots.optimism.io/) |
+| Ink Sepolia | `op-reth` | See [snapshots.optimism.io](https://snapshots.optimism.io/) |
+| Collect Chain Testnet | `op-reth` | See [snapshots.optimism.io](https://snapshots.optimism.io/) |
 
-### Nethermind
+### OP Mainnet
+
+OP Mainnet snapshots use storage v2, the default storage layout for new `op-reth` data directories. Two sync types are available:
+
+*   **Full**: pruned to the last 30 days of state and history. About 1.3 TB compressed.
+*   **Archive**: unpruned, with complete state and history. About 1.7 TB compressed. Use this to run an [archive node](/node-operators/guides/management/archive-node).
+
+The extracted data directory is larger than the compressed download. During the restore you need room for both, so plan disk space accordingly.
+
+Each snapshot is a data directory from an OP Mainnet `op-reth` node that has already synced past Bedrock. Restoring one replaces the [pre-Bedrock state import](/node-operators/op-reth/run/faq/sync-op-mainnet) that a fresh data directory needs.
+
+### OP Sepolia
+
+OP Sepolia `op-reth` snapshots are published on [snapshots.optimism.io](https://snapshots.optimism.io/) in the same two sync types:
+
+*   **Full**: pruned to the last 30 days of state and history. About 265 GB compressed.
+*   **Archive**: unpruned, with complete state and history. About 262 GB compressed.
+
+As with OP Mainnet, the extracted data directory is larger than the compressed download.
+OP Sepolia does not require a snapshot: `op-reth` can bootstrap with execution-layer sync from an empty data directory.
+
+### Storage v1 snapshots
+
+`op-reth` storage v1 is deprecated and reaches end of support on January 26, 2027.
+See the [op-reth storage v1 deprecation notice](/notices/op-reth-storage-v1-deprecation) for details.
+Start new nodes from a storage v2 snapshot so that you do not need to migrate the data directory later.
+
+Optimism does not publish a storage v1 snapshot for OP Mainnet.
+Storage v1 `op-reth` snapshots for OP Sepolia remain on the [Data Directories](https://datadirs.optimism.io/) website for now, and will stop being published as storage v1 reaches end of support.
+
+## OP Mainnet pre-Bedrock data
+
+OP Mainnet underwent a large [database migration](https://web.archive.org/web/20240110231645/https://blog.oplabs.co/reproduce-bedrock-migration/) as part of the [Bedrock Upgrade](https://web.archive.org/web/20230608050602/https://blog.oplabs.co/introducing-optimism-bedrock/) in 2023.
+An `op-reth` node on OP Mainnet must start from the Bedrock state.
+Either restore an [OP Mainnet snapshot](#op-mainnet), or import it yourself by following [Sync OP Mainnet](/node-operators/op-reth/run/faq/sync-op-mainnet).
+
+### Legacy Geth data directory
+
+Blocks from before the Bedrock Upgrade cannot be executed by modern OP Mainnet nodes.
+To run stateful queries such as `eth_call` against pre-Bedrock blocks, run a Legacy Geth (`l2geth`) node alongside your modern node, using the Legacy Geth data directory from the Optimism managed [Data Directories](https://datadirs.optimism.io/) website.
+See [Legacy Geth](/node-operators/guides/configuration/legacy-geth) and the [Legacy Geth steps in the run a node from source tutorial](/node-operators/tutorials/run-node-from-source#legacy-geth-pre-bedrock-optional).
+This is only needed for OP Mainnet archive nodes that must serve pre-Bedrock state.
+
+## Nethermind
 
 [Nethermind](https://docs.nethermind.io/get-started/running-node/l2-networks#op-stack) automatically handles downloading and applying the necessary snapshots when you start the node. No manual snapshot download is required. The node will:
 
@@ -52,5 +98,3 @@ When you run `Nethermind` with the `-c op-mainnet` flag, it uses this configurat
 
 [Allnodes](https://www.allnodes.com) provides full node snapshots for OP Mainnet and Testnet. You can find them [here](https://www.publicnode.com/snapshots#optimism).
 **Please note:** Allnodes is a 3rd party provider, and the Optimism Foundation hasn't verified the snapshots.
-
-

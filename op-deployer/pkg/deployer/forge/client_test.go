@@ -203,6 +203,39 @@ func TestClient_TimeoutUnblocksHungCommand(t *testing.T) {
 	require.Less(t, time.Since(start), 10*time.Second)
 }
 
+// TestClient_SlowBroadcast checks the flags of a forge broadcast, and that it returns no transactions
+// to send: forge sent them.
+func TestClient_SlowBroadcast(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     []string
+		wantSlow bool
+	}{
+		{name: "broadcast", opts: []string{"--broadcast"}, wantSlow: true},
+		{name: "dry run", opts: nil, wantSlow: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cl := NewClient(stubScript(t, `echo "$@"`))
+			cl.Wd = stubProject(t)
+			cl.Stdout = io.Discard
+
+			out, transactions, err := cl.RunScript(context.Background(), "Script.s.sol", "run()", nil, tt.opts...)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantSlow, strings.Contains(out, "--slow"))
+			require.Equal(t, tt.wantSlow, strings.Contains(out, "--skip-simulation --gas-estimate-multiplier 100"),
+				"a broadcast uses the node's gas estimate of each transaction, as txmgr does")
+			if tt.wantSlow {
+				require.Nil(t, transactions)
+			} else {
+				require.Empty(t, transactions)
+				require.NotNil(t, transactions)
+			}
+		})
+	}
+}
+
 // TestClient_RunScriptStopsOnCompile checks that a run stops at the compile, before the script runs.
 func TestClient_RunScriptStopsOnCompile(t *testing.T) {
 	// The stub's sleep can start before the kill and hold the output pipe; do not wait for it.
@@ -502,6 +535,72 @@ func TestClient_SandboxIgnoresProjectConfig(t *testing.T) {
 		dir := sandboxProject(t, ctx, "solc_version = \"0.8.15\"\n")
 		require.NoError(t, run(t, dir, "noop(bytes)"), "a pinned compiler version is kept")
 	})
+	t.Run("deny warnings", func(t *testing.T) {
+		dir := sandboxProject(t, ctx, "")
+		appendFile(t, filepath.Join(dir, "foundry.toml"), "deny = \"warnings\"\n")
+		require.NoError(t, run(t, dir, "noop(bytes)"))
+	})
+}
+
+// TestClient_RunScriptKeepsLibRemappings checks that a script run keeps the remappings that forge
+// detects in the project's libraries.
+func TestClient_RunScriptKeepsLibRemappings(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// The project is reached through a link, as on macOS, whose temporary directories are under a
+	// link; forge resolves the link.
+	dir := filepath.Join(t.TempDir(), "project")
+	require.NoError(t, os.Symlink(t.TempDir(), dir))
+	dep := filepath.Join(dir, "lib", "dep", "src")
+	require.NoError(t, os.MkdirAll(dep, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dep, "Dep.sol"), []byte(`// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+library Dep {
+    function one() internal pure returns (uint256) {
+        return 1;
+    }
+}
+`), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "script"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "script", "Dep.s.sol"), []byte(`// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import {Dep} from "dep/Dep.sol";
+
+contract DepScript {
+    function run(bytes memory) public pure returns (uint256) {
+        return Dep.one();
+    }
+}
+`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "foundry.toml"), []byte("[profile.default]\nsrc = \"script\"\n"), 0o644))
+	cl := NewClient(PathBinary())
+	cl.Wd = dir
+	cl.Stdout = io.Discard
+	cl.Stderr = io.Discard
+	cl.FsPermissions = []FsPermission{}
+	require.NoError(t, cl.Build(ctx))
+
+	_, _, err := cl.RunScript(ctx, "script/Dep.s.sol:DepScript", "run(bytes)", nil)
+	require.NoError(t, err)
+}
+
+// TestClient_RunScriptRefusesEqualsInPath checks that a script run refuses a project whose path
+// holds a '=', in which forge would compile.
+func TestClient_RunScriptRefusesEqualsInPath(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "case=1")
+	require.NoError(t, os.Mkdir(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "foundry.toml"), []byte("[profile.default]\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "cache"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, compileCacheFile), []byte("{}"), 0o644))
+	cl := NewClient(PathBinary())
+	cl.Wd = dir
+	cl.FsPermissions = []FsPermission{}
+
+	_, _, err := cl.RunScript(context.Background(), "script/A.s.sol:A", "run()", nil)
+	require.ErrorContains(t, err, "holds a '='")
 }
 
 // TestClient_SandboxesScripts checks that a script can neither run commands nor read files outside
@@ -597,11 +696,11 @@ func TestClient_SandboxRefusesLinksInArtifacts(t *testing.T) {
 	require.NoError(t, os.Symlink(t.TempDir(), filepath.Join(artifacts, "x")))
 	cl := NewClient(nil)
 	cl.FsPermissions = []FsPermission{ArtifactsReadPermission}
-	_, err := cl.sandboxConfig(project, t.TempDir())
+	_, _, err := cl.sandboxConfig(project, t.TempDir())
 	require.ErrorContains(t, err, "is a link")
 
 	cl.FsPermissions = []FsPermission{}
-	_, err = cl.sandboxConfig(project, t.TempDir())
+	_, _, err = cl.sandboxConfig(project, t.TempDir())
 	require.NoError(t, err, "a link outside the granted paths is not read")
 }
 
@@ -708,7 +807,7 @@ func TestClient_SandboxConfigKebabKeys(t *testing.T) {
 optimizer-runs = 5
 eth-rpc-url = "http://127.0.0.1:1"
 `), 0o644))
-	path, err := NewClient(nil).sandboxConfig(project, t.TempDir())
+	path, _, err := NewClient(nil).sandboxConfig(project, t.TempDir())
 	require.NoError(t, err)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)

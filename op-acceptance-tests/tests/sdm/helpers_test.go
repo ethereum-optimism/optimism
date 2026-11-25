@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	gethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 // getOPGasRefund reads the opGasRefund field from a transaction receipt via
@@ -59,7 +58,7 @@ func assertFixtureBlockOracle(t devtest.T, sys *sdmtest.RethSystem, block *sdmpk
 		switch uint64(tx.Type) {
 		case uint64(optypes.PostExecTxType):
 			postExecCount++
-		case uint64(gethtypes.DepositTxType):
+		case uint64(optypes.DepositTxType):
 		default:
 			expectedIndexes = append(expectedIndexes, uint64(i))
 		}
@@ -84,7 +83,7 @@ func assertFixtureBlockOracle(t devtest.T, sys *sdmtest.RethSystem, block *sdmpk
 	}
 
 	for _, tx := range block.Transactions {
-		if uint64(tx.Type) != uint64(gethtypes.DepositTxType) && uint64(tx.Type) != uint64(optypes.PostExecTxType) {
+		if uint64(tx.Type) != uint64(optypes.DepositTxType) && uint64(tx.Type) != uint64(optypes.PostExecTxType) {
 			continue
 		}
 		refund, present := getOPGasRefund(t, sys.L2EL, tx.Hash)
@@ -123,7 +122,7 @@ func assertFixtureBlockOracle(t devtest.T, sys *sdmtest.RethSystem, block *sdmpk
 		t.Require().Equal(tx.Hash, row.TxHash, "replay tx hash at index %d must match", i)
 		t.Require().Equal(getReceiptGasUsed(t, sys.L2EL, tx.Hash), row.CanonicalGasUsed,
 			"receipt gas and replay canonical gas at index %d must match", i)
-		if uint64(tx.Type) == uint64(gethtypes.DepositTxType) {
+		if uint64(tx.Type) == uint64(optypes.DepositTxType) {
 			t.Require().Nil(row.OPGasRefundPayload, "deposit replay row must not have a refund claim")
 			t.Require().Equal(row.RawGasUsed, row.CanonicalGasUsed,
 				"deposit raw and canonical gas must match")
@@ -163,7 +162,7 @@ func assertFixtureVerifierReceipts(t devtest.T, sys *sdmtest.RethSystem, block *
 // Hash() rather than a hand-rolled keccak checks the Go hasher and op-reth agree — the cross-client
 // guarantee op-service/sources relies on.
 func assertPostExecTxHashIsCanonical(t devtest.T, l2EL *dsl.L2ELNode, postExecTx *sdmpkg.RPCTransaction) {
-	wantHash := gethtypes.NewTx(&gethtypes.PostExecTx{Data: []byte(postExecTx.Input)}).Hash()
+	wantHash := (&optypes.PostExecTx{Data: []byte(postExecTx.Input)}).Hash()
 
 	t.Require().Equal(wantHash, postExecTx.Hash,
 		"op-reth-served post-exec tx hash %s must equal PostExecTx.Hash() %s (keccak256(0x7D || Data), matching TxDeposit)",
@@ -189,8 +188,9 @@ func isNullJSONResult(raw json.RawMessage) bool {
 	return len(raw) == 0 || strings.TrimSpace(string(raw)) == "null"
 }
 
-// assertPostExecDAFootprint verifies Jovian's blobGasUsed accounting for a block with a 0x7D.
-// Deposits are omitted because block accounting excludes them while their receipts do not.
+// assertPostExecDAFootprint verifies Jovian's blobGasUsed accounting for a block with a 0x7D:
+// every receipt reports its transaction's DA footprint, which is zero for a deposit and for the
+// post-exec transaction, and the receipts sum to the header's total.
 func assertPostExecDAFootprint(t devtest.T, l2EL *dsl.L2ELNode, block *sdmpkg.RPCBlock) {
 	rpcClient := l2EL.Escape().L2EthClient().RPC()
 
@@ -208,10 +208,6 @@ func assertPostExecDAFootprint(t devtest.T, l2EL *dsl.L2ELNode, block *sdmpkg.RP
 		postExecSeen     bool
 	)
 	for _, tx := range block.Transactions {
-		if uint64(tx.Type) == uint64(gethtypes.DepositTxType) {
-			continue
-		}
-
 		var receipt struct {
 			BlobGasUsed *hexutil.Uint64 `json:"blobGasUsed"`
 		}
@@ -219,7 +215,11 @@ func assertPostExecDAFootprint(t devtest.T, l2EL *dsl.L2ELNode, block *sdmpkg.RP
 		t.Require().NoError(err, "eth_getTransactionReceipt RPC failed for tx %s", tx.Hash)
 		t.Require().NotNil(receipt.BlobGasUsed, "nil receipt blobGasUsed for tx %s", tx.Hash)
 
-		if uint64(tx.Type) == uint64(optypes.PostExecTxType) {
+		switch uint64(tx.Type) {
+		case uint64(optypes.DepositTxType):
+			t.Require().Zero(uint64(*receipt.BlobGasUsed),
+				"deposit tx %s must report a zero DA footprint on its receipt", tx.Hash)
+		case uint64(optypes.PostExecTxType):
 			postExecSeen = true
 			t.Require().Zero(uint64(*receipt.BlobGasUsed),
 				"post-exec tx %s must report a zero DA footprint on its receipt", tx.Hash)

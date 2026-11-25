@@ -191,10 +191,12 @@ mod tests {
 
     #[test]
     fn embedded_chain_configs_do_not_require_preimages() {
-        let configs = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
-        assert_eq!(configs.dependency_set, DEPENDENCY_SETS[&10]);
-        assert_eq!(configs.rollup_configs[&10], ROLLUP_CONFIGS[&10]);
-        assert_eq!(configs.l1_config, L1_CONFIGS[&configs.rollup_configs[&10].l1_chain_id]);
+        // Zora's dependency set holds only itself.
+        const ZORA: u64 = 7777777;
+        let configs = ChainConfigs::from_registry(&[U256::from(ZORA)]).unwrap();
+        assert_eq!(configs.dependency_set, DEPENDENCY_SETS[&ZORA]);
+        assert_eq!(configs.rollup_configs[&ZORA], ROLLUP_CONFIGS[&ZORA]);
+        assert_eq!(configs.l1_config, L1_CONFIGS[&configs.rollup_configs[&ZORA].l1_chain_id]);
     }
 
     #[test]

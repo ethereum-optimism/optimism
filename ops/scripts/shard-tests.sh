@@ -34,9 +34,21 @@ if [ -z "${CIRCLE_NODE_TOTAL:-}" ] || [ "${CIRCLE_NODE_TOTAL:-1}" -le 1 ]; then
   exit 0
 fi
 
+# CircleCI's own timings come from this branch's last green run, which can predate
+# long tests added on develop since. Use develop's when the workflow provides them
+# (the same file on every node, so each test still lands on exactly one node).
+TIMINGS_FILE="$(dirname "$0")/../../_shard-timings/${CIRCLE_JOB:-}.json"
+set --
+if [ -s "$TIMINGS_FILE" ]; then
+  echo "Splitting by develop's timings from $TIMINGS_FILE" >&2
+  set -- --timings-file "$TIMINGS_FILE"
+elif [ -d "$(dirname "$TIMINGS_FILE")" ]; then
+  echo "No fetched timings for ${CIRCLE_JOB:-}, splitting by CircleCI's own" >&2
+fi
+
 # Canceled runs can leave partial history. CircleCI's tiny default weight for
 # missing timings can put every unknown test on the same otherwise-light shard.
 # Give unknown acceptance tests a realistic setup/runtime budget instead.
 # `awk 1` ends the last line with a newline, since callers' `read` and `wc -l` would
 # miss a test without one.
-circleci tests split --split-by=timings --timings-type=testname --time-default=1m "$ALL_TESTS_FILE" | awk 1
+circleci tests split --split-by=timings --timings-type=testname --time-default=1m "$@" "$ALL_TESTS_FILE" | awk 1

@@ -39,10 +39,12 @@ pipeline:
       printf '%s  %s\n' "$checksum" "$work/$archive" | sha256sum -c -
       tar -xzf "$work/$archive" -C "$work"
 
-      forge_path="$(find "$work" -type f -name forge | head -n1)"
-      if [ -z "$forge_path" ] || [ ! -x "$forge_path" ]; then
-        echo "Forge binary not found in $archive" >&2
-        exit 1
-      fi
-
-      install -Dm755 "$forge_path" "${{targets.contextdir}}/usr/local/bin/forge"
+      # op-deployer runs forge, and anvil for `op-deployer prepare` and `continue`.
+      for tool in forge anvil; do
+        tool_path="$(find "$work" -type f -name "$tool" | head -n1)"
+        if [ -z "$tool_path" ] || [ ! -x "$tool_path" ]; then
+          echo "$tool binary not found in $archive" >&2
+          exit 1
+        fi
+        install -Dm755 "$tool_path" "${{targets.contextdir}}/usr/local/bin/$tool"
+      done

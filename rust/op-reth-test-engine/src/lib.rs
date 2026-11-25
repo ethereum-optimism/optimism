@@ -1,8 +1,8 @@
 //! `op-reth-test-engine`: a library-first, ephemeral, OP-flavored execution layer for tests.
 //!
 //! Tests drive this as a library (Rust action tests, fuzzers, replays) or, via the companion
-//! binary, as a subprocess over a Unix socket (Go action tests). It exists so `op-e2e/actions`
-//! can run an OP-flavored execution layer without embedding op-geth in-process.
+//! binary, as a subprocess over a Unix socket (Go action tests), where it is the L2 execution
+//! layer of `op-e2e/actions`.
 //!
 //! The library exposes an ephemeral chain with read-only queries, the one-shot `new_payload`
 //! import path, forkchoice updates, and a stateful in-flight payload builder
@@ -115,7 +115,7 @@ pub enum Error {
     #[error("failed to decode transaction: {0}")]
     TxDecode(String),
     /// A deposit transaction was sent or included outside payload attributes. Deposits only enter
-    /// a block as forced transactions, as op-geth's and op-reth's pools reject them.
+    /// a block as forced transactions, as op-reth's pool rejects them.
     #[error("deposit transaction {0} can only enter a block through payload attributes")]
     DepositNotAllowed(B256),
 }
@@ -279,8 +279,7 @@ impl TestEngine {
     ///
     /// Targets `id`, or the most recently opened payload when `id` is `None`. Returns
     /// [`IncludeTxOutcome::Skipped`] under force-empty, and errors with
-    /// [`Error::NotBuildingBlock`], [`Error::ExceedsGasLimit`], or [`Error::UsesTooMuchGas`] as
-    /// the op-geth engine API does.
+    /// [`Error::NotBuildingBlock`], [`Error::ExceedsGasLimit`], or [`Error::UsesTooMuchGas`].
     pub fn include_tx(&mut self, id: Option<PayloadId>, raw: &[u8]) -> Result<IncludeTxOutcome> {
         let id = self.resolve_id(id)?;
         let chain = &self.chain;
@@ -329,9 +328,8 @@ impl TestEngine {
 
     /// Drop in-flight payloads whose parent is not `head`, the head of the latest forkchoice.
     ///
-    /// op-geth discards a build job once its parent stops being the head; a subsequent `getPayload`
-    /// for it then reports an unknown payload. Called on every applied forkchoice update, so the
-    /// same `getPayload` returns `UnknownPayloadId`.
+    /// Called on every applied forkchoice update, so a later `getPayload` for a dropped payload
+    /// returns `UnknownPayloadId`.
     fn evict_stale_in_flight(&mut self, head: B256) {
         self.in_flight.retain(|_, payload| payload.parent_hash() == head);
         if self.current.is_some_and(|id| !self.in_flight.contains_key(&id)) {
@@ -399,8 +397,8 @@ impl TestEngine {
     /// (`optest_includeNextTx`). It stays parked until the committed state passes its nonce.
     ///
     /// The eligible transaction is the one whose nonce equals `from`'s nonce in the parent state
-    /// plus the number of `from`'s transactions already included in this block — exactly what
-    /// `firstValidTx` selects against the geth engine. Backs the Go `ActL2IncludeTx(from)`.
+    /// plus the number of `from`'s transactions already included in this block. Backs the Go
+    /// `ActL2IncludeTx(from)`.
     pub fn include_next_tx(&mut self, from: Address) -> Result<IncludeNextOutcome> {
         let id = self.current.ok_or(Error::NotBuildingBlock)?;
         let in_flight = self.in_flight.get(&id).ok_or(Error::NotBuildingBlock)?;

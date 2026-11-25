@@ -43,7 +43,7 @@ func newSDMRethSystemWithIsolatedVerifier(t devtest.T) *sdmtest.RethSystem {
 	// derivation actor stays in AwaitingELSyncCompletion, the EL gets no engine calls, and the
 	// safe head never leaves genesis. kona-node has no L1-only bootstrap of the force-build path
 	// today, so this test cannot pass under kona-node and is op-node-only for now.
-	if sysgo.ResolveMixedL2CLKind() == sysgo.MixedL2CLKona {
+	if sysgo.ResolveMixedL2CLKind(t) == sysgo.MixedL2CLKona {
 		t.Skip("isolated-verifier force-build path is not supported by kona-node (no L1-only EL-sync bootstrap); op-node only")
 	}
 	return buildSDMRethSystem(t, true, true, true, "", nil)
@@ -82,11 +82,9 @@ func buildSDMRethSystem(
 	deployerOpts []sysgo.DeployerOption,
 	batcherOpts ...sysgo.BatcherOption,
 ) *sdmtest.RethSystem {
-	sysgo.SkipOnOpGeth(t, "SDM acceptance tests require op-reth post-exec support")
-
 	// Honor DEVSTACK_L2CL_KIND so the kona acceptance suite exercises this test with
 	// kona-node on both the sequencer and verifier (defaults to op-node when unset).
-	clKind := sysgo.ResolveMixedL2CLKind()
+	clKind := sysgo.ResolveMixedL2CLKind(t)
 
 	sequencerKey := "sequencer-op-reth"
 	// The two sequencer paths are disjoint, and neither is an extension point for a
@@ -113,7 +111,6 @@ func buildSDMRethSystem(
 			{
 				ELKey:       sequencerKey,
 				CLKey:       "sequencer",
-				ELKind:      sysgo.MixedL2ELOpReth,
 				CLKind:      clKind,
 				IsSequencer: true,
 				OpRethOpts:  sequencerOpts,
@@ -121,7 +118,6 @@ func buildSDMRethSystem(
 			{
 				ELKey:            "verifier-op-reth",
 				CLKey:            "verifier",
-				ELKind:           sysgo.MixedL2ELOpReth,
 				CLKind:           clKind,
 				IsSequencer:      false,
 				IsolateFromL2P2P: isolateVerifier,

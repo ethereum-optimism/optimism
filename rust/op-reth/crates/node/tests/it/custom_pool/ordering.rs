@@ -3,14 +3,9 @@
 use super::{build_components_with_pool, funded_signers, node_test_setup, signed_transfer_raw};
 use alloy_consensus::Transaction as _;
 use alloy_primitives::B256;
-use op_alloy_network::Optimism;
 use reth_e2e_test_utils::{node::NodeTestContext, transaction::TransactionTestContext};
-use reth_node_builder::{EngineNodeLauncher, NodeBuilder, rpc::BasicEngineValidatorBuilder};
-use reth_optimism_node::{
-    OpEngineApiBuilder, OpNode,
-    node::{OpEngineValidatorBuilder, OpPoolBuilder},
-    utils::optimism_payload_attributes,
-};
+use reth_node_builder::{EngineNodeLauncher, NodeBuilder};
+use reth_optimism_node::{OpNode, node::OpPoolBuilder, utils::optimism_payload_attributes};
 use reth_optimism_txpool::OpPooledTransaction;
 use reth_provider::providers::BlockchainProvider;
 use reth_transaction_pool::{Priority, TransactionOrdering};
@@ -63,19 +58,14 @@ async fn run_ordering_test<Ordering>(
         .with_types_and_provider::<OpNode, BlockchainProvider<_>>()
         .with_components(build_components_with_pool(pool))
         // `OpNode::add_ons()` is pre-typed to the default-ordering pool; the add-ons builder is
-        // generic over the node's components, so build it with the OP-default generics so it
-        // specializes to this node's pool.
-        .with_add_ons(
-            OpNode::new(Default::default()).add_ons_builder::<Optimism>().build::<
-                _,
-                OpEngineValidatorBuilder,
-                OpEngineApiBuilder<OpEngineValidatorBuilder>,
-                BasicEngineValidatorBuilder<OpEngineValidatorBuilder>,
-            >(),
-        )
+        // generic over the node's components, so it specializes to this node's pool.
+        .with_add_ons(OpNode::new(Default::default()).add_ons_builder().build())
         .launch_with_fn(|builder| {
-            let launcher =
-                EngineNodeLauncher::new(runtime.clone(), builder.config.datadir(), Default::default());
+            let launcher = EngineNodeLauncher::new(
+                runtime.clone(),
+                builder.config.datadir(),
+                Default::default(),
+            );
             builder.launch_with(launcher)
         })
         .await

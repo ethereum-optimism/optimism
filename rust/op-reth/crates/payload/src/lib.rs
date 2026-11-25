@@ -18,16 +18,19 @@ pub use builder::{
 };
 pub mod error;
 pub mod payload;
-use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayloadEnvelope};
+use alloy_rpc_types_engine::{ExecutionPayloadEnvelopeV2, ExecutionPayloadV1};
+use op_alloy_rpc_types_engine::{
+    OpExecutionData, OpExecutionPayloadEnvelope, OpExecutionPayloadEnvelopeV3,
+    OpExecutionPayloadEnvelopeV4,
+};
 pub use payload::{
     OpBuiltPayload, OpExecData, OpPayloadAttributes, OpPayloadAttrs, OpPayloadBuilderAttributes,
     payload_id_optimism,
 };
-mod traits;
-use reth_optimism_primitives::OpPrimitives;
-use reth_payload_primitives::{BuiltPayload, PayloadTypes};
-use reth_primitives_traits::{Block, NodePrimitives, SealedBlock, SignedTransaction};
-pub use traits::*;
+use reth_engine_primitives::EngineTypes;
+use reth_optimism_primitives::OpBlock;
+use reth_payload_primitives::PayloadTypes;
+use reth_primitives_traits::{Block, SealedBlock};
 pub mod validator;
 pub use validator::OpExecutionPayloadValidator;
 
@@ -36,14 +39,7 @@ mod sdm_metrics;
 
 // Implement `ConfigureEngineEvm<OpExecData>` by delegating to the `OpExecutionData` implementation.
 // This must live here because `OpExecData` is defined in this crate (orphan rules).
-impl<ChainSpec, N, R> reth_evm::ConfigureEngineEvm<OpExecData>
-    for reth_optimism_evm::OpEvmConfig<ChainSpec, N, R>
-where
-    N: NodePrimitives,
-    R: Send + Sync + Unpin + Clone + 'static,
-    ChainSpec: Send + Sync + Unpin + Clone + 'static,
-    Self: reth_evm::ConfigureEngineEvm<OpExecutionData>,
-{
+impl reth_evm::ConfigureEngineEvm<OpExecData> for reth_optimism_evm::OpEvmConfig {
     fn evm_env_for_payload(
         &self,
         payload: &OpExecData,
@@ -67,33 +63,25 @@ where
     }
 }
 
-/// ZST that aggregates Optimism [`PayloadTypes`].
+/// The payload and engine API types of an OP node.
 #[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
-#[non_exhaustive]
-pub struct OpPayloadTypes<N: NodePrimitives = OpPrimitives>(core::marker::PhantomData<N>);
+pub struct OpEngineTypes;
 
-impl<T, N> PayloadTypes for OpPayloadTypes<N>
-where
-    T: SignedTransaction,
-    N: NodePrimitives<Block = alloy_consensus::Block<T>>,
-    OpBuiltPayload<N>: BuiltPayload,
-{
+impl PayloadTypes for OpEngineTypes {
     type ExecutionData = crate::payload::OpExecData;
-    type BuiltPayload = OpBuiltPayload<N>;
+    type BuiltPayload = OpBuiltPayload;
     type PayloadAttributes = crate::payload::OpPayloadAttrs;
 
-    // `block_to_payload` and `From<OpBuiltPayload<N>> for OpExecData` are
+    // `block_to_payload` and `From<OpBuiltPayload> for OpExecData` are
     // separate conversion paths to the same type. OP execution data does not
     // currently carry a BAL, so both paths intentionally discard it.
-    /// UPSTREAM-MIRROR(copy): reth@rev:8d359d0
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2
     /// `reth_ethereum_engine_primitives::EthPayloadTypes::block_to_payload`
     ///
     /// Mirrors the upstream conversion while constructing OP execution data.
     /// Re-check this path when upstream changes or OP execution data gains BAL support.
     fn block_to_payload(
-        block: SealedBlock<
-            <<Self::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block,
-        >,
+        block: SealedBlock<OpBlock>,
         _bal: Option<alloy_primitives::Bytes>,
     ) -> Self::ExecutionData {
         crate::payload::OpExecData::from(OpExecutionData::from(
@@ -104,4 +92,13 @@ where
             .expect("built OP blocks must normalize"),
         ))
     }
+}
+
+impl EngineTypes for OpEngineTypes {
+    type ExecutionPayloadEnvelopeV1 = ExecutionPayloadV1;
+    type ExecutionPayloadEnvelopeV2 = ExecutionPayloadEnvelopeV2;
+    type ExecutionPayloadEnvelopeV3 = OpExecutionPayloadEnvelopeV3;
+    type ExecutionPayloadEnvelopeV4 = OpExecutionPayloadEnvelopeV4;
+    type ExecutionPayloadEnvelopeV5 = OpExecutionPayloadEnvelopeV4;
+    type ExecutionPayloadEnvelopeV6 = OpExecutionPayloadEnvelopeV4;
 }

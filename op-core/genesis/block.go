@@ -14,11 +14,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 )
 
-// ToBlock returns the genesis block. It is go-ethereum's genesis block for GethGenesis,
-// except that from Isthmus the header's withdrawals root is the storage root of the
-// L2ToL1MessagePasser predeploy instead of the empty withdrawals root.
+// ToBlock returns the genesis block. It is go-ethereum's genesis block for the same
+// header fields, alloc and Ethereum fork schedule, except that from Isthmus the header's withdrawals root is the
+// storage root of the L2ToL1MessagePasser predeploy instead of the empty withdrawals root.
 func (g *Genesis) ToBlock() *types.Block {
-	block := g.GethGenesis().ToBlock()
+	block := g.gethGenesis().ToBlock()
 	if !g.Config.IsIsthmus(g.Timestamp) {
 		return block
 	}
@@ -28,13 +28,10 @@ func (g *Genesis) ToBlock() *types.Block {
 	return block.WithSeal(header)
 }
 
-// storageRoot returns the storage root of the account at addr in alloc, or the zero hash
-// if alloc has no such account.
+// storageRoot returns the storage root of the account at addr in alloc. An account that
+// alloc does not have has the empty root, like an account without storage.
 func storageRoot(alloc types.GenesisAlloc, addr common.Address) common.Hash {
-	account, ok := alloc[addr]
-	if !ok {
-		return common.Hash{}
-	}
+	account := alloc[addr]
 	type leaf struct{ key, value []byte }
 	leaves := make([]leaf, 0, len(account.Storage))
 	for slot, value := range account.Storage {

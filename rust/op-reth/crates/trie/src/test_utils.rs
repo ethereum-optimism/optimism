@@ -22,8 +22,8 @@ use reth_node_api::{NodePrimitives, NodeTypesWithDB};
 use reth_primitives_traits::{AlloyBlockHeader, Block as _, RecoveredBlock};
 use reth_provider::{
     BlockWriter as _, ExecutionOutcome, HashedPostStateProvider, LatestStateProviderRef,
-    ProviderFactory, StateRootProvider, StorageSettingsCache, providers::ProviderNodeTypes,
-    test_utils::create_test_provider_factory_with_chain_spec,
+    ProviderFactory, StateProvider, StateRootProvider, StorageSettingsCache,
+    providers::ProviderNodeTypes, test_utils::create_test_provider_factory_with_chain_spec,
 };
 use reth_revm::database::StateProviderDatabase;
 use secp256k1::{Keypair, Secp256k1, SecretKey};
@@ -150,7 +150,9 @@ where
         > + NodeTypesWithDB,
 {
     let provider = provider_factory.provider().unwrap();
-    let db = StateProviderDatabase::new(LatestStateProviderRef::new(&provider));
+    let db = StateProviderDatabase::new(
+        LatestStateProviderRef::new(&provider).into_evm_state_provider(),
+    );
     let evm_config = EthEvmConfig::ethereum(chain_spec.clone());
     let block_executor = evm_config.batch_executor(db);
     let execution_result = block_executor.execute(block).unwrap();

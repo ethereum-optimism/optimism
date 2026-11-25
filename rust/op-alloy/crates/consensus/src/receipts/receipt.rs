@@ -13,7 +13,7 @@ use alloy_eips::eip2718::{Eip2718Error, Eip2718Result, IsTyped2718};
 use alloy_primitives::{Bloom, Log};
 use alloy_rlp::{Buf, BufMut, Decodable, Encodable, Header};
 
-/// UPSTREAM-MIRROR(copy): alloy-consensus@2.4.2 `alloy_consensus::ReceiptEnvelope`
+/// UPSTREAM-MIRROR(copy): alloy-consensus@2.5.0 `alloy_consensus::ReceiptEnvelope`
 ///
 /// Mirrors the envelope's per-transaction-type payload split, holding a bare [`Receipt`] rather
 /// than a [`ReceiptWithBloom`] — upstream has no unbloomed counterpart — and adding the OP

@@ -130,7 +130,7 @@ Check whether a change needs a new case in one of these:
 | --- | --- |
 | Go and Rust upgrade-deposit bytes | `ops/scripts`: the interop deposits diff script and its two dump commands |
 | Deposit gas parity against the proof | `rust/kona/tests/proofs`: `TestDepositGasParity` |
-| `0x7E` encoding and hash against op-geth | `op-core/types`: `TestDepositTxMarshalBinaryDifferential`, `TestDepositHashParity` |
+| `0x7E` encoding and hash golden vectors | `op-core/types`: `TestDepositTxGoldenVectors`, `TestBedrockSystemDepositHashGoldenVector`; `op-service/sources`: `TestRPCBlockDecodesOpRethFixtures` |
 | Execution golden vectors | `revm-ee-tests`: the deposit and halted-deposit vectors |
 | Karst cap exemption | `alloy-op-evm`: the deposit gas-cap test |
 | Mint on a reverted deposit | `op-e2e/system/bridge`: `TestMintOnRevertedDeposit` |

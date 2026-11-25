@@ -12,6 +12,16 @@ updates:
       prefix: "deps: "
     labels:
       - "M-dependabot"
+    ignore:
+      # go-ethereum version bumps are made deliberately: a release can change gas accounting,
+      # blob schedules and Engine API versions the OP Stack must follow (see the "go-ethereum
+      # version bumps" section of docs/ai/opgeth-decoupling.md). Listing the update types keeps
+      # security updates enabled.
+      - dependency-name: "github.com/ethereum/go-ethereum"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
   # Kona - Rust/Cargo dependencies
   - package-ecosystem: "cargo"

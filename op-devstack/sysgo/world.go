@@ -4,7 +4,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/config"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
@@ -77,7 +76,7 @@ func newInteropMigrationState(wb *worldBuilder) *interopMigrationState {
 	return state
 }
 
-func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool, localContractArtifactsPath string, anchorGameType *gameTypes.GameType, startL1 func(*L1Network) (*L1Geth, *L1CLNode), deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, coredepset.DependencySet, config.FullConfigSetMerged) {
+func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool, localContractArtifactsPath string, anchorGameType *gameTypes.GameType, startL1 func(*L1Network) (*L1Geth, *L1CLNode), deployerOpts ...DeployerOption) (*interopMigrationState, *L1Network, *L2Network, *coredepset.StaticConfigDependencySet) {
 	wb := newWorldBuilder(t, keys)
 	wb.genesisAnchorGameType = anchorGameType
 	applyConfigLocalContractSources(t, keys, wb.builder, localContractArtifactsPath)
@@ -103,9 +102,6 @@ func buildSingleChainWorld(t devtest.T, keys devkeys.Keys, lagoonAtGenesis bool,
 		mipsImpl:   wb.output.ImplementationsDeployment.MipsImpl,
 		keys:       keys,
 	}
-	var depSet coredepset.DependencySet
-	if wb.outFullCfgSet.DependencySet != nil {
-		depSet = wb.outFullCfgSet.DependencySet
-	}
-	return newInteropMigrationState(wb), l1Net, l2Net, depSet, wb.outFullCfgSet
+	t.Require().NotNil(wb.output.InteropDepSet, "op-deployer must generate the interop dependency set")
+	return newInteropMigrationState(wb), l1Net, l2Net, wb.output.InteropDepSet
 }

@@ -61,7 +61,7 @@ func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 	cl := sequencerEngine.EthClient()
-	aliceNonce := uint64(0) // manual nonce management to avoid geth pending-tx nonce non-determinism flakiness
+	aliceNonce := uint64(0) // manual nonce management to avoid pending-tx nonce non-determinism flakiness
 	aliceTx := func() {
 		tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 			ChainID:   sd.L2Cfg.Config.ChainID,

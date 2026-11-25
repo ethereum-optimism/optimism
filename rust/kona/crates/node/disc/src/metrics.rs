@@ -5,7 +5,7 @@
 pub struct Metrics;
 
 impl Metrics {
-    /// Identifier for discv5 events.
+    /// The session records handed to gossip to dial, by the discv5 event that brought them.
     pub const DISCOVERY_EVENT: &str = "kona_node_discovery_events";
 
     /// Counter for the number of `FIND_NODE` requests.
@@ -16,6 +16,9 @@ impl Metrics {
 
     /// Identifier for the gauge that tracks the number of peers in the discovery service.
     pub const DISCOVERY_PEER_COUNT: &str = "kona_node_discovery_peer_count";
+
+    /// Counter for the session records discovery dropped because the channel to gossip was full.
+    pub const DROPPED_ENRS: &str = "kona_node_discovery_dropped_enrs";
 
     /// Initializes metrics for the discovery service.
     ///
@@ -29,7 +32,10 @@ impl Metrics {
 
     /// Describes metrics used in the discovery service.
     pub fn describe() {
-        metrics::describe_gauge!(Self::DISCOVERY_EVENT, "Events received by the discv5 service");
+        metrics::describe_gauge!(
+            Self::DISCOVERY_EVENT,
+            "Session records handed to gossip to dial, by the discv5 event that brought them"
+        );
         metrics::describe_histogram!(
             Self::ENR_STORE_TIME,
             "Observations of elapsed time to store ENRs in the on-disk bootstore"
@@ -42,18 +48,24 @@ impl Metrics {
             Self::FIND_NODE_REQUEST,
             "Requests made to find a node through the discv5 peer discovery service"
         );
+        metrics::describe_counter!(
+            Self::DROPPED_ENRS,
+            "Session records discovery dropped because the channel to gossip was full"
+        );
     }
 
     /// Initializes metrics to `0` so they can be queried immediately by consumers of prometheus
     /// metrics.
     pub fn zero() {
         // Discovery Event
-        metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "discovered").set(0);
         metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "session_established").set(0);
         metrics::gauge!(Self::DISCOVERY_EVENT, "type" => "unverifiable_enr").set(0);
 
         // Peer Counts
         metrics::gauge!(Self::DISCOVERY_PEER_COUNT).set(0);
         metrics::gauge!(Self::FIND_NODE_REQUEST).set(0);
+
+        // Dropped records
+        metrics::counter!(Self::DROPPED_ENRS).absolute(0);
     }
 }

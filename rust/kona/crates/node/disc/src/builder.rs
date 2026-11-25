@@ -2,7 +2,7 @@
 
 use discv5::{Config, Discv5, Enr, ListenConfig};
 use enr::k256;
-use kona_peers::{BootNodes, BootStoreFile, OpStackEnr};
+use kona_peers::{BootNodes, BootStore, BootStoreFile, OpStackEnr};
 use socket2::{Domain, Protocol, Socket, Type};
 use std::{
     net::{IpAddr, SocketAddr},
@@ -179,7 +179,7 @@ pub struct Discv5Builder {
     bootnodes: BootNodes,
     /// The interval to store the bootnodes to disk.
     store_interval: Option<Duration>,
-    /// Whether or not to forward the initial set of valid ENRs to the gossip layer.
+    /// Whether to hand the saved records to the gossip layer, see [`Discv5Driver::forward`].
     forward: bool,
 }
 
@@ -235,7 +235,8 @@ impl Discv5Builder {
         self
     }
 
-    /// Sets the discovery config for the discovery service.
+    /// Sets the discovery config for the discovery service. Its table filter also decides which
+    /// saved records the driver dials at startup, see [`crate::public_only`].
     pub fn with_discovery_config(mut self, config: Config) -> Self {
         self.discovery_config = config;
         self
@@ -247,23 +248,44 @@ impl Discv5Builder {
         self
     }
 
-    /// Disables forwarding of the initial set of valid ENRs to the gossip layer.
+    /// Disables handing the saved records to the gossip layer, see [`Discv5Driver::forward`].
     pub const fn disable_forward(mut self) -> Self {
         self.forward = false;
         self
     }
 
     /// Builds a [`Discv5Driver`].
+    ///
+    /// Opens the bootstore, if one is set, and creates it if it is missing, so that a bootstore
+    /// that can't be read, isn't a bootstore this version can read, or can't be created fails
+    /// here, rather than leaving the node without its saved records, or with records it never
+    /// saves.
     pub fn build(self) -> Result<Discv5Driver, Discv5BuilderError> {
         let chain_id = self.chain_id;
 
+        let bootstore = match &self.bootstore {
+            Some(file) => {
+                let path = file.path()?;
+                let mut bootstore = BootStore::open(path)?;
+                bootstore.sync()?;
+                bootstore
+            }
+            None => BootStore::in_memory(),
+        };
+
         let mut config = self.discovery_config;
+        // The driver doesn't dial the records discv5 reports as discovered, and the reports, up to
+        // 16 for each NODES answer, can fill discv5's event channel, which drops the events that
+        // don't fit, such as the session events that bring the peers the driver dials.
+        config.report_discovered_peers = false;
 
         let mut local_node = self.local_node;
         let key = local_node.signing_key.clone();
 
         bind_free_listen_port(&mut config, &local_node)?;
         local_node.udp_port = advertised_udp_port(&config, &local_node)?;
+        let table_filter = config.table_filter;
+
         let enr = local_node.build_enr(chain_id).map_err(Discv5BuilderError::EnrBuildFailed)?;
         // discv5 spawns its tasks when the driver starts it, which is in the driver's span.
         config.executor = Some(Box::new(CurrentSpanExecutor));
@@ -272,9 +294,11 @@ impl Discv5Builder {
         let disc = Discv5::new(enr, key.into(), config)
             .map_err(|e| Discv5BuilderError::Discv5CreationFailed(e.to_string()))?;
         let mut driver =
-            Discv5Driver::new(disc, interval, chain_id, self.bootstore, self.bootnodes)
+            Discv5Driver::new(disc, table_filter, interval, chain_id, bootstore, self.bootnodes)
                 .map_err(|e| Discv5BuilderError::Discv5CreationFailed(e.to_string()))?;
-        driver.store_interval = self.store_interval.unwrap_or(Duration::from_secs(60));
+        if let Some(store_interval) = self.store_interval {
+            driver.store_interval = store_interval;
+        }
         driver.forward = self.forward;
         driver.remove_interval = self.randomize;
         Ok(driver)

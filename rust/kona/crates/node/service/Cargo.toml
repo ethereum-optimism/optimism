@@ -36,11 +36,11 @@ alloy-signer-local.workspace = true
 alloy-primitives.workspace = true
 alloy-rpc-client.workspace = true
 alloy-rpc-types-eth.workspace = true
-alloy-rpc-types-engine = { workspace = true, features = ["jwt", "serde"] }
-alloy-provider = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls"] }
+alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+alloy-provider = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
 alloy-eips.workspace = true
 alloy-transport.workspace = true
-alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls", "hyper", "hyper-tls", "jwt-auth"] }
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
 
 # op-alloy
 op-alloy-network.workspace = true
@@ -64,7 +64,6 @@ derive_more = { workspace = true, features = ["debug", "eq", "constructor"] }
 jsonrpsee = { workspace = true, features = ["server", "http-client"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "time"] }
 tower.workspace = true
-http-body-util.workspace = true
 
 metrics.workspace = true
 
@@ -73,6 +72,7 @@ base64.workspace = true
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 libp2p = { workspace = true, features = ["noise", "yamux"] }
 metrics-exporter-prometheus.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
 alloy-json-rpc.workspace = true
 serde_json.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }

@@ -415,11 +415,58 @@ func TestZKGame_GetCredit(t *testing.T) {
 			expectedStatus := gameTypes.GameStatusChallengerWon
 			stubRpc.SetResponse(zkGameAddr, methodCredit, rpcblock.Latest, []interface{}{addr}, []interface{}{expectedCredit})
 			stubRpc.SetResponse(zkGameAddr, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
+			stubRpc.SetResponse(zkGameAddr, methodWETH, rpcblock.Latest, nil, []interface{}{zkWethAddr})
 
 			actualCredit, actualStatus, err := game.GetCredit(context.Background(), addr)
 			require.NoError(t, err)
 			require.Equal(t, expectedCredit, actualCredit)
 			require.Equal(t, expectedStatus, actualStatus)
+		})
+	}
+}
+
+func TestZKGame_GetCreditFallsBackToPendingWithdrawal(t *testing.T) {
+	cases := []struct {
+		name    string
+		pending *big.Int
+	}{
+		{name: "Unlocked", pending: big.NewInt(4284)},
+		{name: "PaidOut", pending: big.NewInt(0)},
+	}
+	for _, version := range zkVersions {
+		for _, tc := range cases {
+			t.Run(version.String()+"-"+tc.name, func(t *testing.T) {
+				stubRpc, game := setupZKDisputeGameTest(t, version)
+				stubRpc.AddContract(zkWethAddr, snapshots.LoadDelayedWETHABI())
+				addr := common.Address{0x01}
+				expectedStatus := gameTypes.GameStatusChallengerWon
+				stubRpc.SetResponse(zkGameAddr, methodCredit, rpcblock.Latest, []interface{}{addr}, []interface{}{big.NewInt(0)})
+				stubRpc.SetResponse(zkGameAddr, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
+				stubRpc.SetResponse(zkGameAddr, methodWETH, rpcblock.Latest, nil, []interface{}{zkWethAddr})
+				stubRpc.SetResponse(zkWethAddr, methodWithdrawals, rpcblock.Latest, []interface{}{zkGameAddr, addr}, []interface{}{tc.pending, big.NewInt(101)})
+
+				actualCredit, actualStatus, err := game.GetCredit(context.Background(), addr)
+				require.NoError(t, err)
+				require.Equal(t, tc.pending.String(), actualCredit.String())
+				require.Equal(t, expectedStatus, actualStatus)
+			})
+		}
+	}
+}
+
+func TestZKGame_GetCreditSkipsWithdrawalLookupForInProgressGame(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, game := setupZKDisputeGameTest(t, version)
+			addr := common.Address{0x01}
+			stubRpc.SetResponse(zkGameAddr, methodCredit, rpcblock.Latest, []interface{}{addr}, []interface{}{big.NewInt(0)})
+			stubRpc.SetResponse(zkGameAddr, methodStatus, rpcblock.Latest, nil, []interface{}{gameTypes.GameStatusInProgress})
+			stubRpc.SetResponse(zkGameAddr, methodWETH, rpcblock.Latest, nil, []interface{}{zkWethAddr})
+
+			actualCredit, actualStatus, err := game.GetCredit(context.Background(), addr)
+			require.NoError(t, err)
+			require.Equal(t, "0", actualCredit.String())
+			require.Equal(t, gameTypes.GameStatusInProgress, actualStatus)
 		})
 	}
 }

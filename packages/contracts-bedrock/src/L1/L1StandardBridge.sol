@@ -9,12 +9,16 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { BridgeHookTypes } from "src/libraries/BridgeHookTypes.sol";
+import { BridgeHookDecoder } from "src/libraries/BridgeHookDecoder.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // Interfaces
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @custom:proxied true
 /// @title L1StandardBridge
@@ -27,6 +31,23 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
 contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
+    using SafeERC20 for IERC20;
+
+    /// @notice Thrown when the caller is not the OptimismPortal.
+    error L1StandardBridge_NotPortal();
+
+    /// @notice Thrown when the OptimismPortal has no bridge hook.
+    error L1StandardBridge_NoBridgeHook();
+
+    /// @notice Thrown when the message is not a finalizeBridgeERC20 call.
+    error L1StandardBridge_InvalidTokenTransfer();
+
+    /// @notice Thrown when the escrow of the token pair is below the amount to hold.
+    error L1StandardBridge_InsufficientDeposits();
+
+    /// @notice Thrown when no hold is recorded for the item.
+    error L1StandardBridge_TransferNotHeld();
+
     /// @custom:legacy
     /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
     /// @param from      Address of the depositor.
@@ -77,9 +98,23 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         bytes extraData
     );
 
+    /// @notice Emitted when escrowed tokens move to the OptimismPortal's bridge hook.
+    /// @param id      Identifier of the held item.
+    /// @param l1Token Address of the token on L1.
+    /// @param l2Token Address of the corresponding token on L2.
+    /// @param amount  Amount of the token moved.
+    event ERC20Held(bytes32 indexed id, address indexed l1Token, address indexed l2Token, uint256 amount);
+
+    /// @notice Emitted when tokens move from the OptimismPortal's bridge hook back into escrow.
+    /// @param id      Identifier of the held item.
+    /// @param l1Token Address of the token on L1.
+    /// @param l2Token Address of the corresponding token on L2.
+    /// @param amount  Amount of the token moved.
+    event ERC20Restored(bytes32 indexed id, address indexed l1Token, address indexed l2Token, uint256 amount);
+
     /// @notice Semantic version.
-    /// @custom:semver 2.9.0
-    string public constant version = "2.9.0";
+    /// @custom:semver 3.0.0
+    string public constant version = "3.0.0";
 
     /// @custom:legacy
     /// @custom:spacer superchainConfig
@@ -93,6 +128,9 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
 
     /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;
+
+    /// @notice Token kinds of held token transfers, keyed by item ID.
+    mapping(bytes32 => BridgeHookTypes.TokenKind) public heldTokenKinds;
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() ReinitializableBase(3) {
@@ -254,14 +292,72 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     }
 
     /// @notice Moves escrowed tokens to the Portal's bridge hook. Only callable by the Portal.
+    /// @param _id Identifier of the held item.
     /// @param _direction Transfer direction, which identifies the L1 and L2 tokens in the message.
     /// @param _message Encoded finalizeBridgeERC20 call.
-    function holdERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external { }
+    function holdERC20(bytes32 _id, BridgeHookTypes.Direction _direction, bytes calldata _message) external {
+        (address hook, address l1Token, address l2Token, uint256 amount) = _checkPortalAndDecode(_direction, _message);
+
+        // The Portal gives each item a unique ID and prevents the same item from being held twice.
+        //
+        // OptimismMintableERC20 tokens have no escrow on L1. The bridge burns them on deposit
+        // and mints them on withdrawal, so only their message is held.
+        if (_isOptimismMintableERC20(l1Token)) {
+            heldTokenKinds[_id] = BridgeHookTypes.TokenKind.Mintable;
+            return;
+        }
+        heldTokenKinds[_id] = BridgeHookTypes.TokenKind.Escrowed;
+
+        if (deposits[l1Token][l2Token] < amount) revert L1StandardBridge_InsufficientDeposits();
+        deposits[l1Token][l2Token] -= amount;
+        IERC20(l1Token).safeTransfer(hook, amount);
+        emit ERC20Held(_id, l1Token, l2Token, amount);
+    }
 
     /// @notice Pulls tokens from the Portal's bridge hook back into escrow. Only callable by the Portal.
+    /// @param _id Identifier of the held item.
     /// @param _direction Transfer direction, which identifies the L1 and L2 tokens in the message.
     /// @param _message Encoded finalizeBridgeERC20 call.
-    function restoreERC20(BridgeHookTypes.Direction _direction, bytes calldata _message) external { }
+    function restoreERC20(bytes32 _id, BridgeHookTypes.Direction _direction, bytes calldata _message) external {
+        (address hook, address l1Token, address l2Token, uint256 amount) = _checkPortalAndDecode(_direction, _message);
+
+        // Use the kind recorded by `holdERC20` because the token can change its `supportsInterface` result.
+        BridgeHookTypes.TokenKind kind = heldTokenKinds[_id];
+        if (kind == BridgeHookTypes.TokenKind.None) revert L1StandardBridge_TransferNotHeld();
+        delete heldTokenKinds[_id];
+        if (kind == BridgeHookTypes.TokenKind.Mintable) return;
+
+        // The hook must approve this bridge for the amount before it calls the Portal to complete the item.
+        IERC20(l1Token).safeTransferFrom(hook, address(this), amount);
+        deposits[l1Token][l2Token] += amount;
+        emit ERC20Restored(_id, l1Token, l2Token, amount);
+    }
+
+    /// @notice Decodes an ERC20 transfer. Requires the Portal as caller and a configured bridge hook.
+    /// @param _direction Transfer direction used to identify the L1 and L2 tokens.
+    /// @param _message Encoded finalizeBridgeERC20 call.
+    /// @return hook_ Portal's bridge hook address.
+    /// @return l1Token_ L1 token address.
+    /// @return l2Token_ L2 token address.
+    /// @return amount_ Transfer amount.
+    function _checkPortalAndDecode(
+        BridgeHookTypes.Direction _direction,
+        bytes calldata _message
+    )
+        internal
+        view
+        returns (address hook_, address l1Token_, address l2Token_, uint256 amount_)
+    {
+        IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
+        if (msg.sender != address(portal)) revert L1StandardBridge_NotPortal();
+
+        hook_ = address(portal.bridgeHook());
+        if (hook_ == address(0)) revert L1StandardBridge_NoBridgeHook();
+
+        bool valid;
+        (valid, l1Token_, l2Token_, amount_) = BridgeHookDecoder.decodeTokenTransfer(_direction, _message);
+        if (!valid) revert L1StandardBridge_InvalidTokenTransfer();
+    }
 
     /// @notice Internal function for initiating an ETH deposit.
     /// @param _from        Address of the sender on L1.

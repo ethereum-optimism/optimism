@@ -31,6 +31,20 @@ chains, and the spec is the normative definition throughout.
     covering initiating and executing messages, access-list validation,
     block safety levels, and dependency sets and clusters.
 
+## Run interop nodes
+
+If you operate nodes for a chain in an interop dependency set, start here:
+
+*   [Prepare for interop on OP Mainnet and Unichain](/notices/interop-prep):
+    the dates, what you must run, how to choose a topology, and an FAQ.
+*   [OP Supernode](/op-stack/interop/supernode): what op-supernode does and
+    how it pairs with a Light CL fleet.
+*   [Set up op-supernode](/node-operators/guides/configuration/supernode-setup)
+    and [configure it](/node-operators/guides/configuration/supernode),
+    including execution-client retention and high availability.
+*   [Specialized op-node topology](/notices/specialized-node-topology): the
+    Light CL pattern your fleet follows.
+
 ## Go deeper
 
 *   [Interop message passing overview](/app-developers/guides/interoperability/message-passing):
@@ -51,6 +65,7 @@ chains, and the spec is the normative definition throughout.
 *   [OP Supernode](/op-stack/interop/supernode): the runtime that hosts
     every chain in a dependency set in one process and performs the
     cross-chain verification work.
+*   [ZK proofs for interop sets](/op-stack/zk-proofs/interop-sets): how the chains in a set share their dispute contracts on L1, and how one ZK proof secures withdrawals for every chain.
 
 ## Get hands-on
 

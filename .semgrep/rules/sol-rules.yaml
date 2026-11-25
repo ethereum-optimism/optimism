@@ -121,7 +121,6 @@ rules:
     pattern-regex: function\s+\w+\s*\(\s*([^)]*?\b\w+\s+(?!_)(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+\s*(?=,|\)))
     paths:
       exclude:
-        - /op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
         - /packages/contracts-bedrock/test
         - /packages/contracts-bedrock/interfaces
         - /packages/contracts-bedrock/scripts/libraries/Solarray.sol
@@ -137,7 +136,6 @@ rules:
     paths:
       exclude:
         - /packages/contracts-bedrock/interfaces/dispute/IDelayedWETH.sol
-        - /op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
         - /packages/contracts-bedrock/interfaces
         - /packages/contracts-bedrock/test/safe-tools
         - /packages/contracts-bedrock/scripts/libraries/Solarray.sol
@@ -452,6 +450,9 @@ rules:
         - /packages/contracts-bedrock/src/dispute/zk/OptimisticZkGame.sol
         # DataAvailabilityChallenge is a beta/non-standard contract.
         - /packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
+        # ComplianceModule may have an admin that is not a ProxyAdmin, so it checks the
+        # EIP-1967 admin slot directly.
+        - /packages/contracts-bedrock/src/compliance/ComplianceModule.sol
 
   - id: sol-safety-use-deployutils-getcode
     languages: [solidity]

@@ -125,6 +125,9 @@ cd rust
 just build-kona-prestates
 ```
 
+`KONA_CUSTOM_CONFIGS_DIR` must contain `chainList.json`, `configs.json` and `depsets.json`; see the
+[`kona-registry` README](../crates/protocol/registry/README.md#custom-chain-configurations).
+
 ### cannon-builder Image
 
 The `cannon-builder` Docker image contains only apt-level MIPS64 cross-compilation

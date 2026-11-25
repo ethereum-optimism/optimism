@@ -10,6 +10,7 @@
 
 use alloy_hardforks::ForkCondition;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::{OpHardfork, OpHardforks};
 use reth_optimism_payload_builder::config::OperatorSdmOptIn;
 use serde::{Deserialize, Serialize};
@@ -49,24 +50,21 @@ pub trait SdmAdminApi {
 /// Concrete `admin_` SDM RPC server holding the shared opt-in flag and the chain spec used
 /// to evaluate the protocol gate for status queries.
 #[derive(Debug, Clone)]
-pub struct OpSdmAdminApi<ChainSpec> {
+pub struct OpSdmAdminApi {
     opt_in: OperatorSdmOptIn,
-    chain_spec: Arc<ChainSpec>,
+    chain_spec: Arc<OpChainSpec>,
 }
 
-impl<ChainSpec> OpSdmAdminApi<ChainSpec> {
+impl OpSdmAdminApi {
     /// Construct a handler that mutates `opt_in` and reads the protocol gate from `chain_spec`.
     /// The shared `OperatorSdmOptIn` should also be threaded into the payload builder's
     /// `OpBuilderConfig` so writes here take effect on the next produced block.
-    pub const fn new(opt_in: OperatorSdmOptIn, chain_spec: Arc<ChainSpec>) -> Self {
+    pub const fn new(opt_in: OperatorSdmOptIn, chain_spec: Arc<OpChainSpec>) -> Self {
         Self { opt_in, chain_spec }
     }
 }
 
-impl<ChainSpec> SdmAdminApiServer for OpSdmAdminApi<ChainSpec>
-where
-    ChainSpec: OpHardforks + Send + Sync + 'static,
-{
+impl SdmAdminApiServer for OpSdmAdminApi {
     fn set_operator_sdm_opt_in(&self, enabled: bool) -> RpcResult<()> {
         self.opt_in.set(enabled);
         Ok(())
@@ -94,7 +92,7 @@ fn current_unix_timestamp() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
+    use reth_optimism_chainspec::OpChainSpecBuilder;
     use rstest::rstest;
 
     // Any timestamp works for the gate checks below: SDM's gating hardfork (Lagoon) is activated
@@ -105,11 +103,17 @@ mod tests {
         Arc::new(OpChainSpecBuilder::optimism_mainnet().lagoon_activated().build())
     }
 
+    /// Removes Lagoon, which OP Mainnet's registry schedule may include.
     fn sdm_inactive_chain_spec() -> Arc<OpChainSpec> {
-        Arc::new(OpChainSpecBuilder::optimism_mainnet().regolith_activated().build())
+        Arc::new(
+            OpChainSpecBuilder::optimism_mainnet()
+                .regolith_activated()
+                .without_fork(OpHardfork::Lagoon)
+                .build(),
+        )
     }
 
-    fn admin_api(protocol_active: bool) -> OpSdmAdminApi<OpChainSpec> {
+    fn admin_api(protocol_active: bool) -> OpSdmAdminApi {
         let chain_spec =
             if protocol_active { sdm_active_chain_spec() } else { sdm_inactive_chain_spec() };
         OpSdmAdminApi::new(OperatorSdmOptIn::default(), chain_spec)

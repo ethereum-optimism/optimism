@@ -9,11 +9,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,7 +27,6 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 
 	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
-	_, afacts := testutil.LocalArtifacts(t)
 	lgr := testlog.Logger(t, slog.LevelInfo)
 	anvil, err := devnet.NewAnvil(lgr)
 	require.NoError(t, err)
@@ -40,17 +37,6 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 
 	l1RPCUrl := anvil.RPCUrl()
 	privateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		lgr,
-		common.Address{'D'},
-		afacts,
-	)
-	require.NoError(t, err)
-
-	opcmScripts, err := opcm.NewScripts(host)
-	require.NoError(t, err)
 
 	intent := &state.Intent{
 		SuperchainRoles: &addresses.SuperchainRoles{
@@ -64,10 +50,8 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 
 	pEnv := &Env{
 		Logger:      lgr,
-		Scripts:     opcmScripts,
 		Forge:       &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: l1RPCUrl, PrivateKey: privateKey},
 		Context:     ctx,
-		Broadcaster: broadcaster.NoopBroadcaster(),
 		StateWriter: NoopStateWriter(),
 	}
 
@@ -83,68 +67,6 @@ func TestDeploySuperchain_WithForge(t *testing.T) {
 
 	require.Equal(t, intent.SuperchainRoles.SuperchainProxyAdminOwner, st.SuperchainRoles.SuperchainProxyAdminOwner)
 	require.Equal(t, intent.SuperchainRoles.SuperchainGuardian, st.SuperchainRoles.SuperchainGuardian)
-}
-
-func TestDeploySuperchain_WithForgeEverywhere(t *testing.T) {
-	ctx := context.Background()
-	tmpDir := t.TempDir()
-
-	embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-	require.NoError(t, err)
-
-	forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
-
-	_, afacts := testutil.LocalArtifacts(t)
-	lgr := testlog.Logger(t, slog.LevelInfo)
-	anvil, err := devnet.NewAnvil(lgr)
-	require.NoError(t, err)
-	require.NoError(t, anvil.Start())
-	t.Cleanup(func() {
-		require.NoError(t, anvil.Stop())
-	})
-
-	l1RPCUrl := anvil.RPCUrl()
-	privateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		lgr,
-		common.Address{'D'},
-		afacts,
-	)
-	require.NoError(t, err)
-
-	opcmScripts, err := opcm.NewScripts(host)
-	require.NoError(t, err)
-
-	intent := &state.Intent{
-		SuperchainRoles: &addresses.SuperchainRoles{
-			SuperchainProxyAdminOwner: common.BigToAddress(big.NewInt(1)),
-			SuperchainGuardian:        common.BigToAddress(big.NewInt(3)),
-		},
-	}
-	st := &state.State{
-		Version: 1,
-	}
-
-	pEnv := &Env{
-		Logger:      lgr,
-		Scripts:     opcmScripts,
-		Forge:       &opcm.ForgeEnv{Client: forgeClient, Context: ctx, L1RPCUrl: l1RPCUrl, PrivateKey: privateKey},
-		Context:     ctx,
-		Broadcaster: broadcaster.NoopBroadcaster(),
-		StateWriter: NoopStateWriter(),
-	}
-
-	err = DeploySuperchain(pEnv, intent, st)
-	require.NoError(t, err)
-
-	require.NotNil(t, st.SuperchainDeployment)
-	require.NotNil(t, st.SuperchainRoles)
-
-	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.SuperchainProxyAdminImpl)
-	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.SuperchainConfigProxy)
-	require.NotEqual(t, common.Address{}, st.SuperchainDeployment.SuperchainConfigImpl)
 }
 
 func TestDeploySuperchain_WithForge_ManualCall(t *testing.T) {

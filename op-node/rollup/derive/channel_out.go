@@ -238,14 +238,14 @@ func PayloadToSingularBatch(rollupCfg *rollup.Config, payload *eth.ExecutionPayl
 		if len(otx) == 0 {
 			return nil, nil, fmt.Errorf("tx %d in block %v is empty", i, payload.BlockHash)
 		}
-		if otx[0] == optypes.DepositTxType {
+		if optypes.IsDepositTxBytes(otx) {
 			continue
 		}
 		opaqueTxs = append(opaqueTxs, otx)
 	}
 
 	l1InfoTx := payload.Transactions[0]
-	if l1InfoTx[0] != optypes.DepositTxType {
+	if !optypes.IsDepositTxBytes(l1InfoTx) {
 		return nil, nil, ErrNotDepositTx
 	}
 	deposit, err := optypes.UnmarshalDepositTx(l1InfoTx)

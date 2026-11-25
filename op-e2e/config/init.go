@@ -104,8 +104,7 @@ var (
 	// genesis data. Each alloc type runs a full op-deployer genesis pipeline
 	// across every L2 hardfork mode, which is several minutes of CPU work.
 	// Generating only the alloc types a test binary actually requests keeps a
-	// binary that uses a single alloc type (e.g. the opgeth fuzz targets) from
-	// paying for all of them up front.
+	// binary that uses a single alloc type from paying for all of them up front.
 	allocTypeOnce = make(map[AllocType]*sync.Once)
 )
 

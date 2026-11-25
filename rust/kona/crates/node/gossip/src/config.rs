@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use libp2p::gossipsub::{Config, ConfigBuilder, Message, MessageId};
 use openssl::sha::sha256;
 use snap::raw::Decoder;
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // GossipSub Constants
@@ -110,9 +110,51 @@ pub fn default_config() -> Config {
 /// unauthenticated remote peers, so the bound must be enforced before decompression.
 ///
 /// Op-node applies the same `snappy.DecodedLen(...) <= maxGossipSize` bound in both its
-/// gossipsub `message_id_fn` and its topic validator (in `op-node/p2p/gossip.go`).
+/// gossipsub `message_id_fn` and its topic validator (in `op-node/p2p/gossip.go`). Both nodes
+/// pass a received frame through [`minimal_snappy_preamble`] first.
 pub(crate) fn snappy_decompressed_len_within_bound(data: &[u8]) -> Option<usize> {
     snap::raw::decompress_len(data).ok().filter(|&n| n <= MAX_GOSSIP_SIZE)
+}
+
+/// Returns `frame` with its snappy length preamble encoded in the fewest bytes.
+///
+/// Nodes on the network accept a length preamble of up to ten bytes, any uvarint that Go's
+/// `encoding/binary.Uvarint` reads with a value of at most `u32::MAX`, while the snappy decoder
+/// accepts at most five; a frame must get the same verdict and message id from every node.
+/// `frame` is returned borrowed when its preamble takes at most five bytes, is not such a uvarint
+/// or encodes a larger value, which leaves the verdict to the decoder.
+pub(crate) fn minimal_snappy_preamble(frame: &[u8]) -> Cow<'_, [u8]> {
+    let Some((mut len, preamble_len)) = read_uvarint(frame) else {
+        return Cow::Borrowed(frame);
+    };
+    if preamble_len <= 5 || len > u64::from(u32::MAX) {
+        return Cow::Borrowed(frame);
+    }
+    let mut out = Vec::with_capacity(5 + frame.len() - preamble_len);
+    while len >= 0x80 {
+        out.push(len as u8 | 0x80);
+        len >>= 7;
+    }
+    out.push(len as u8);
+    out.extend_from_slice(&frame[preamble_len..]);
+    Cow::Owned(out)
+}
+
+/// Reads a uvarint as Go's `encoding/binary.Uvarint` does, returning its value and length, or
+/// `None` when `data` ends inside it or it overflows a `u64`. A tenth byte above one is an
+/// overflow rather than having its high bits shifted out, so a ten-byte uvarint has one value.
+fn read_uvarint(data: &[u8]) -> Option<(u64, usize)> {
+    let mut value = 0u64;
+    for (i, &byte) in data.iter().enumerate().take(10) {
+        if byte < 0x80 {
+            if i == 9 && byte > 1 {
+                return None;
+            }
+            return Some((value | u64::from(byte) << (7 * i), i + 1));
+        }
+        value |= u64::from(byte & 0x7f) << (7 * i);
+    }
+    None
 }
 
 /// Message-id domain separator for a frame that decompressed within [`MAX_GOSSIP_SIZE`], matching
@@ -138,8 +180,9 @@ const MESSAGE_DOMAIN_INVALID_SNAPPY: [u8; 4] = [0, 0, 0, 0];
 fn compute_message_id(msg: &Message) -> MessageId {
     // Only attempt decompression once the header's declared length is within bound, so an oversized
     // frame never triggers a large allocation (see `snappy_decompressed_len_within_bound`).
-    let decompressed = snappy_decompressed_len_within_bound(&msg.data)
-        .and_then(|_| Decoder::new().decompress_vec(&msg.data).ok());
+    let frame = minimal_snappy_preamble(&msg.data);
+    let decompressed = snappy_decompressed_len_within_bound(&frame)
+        .and_then(|_| Decoder::new().decompress_vec(&frame).ok());
 
     let (domain, payload) = decompressed.as_deref().map_or_else(
         || {
@@ -346,6 +389,67 @@ mod tests {
 
         let small = snap::raw::Encoder::new().compress_vec(&[1, 2, 3, 4, 5]).unwrap();
         assert_eq!(snappy_decompressed_len_within_bound(&small), Some(5));
+    }
+
+    /// Pins which snappy frames the message-id function accepts as valid snappy, in particular
+    /// frames whose length preamble is padded with continuation bytes up to the ten bytes Go's
+    /// `encoding/binary.Uvarint` reads. An accepted frame gets the message id of the minimal frame
+    /// for its payload. op-node's `TestGossipSnappyLengthPreamble` (`op-node/p2p/gossip_test.go`)
+    /// pins the same vectors, so both nodes give every frame the same verdict and message id.
+    #[test]
+    fn snappy_length_preamble_matches_op_node() {
+        let topic = "test";
+        let message_id = |data: &[u8]| {
+            compute_message_id(&Message {
+                source: None,
+                data: data.to_vec(),
+                sequence_number: None,
+                topic: libp2p::gossipsub::TopicHash::from_raw(topic),
+            })
+            .0
+        };
+
+        // (frame, payload of an accepted frame or `None` for a rejected one)
+        let vectors = [
+            ("051068656c6c6f", Some("68656c6c6f")),
+            ("85808080001068656c6c6f", Some("68656c6c6f")),
+            ("8580808080001068656c6c6f", Some("68656c6c6f")),
+            ("858080808080808080001068656c6c6f", Some("68656c6c6f")),
+            ("85808080808080808080001068656c6c6f", None),
+            ("858080808080808080021068656c6c6f", None),
+            ("858080808080808080011068656c6c6f", None),
+            ("80808080101068656c6c6f", None),
+            ("8080808090001068656c6c6f", None),
+            ("", None),
+            ("01f00041", Some("41")),
+            ("01f4000041", Some("41")),
+        ];
+        for (frame_hex, decoded) in vectors {
+            let frame = alloy_primitives::hex::decode(frame_hex).unwrap();
+            let id = message_id(&frame);
+            match decoded {
+                Some(decoded) => {
+                    let decoded = alloy_primitives::hex::decode(decoded).unwrap();
+                    assert_eq!(
+                        snappy_decompressed_len_within_bound(&minimal_snappy_preamble(&frame)),
+                        Some(decoded.len()),
+                        "{frame_hex}"
+                    );
+                    assert_eq!(
+                        id,
+                        expected_message_id(MESSAGE_DOMAIN_VALID_SNAPPY, topic, &decoded),
+                        "{frame_hex}"
+                    );
+                    let minimal = snap::raw::Encoder::new().compress_vec(&decoded).unwrap();
+                    assert_eq!(id, message_id(&minimal), "{frame_hex}");
+                }
+                None => assert_eq!(
+                    id,
+                    expected_message_id(MESSAGE_DOMAIN_INVALID_SNAPPY, topic, &frame),
+                    "{frame_hex}"
+                ),
+            }
+        }
     }
 
     fn message_id_invalid_snappy_count(snapshot: metrics_util::debugging::Snapshot) -> u64 {

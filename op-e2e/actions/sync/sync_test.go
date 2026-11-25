@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gethengine "github.com/ethereum/go-ethereum/beacon/engine"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -226,8 +227,9 @@ func TestBackupUnsafe(gt *testing.T) {
 	channelOut := newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
-		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
+		envelope, err := seqEng.SourceClient().PayloadByNumber(t.Ctx(), i)
 		require.NoError(t, err)
+		payload := *envelope.ExecutionPayload
 		if i == 2 {
 			// Make block B2 as an valid block different with unsafe block
 			// Alice makes a L2 tx
@@ -242,17 +244,15 @@ func TestBackupUnsafe(gt *testing.T) {
 				To:        &dp.Addresses.Bob,
 				Value:     e2eutils.Ether(2),
 			})
-			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], validTx}})
+			payload.Transactions = []eth.Data{payload.Transactions[0], actionsHelpers.EncodeTx(t, validTx)}
 		}
 		if i == 3 {
 			// Make block B3 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
+			payload.Transactions = []eth.Data{payload.Transactions[0], actionsHelpers.EncodeTx(t, invalidTx)}
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
-		payload, err := eth.BlockAsPayload(block, sd.RollupCfg)
-		require.NoError(t, err)
-		_, err = channelOut.AddBlock(sd.RollupCfg, payload)
+		_, err = channelOut.AddBlock(sd.RollupCfg, &payload)
 		require.NoError(t, err)
 	}
 
@@ -389,8 +389,9 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	channelOut := newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
-		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
+		envelope, err := seqEng.SourceClient().PayloadByNumber(t.Ctx(), i)
 		require.NoError(t, err)
+		payload := *envelope.ExecutionPayload
 		if i == 2 {
 			// Make block B2 as an valid block different with unsafe block
 			// Alice makes a L2 tx
@@ -405,17 +406,15 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 				To:        &dp.Addresses.Bob,
 				Value:     e2eutils.Ether(2),
 			})
-			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], validTx}})
+			payload.Transactions = []eth.Data{payload.Transactions[0], actionsHelpers.EncodeTx(t, validTx)}
 		}
 		if i == 3 {
 			// Make block B3 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
+			payload.Transactions = []eth.Data{payload.Transactions[0], actionsHelpers.EncodeTx(t, invalidTx)}
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
-		payload, err := eth.BlockAsPayload(block, sd.RollupCfg)
-		require.NoError(t, err)
-		_, err = channelOut.AddBlock(sd.RollupCfg, payload)
+		_, err = channelOut.AddBlock(sd.RollupCfg, &payload)
 		require.NoError(t, err)
 	}
 
@@ -524,8 +523,9 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	channelOut := newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
-		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
+		envelope, err := seqEng.SourceClient().PayloadByNumber(t.Ctx(), i)
 		require.NoError(t, err)
+		payload := *envelope.ExecutionPayload
 		if i == 2 {
 			// Make block B2 as an valid block different with unsafe block
 			// Alice makes a L2 tx
@@ -540,17 +540,15 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 				To:        &dp.Addresses.Bob,
 				Value:     e2eutils.Ether(2),
 			})
-			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], validTx}})
+			payload.Transactions = []eth.Data{payload.Transactions[0], actionsHelpers.EncodeTx(t, validTx)}
 		}
 		if i == 3 {
 			// Make block B3 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
+			payload.Transactions = []eth.Data{payload.Transactions[0], actionsHelpers.EncodeTx(t, invalidTx)}
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
-		payload, err := eth.BlockAsPayload(block, sd.RollupCfg)
-		require.NoError(t, err)
-		_, err = channelOut.AddBlock(sd.RollupCfg, payload)
+		_, err = channelOut.AddBlock(sd.RollupCfg, &payload)
 		require.NoError(t, err)
 	}
 
@@ -637,7 +635,6 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
 	_, _, miner, sequencer, seqEng, verifier, _, batcher := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
-	l2Cl := seqEng.EthClient()
 	rng := rand.New(rand.NewSource(1234))
 	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 
@@ -653,17 +650,16 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	sequencer.ActBuildToL1HeadUnsafe(t)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
-		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
+		envelope, err := seqEng.SourceClient().PayloadByNumber(t.Ctx(), i)
 		require.NoError(t, err)
+		payload := *envelope.ExecutionPayload
 		if i == 8 {
 			// Make block A8 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
+			payload.Transactions = []eth.Data{payload.Transactions[0], actionsHelpers.EncodeTx(t, invalidTx)}
 		}
 		// Add A1 ~ A12 into the channel
-		payload, err := eth.BlockAsPayload(block, sd.RollupCfg)
-		require.NoError(t, err)
-		_, err = channelOut.AddBlock(sd.RollupCfg, payload)
+		_, err = channelOut.AddBlock(sd.RollupCfg, &payload)
 		require.NoError(t, err)
 	}
 
@@ -688,14 +684,15 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	channelOut = newSpanChannelOut(t, *sd)
 
 	for i := uint64(1); i <= sequencer.L2Unsafe().Number; i++ {
-		block, err := l2Cl.BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
+		envelope, err := seqEng.SourceClient().PayloadByNumber(t.Ctx(), i)
 		require.NoError(t, err)
+		payload := *envelope.ExecutionPayload
 		if i == 1 {
 			// Create valid TX
 			aliceNonce, err := seqEng.EthClient().PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
 			require.NoError(t, err)
 			data := make([]byte, rand.Intn(100))
-			gas, err := core.FloorDataGas(data)
+			gas, err := core.FloorDataGas(params.Rules{}, common.Address{}, &common.Address{}, nil, data, nil)
 			require.NoError(t, err)
 			baseFee := seqEng.LatestHeader(t).BaseFee
 			tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
@@ -709,12 +706,10 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 				Data:      data,
 			})
 			// Create valid new block B1 at the same height as A1
-			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], tx}})
+			payload.Transactions = []eth.Data{payload.Transactions[0], actionsHelpers.EncodeTx(t, tx)}
 		}
 		// Add B1, A2 ~ A12 into the channel
-		payload, err := eth.BlockAsPayload(block, sd.RollupCfg)
-		require.NoError(t, err)
-		_, err = channelOut.AddBlock(sd.RollupCfg, payload)
+		_, err = channelOut.AddBlock(sd.RollupCfg, &payload)
 		require.NoError(t, err)
 	}
 	// Submit span batch(B1, A2, ... A12)

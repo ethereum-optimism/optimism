@@ -4,6 +4,8 @@ description: "Run the kona-node binary against an op-reth execution client, from
 diataxis: how-to
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 <Note>
 If you don't have a `kona-node` binary yet, download the latest pre-built
 binary from the [GitHub releases page](https://github.com/ethereum-optimism/optimism/releases),
@@ -57,12 +59,12 @@ fetch the L1 chain data that the L2 chain is derived from.
 First, start an instance of [`op-reth`][op-reth]. The
 [`op-reth` docs][op-reth-docs] provide very detailed instructions
 for running `op-reth` nodes for OP Stack chains (L2). For this
-demo, we'll use `base`, but any other OP Stack chain will do.
+demo, we'll use OP Mainnet (`optimism`), but any other OP Stack chain will do.
 
 ```
 op-reth node \
-    --chain base \
-    --rollup.sequencer-http https://mainnet-sequencer.base.org \
+    --chain optimism \
+    --rollup.sequencer-http https://mainnet-sequencer.optimism.io \
     --http \
     --ws \
     --authrpc.port 9551 \
@@ -89,11 +91,11 @@ pass the file path into the `--l2.jwt-secret` CLI flag or
 use the `KONA_NODE_L2_ENGINE_AUTH` environment variable.
 </Info>
 
-Then, run the `kona-node` using Base's chain id - `8453`.
+Then, run the `kona-node` using OP Mainnet's chain id - `10`.
 
 ```
 kona-node node \
-    --chain 8453 \
+    --chain 10 \
     --l1-eth-rpc <L1_RPC_URL> \
     --l1-beacon <L1_BEACON_URL> \
     --l2-engine-rpc http://127.0.0.1:9551 \
@@ -102,12 +104,15 @@ kona-node node \
 That's it! Your node should connect to P2P and start syncing
 quickly.
 
+<Unreleased component="kona-node" />
+
 <Note>
-By default, `kona-node` enables L1 block hash verification and trusts
-the local L2 engine, matching op-node. When pointing the node at public
-RPC endpoints, follow
+By default, `kona-node` verifies L1 RPC responses, matching op-node.
+Verification requires the L1 RPC to serve `eth_getProof`. The L2 engine is
+the node's own execution client and is always trusted. When pointing the
+node at a public L1 RPC endpoint, follow
 [configure RPC trust](/node-operators/kona-node/run/rpc-trust) to configure
-verification for both RPCs.
+verification.
 </Note>
 
 
@@ -115,14 +120,14 @@ verification for both RPCs.
 
 Now, when the `kona-node` starts up, it should immediately spin up
 the P2P stack. It will begin discovering valid peers on the network
-with the same chain id (base - `8453`) and OP Stack enr key "opstack".
+with the same chain id (OP Mainnet - `10`) and OP Stack enr key "opstack".
 When valid peers are discovered, they are sent to the libp2p swarm
 which attempts to connect to them and listen for block gossip.
 
 Depending on the chain, and the P2P network topology, it may take
 longer for the `kona-node` to establish a strong set of peers and
 begin receiving block gossip. For larger, more mature chains like
-OP Mainnet and Base, peer discovery should happen quickly via the
+OP Mainnet, peer discovery should happen quickly via the
 chain's P2P bootnodes.
 
 Once the first unsafe L2 payload attributes (block) is received

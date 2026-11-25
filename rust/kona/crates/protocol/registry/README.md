@@ -38,6 +38,16 @@ lazy statics.
    - `chainList.json` containing additional [`Chain`][chains] entries.
    - `configs.json` containing [`Superchain`][superchains] structures with matching `ChainConfig`s and
      `RollupConfig`s for the new chain ids.
+   - `depsets.json` containing a JSON array of dependency sets that covers every custom chain. A
+     chain outside an interop cluster uses a self-only set:
+     ```json
+     [{"dependencies": {"<L2_CHAIN_ID>": {}}, "overrideMessageExpiryWindow": null}]
+     ```
+     Chains in an interop cluster use one entry that lists every member. Each entry must be
+     identical to the JSON object in the cluster's dependency-set file: op-supernode's
+     `--dependency-set` if set, otherwise op-node's `--interop.dependency-set`. For every chain,
+     op-challenger's depset config (`--depset-config`, or `--super-cannon-kona-depset-config` /
+     `--cannon-kona-depset-config`) must hold the same object.
 2. Point the build to those files by setting the following environment variables during `cargo build`
    (or `cargo test`):
    ```sh
@@ -49,12 +59,16 @@ lazy statics.
    custom files there before compiling the crate. The committed files under `etc/` remain unchanged.
    Attempting to override existing chain ids will result in build failures.
 
-Both JSON files must stay in lockstep: every chain listed in `configs.json` must also appear in
-`chainList.json`, and chain identifiers must map to a single chain id. The build script validates
-those invariants and will fail fast if it detects duplicates or mismatches. When publishing another
-crate that depends on `kona-registry`, you can check the custom artifacts into your workspace and set
-`KONA_CUSTOM_CONFIGS_DIR` via a build script or `just` recipe so that consumers automatically embed
-the additional definitions.
+All three JSON files must stay in lockstep: every chain listed in `configs.json` must also appear in
+`chainList.json`, chain identifiers must map to a single chain id, every chain in the merged
+`chainList.json` must appear in a dependency set, and every cluster that the chains' `interop`
+sections declare must be one of the dependency sets. A custom chain's group must also be on Ethereum
+mainnet, Sepolia or Holesky, the only L1s whose configs `kona-registry` embeds: on any other L1 the
+fault proof programs read the L1 config from a local preimage key that dispute games cannot load.
+The build script validates these invariants and fails if one does not hold or if `depsets.json` is
+missing. When publishing another crate that depends on `kona-registry`, you can check the custom
+artifacts into your workspace and set `KONA_CUSTOM_CONFIGS_DIR` via a build script or `just` recipe
+so that consumers automatically embed the additional definitions.
 
 ### Usage
 

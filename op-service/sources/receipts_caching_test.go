@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"testing"
 	"time"
@@ -32,8 +33,10 @@ func TestCachingReceiptsProvider_Caching(t *testing.T) {
 	ctx, done := context.WithTimeout(context.Background(), 10*time.Second)
 	defer done()
 
+	opReceipts, err := optypes.FromGethReceipts(receipts)
+	require.NoError(t, err)
 	mrp.On("FetchReceipts", ctx, blockid, txHashes).
-		Return(optypes.FromGethReceipts(receipts), error(nil)).
+		Return(opReceipts, error(nil)).
 		Once() // receipts should be cached after first fetch
 
 	bInfo, _, _ := block.Info(true, true)
@@ -54,11 +57,30 @@ func TestCachingReceiptsProvider_Concurrency(t *testing.T) {
 	mrp := new(mockReceiptsProvider)
 	rp := NewCachingReceiptsProvider(mrp, nil, 1)
 
+	opReceipts, err := optypes.FromGethReceipts(receipts)
+	require.NoError(t, err)
 	mrp.On("FetchReceipts", mock.Anything, blockid, txHashes).
-		Return(optypes.FromGethReceipts(receipts), error(nil)).
+		Return(opReceipts, error(nil)).
 		Once() // receipts should be cached after first fetch
 
 	runConcurrentFetchingTest(t, rp, 32, receipts, block)
 
+	mrp.AssertExpectations(t)
+}
+
+func TestCachingReceiptsProvider_FailedFetchReleasesLock(t *testing.T) {
+	block, receipts := randomRpcBlockAndReceipts(rand.New(rand.NewSource(69)), 4)
+	txHashes := receiptTxHashes(receipts)
+	mrp := new(mockReceiptsProvider)
+	rp := NewCachingReceiptsProvider(mrp, nil, 1)
+
+	mrp.On("FetchReceipts", mock.Anything, block.BlockID(), txHashes).
+		Return(optypes.Receipts(nil), errors.New("fetch failed")).
+		Once()
+
+	bInfo, _, _ := block.Info(true, true)
+	_, err := rp.FetchReceipts(t.Context(), bInfo, txHashes)
+	require.ErrorContains(t, err, "fetch failed")
+	require.Empty(t, rp.fetching, "a failed fetch must not leave its per-block lock behind")
 	mrp.AssertExpectations(t)
 }

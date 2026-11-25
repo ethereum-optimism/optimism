@@ -307,11 +307,14 @@ impl InteropFilterClient {
             .inner
             .endpoints
             .iter()
-            .map(|endpoint| {
-                tokio::time::timeout(
+            .map(|endpoint| async move {
+                let res = tokio::time::timeout(
                     self.inner.timeout,
                     endpoint.client.request::<_, bool>("admin_getFailsafeEnabled", ()),
                 )
+                .await;
+                endpoint.metrics.record_poll(matches!(res, Ok(Ok(_))));
+                res
             })
             .collect();
 
@@ -648,8 +651,10 @@ mod tests {
         );
     }
 
+    use crate::interop_filter::metrics::ENDPOINT_UP;
     use jsonrpsee::types::ErrorObjectOwned;
     use jsonrpsee_server::{RpcModule, ServerBuilder, ServerHandle};
+    use metrics_util::debugging::{DebugValue, DebuggingRecorder};
     use op_alloy_rpc_types::SuperchainDAError;
     use std::net::SocketAddr;
 
@@ -1053,6 +1058,46 @@ mod tests {
         assert!(
             client.is_failsafe_enabled_cached(),
             "cache should be unchanged when no endpoint replies"
+        );
+    }
+
+    /// The failsafe poll reaches every endpoint with or without interop traffic, so it also keeps
+    /// each endpoint's `up` gauge current. Single-threaded so the thread-local recorder sees the
+    /// gauges that `build` creates.
+    #[tokio::test]
+    async fn failsafe_poll_sets_endpoint_up() {
+        let recorder = DebuggingRecorder::new();
+        let snapshotter = recorder.snapshotter();
+        let _guard = metrics::set_default_local_recorder(&recorder);
+
+        let healthy = MockEndpoint::start(Verdict::Valid, Failsafe::Reply(false)).await;
+        let silent = MockEndpoint::start(Verdict::Valid, Failsafe::Slow).await;
+        let erroring = MockEndpoint::start(Verdict::Valid, Failsafe::Error).await;
+        let client = client_for(&[&healthy, &silent, &erroring], None).await;
+        // An earlier failure marked the healthy endpoint down. The poll must restore it.
+        client.inner.endpoints[0].metrics.record_poll(false);
+
+        let _ = client.is_failsafe_enabled().await;
+
+        let mut up: Vec<_> = snapshotter
+            .snapshot()
+            .into_vec()
+            .into_iter()
+            .filter(|(key, ..)| key.key().name() == ENDPOINT_UP)
+            .map(|(key, _, _, value)| {
+                let endpoint =
+                    key.key().labels().find(|l| l.key() == "endpoint").unwrap().value().to_string();
+                (endpoint, value)
+            })
+            .collect();
+        up.sort_by(|a, b| a.0.cmp(&b.0));
+        assert_eq!(
+            up,
+            vec![
+                ("0".to_string(), DebugValue::Gauge(1.0.into())),
+                ("1".to_string(), DebugValue::Gauge(0.0.into())),
+                ("2".to_string(), DebugValue::Gauge(0.0.into())),
+            ]
         );
     }
 

@@ -1,6 +1,6 @@
 ---
 name: ci-config-reviewer
-description: "Reviews changes to CI configuration in this repo (`.circleci/` and `.github/workflows/`) for the failure modes that have actually broken our pipelines — gate-coverage gaps, unproducible required checks, unsafe path filtering, merge-order shadowing, and cache-key mistakes. Use when a diff touches CI config, before merging a CI change, or when asked to review `.circleci/` or workflow files."
+description: "Reviews changes to CI configuration in this repo (`.circleci/` and `.github/workflows/`) for the failure modes that have actually broken our pipelines — gate-coverage gaps, unproducible required checks, unsafe path filtering, merge-order shadowing, cache-key mistakes, and breaks in jobs that never run on a PR. Use when a diff touches CI config, or anything a CI job runs (justfile recipes, scripts, tool config such as `foundry.toml` or `mise.toml`), before merging a CI change, or when asked to review `.circleci/` or workflow files."
 model: opus
 ---
 
@@ -18,17 +18,20 @@ items in that doc are where the real bugs hide.
 
 ## Scope
 
-Review only the changed CI files in the diff:
-`.circleci/config.yml`, `.circleci/continue/*`, `.circleci/scripts/*`,
-`.github/workflows/*`, plus any script a CI command runs (e.g. `ops/scripts/`,
-`packages/*/scripts/ops/`). Findings about untouched config are out of scope
-unless a change in the diff breaks them.
+Review the changed CI files in the diff: `.circleci/config.yml`,
+`.circleci/continue/*`, `.circleci/scripts/*`, `.github/workflows/*`, plus any script
+a CI command runs (e.g. `ops/scripts/`, `packages/*/scripts/ops/`). Also review any
+justfile recipe, script or tool config in the diff that a CI job runs, for item 11,
+and any test-code skip in the diff that changes what a CI job runs, for item 12.
+Findings about untouched config are out of scope unless a change in the diff breaks
+them.
 
 ## Process
 
 1. Read the guide in full, including "How CI is wired here".
-2. Determine which CI files changed.
-3. For each change, walk the repo-specific checklist (items 1–9) first, then the
+2. Determine which CI files changed, and which changed recipes, scripts or tool config a
+   CI job runs.
+3. For each change, walk the repo-specific checklist (items 1–12) first, then the
    relevant general CircleCI / GitHub Actions section. Map every finding to the
    specific rule it violates.
 4. Confirm the author validated locally where the guide requires it (merged-config

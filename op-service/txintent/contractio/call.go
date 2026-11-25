@@ -5,27 +5,23 @@ import (
 	"fmt"
 	"math/big"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // Write receives a TypedCall and uses to plan transaction, and attempts to write.
-func Write[O any](call bindings.TypedCall[O], ctx context.Context, opts ...txplan.Option) (*types.Receipt, error) {
+func Write[O any](call bindings.TypedCall[O], ctx context.Context, opts ...txplan.Option) (*optypes.Receipt, error) {
 	plan, err := Plan(call)
 	if err != nil {
 		return nil, err
 	}
 	tx := txplan.NewPlannedTx(plan, txplan.Combine(opts...))
-	receipt, err := tx.Included.Eval(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return receipt, nil
+	return tx.Included.Eval(ctx)
 }
 
 // Read receives a TypedCall and uses to plan transaction, and attempts to read.

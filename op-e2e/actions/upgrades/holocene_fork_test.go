@@ -1,8 +1,6 @@
 package upgrades
 
 import (
-	"context"
-	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -135,7 +133,6 @@ func TestHoloceneLateActivationAndReset(gt *testing.T) {
 func TestHoloceneInvalidPayload(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	env := helpers.SetupEnv(t, helpers.WithActiveGenesisFork(forks.Holocene))
-	ctx := context.Background()
 
 	requireDepositOnlyLogs := func(role string, expNumLogs int) {
 		t.Helper()
@@ -164,9 +161,9 @@ func TestHoloceneInvalidPayload(gt *testing.T) {
 	l2Unsafe := env.Seq.L2Unsafe()
 	const invalidNum = 3
 	require.EqualValues(t, invalidNum, l2Unsafe.Number)
-	b, err := env.SeqEngine.EthClient().BlockByNumber(ctx, big.NewInt(invalidNum))
-	require.NoError(t, err)
-	require.Len(t, b.Transactions(), 2)
+	deposits, userTxs := env.SeqEngine.BlockTxs(t, l2Unsafe.Hash)
+	require.Len(t, deposits, 1)
+	require.Len(t, userTxs, 1)
 
 	// buffer into the batcher, invalidating the tx via signature zeroing
 	env.Batcher.ActL2BatchBuffer(t, helpers.WithBlockModifier(func(payload *eth.ExecutionPayload) *eth.ExecutionPayload {
@@ -196,9 +193,9 @@ func TestHoloceneInvalidPayload(gt *testing.T) {
 		"block-3 should have been replaced by deposit-only version")
 	requireDepositOnlyLogs(e2esys.RoleSeq, 2)
 	require.Equal(t, l2Safe, env.Seq.L2Unsafe(), "unsafe chain should have reorg'd")
-	b, err = env.SeqEngine.EthClient().BlockByNumber(ctx, big.NewInt(invalidNum))
-	require.NoError(t, err)
-	require.Len(t, b.Transactions(), 1)
+	deposits, userTxs = env.SeqEngine.BlockTxs(t, l2Safe.Hash)
+	require.Len(t, deposits, 1)
+	require.Empty(t, userTxs)
 
 	// test that building on top of reorg'd chain and deriving further works
 

@@ -140,15 +140,20 @@ func (txs RawTransactions) Hashes() []common.Hash {
 	return out
 }
 
-// Geth decodes all transactions into go-ethereum types.Transactions.
-//
-// Use the class-partitioned accessors instead for L2 blocks: they can contain
-// OP Stack synthetic transactions (0x7E deposits, 0x7D post-exec), which
-// upstream go-ethereum's transaction decoding rejects. This decode works on
-// such blocks only while the build resolves go-ethereum to op-geth.
+// ErrOpTxInBody is returned by Geth for an OP Stack tx (0x7E deposit, 0x7D post-exec), which
+// upstream go-ethereum cannot decode.
+var ErrOpTxInBody = errors.New("block holds a transaction of an OP Stack type")
+
+// Geth decodes all transactions into go-ethereum types, failing with ErrOpTxInBody on an OP Stack
+// tx. Every L2 block after genesis starts with the L1-info deposit, so read L2 bodies with
+// InfoAndUserTxsBy*, InfoAndDepositsByHash, InfoAndFirstDepositBy* or PayloadBy*.
 func (txs RawTransactions) Geth() (types.Transactions, error) {
 	out := make(types.Transactions, len(txs))
 	for i, raw := range txs {
+		switch typ := raw.Type(); typ {
+		case optypes.DepositTxType, optypes.PostExecTxType:
+			return nil, fmt.Errorf("tx %d has type %#x: %w", i, typ, ErrOpTxInBody)
+		}
 		tx := new(types.Transaction)
 		if err := tx.UnmarshalBinary(raw); err != nil {
 			return nil, fmt.Errorf("failed to decode tx %d: %w", i, err)

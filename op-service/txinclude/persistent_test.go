@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
-	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum/go-ethereum/common"
@@ -82,13 +81,10 @@ func TestPersistentSuccessfulTxInclusion(t *testing.T) {
 	}
 
 	el := newMockEL(nil, want.Receipt)
-	startingBalance := eth.OneEther
-	budget := accounting.NewBudget(startingBalance)
-	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
+	p := txinclude.NewPersistent(newSigner(t), el)
 	got, err := p.Include(context.Background(), original)
 	require.NoError(t, err)
 	require.EqualExportedValues(t, want, got)
-	require.Equal(t, startingBalance.Sub(eth.OneGWei.Mul(want.Receipt.GasUsed)), budget.Balance())
 }
 
 func TestPersistentFixesNonceTooLow(t *testing.T) {
@@ -110,13 +106,10 @@ func TestPersistentFixesNonceTooLow(t *testing.T) {
 	}
 
 	el := newMockEL([]error{core.ErrNonceTooLow, core.ErrNonceTooLow}, want.Receipt)
-	startingBalance := eth.OneEther
-	budget := accounting.NewBudget(startingBalance)
-	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
+	p := txinclude.NewPersistent(newSigner(t), el)
 	got, err := p.Include(context.Background(), original)
 	require.NoError(t, err)
 	require.EqualExportedValues(t, want, got)
-	require.Equal(t, startingBalance.Sub(eth.OneGWei.Mul(want.Receipt.GasUsed)), budget.Balance())
 }
 
 func TestPersistentNoChangeOnUnderpriced(t *testing.T) {
@@ -134,21 +127,16 @@ func TestPersistentNoChangeOnUnderpriced(t *testing.T) {
 	}
 
 	el := newMockEL([]error{txpool.ErrUnderpriced, txpool.ErrReplaceUnderpriced}, want.Receipt)
-	startingBalance := eth.Ether(1)
-	budget := accounting.NewBudget(startingBalance)
-	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
+	p := txinclude.NewPersistent(newSigner(t), el)
 	got, err := p.Include(context.Background(), original)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	require.EqualExportedValues(t, want, got)
-	require.Equal(t, startingBalance.Sub(eth.GWei(21_000)), budget.Balance())
 }
 
 func TestPersistentContextCanceled(t *testing.T) {
 	el := newMockEL(nil, nil)
-	startingBalance := eth.OneEther
-	budget := accounting.NewBudget(startingBalance)
-	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
+	p := txinclude.NewPersistent(newSigner(t), el)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	got, err := p.Include(ctx, &types.DynamicFeeTx{
@@ -157,20 +145,32 @@ func TestPersistentContextCanceled(t *testing.T) {
 	})
 	require.ErrorIs(t, err, context.Canceled)
 	require.Nil(t, got)
-	require.Equal(t, startingBalance, budget.Balance())
 }
 
 func TestPersistentFatalError(t *testing.T) {
 	fatalErr := errors.New("the sky is falling")
 	el := newMockEL([]error{fatalErr}, nil)
-	startingBalance := eth.OneEther
-	budget := accounting.NewBudget(startingBalance)
-	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
+	p := txinclude.NewPersistent(newSigner(t), el)
 	got, err := p.Include(context.Background(), &types.DynamicFeeTx{
 		GasFeeCap: eth.OneGWei.ToBig(),
 		Gas:       21_000,
 	})
 	require.ErrorIs(t, err, fatalErr)
 	require.Nil(t, got)
-	require.Equal(t, startingBalance, budget.Balance())
+}
+
+func TestPersistentFatalErrorReleasesNonce(t *testing.T) {
+	fatalErr := errors.New("the sky is falling")
+	receipt := &optypes.Receipt{Receipt: types.Receipt{Status: types.ReceiptStatusSuccessful}}
+	p := txinclude.NewPersistent(newSigner(t), newMockEL([]error{fatalErr}, receipt))
+	newTx := func() *types.DynamicFeeTx {
+		return &types.DynamicFeeTx{GasFeeCap: eth.OneGWei.ToBig(), Gas: 21_000}
+	}
+
+	_, err := p.Include(context.Background(), newTx())
+	require.ErrorIs(t, err, fatalErr)
+
+	got, err := p.Include(context.Background(), newTx())
+	require.NoError(t, err)
+	require.Zero(t, got.Transaction.Nonce(), "the failed attempt's nonce must be reused")
 }

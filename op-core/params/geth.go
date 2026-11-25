@@ -5,15 +5,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	gethparams "github.com/ethereum/go-ethereum/params"
-
-	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
 
-// GethChainConfig returns the equivalent go-ethereum params.ChainConfig. It exists
-// for code that drives a go-ethereum EVM, genesis, or block processor and therefore
-// needs the concrete go-ethereum type. The Ethereum fork schedule is derived from the
-// OP fork schedule: Shanghai activates with Canyon, Cancun with Ecotone, Prague with
-// Isthmus, Osaka with Karst.
+// GethChainConfig returns the go-ethereum params.ChainConfig with the Ethereum fork
+// schedule of c, derived from the OP fork schedule: Shanghai activates with Canyon,
+// Cancun with Ecotone, Prague with Isthmus, Osaka with Karst. It carries no OP Stack
+// fields, so go-ethereum code reading it applies Ethereum rules: it is fit for the
+// genesis state root and header encoding, not for executing OP Stack blocks or
+// computing OP Stack fees.
 func (c *ChainConfig) GethChainConfig() *gethparams.ChainConfig {
 	out := &gethparams.ChainConfig{
 		ChainID:                 c.ChainID,
@@ -38,27 +37,6 @@ func (c *ChainConfig) GethChainConfig() *gethparams.ChainConfig {
 		PragueTime:              c.IsthmusTime,
 		OsakaTime:               c.KarstTime,
 		TerminalTotalDifficulty: common.Big0,
-		BedrockBlock:            c.BedrockBlock,
-		RegolithTime:            c.RegolithTime,
-		CanyonTime:              c.CanyonTime,
-		EcotoneTime:             c.EcotoneTime,
-		FjordTime:               c.FjordTime,
-		GraniteTime:             c.GraniteTime,
-		HoloceneTime:            c.HoloceneTime,
-		IsthmusTime:             c.IsthmusTime,
-		JovianTime:              c.JovianTime,
-		KarstTime:               c.KarstTime,
-		LagoonTime:              c.LagoonTime,
-	}
-
-	if c.Optimism != nil {
-		out.Optimism = &gethparams.OptimismConfig{
-			EIP1559Elasticity:  c.Optimism.EIP1559Elasticity,
-			EIP1559Denominator: c.Optimism.EIP1559Denominator,
-		}
-		if c.Optimism.EIP1559DenominatorCanyon != nil {
-			out.Optimism.EIP1559DenominatorCanyon = ptr.New(*c.Optimism.EIP1559DenominatorCanyon)
-		}
 	}
 
 	// special overrides for OP-Stack chains with pre-Regolith upgrade history
