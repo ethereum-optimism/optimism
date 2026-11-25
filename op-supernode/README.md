@@ -25,7 +25,7 @@ Shared resources are dependencies injected into the Virtual Node such that the o
 but redundant access is eliminated.
 
 - Shared L1 and Beacon Client mean shared caching and only a single pipe to the L1 across all chains.
-- Shared RPCs through a namespaced RPC registration system. Call `11155420/` for OP Sepolia's RPC capabilities, or `84532/` for Base Sepolia.
+- Shared RPCs through a namespaced RPC registration system. Call `11155420/` for OP Sepolia's RPC capabilities, or `1301/` for Unichain Sepolia.
 - Metrics are shared through similar namespacing, but will likely be joined via Prometheus dimensions in the future.
 - Data directories are namespaced to protect SafeDB and P2P resources.
 - Flag configuration can be shared amongst chains for common setup.
@@ -57,12 +57,12 @@ Example launch of Supernode:
   --log.level=DEBUG \
   --metrics.enabled=true \
   --metrics.port=7300 \
-  --chains=11155420,84532 \
+  --chains=11155420,1301 \
   --vn.11155420.network=op-sepolia \
   --vn.11155420.l2='...' \
-  --vn.84532.network=base-sepolia \
-  --vn.84532.l2='...' \
-  --vn.84532.l1.beacon-archiver='...' \
+  --vn.1301.network=unichain-sepolia \
+  --vn.1301.l2='...' \
+  --vn.1301.l1.beacon-archiver='...' \
   --vn.all.l2.jwt-secret=../../jwt-secret.txt
 ```
 
