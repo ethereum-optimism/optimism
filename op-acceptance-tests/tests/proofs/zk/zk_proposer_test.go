@@ -470,9 +470,6 @@ func TestProposerProvesChunksInsideReplacementIdleGap(gt *testing.T) {
 			sys, hidden := newReplacedBlockSystem(t,
 				presets.WithL2BlockTimes(map[eth.ChainID]uint64{sysgo.DefaultL2AID: 1, sysgo.DefaultL2BID: 4}),
 				presets.WithZKProposerOption(sysgo.WithZKRangeSplitCount(rangeSplitCount)),
-				// A game spans one to four intervals (8 to 32 s), so from either agreed timestamp
-				// it reaches chain B's block after the idle ones within rangeSplitCount timestamps.
-				presets.WithZKProposerOption(sysgo.WithZKProposalInterval(8*time.Second)),
 			)
 			execTimestamp := sendDeniedMessage(t, sys, hidden)
 			sys.SuperRoots.AwaitValidatedTimestamp(execTimestamp + 4)
@@ -497,9 +494,11 @@ func TestProposerProvesChunksInsideReplacementIdleGap(gt *testing.T) {
 			proposer, game := startProposerOnOwnedGame(t, sys, parentTimestamp)
 			t.Require().GreaterOrEqual(game.L2SequenceNumber(), execTimestamp+4,
 				"the proof must include every idle timestamp and the next advancing block")
+			// At the default interval a game spans 6 s, or 12 to 24 s when catching up, so from
+			// either agreed timestamp it reaches chain B's block after the idle ones.
 			span := game.L2SequenceNumber() - parentTimestamp
 			t.Require().LessOrEqual(span, rangeSplitCount, "each timestamp must be its own proof chunk")
-			t.Require().LessOrEqual(span, uint64(4*8),
+			t.Require().LessOrEqual(span, uint64(4*presets.DefaultZKProposalInterval/time.Second),
 				"a game spans at most OP_ZK_PROPOSER_MAX_PROPOSAL_SPAN_INTERVALS (default 4) intervals")
 			requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
 			proposer.VerifyState(testCase.batches)

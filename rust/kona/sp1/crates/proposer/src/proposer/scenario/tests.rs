@@ -2168,12 +2168,6 @@ async fn foreign_game_proven_by_the_signer_is_claimed_after_a_third_party_resolv
     let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
 
     let unresolved = scenario.tick().await.unwrap();
-    assert!(
-        !unresolved
-            .scheduled
-            .iter()
-            .any(|scheduled| matches!(scheduled.operation, OperationSummary::ProveGame { .. }))
-    );
     scenario.settle_scheduled(&unresolved).await.unwrap();
     assert!(world.action_record(&ActionTarget::Resolve(target.clone()), 1).is_none());
 
@@ -2323,6 +2317,71 @@ async fn publishing_a_rotated_prestate_enables_defense_on_the_next_tick() {
     )));
     scenario.settle_scheduled(&recovered).await.unwrap();
     assert_eq!(world.proof_record(&target, 1).unwrap().lifecycle, ProofLifecycle::Succeeded);
+}
+
+/// Rotating the registered prestate does not stop defense of an owned game created on the old
+/// one while its artifacts stay published; a foreign game on the old prestate is still not proven.
+#[tokio::test]
+async fn owned_game_on_a_rotated_out_prestate_is_still_defended() {
+    let world = ScenarioWorld::new();
+    let old = ScenarioWorld::default_prestate();
+    let mut owned = ScenarioGame::new(0, u32::MAX, 1, old).owned().challenged();
+    owned.deadline = 5_000;
+    let owned_address = owned.address;
+    let mut foreign = ScenarioGame::new(1, u32::MAX, 2, old).challenged();
+    foreign.deadline = 5_000;
+    world.add_game(owned);
+    world.add_game(foreign);
+    let rotated = B256::repeat_byte(0x33);
+    world.rotate_registered_prestate(rotated, 7_200);
+    world.publish_prestate(rotated);
+    world.set_horizons(2, 2);
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let tick = scenario.tick().await.unwrap();
+    let proofs = tick
+        .scheduled
+        .iter()
+        .filter_map(|scheduled| match scheduled.operation {
+            OperationSummary::ProveGame { address, purpose, .. } => Some((address, purpose)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(proofs, vec![(owned_address, ProvingPurpose::Defense)]);
+}
+
+/// A game that resolved `DefenderWins` cannot lose anymore, so an ancestor below it that is
+/// still pending (here, super-root data a restarted node cannot fetch) does not stop the
+/// defense of our challenged game above it.
+#[tokio::test]
+async fn pending_ancestor_below_a_won_link_does_not_block_defense() {
+    let world = ScenarioWorld::new();
+    let old = ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).owned();
+    let old_address = old.address;
+    world.add_game(old);
+    let mut won = ScenarioGame::new(1, 0, 2, ScenarioWorld::default_prestate()).owned();
+    won.status = GameStatus::DefenderWins;
+    won.proposal_status = ProposalStatus::Resolved;
+    world.add_game(won);
+    let tip = ScenarioGame::new(2, 1, 3, ScenarioWorld::default_prestate()).owned().challenged();
+    let tip_target = tip.target();
+    world.add_game(tip);
+    world.script_next_superroot(1, SuperRootOutcome::TransportFailure);
+    world.set_horizons(3, 3);
+    let mut scenario = ScenarioHarness::new(world.clone(), scenario_config()).await.unwrap();
+
+    let tick = scenario.tick().await.unwrap();
+    assert!(tick.snapshot.pending_games.iter().any(|game| game.address == old_address));
+    tick.task_id_for(|operation| {
+        matches!(operation, OperationSummary::ProveGame {
+            address, purpose: ProvingPurpose::Defense, ..
+        } if *address == tip_target.address)
+    });
+    scenario.settle_scheduled(&tick).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::Prove(tip_target.clone()), 1).unwrap().effect,
+        CommittedEffect::Proven { game: tip_target.address }
+    );
 }
 
 fn add_hourly_stall_history(
@@ -2602,6 +2661,7 @@ async fn far_future_foreign_game_is_a_record_until_it_loses() {
     let after = scenario.tick().await.unwrap();
     scenario.settle_scheduled(&after).await.unwrap();
     assert!(world.l1_read_record(L1ReadBoundary::GameLifecycle, &far, 3).is_none());
+    assert!(!scenario.proposer.state.read().await.games.contains_key(&far_target.factory_index));
 }
 
 #[tokio::test]
@@ -2949,11 +3009,13 @@ async fn challenger_wins_removal_resets_the_address_matched_creation_guard() {
         OperationSummary::ProposeGame { sequence_number: 2, parent_game_index: 0 }
     )));
     scenario.settle_scheduled(&fallback).await.unwrap();
-    assert!(
+    assert!(matches!(
         world
-            .action_record(&ActionTarget::Create { sequence_number: 3, parent_game_index: 0 }, 1,)
-            .is_some()
-    );
+            .action_record(&ActionTarget::Create { sequence_number: 3, parent_game_index: 0 }, 1)
+            .unwrap()
+            .effect,
+        CommittedEffect::Created { .. }
+    ));
 }
 
 #[tokio::test]
@@ -3036,11 +3098,13 @@ async fn disallowed_parent_does_not_rearm_delayed_creation_guard() {
         OperationSummary::ProposeGame { sequence_number: 2, parent_game_index: 0 }
     )));
     scenario.settle_scheduled(&fallback).await.unwrap();
-    assert!(
+    assert!(matches!(
         world
             .action_record(&ActionTarget::Create { sequence_number: 3, parent_game_index: 0 }, 1)
-            .is_some()
-    );
+            .unwrap()
+            .effect,
+        CommittedEffect::Created { .. }
+    ));
 }
 
 #[tokio::test]
@@ -5390,6 +5454,7 @@ async fn retained_refund_root_keeps_a_foreign_child_record_and_drops_it_without_
     world.mine_block();
     let after = scenario.tick().await.unwrap();
     scenario.settle_scheduled(&after).await.unwrap();
+    assert!(!scenario.proposer.state.read().await.games.contains_key(&child_target.factory_index));
     assert!(
         world
             .l1_read_record(L1ReadBoundary::GameLifecycle, &L1ReadTarget::Game(child_target), 3)

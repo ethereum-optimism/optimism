@@ -75,9 +75,7 @@ type zkProposerConfig struct {
 	RangeGasLimit         uint64
 	RangeSplitCount       uint64
 	TestingMaxRangeChains uint64
-	// OwnedCreator names, by dev key, an account whose games the proposer owns
-	// besides its signer's. A key, unlike an address, can be named before the
-	// system's keys exist.
+	// OwnedCreator is a dev key so it can be named before the system's keys exist.
 	OwnedCreator devkeys.Key
 	// L2RPCProxy, when set, starts a proxy in front of an L2 EL endpoint and
 	// returns the URL the proposer uses instead.
