@@ -11,6 +11,9 @@ pub use traits::NodeActor;
 mod clock;
 pub use clock::{Clock, SystemClock};
 
+mod authority;
+pub use authority::{AUTHORITY_POLL_INTERVAL, AuthorityActor, AuthorityActorError};
+
 mod engine;
 pub use engine::{
     BuildRequest, CanonicalizeRequest, EngineActor, EngineActorRequest, EngineClientError,

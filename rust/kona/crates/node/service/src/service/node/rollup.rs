@@ -1,11 +1,12 @@
 //! Contains the [`RollupNode`] implementation.
 use crate::{
-    ConductorClient, DelegateDerivationActor, DerivationActor, DerivationActorRequest,
-    DerivationError, EngineActor, EngineActorRequest, EngineConfig, L1OriginSelector,
-    L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler,
-    NodeActor, NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
-    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
-    RpcActor, SequencerActor, SequencerConfig, SignedPayload, SignerActor, SystemClock,
+    AUTHORITY_POLL_INTERVAL, AuthorityActor, ConductorClient, DelegateDerivationActor,
+    DerivationActor, DerivationActorRequest, DerivationError, EngineActor, EngineActorRequest,
+    EngineConfig, L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder,
+    NetworkConfig, NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
+    QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
+    QueuedSequencerEngineClient, RpcActor, SequencerActor, SequencerConfig, SignedPayload,
+    SignerActor, SystemClock,
     actors::{
         BlockStream, OriginPrefetcher, OriginPreparation, PreparedAttributesProvider,
         PreparedOriginProvider, QueuedUnsafePayloadGossipClient,
@@ -24,7 +25,7 @@ use jsonrpsee::{
     },
 };
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::{Engine, EngineQueryClient, EngineState};
+use kona_engine::{Engine, EngineQueryClient, EngineState, EngineSyncState, SafeLabel};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -48,6 +49,8 @@ use url::Url;
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// Timeout for each `optimism_syncStatus` request to the derivation delegate.
 const DERIVATION_DELEGATE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+/// Timeout for each request to the interop authority.
+const INTEROP_AUTHORITY_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 /// How many recently imported blocks to keep for the local L2 lookups.
 ///
 /// Every lookup served from here is for the block being built on top of, which the engine recorded
@@ -102,6 +105,8 @@ pub struct RollupNode {
     pub(crate) safe_db: Option<Arc<dyn SafeDb>>,
     /// L1 confirmation depth for online derivation, independent of sequencing.
     pub(crate) verifier_l1_confs: u64,
+    /// The cross-chain verification authority whose heads the safe and finalized labels follow.
+    pub(crate) interop_authority_url: Option<Url>,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -227,7 +232,13 @@ impl RollupNode {
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
     ) -> (ConfiguredEngineActor, EngineQueryClient, watch::Receiver<EngineState>) {
         // Share engine state with RPC without routing reads through the actor.
-        let engine_state = EngineState::default();
+        let safe_label = if self.interop_authority_url.is_some() {
+            SafeLabel::Verified
+        } else {
+            SafeLabel::LocalSafe
+        };
+        let engine_state =
+            EngineState { sync_state: EngineSyncState::new(safe_label), ..Default::default() };
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
         let engine = Engine::new(engine_state, engine_state_tx);
 
@@ -278,16 +289,20 @@ impl RollupNode {
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
             let l1_block_zero = self.l1_block_zero().await?;
-            Ok(ConfiguredDerivationActor::Normal(Box::new(
-                DerivationActor::<_, OnlinePipeline>::new(
-                    QueuedDerivationEngineClient { engine_actor_request_tx },
-                    derivation_actor_request_rx,
-                    pipeline,
-                    self.safe_db.clone(),
-                    l1_block_zero,
-                    derivation_origin_tx,
-                ),
-            )))
+            let actor = DerivationActor::<_, OnlinePipeline>::new(
+                QueuedDerivationEngineClient { engine_actor_request_tx },
+                derivation_actor_request_rx,
+                pipeline,
+                self.safe_db.clone(),
+                l1_block_zero,
+                derivation_origin_tx,
+            );
+            let actor = if self.interop_authority_url.is_some() {
+                actor.with_external_finality()
+            } else {
+                actor
+            };
+            Ok(ConfiguredDerivationActor::Normal(Box::new(actor)))
         }
     }
 
@@ -310,6 +325,29 @@ impl RollupNode {
         let l1_block_zero = block.id();
         info!(target: "rollup_node", l1_hash = %l1_block_zero.hash, "Anchoring the safe head db at L1 block zero");
         Ok(l1_block_zero)
+    }
+
+    /// Builds the actor following the interop authority when one is configured.
+    fn build_authority_actor(
+        &self,
+        engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
+        engine_state_rx: watch::Receiver<EngineState>,
+    ) -> Result<Option<AuthorityActor<HttpClient>>, String> {
+        let Some(url) = &self.interop_authority_url else {
+            return Ok(None);
+        };
+        let authority = HttpClientBuilder::default()
+            .request_timeout(INTEROP_AUTHORITY_REQUEST_TIMEOUT)
+            .build(url)
+            .map_err(|e| format!("Failed to build interop authority client: {e}"))?;
+        info!(target: "rollup_node", %url, "Following the interop authority for the safe and finalized labels");
+        Ok(Some(AuthorityActor::new(
+            authority,
+            self.config.clone(),
+            engine_actor_request_tx,
+            engine_state_rx,
+            AUTHORITY_POLL_INTERVAL,
+        )))
     }
 
     /// Builds the L1 watcher actor along with its head and finalized block streams.
@@ -583,6 +621,9 @@ impl RollupNode {
             unsafe_head_tx,
         );
 
+        let authority =
+            self.build_authority_actor(engine_actor_request_tx.clone(), engine_state_rx.clone())?;
+
         let derivation = self
             .build_derivation_actor(
                 engine_actor_request_tx.clone(),
@@ -666,6 +707,7 @@ impl RollupNode {
                 Some(l1_watcher),
                 Some(derivation),
                 Some(engine_actor),
+                authority,
             ]
         );
         Ok(())

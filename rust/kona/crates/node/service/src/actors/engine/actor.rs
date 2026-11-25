@@ -6,7 +6,7 @@ use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
     BuildTask, CanonicalizeTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
     EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, FinalizeTask,
-    ImportedBlockSink, InsertTask, SealTask,
+    ImportedBlockSink, InsertTask, PromoteTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -342,6 +342,13 @@ where
                     *finalized_l2_block_id,
                 )));
                 self.engine.enqueue(task);
+            }
+            EngineActorRequest::ProcessVerifiedSafeHead(head) => {
+                self.engine.enqueue(EngineTask::Promote(Box::new(PromoteTask::new(
+                    self.client.clone(),
+                    self.rollup.clone(),
+                    *head,
+                ))));
             }
             EngineActorRequest::ProcessUnsafeL2Block(envelope) => {
                 let task = EngineTask::Insert(Box::new(InsertTask::new(

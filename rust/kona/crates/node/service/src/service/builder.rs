@@ -56,6 +56,8 @@ pub struct RollupNodeBuilder {
     pub safe_db: Option<Arc<dyn SafeDb>>,
     /// Number of L1 confirmations required before deriving L2 blocks.
     pub verifier_l1_confs: u64,
+    /// The cross-chain verification authority whose heads the safe and finalized labels follow.
+    pub interop_authority_url: Option<Url>,
 }
 
 impl RollupNodeBuilder {
@@ -80,6 +82,7 @@ impl RollupNodeBuilder {
             dependency_set: None,
             safe_db: None,
             verifier_l1_confs: 0,
+            interop_authority_url: None,
         }
     }
 
@@ -122,6 +125,12 @@ impl RollupNodeBuilder {
         Self { derivation_delegate_url, ..self }
     }
 
+    /// Sets the cross-chain verification authority whose heads the safe and finalized labels
+    /// follow. Without one, the safe label is the local-safe head and finality follows L1.
+    pub fn with_interop_authority_url(self, interop_authority_url: Option<Url>) -> Self {
+        Self { interop_authority_url, ..self }
+    }
+
     /// Assembles the [`RollupNode`] service.
     pub fn build(self) -> RollupNode {
         let mut l1_beacon = OnlineBeaconClient::new_http(self.l1_config_builder.beacon.to_string());
@@ -161,6 +170,7 @@ impl RollupNodeBuilder {
             dependency_set: self.dependency_set,
             safe_db: self.safe_db,
             verifier_l1_confs: self.verifier_l1_confs,
+            interop_authority_url: self.interop_authority_url,
         }
     }
 }
