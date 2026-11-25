@@ -468,7 +468,7 @@ impl ProposerState {
         {
             return false;
         }
-        let mut below_won = false;
+        let mut below_won = game.status == GameStatus::DefenderWins;
         let mut parent_index = game.parent_index;
         while parent_index != u32::MAX {
             let index = U256::from(parent_index);
@@ -741,7 +741,6 @@ struct GameSyncTarget {
     weth: Address,
     anchor_state_registry: Address,
     absolute_prestate: B256,
-    status: GameStatus,
     creator: Address,
 }
 
@@ -1460,8 +1459,8 @@ impl Proposer {
     ///    tombstone the cached subtree below a newly lost game, claim normal or refund-mode credit
     ///    on any game, mark finalized open games of owned creators and the anchor for `claimCredit`
     ///    to close them, and remove closed, fully claimed games (keeping the anchor and canonical
-    ///    head) and foreign records the signer holds no credit in (a won one only once the anchor
-    ///    passes it). Per-game read failures skip only that game for the cycle.
+    ///    head) and foreign records the signer holds no credit in (a normal-mode winner only once
+    ///    the anchor passes it). Per-game read failures skip only that game for the cycle.
     async fn sync_games(
         &self,
         pinned_block: BlockId,
@@ -2020,7 +2019,6 @@ impl Proposer {
                     weth: game.weth,
                     anchor_state_registry: game.anchor_state_registry,
                     absolute_prestate: game.absolute_prestate,
-                    status: game.status,
                     creator: game.creator,
                 })
                 .collect::<Vec<_>>()
@@ -8558,12 +8556,12 @@ mod tests {
 
         #[tokio::test]
         async fn owned_creators_always_include_the_signer() {
-            let listed = Address::left_padding_from(&[0xbb]);
+            let listed = [Address::left_padding_from(&[0xbb]), Address::left_padding_from(&[0xcc])];
             assert_eq!(*test_proposer().await.owned_creators, HashSet::from([TEST_SIGNER]));
-            let config = ProposerConfig { owned_creators: vec![listed], ..test_config() };
+            let config = ProposerConfig { owned_creators: listed.to_vec(), ..test_config() };
             assert_eq!(
                 *test_proposer_with(config).await.owned_creators,
-                HashSet::from([TEST_SIGNER, listed])
+                HashSet::from([TEST_SIGNER, listed[0], listed[1]])
             );
         }
     }
@@ -9765,6 +9763,19 @@ mod tests {
             removed,
             HashSet::from([Address::left_padding_from(&[0]), Address::left_padding_from(&[1]),])
         );
+    }
+
+    /// A pending parent does not block a game that has itself won, since nothing below it can
+    /// make it lose; it still blocks one that has not.
+    #[test]
+    fn pending_parent_blocks_only_a_game_that_has_not_won() {
+        let parent = game_with(6, u32::MAX, 200);
+        let mut s = state(Vec::new(), None);
+        s.pending_games.insert(parent.index, CompactGameSummary::from(&parent));
+        let mut tip = game_with(7, 6, 300);
+        assert!(!s.ancestry_eligible(&tip));
+        tip.status = GameStatus::DefenderWins;
+        assert!(s.ancestry_eligible(&tip));
     }
 
     mod canonical_head {

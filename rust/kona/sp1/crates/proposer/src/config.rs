@@ -1442,6 +1442,25 @@ mod tests {
             );
         }
 
+        #[test]
+        #[serial]
+        fn max_proposal_span_intervals_defaults_to_four_and_rejects_zero() {
+            clear_proposer_env();
+            set_required_mock_env();
+            assert_eq!(
+                ProposerConfig::from_env(None).unwrap().max_proposal_span_intervals.get(),
+                4
+            );
+            set_proposer_env("MAX_PROPOSAL_SPAN_INTERVALS", "1");
+            assert_eq!(
+                ProposerConfig::from_env(None).unwrap().max_proposal_span_intervals.get(),
+                1
+            );
+            set_proposer_env("MAX_PROPOSAL_SPAN_INTERVALS", "0");
+            assert!(ProposerConfig::from_env(None).is_err());
+            remove_proposer_env("MAX_PROPOSAL_SPAN_INTERVALS");
+        }
+
         fn set_required_mock_env() {
             set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
             set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");

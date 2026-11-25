@@ -15,10 +15,10 @@ op-zk-proposer is the OP Stack's ZK proposer: the service that proposes the chai
 op-zk-proposer plays every role of the proposer side of the [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game):
 
 1.  **Create.** On a fixed interval, it reads the canonical super root from its super root source and creates a game for it in the `DisputeGameFactory`, building on its own previous game or on the anchor game.
-2.  **Defend.** When one of its games is challenged, it collects the data the proof reads, buys the proofs from the Succinct Prover Network or generates them on local GPUs, and submits the aggregation proof to the game. In fast finality mode, it also proves its own games before anyone challenges them.
+2.  **Defend.** When one of its games is challenged, it collects the data the proof reads, buys the proofs from the Succinct Prover Network or generates them on local GPUs, and submits the aggregation proof to the game. In fast finality mode, it also proves the games its signer created before anyone challenges them.
 3.  **Resolve and claim.** It resolves its finished games and claims its bonds, including the challenger bond it earns when it proves one of its challenged games.
 
-It defends only its own games: those created by its signer, or by addresses listed in `OP_ZK_PROPOSER_OWNED_CREATORS`, such as a signer rotated out. op-challenger or a game's creator resolves and closes games from other creators. Before it creates a game on a prestate, it checks that it can generate proofs for that prestate and that the game's verifier accepts proofs from its SP1 SDK, so it never posts a bond on a game it cannot defend.
+It extends and defends only its own games: those created by its signer, or by addresses listed in `OP_ZK_PROPOSER_OWNED_CREATORS`, such as a signer rotated out. Defending a game also needs the program files for its prestate. op-challenger or a game's creator resolves and closes games from other creators; the proposer only closes one when it claims credit it holds there. Before it creates a game on a prestate, it checks that it can generate proofs for that prestate and that the game's verifier accepts proofs from its SP1 SDK, so it never posts a bond on a game it cannot defend.
 
 op-zk-proposer is written in Rust and lives with the ZK proof programs in the Kona workspace. It embeds `kona-host` to collect the data that the programs read.
 

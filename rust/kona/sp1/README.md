@@ -351,9 +351,10 @@ the resolved set at startup.
 - **Validation**: only games from owned creators are checked against the
   supernode. Other games are cached as records, without validation, so anchor
   tracking keeps working when a foreign game becomes the anchor. They are never a
-  parent, a proof target, or a resolution target. A resolved record stays while
-  it is ahead of the anchor; behind it, it leaves once the signer holds no credit
-  in it. A lost one leaves unless it has a cached child.
+  parent, a proof target, or a resolution target. A resolved record in normal
+  mode stays while it is ahead of the anchor; behind it, it leaves once the signer
+  holds no credit in it. A lost record, or one in refund mode, leaves unless it
+  has a cached child.
 - **Defense and resolution**: owned games only. The proposer resolves a listed
   creator's game when it wins, and a signer game on any outcome. A challenged
   game from an owned creator with an unknown or poisoned prestate is skipped,
@@ -365,7 +366,8 @@ the resolved set at startup.
   it nothing only when its creator is owned or it is the registered anchor. It
   does not claim credit owed to another listed address.
 - **Foreign games' lifecycle**: op-challenger or the game's creator resolves and
-  closes foreign games.
+  closes foreign games. The proposer sends no close-only call for them, but
+  claiming the signer's credit on one closes it.
 
 Fast finality uses a narrower spend policy. It proves only unchallenged owned
 games created by the configured signer. Listed creators' games are defended and

@@ -5363,6 +5363,29 @@ async fn proposer_created_loser_without_blacklisting_is_closed_then_evicted() {
     );
 }
 
+/// After a key rotation the old signer's finalized winner owes the current signer nothing, but
+/// it is still closed, so it can become the anchor.
+#[tokio::test]
+async fn listed_creator_winner_is_closed_without_signer_credit() {
+    let world = ScenarioWorld::new();
+    let mut game =
+        ScenarioGame::new(0, u32::MAX, 1, ScenarioWorld::default_prestate()).claimable(0);
+    game.creator = LISTED_CREATOR;
+    game.bond.bond_distribution_mode = BondDistributionMode::Undecided;
+    let target = game.target();
+    let address = game.address;
+    world.add_game(game);
+    world.set_horizons(1, 1);
+    let mut scenario = ScenarioHarness::new(world.clone(), listed_creator_config()).await.unwrap();
+
+    let tick = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&tick).await.unwrap();
+    assert_eq!(
+        world.action_record(&ActionTarget::ClaimCredit(target), 1).unwrap().effect,
+        CommittedEffect::Closed { game: address }
+    );
+}
+
 #[tokio::test]
 async fn proposer_created_loser_blacklisted_before_close_recovers_its_refund() {
     let world = ScenarioWorld::new();
