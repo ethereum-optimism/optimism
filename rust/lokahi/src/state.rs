@@ -35,7 +35,7 @@ pub(crate) struct DeniedRecord {
 }
 
 /// A verified result and its timestamp.
-type AtTimestamp = (u64, VerifiedResult);
+pub(crate) type AtTimestamp = (u64, VerifiedResult);
 
 /// The verifier's state, shared with the authority RPC.
 #[derive(Debug)]
@@ -48,12 +48,13 @@ pub(crate) struct Verified {
     store: Store,
     /// The latest verified result.
     latest: Option<AtTimestamp>,
-    /// The latest verified result whose L1 inclusion is finalized.
+    /// The latest verified result whose L1 inclusion is on the finalized L1 chain. It only moves
+    /// forward: no rewind goes below it.
     finalized: Option<AtTimestamp>,
-    /// The latest finalized L1 block seen.
-    finalized_l1: Option<BlockNumHash>,
-    /// Each chain's latest local-safe timestamp, as its source reported.
-    local_safe_timestamps: BTreeMap<u64, u64>,
+    /// Whether verification has reached the sources' local-safe heads since the verifier
+    /// started. Until it has, the store may be far behind what the nodes were told before, so
+    /// the authority answers no heads.
+    caught_up: bool,
 }
 
 impl Verified {
@@ -82,8 +83,7 @@ impl Verified {
             store,
             latest,
             finalized: None,
-            finalized_l1: None,
-            local_safe_timestamps: BTreeMap::new(),
+            caught_up: false,
         })
     }
 
@@ -95,6 +95,21 @@ impl Verified {
     /// The next timestamp to verify.
     pub(crate) fn next_timestamp(&self) -> u64 {
         self.latest.as_ref().map_or(self.activation_timestamp, |(ts, _)| ts + 1)
+    }
+
+    /// The latest verified result.
+    pub(crate) const fn latest(&self) -> Option<&AtTimestamp> {
+        self.latest.as_ref()
+    }
+
+    /// The latest finalized result.
+    pub(crate) const fn finalized(&self) -> Option<&AtTimestamp> {
+        self.finalized.as_ref()
+    }
+
+    /// The first timestamp a rewind may delete: the one after the finalized result.
+    pub(crate) fn first_unfinalized_timestamp(&self) -> u64 {
+        self.finalized.as_ref().map_or(self.activation_timestamp, |(ts, _)| ts + 1)
     }
 
     /// Commits the result of the next timestamp, durably, before the authority answers it.
@@ -114,29 +129,32 @@ impl Verified {
             result.l1_inclusion = latest.l1_inclusion;
         }
         self.store.put_result(timestamp, &result)?;
-        if self.finalized_l1.is_some_and(|l1| result.l1_inclusion.number <= l1.number) {
-            self.finalized = Some((timestamp, result.clone()));
-        }
         self.latest = Some((timestamp, result));
         Ok(())
     }
 
-    /// Records the latest finalized L1 block.
-    pub(crate) fn set_finalized_l1(
-        &mut self,
-        finalized_l1: BlockNumHash,
-    ) -> Result<(), StoreError> {
-        if self.finalized_l1 == Some(finalized_l1) {
-            return Ok(());
-        }
-        self.finalized = self.latest_included_by(finalized_l1.number)?;
-        self.finalized_l1 = Some(finalized_l1);
-        Ok(())
+    /// Deletes the results from `timestamp` on, with the denials decided at or after it, which
+    /// were decided on them, durably before the authority answers the rewound heads.
+    ///
+    /// `timestamp` must be above the finalized result: finality never moves back.
+    pub(crate) fn rewind(&mut self, timestamp: u64) -> Result<(usize, usize), StoreError> {
+        assert!(
+            timestamp >= self.first_unfinalized_timestamp(),
+            "rewind to {timestamp} below the finalized result {:?}",
+            self.finalized.as_ref().map(|(ts, _)| ts)
+        );
+        let deleted = self.store.rewind(timestamp)?;
+        self.latest = self.store.last_result()?;
+        Ok(deleted)
     }
 
     /// The latest result whose L1 inclusion is at or below `l1_number`, by binary search over
-    /// the stored results, whose L1 inclusions never decrease.
-    fn latest_included_by(&self, l1_number: u64) -> Result<Option<AtTimestamp>, StoreError> {
+    /// the stored results, whose L1 inclusions never decrease. It is final once its L1 inclusion
+    /// is on the finalized L1 chain, which only its hash can tell.
+    pub(crate) fn latest_included_by(
+        &self,
+        l1_number: u64,
+    ) -> Result<Option<AtTimestamp>, StoreError> {
         let Some((latest_ts, latest)) = &self.latest else { return Ok(None) };
         if latest.l1_inclusion.number <= l1_number {
             return Ok(self.latest.clone());
@@ -155,6 +173,14 @@ impl Verified {
             }
         }
         Ok(found)
+    }
+
+    /// Moves the finalized head to `finalized`, whose L1 inclusion the caller found on the
+    /// finalized L1 chain. An older result leaves it.
+    pub(crate) fn set_finalized(&mut self, finalized: AtTimestamp) {
+        if self.finalized.as_ref().is_none_or(|(ts, _)| *ts < finalized.0) {
+            self.finalized = Some(finalized);
+        }
     }
 
     /// The result of `timestamp`, if verified.
@@ -189,9 +215,14 @@ impl Verified {
         self.store.denied(chain_id, from_number)
     }
 
-    /// Records a chain's latest local-safe timestamp.
-    pub(crate) fn set_local_safe_timestamp(&mut self, chain_id: u64, timestamp: u64) {
-        self.local_safe_timestamps.insert(chain_id, timestamp);
+    /// Records that verification reached the sources' local-safe heads.
+    pub(crate) const fn set_caught_up(&mut self) {
+        self.caught_up = true;
+    }
+
+    /// Whether verification has reached the sources' local-safe heads since the start.
+    pub(crate) const fn is_caught_up(&self) -> bool {
+        self.caught_up
     }
 
     /// The verified safe head of `chain_id`, or `None` for a chain the verifier does not cover.
@@ -207,20 +238,17 @@ impl Verified {
 
     /// The head of `chain_id` in `verified`, like op-supernode's `LatestVerifiedL2Block` and
     /// `VerifiedBlockAtL1`.
+    ///
+    /// Without a verified result it is the anchor, the last timestamp before activation. That
+    /// also covers a node whose local-safe head is before activation: its safe label is then its
+    /// local-safe head, which the node decides from its own head, not from lokahi's sources.
     fn head_in(&self, chain_id: u64, verified: Option<&AtTimestamp>) -> Option<VerifierHead> {
         let genesis_time = *self.genesis_times.get(&chain_id)?;
-        let is_pre_activation = self
-            .local_safe_timestamps
-            .get(&chain_id)
-            .is_some_and(|&local_safe| local_safe < self.activation_timestamp);
-        if is_pre_activation {
-            return Some(VerifierHead::PreActivation);
-        }
         Some(match verified {
             Some((timestamp, result)) => {
                 VerifierHead::Verified { block: result.heads[&chain_id], timestamp: *timestamp }
             }
-            // The last timestamp before activation, clamped to genesis so the node can resolve it.
+            // Clamped to genesis so the node can resolve it.
             None => VerifierHead::Anchor {
                 timestamp: self.activation_timestamp.saturating_sub(1).max(genesis_time),
             },
@@ -277,13 +305,12 @@ pub(crate) mod tests {
         assert_eq!(state.verified_head(CHAIN + 1), None);
     }
 
-    #[test]
-    fn local_safe_before_activation_answers_pre_activation() {
-        let dir = tempfile::tempdir().unwrap();
-        let mut state = state(dir.path());
-        state.set_local_safe_timestamp(CHAIN, ACTIVATION - 1);
-
-        assert_eq!(state.verified_head(CHAIN), Some(VerifierHead::PreActivation));
+    /// The latest finalized result as the verifier would find it for the finalized L1 block
+    /// `l1`, had the L1 inclusion been on the finalized chain.
+    fn finalize_at(state: &mut Verified, l1: u64) {
+        if let Some(finalized) = state.latest_included_by(l1).unwrap() {
+            state.set_finalized(finalized);
+        }
     }
 
     #[test]
@@ -293,18 +320,17 @@ pub(crate) mod tests {
         state.commit(ACTIVATION, result(1, 5)).unwrap();
         state.commit(ACTIVATION + 1, result(2, 6)).unwrap();
         state.commit(ACTIVATION + 2, result(3, 8)).unwrap();
-        state.set_finalized_l1(block(7)).unwrap();
+        finalize_at(&mut state, 7);
 
         assert_eq!(state.verified_head(CHAIN), verified(3, ACTIVATION + 2));
         assert_eq!(state.finalized_head(CHAIN), verified(2, ACTIVATION + 1));
         assert_eq!(state.next_timestamp(), ACTIVATION + 3);
 
-        // A commit within finality moves the finalized head along.
-        state.commit(ACTIVATION + 3, result(4, 7)).unwrap();
+        // Finality never moves back, also for an older finalized L1 block.
+        finalize_at(&mut state, 5);
         assert_eq!(state.finalized_head(CHAIN), verified(2, ACTIVATION + 1));
-        state.set_finalized_l1(block(9)).unwrap();
-        state.commit(ACTIVATION + 4, result(5, 9)).unwrap();
-        assert_eq!(state.finalized_head(CHAIN), verified(5, ACTIVATION + 4));
+        finalize_at(&mut state, 9);
+        assert_eq!(state.finalized_head(CHAIN), verified(3, ACTIVATION + 2));
     }
 
     /// An L1 inclusion below an earlier one is raised to it: the later result needs the earlier
@@ -315,13 +341,52 @@ pub(crate) mod tests {
         let mut state = state(dir.path());
         state.commit(ACTIVATION, result(1, 8)).unwrap();
         state.commit(ACTIVATION + 1, result(2, 6)).unwrap();
-        state.set_finalized_l1(block(7)).unwrap();
 
         assert_eq!(state.result_at(ACTIVATION + 1).unwrap().unwrap().l1_inclusion, block(8));
-        assert_eq!(
-            state.finalized_head(CHAIN),
-            Some(VerifierHead::Anchor { timestamp: ACTIVATION })
-        );
+        assert_eq!(state.latest_included_by(7).unwrap(), None);
+    }
+
+    /// A rewind deletes the results from its timestamp on and the denials decided on them, so
+    /// the verified head moves back and verification resumes at that timestamp.
+    #[test]
+    fn rewind_moves_the_verified_head_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state(dir.path());
+        for (i, l1) in [5, 6, 7, 7].into_iter().enumerate() {
+            state.commit(ACTIVATION + i as u64, result(i as u64 + 1, l1)).unwrap();
+        }
+        finalize_at(&mut state, 5);
+        let denial = |number: u64, timestamp: u64| DeniedRecord {
+            chain_id: CHAIN,
+            block: block(number),
+            output_root: B256::repeat_byte(1),
+            timestamp,
+        };
+        state.deny(&denial(2, ACTIVATION + 1)).unwrap();
+        state.deny(&denial(5, ACTIVATION + 4)).unwrap();
+
+        assert_eq!(state.rewind(ACTIVATION + 2).unwrap(), (2, 1));
+
+        assert_eq!(state.verified_head(CHAIN), verified(2, ACTIVATION + 1));
+        assert_eq!(state.next_timestamp(), ACTIVATION + 2);
+        assert_eq!(state.finalized_head(CHAIN), verified(1, ACTIVATION));
+        assert_eq!(state.denied_blocks(CHAIN, 0).unwrap(), vec![denial(2, ACTIVATION + 1)]);
+
+        // Everything after the finalized result can go.
+        state.rewind(ACTIVATION + 1).unwrap();
+        assert_eq!(state.verified_head(CHAIN), verified(1, ACTIVATION));
+    }
+
+    #[test]
+    #[should_panic(expected = "below the finalized result")]
+    fn rewind_never_goes_below_the_finalized_result() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state(dir.path());
+        state.commit(ACTIVATION, result(1, 5)).unwrap();
+        state.commit(ACTIVATION + 1, result(2, 6)).unwrap();
+        finalize_at(&mut state, 5);
+
+        let _ = state.rewind(ACTIVATION);
     }
 
     /// A reopened state answers the heads it answered before, finds the finalized head in the
@@ -348,15 +413,14 @@ pub(crate) mod tests {
 
         assert_eq!(state.verified_head(CHAIN), verified(7, ACTIVATION + 6));
         assert_eq!(state.next_timestamp(), ACTIVATION + 7);
-        state.set_finalized_l1(block(8)).unwrap();
-        assert_eq!(state.finalized_head(CHAIN), verified(5, ACTIVATION + 4));
-        state.set_finalized_l1(block(5)).unwrap();
-        assert_eq!(state.finalized_head(CHAIN), verified(2, ACTIVATION + 1));
-        state.set_finalized_l1(block(4)).unwrap();
         assert_eq!(
             state.finalized_head(CHAIN),
             Some(VerifierHead::Anchor { timestamp: ACTIVATION })
         );
+        assert_eq!(state.latest_included_by(4).unwrap(), None);
+        assert_eq!(state.latest_included_by(5).unwrap(), Some((ACTIVATION + 1, result(2, 5))));
+        finalize_at(&mut state, 8);
+        assert_eq!(state.finalized_head(CHAIN), verified(5, ACTIVATION + 4));
         assert_eq!(state.result_at(ACTIVATION + 2).unwrap(), Some(result(3, 6)));
         assert_eq!(state.result_at(ACTIVATION + 7).unwrap(), None);
         assert_eq!(

@@ -128,6 +128,35 @@ impl Store {
         self.write(batch)
     }
 
+    /// Deletes the results from `timestamp` on and the denied blocks decided at or after it, in
+    /// one write. Returns how many results and denied blocks it deleted.
+    pub(crate) fn rewind(&self, timestamp: u64) -> Result<(usize, usize), StoreError> {
+        let mut batch = WriteBatch::default();
+        let mut results = 0;
+        let start = result_key(timestamp);
+        for entry in self.db.iterator(IteratorMode::From(&start, Direction::Forward)) {
+            let (key, _) = entry?;
+            if key.first() != Some(&RESULT) {
+                break;
+            }
+            batch.delete(key);
+            results += 1;
+        }
+        let mut denied = 0;
+        for entry in self.db.iterator(IteratorMode::From(&[DENIED], Direction::Forward)) {
+            let (key, value) = entry?;
+            if key.first() != Some(&DENIED) {
+                break;
+            }
+            if decode_denied(&key, &value)?.timestamp >= timestamp {
+                batch.delete(key);
+                denied += 1;
+            }
+        }
+        self.write(batch)?;
+        Ok((results, denied))
+    }
+
     /// The denied blocks of `chain_id` at or above `from_number`, by number.
     pub(crate) fn denied(
         &self,
@@ -278,6 +307,32 @@ mod tests {
         assert_eq!(store.denied(901, 4).unwrap(), vec![denied(901, 7)]);
         assert_eq!(store.denied(902, 0).unwrap(), vec![denied(902, 5)]);
         assert_eq!(store.denied(903, 0).unwrap(), vec![]);
+    }
+
+    /// A rewind deletes the results from its timestamp on and the denials decided at or after
+    /// it, on every chain, and keeps everything earlier, also across a reopen.
+    #[test]
+    fn rewind_deletes_later_results_and_denials() {
+        let dir = tempfile::tempdir().unwrap();
+        {
+            let store = Store::open(dir.path()).unwrap();
+            for ts in 1000..1015 {
+                store.put_result(ts, &result(ts)).unwrap();
+            }
+            // Decided at 1000 + the block number.
+            for record in [denied(901, 2), denied(902, 9), denied(901, 12), denied(902, 10)] {
+                store.put_denied(&record).unwrap();
+            }
+
+            assert_eq!(store.rewind(1010).unwrap(), (5, 2));
+            assert_eq!(store.rewind(1010).unwrap(), (0, 0), "a second rewind finds nothing");
+        }
+
+        let store = Store::open(dir.path()).unwrap();
+        assert_eq!(store.last_result().unwrap(), Some((1009, result(1009))));
+        assert_eq!(store.result(1010).unwrap(), None);
+        assert_eq!(store.denied(901, 0).unwrap(), vec![denied(901, 2)]);
+        assert_eq!(store.denied(902, 0).unwrap(), vec![denied(902, 9)]);
     }
 
     #[test]

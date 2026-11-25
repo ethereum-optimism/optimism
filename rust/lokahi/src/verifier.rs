@@ -55,10 +55,26 @@ pub(crate) enum Wait {
     /// The round ran out of time.
     #[error("round timed out")]
     TimedOut,
+    /// An L1 reorg removed the L1 inclusion of committed results, so the results from `from` on
+    /// were deleted and are verified again.
+    #[error("L1 inclusion {l1:?} is not canonical any more; rewound the results from {from} on")]
+    Rewound { from: u64, l1: BlockNumHash },
+    /// The L1 inclusion of the finalized result is not canonical: L1 reorged below its finalized
+    /// head, or the L1 RPC serves another chain. Finality cannot move back, so the verifier
+    /// stops.
+    #[error("L1 inclusion {l1:?} of the finalized result at {timestamp} is not canonical")]
+    FinalityViolation { timestamp: u64, l1: BlockNumHash },
     /// The store failed to record a result. The verifier stops rather than answer what it
     /// could not record.
     #[error(transparent)]
     Store(#[from] StoreError),
+}
+
+impl Wait {
+    /// Whether the verifier stops rather than retry.
+    const fn is_fatal(&self) -> bool {
+        matches!(self, Self::Store(_) | Self::FinalityViolation { .. })
+    }
 }
 
 /// The verifier.
@@ -86,8 +102,8 @@ impl Verifier {
         Self { sources, rollup_configs, dependency_set, l1, state }
     }
 
-    /// Runs the loop until the task is dropped or the store fails.
-    pub(crate) async fn run(self) -> Result<(), StoreError> {
+    /// Runs the loop until the task is dropped, the store fails, or L1 violates finality.
+    pub(crate) async fn run(self) -> Result<(), Wait> {
         let mut last_wait = None;
         loop {
             let round = tokio::time::timeout(ROUND_TIMEOUT, self.round())
@@ -95,7 +111,15 @@ impl Verifier {
                 .unwrap_or(Err(Wait::TimedOut));
             match round {
                 Ok(()) => last_wait = None,
-                Err(Wait::Store(err)) => return Err(err),
+                Err(wait) if wait.is_fatal() => {
+                    tracing::error!(reason = %wait, "Halting");
+                    return Err(wait);
+                }
+                // Verify the rewound timestamps again right away.
+                Err(wait @ Wait::Rewound { .. }) => {
+                    warn!(reason = %wait, "Rewound after an L1 reorg");
+                    last_wait = None;
+                }
                 Err(wait) => {
                     let reason = wait.to_string();
                     let changed = last_wait.as_deref() != Some(reason.as_str());
@@ -127,21 +151,22 @@ impl Verifier {
     /// committed. Its chain replaces it with the deposits-only block, and a later round verifies
     /// the timestamp again with the replacement, which can in turn invalidate a block on another
     /// chain that executed a message from the denied block.
+    ///
+    /// The committed results are checked against L1 after the frontier is read and before it is
+    /// used, so a frontier read after an L1 reorg is never committed on top of results from the
+    /// old L1 chain.
     async fn round(&self) -> Result<(), Wait> {
-        self.refresh_finalized_l1().await?;
+        self.refresh_finalized().await?;
         let timestamp = self.state.read().expect("state lock").next_timestamp();
 
-        let mut frontier = BTreeMap::new();
-        for (&chain_id, source) in &self.sources {
-            let progress = source.progress_at(timestamp).await?;
-            let mut state = self.state.write().expect("state lock");
-            state.set_local_safe_timestamp(chain_id, progress.local_safe_timestamp);
-            let at = progress.at_timestamp.ok_or(Wait::NotLocalSafe { chain_id, timestamp })?;
-            if state.is_denied(chain_id, at.block)? {
-                return Err(Wait::AwaitingReplacement { chain_id, block: at.block, timestamp });
-            }
-            frontier.insert(chain_id, at);
+        let frontier = self.read_frontier(timestamp).await;
+        // A rewind takes priority over any wait: an L1 reorg often makes the frontier
+        // unavailable by moving the sources' local-safe heads back.
+        self.rewind_reorged_results().await?;
+        if let Err(Wait::NotLocalSafe { .. }) = &frontier {
+            self.state.write().expect("state lock").set_caught_up();
         }
+        let frontier = frontier?;
         for (&chain_id, at) in &frontier {
             self.check_l1_inclusion(chain_id, at.l1_inclusion).await?;
         }
@@ -164,23 +189,124 @@ impl Verifier {
         Ok(())
     }
 
-    async fn refresh_finalized_l1(&self) -> Result<(), Wait> {
-        if let Some(block) = self.l1.get_block_by_number(BlockNumberOrTag::Finalized).await? {
-            let finalized = BlockNumHash { number: block.header.number, hash: block.header.hash };
-            self.state.write().expect("state lock").set_finalized_l1(finalized)?;
+    /// Every chain's local-safe block at `timestamp`, unless one has not derived it yet or its
+    /// block there is denied and not replaced yet.
+    async fn read_frontier(&self, timestamp: u64) -> Result<BTreeMap<u64, LocalSafeAt>, Wait> {
+        let mut frontier = BTreeMap::new();
+        for (&chain_id, source) in &self.sources {
+            let progress = source.progress_at(timestamp).await?;
+            let at = progress.at_timestamp.ok_or(Wait::NotLocalSafe { chain_id, timestamp })?;
+            if self.state.read().expect("state lock").is_denied(chain_id, at.block)? {
+                return Err(Wait::AwaitingReplacement { chain_id, block: at.block, timestamp });
+            }
+            frontier.insert(chain_id, at);
         }
+        Ok(frontier)
+    }
+
+    /// Moves the finalized head to the latest result whose L1 inclusion is on the finalized L1
+    /// chain: at or below the finalized L1 block by number, and the canonical block at its height
+    /// by hash. A result whose inclusion was reorged out is not final; the reorg check rewinds
+    /// it.
+    async fn refresh_finalized(&self) -> Result<(), Wait> {
+        let Some(block) = self.l1.get_block_by_number(BlockNumberOrTag::Finalized).await? else {
+            return Ok(());
+        };
+        let finalized_l1 = BlockNumHash { number: block.header.number, hash: block.header.hash };
+        let (candidate, known_final) = {
+            let state = self.state.read().expect("state lock");
+            let candidate = state.latest_included_by(finalized_l1.number)?.filter(|(ts, _)| {
+                state.finalized().is_none_or(|(finalized_ts, _)| finalized_ts < ts)
+            });
+            (candidate, state.finalized().map(|(_, result)| result.l1_inclusion))
+        };
+        let Some(candidate) = candidate else { return Ok(()) };
+        let l1 = candidate.1.l1_inclusion;
+        let on_finalized_chain = if Some(l1) == known_final || l1.hash.is_zero() {
+            true
+        } else if l1.number == finalized_l1.number {
+            l1.hash == finalized_l1.hash
+        } else {
+            // The canonical block at a height below the finalized block is finalized.
+            self.is_canonical(l1).await?
+        };
+        if !on_finalized_chain {
+            debug!(
+                timestamp = candidate.0,
+                ?l1,
+                ?finalized_l1,
+                "L1 inclusion is not on the finalized L1 chain; not finalizing it"
+            );
+            return Ok(());
+        }
+        self.state.write().expect("state lock").set_finalized(candidate);
         Ok(())
     }
 
-    /// Checks that `l1` is the canonical L1 block at its height. Genesis carries no L1 block.
-    async fn check_l1_inclusion(&self, chain_id: u64, l1: BlockNumHash) -> Result<(), Wait> {
-        if l1.hash.is_zero() {
+    /// Rewinds the committed results whose L1 inclusion is no longer canonical.
+    ///
+    /// L1 inclusions never decrease with the timestamp, and a reorg replaces the L1 chain above
+    /// a fork point, so the results off the canonical L1 chain are the ones from the first whose
+    /// inclusion is off it: a check of the latest result finds whether there are any, and a
+    /// binary search the first. The results from it on are deleted with the denials decided on
+    /// them, in one write, and verified again. A finalized result is never deleted: one whose
+    /// inclusion is off the canonical chain stops the verifier.
+    async fn rewind_reorged_results(&self) -> Result<(), Wait> {
+        let (latest, floor) = {
+            let state = self.state.read().expect("state lock");
+            (state.latest().cloned(), state.first_unfinalized_timestamp())
+        };
+        let Some((latest_ts, latest)) = latest else { return Ok(()) };
+        if self.is_canonical(latest.l1_inclusion).await? {
             return Ok(());
         }
+        if latest_ts < floor {
+            return Err(Wait::FinalityViolation { timestamp: latest_ts, l1: latest.l1_inclusion });
+        }
+        // The first result off the canonical chain is in `lo..=hi`.
+        let (mut lo, mut hi) = (floor, latest_ts);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let result = self
+                .state
+                .read()
+                .expect("state lock")
+                .result_at(mid)?
+                .ok_or(StoreError::Missing(mid))?;
+            if self.is_canonical(result.l1_inclusion).await? {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        if lo == floor {
+            let finalized = self.state.read().expect("state lock").finalized().cloned();
+            if let Some((timestamp, result)) = finalized &&
+                !self.is_canonical(result.l1_inclusion).await?
+            {
+                return Err(Wait::FinalityViolation { timestamp, l1: result.l1_inclusion });
+            }
+        }
+        let (results, denied) = self.state.write().expect("state lock").rewind(lo)?;
+        warn!(from = lo, results, denied, reorged = ?latest.l1_inclusion, "Rewound the results whose L1 inclusion was reorged out");
+        Err(Wait::Rewound { from: lo, l1: latest.l1_inclusion })
+    }
+
+    /// Whether `l1` is the canonical L1 block at its height. Genesis carries no L1 block.
+    async fn is_canonical(&self, l1: BlockNumHash) -> Result<bool, Wait> {
+        if l1.hash.is_zero() {
+            return Ok(true);
+        }
         let canonical = self.l1.get_block_by_number(l1.number.into()).await?;
-        match canonical {
-            Some(block) if block.header.hash == l1.hash => Ok(()),
-            _ => Err(Wait::L1Inconsistent { chain_id, l1 }),
+        Ok(canonical.is_some_and(|block| block.header.hash == l1.hash))
+    }
+
+    /// Checks that `l1` is the canonical L1 block at its height.
+    async fn check_l1_inclusion(&self, chain_id: u64, l1: BlockNumHash) -> Result<(), Wait> {
+        if self.is_canonical(l1).await? {
+            Ok(())
+        } else {
+            Err(Wait::L1Inconsistent { chain_id, l1 })
         }
     }
 
@@ -327,7 +453,71 @@ mod tests {
 
     /// The L1 block every stubbed chain derived from.
     fn l1_block() -> Header {
-        Header { number: 5, ..Default::default() }
+        l1_header(5, 0)
+    }
+
+    /// L1 block `number` of the fork `fork`: fork 0 is the chain before any reorg.
+    fn l1_header(number: u64, fork: u8) -> Header {
+        let extra_data = if fork == 0 { Default::default() } else { vec![fork].into() };
+        Header { number, extra_data, ..Default::default() }
+    }
+
+    fn l1_id(number: u64, fork: u8) -> BlockNumHash {
+        BlockNumHash { number, hash: l1_header(number, fork).hash_slow() }
+    }
+
+    /// An L1 chain a test can reorg: its canonical block at a height is of fork 1 from the
+    /// reorg's fork point on and of fork 0 below it.
+    #[derive(Debug, Clone)]
+    struct L1Chain(Arc<Mutex<L1ChainState>>);
+
+    #[derive(Debug)]
+    struct L1ChainState {
+        /// The first height of fork 1, once L1 reorged.
+        reorged_from: Option<u64>,
+        /// The height of the finalized block.
+        finalized: u64,
+    }
+
+    impl L1Chain {
+        fn new(finalized: u64) -> Self {
+            Self(Arc::new(Mutex::new(L1ChainState { reorged_from: None, finalized })))
+        }
+
+        fn reorg_from(&self, number: u64) {
+            self.0.lock().unwrap().reorged_from = Some(number);
+        }
+
+        fn finalize(&self, number: u64) {
+            self.0.lock().unwrap().finalized = number;
+        }
+
+        fn canonical(&self, number: u64) -> Header {
+            let state = self.0.lock().unwrap();
+            l1_header(number, u8::from(state.reorged_from.is_some_and(|from| number >= from)))
+        }
+
+        /// Serves the chain's `eth_getBlockByNumber`.
+        async fn serve(&self) -> (Url, ServerHandle) {
+            let chain = self.clone();
+            let mut module = RpcModule::new(());
+            module
+                .register_method("eth_getBlockByNumber", move |params, _, _| {
+                    let (tag, _full): (BlockNumberOrTag, bool) = params.parse().unwrap();
+                    let number = match tag {
+                        BlockNumberOrTag::Number(number) => number,
+                        BlockNumberOrTag::Finalized => chain.0.lock().unwrap().finalized,
+                        tag => panic!("unexpected L1 block tag {tag}"),
+                    };
+                    serde_json::to_value(Block::<()>::new(
+                        RpcHeader::new(chain.canonical(number)),
+                        BlockTransactions::Hashes(vec![]),
+                    ))
+                    .unwrap()
+                })
+                .unwrap();
+            serve(module).await
+        }
     }
 
     fn l1_inclusion() -> BlockNumHash {
@@ -520,6 +710,7 @@ mod tests {
     struct Fixture {
         verifier: Verifier,
         state: Arc<RwLock<Verified>>,
+        l1: L1Chain,
         /// What each chain's source answers at genesis, by chain.
         answers: BTreeMap<u64, Arc<Mutex<Vec<AtGenesis>>>>,
         _servers: Vec<ServerHandle>,
@@ -562,10 +753,18 @@ mod tests {
             GENESIS_TIME,
             [(CHAIN_A, GENESIS_TIME), (CHAIN_B, GENESIS_TIME)].into(),
         )));
-        let l1 = kona_sources::rpc::l1(execution);
+        let l1_chain = L1Chain::new(l1_block().number);
+        let (l1, l1_handle) = l1_chain.serve().await;
+        servers.push(l1_handle);
         Fixture {
-            verifier: Verifier::new(sources, dependency_set, l1, state.clone()),
+            verifier: Verifier::new(
+                sources,
+                dependency_set,
+                kona_sources::rpc::l1(l1),
+                state.clone(),
+            ),
             state,
+            l1: l1_chain,
             answers: chain_answers,
             _servers: servers,
             _store_dir: store_dir,
@@ -584,6 +783,8 @@ mod tests {
         let fixture = fixture([chain_a_at_genesis(), vec![at_genesis(&l2_genesis(CHAIN_B))]]).await;
 
         fixture.verifier.round().await.unwrap();
+        // The next round finalizes the result, whose L1 inclusion is the finalized L1 block.
+        fixture.verifier.refresh_finalized().await.unwrap();
 
         let state = fixture.state.read().unwrap();
         assert_eq!(state.next_timestamp(), GENESIS_TIME + 1);
@@ -628,6 +829,9 @@ mod tests {
             state.verified_head(CHAIN_A),
             Some(kona_engine::VerifierHead::Anchor { timestamp: GENESIS_TIME })
         );
+        // Verification caught up with a source that has not derived the timestamp, not with one
+        // whose block there is off L1.
+        assert_eq!(state.is_caught_up(), chain_b.is_none());
     }
 
     /// A block with an invalid executing message is denied with its output root, and the cursor
@@ -741,6 +945,160 @@ mod tests {
         assert!(
             matches!(decided, Err(Wait::Source(SourceError::WrongBlock { .. }))),
             "got {decided:?}"
+        );
+    }
+
+    /// A verifier over two chains whose state holds a result at each timestamp from genesis, of
+    /// L1 inclusion `inclusions[i]` on fork 0 at `GENESIS_TIME + i`, and with a denial decided at
+    /// each of `denials`. Nothing on L1 is finalized.
+    async fn fixture_with_results(inclusions: &[u64], denials: &[u64]) -> Fixture {
+        let fixture = fixture([chain_a_at_genesis(), vec![at_genesis(&l2_genesis(CHAIN_B))]]).await;
+        fixture.l1.finalize(0);
+        {
+            let mut state = fixture.state.write().unwrap();
+            for (i, &l1) in inclusions.iter().enumerate() {
+                let block = BlockNumHash { number: i as u64, hash: B256::with_last_byte(i as u8) };
+                let result = VerifiedResult {
+                    l1_inclusion: l1_id(l1, 0),
+                    heads: [(CHAIN_A, block), (CHAIN_B, block)].into(),
+                };
+                state.commit(GENESIS_TIME + i as u64, result).unwrap();
+            }
+            for &timestamp in denials {
+                state.deny(&denied_at(timestamp)).unwrap();
+            }
+        }
+        fixture
+    }
+
+    fn denied_at(timestamp: u64) -> DeniedRecord {
+        DeniedRecord {
+            chain_id: CHAIN_B,
+            block: BlockNumHash { number: timestamp - GENESIS_TIME, hash: B256::repeat_byte(0xdd) },
+            output_root: B256::repeat_byte(0xdd),
+            timestamp,
+        }
+    }
+
+    fn finalized_timestamp(fixture: &Fixture) -> Option<u64> {
+        fixture.state.read().unwrap().finalized().map(|(ts, _)| *ts)
+    }
+
+    /// An L1 reorg that removes the L1 inclusion of committed results rewinds them, from the
+    /// first one on the reorged blocks, with the denials decided on them, and keeps the earlier
+    /// ones and the finalized head.
+    #[tokio::test]
+    async fn a_reorged_l1_inclusion_rewinds_the_results_on_it() {
+        let fixture =
+            fixture_with_results(&[4, 4, 5, 6, 6, 7], &[GENESIS_TIME + 1, GENESIS_TIME + 4]).await;
+        fixture.l1.finalize(4);
+        fixture.verifier.refresh_finalized().await.unwrap();
+        assert_eq!(finalized_timestamp(&fixture), Some(GENESIS_TIME + 1));
+        fixture.verifier.rewind_reorged_results().await.unwrap();
+
+        fixture.l1.reorg_from(6);
+        let wait = fixture.verifier.rewind_reorged_results().await.unwrap_err();
+
+        assert!(
+            matches!(wait, Wait::Rewound { from, .. } if from == GENESIS_TIME + 3),
+            "got {wait:?}"
+        );
+        {
+            let state = fixture.state.read().unwrap();
+            assert_eq!(state.next_timestamp(), GENESIS_TIME + 3);
+            assert_eq!(state.denied_blocks(CHAIN_B, 0).unwrap(), vec![denied_at(GENESIS_TIME + 1)]);
+        }
+        assert_eq!(finalized_timestamp(&fixture), Some(GENESIS_TIME + 1));
+        fixture.verifier.rewind_reorged_results().await.unwrap();
+    }
+
+    /// The rewind takes priority over waiting for a frontier the reorg made unavailable, and the
+    /// timestamps are verified again on the new L1 chain.
+    #[tokio::test]
+    async fn a_round_rewinds_before_it_waits() {
+        let fixture = fixture_with_results(&[6], &[]).await;
+        fixture.l1.reorg_from(6);
+
+        let wait = fixture.verifier.round().await.unwrap_err();
+
+        assert!(matches!(wait, Wait::Rewound { from: GENESIS_TIME, .. }), "got {wait:?}");
+        fixture.verifier.round().await.unwrap();
+        let state = fixture.state.read().unwrap();
+        assert_eq!(state.next_timestamp(), GENESIS_TIME + 1);
+        assert_eq!(state.latest().unwrap().1.l1_inclusion, l1_inclusion());
+    }
+
+    /// A reorg of the finalized result's L1 inclusion stops the verifier rather than rewind
+    /// finality.
+    #[rstest::rstest]
+    #[case::below_later_results(&[4, 5, 6])]
+    #[case::of_the_latest_result(&[4, 5])]
+    #[tokio::test]
+    async fn a_reorg_below_the_finalized_result_halts(#[case] inclusions: &[u64]) {
+        let fixture = fixture_with_results(inclusions, &[]).await;
+        fixture.l1.finalize(5);
+        fixture.verifier.refresh_finalized().await.unwrap();
+        assert_eq!(finalized_timestamp(&fixture), Some(GENESIS_TIME + 1));
+        fixture.l1.reorg_from(5);
+
+        let wait = fixture.verifier.rewind_reorged_results().await.unwrap_err();
+
+        assert!(
+            matches!(wait, Wait::FinalityViolation { timestamp, .. } if timestamp == GENESIS_TIME + 1),
+            "got {wait:?}"
+        );
+        assert!(wait.is_fatal());
+        assert_eq!(
+            fixture.state.read().unwrap().next_timestamp(),
+            GENESIS_TIME + inclusions.len() as u64
+        );
+    }
+
+    /// A result is finalized only if its L1 inclusion is on the finalized L1 chain: at or below
+    /// the finalized L1 block by number is not enough.
+    #[rstest::rstest]
+    #[case::at_the_finalized_height(7)]
+    #[case::below_the_finalized_height(8)]
+    #[tokio::test]
+    async fn finality_needs_the_l1_inclusion_on_the_finalized_chain(#[case] finalized: u64) {
+        let fixture = fixture_with_results(&[5, 6, 7], &[]).await;
+        fixture.l1.reorg_from(6);
+        fixture.l1.finalize(finalized);
+
+        fixture.verifier.refresh_finalized().await.unwrap();
+        assert_eq!(finalized_timestamp(&fixture), None);
+
+        // Once the reorged results are rewound, the one before them is final.
+        fixture.verifier.rewind_reorged_results().await.unwrap_err();
+        fixture.verifier.refresh_finalized().await.unwrap();
+        assert_eq!(finalized_timestamp(&fixture), Some(GENESIS_TIME));
+    }
+
+    /// A rewind deletes a denial decided on the reorged L1 data with the results, so a source that
+    /// derives the denied block again on the new L1 chain has it checked, and denied, again.
+    #[tokio::test]
+    async fn a_denial_a_reorg_rewound_is_decided_again() {
+        let invalid = invalid_block().hash_slow();
+        let fixture = fixture([chain_a_at_genesis(), vec![Some((invalid, l1_id(6, 0)))]]).await;
+        let denied = || fixture.state.read().unwrap().denied_blocks(CHAIN_B, 0).unwrap();
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::Denied { .. }), "got {wait:?}");
+        fixture.answer(CHAIN_B, Some((replacement_block().hash_slow(), l1_id(6, 0))));
+        fixture.verifier.round().await.unwrap();
+
+        // L1 reorgs out the block both the denial and the replacement were derived from, and the
+        // source derives the invalid block again from an earlier one.
+        fixture.l1.reorg_from(6);
+        fixture.answer(CHAIN_B, at_genesis(&invalid_block()));
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::Rewound { from: GENESIS_TIME, .. }), "got {wait:?}");
+        assert_eq!(denied(), vec![]);
+
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::Denied { timestamp: GENESIS_TIME, .. }), "got {wait:?}");
+        assert_eq!(
+            denied().iter().map(|record| record.block.hash).collect::<Vec<_>>(),
+            vec![invalid]
         );
     }
 }
