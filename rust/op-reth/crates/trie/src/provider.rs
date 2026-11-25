@@ -70,6 +70,21 @@ impl<'a, P> OpProofsStateProviderRef<'a, P> {
     }
 }
 
+impl<'a, P> OpProofsStateProviderRef<'a, P>
+where
+    P: OpProofsProviderRO + Clone,
+{
+    /// Generates a V2 multiproof against this block's state with `input` layered on top.
+    pub(crate) fn overlay_multiproof_v2(
+        &self,
+        input: TrieInput,
+        targets: MultiProofTargetsV2,
+    ) -> ProviderResult<DecodedMultiProofV2> {
+        Proof::overlay_multiproof_v2(self.provider.clone(), self.block_number, input, targets)
+            .map_err(ProviderError::from)
+    }
+}
+
 impl<'a, P> Debug for OpProofsStateProviderRef<'a, P>
 where
     P: Debug,
@@ -206,11 +221,12 @@ where
 
     fn multiproof_v2(
         &self,
-        input: TrieInput,
         targets: MultiProofTargetsV2,
+        _requires_masks: bool,
     ) -> ProviderResult<DecodedMultiProofV2> {
-        Proof::overlay_multiproof_v2(self.provider.clone(), self.block_number, input, targets)
-            .map_err(ProviderError::from)
+        // The proofs storage versions trie nodes together with hashed state, so masks are exact
+        // at every block and `requires_masks` needs no special handling.
+        self.overlay_multiproof_v2(TrieInput::default(), targets)
     }
 
     fn witness(
@@ -229,7 +245,7 @@ impl<'a, P> HashedPostStateProvider for OpProofsStateProviderRef<'a, P>
 where
     P: OpProofsProviderRO + Clone,
 {
-    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.8.1-0
     /// `reth_provider::LatestStateProviderRef::hashed_post_state`
     ///
     /// Mirrors the hashing/zeroing sequence, using historical OP proofs cursors instead of

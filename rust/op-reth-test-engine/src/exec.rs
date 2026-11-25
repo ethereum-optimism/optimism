@@ -25,7 +25,7 @@ use reth_optimism_primitives::{L2_TO_L1_MESSAGE_PASSER_ADDRESS, OpBlock, OpPrimi
 use reth_primitives_traits::{SealedBlock, SealedHeader};
 use reth_revm::database::StateProviderDatabase;
 use reth_storage_api::{HashedPostStateProvider, StateProvider as _, StateRootProvider};
-use reth_trie::ComputedTrieData;
+use reth_trie::SortedTrieData;
 
 use crate::{Error, chain::EphemeralChain};
 
@@ -155,7 +155,7 @@ pub(crate) fn import_payload(
     let executed = ExecutedBlock::new(
         Arc::new(recovered),
         Arc::new(output),
-        ComputedTrieData::new(
+        SortedTrieData::new(
             Arc::new(hashed_state.into_sorted()),
             Arc::new(trie_updates.into_sorted()),
         ),

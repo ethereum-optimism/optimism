@@ -152,7 +152,7 @@ mod test {
     use reth_storage_overlay::{OverlayManager, OverlayStateProviderFactory};
     use reth_trie::{HashedStorage, test_utils::storage_root_prehashed};
     use reth_trie_common::{
-        ComputedTrieData, HashedPostState, HashedPostStateSorted,
+        HashedPostState, HashedPostStateSorted, SortedTrieData,
         updates::{StorageTrieUpdatesSorted, TrieUpdatesSorted},
     };
 
@@ -339,7 +339,7 @@ mod test {
                 ExecutedBlock::new(
                     Arc::clone(&block.recovered_block),
                     Arc::clone(&block.execution_output),
-                    ComputedTrieData::new(Arc::new(hashed_state), Arc::new(trie_updates)),
+                    SortedTrieData::new(Arc::new(hashed_state), Arc::new(trie_updates)),
                 )
             })
             .collect::<Vec<_>>();

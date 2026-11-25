@@ -13,6 +13,7 @@ use reth_trie::{
     hashed_cursor::HashedPostStateCursorFactory,
     metrics::TrieRootMetrics,
     proof::{self, Proof},
+    proof_v2::MultiProofCalculator,
     trie_cursor::InMemoryTrieCursorFactory,
     witness::TrieWitness,
 };
@@ -76,17 +77,18 @@ where
     ) -> Result<AccountProof, StateProofError> {
         let nodes_sorted = input.nodes.into_sorted();
         let state_sorted = input.state.into_sorted();
-        Self::from_provider(provider.clone(), block_number)
-            .with_trie_cursor_factory(InMemoryTrieCursorFactory::new(
+        Proof::new(
+            InMemoryTrieCursorFactory::new(
                 OpProofsTrieCursorFactory::new(provider.clone(), block_number),
                 &nodes_sorted,
-            ))
-            .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
+            ),
+            HashedPostStateCursorFactory::new(
                 OpProofsHashedAccountCursorFactory::new(provider, block_number),
                 &state_sorted,
-            ))
-            .with_prefix_sets_mut(input.prefix_sets)
-            .account_proof(address, slots)
+            ),
+        )
+        .with_prefix_sets_mut(input.prefix_sets)
+        .account_proof(address, slots)
     }
 
     /// Generates the state [`MultiProof`] for target hashed account and storage keys.
@@ -98,17 +100,18 @@ where
     ) -> Result<MultiProof, StateProofError> {
         let nodes_sorted = input.nodes.into_sorted();
         let state_sorted = input.state.into_sorted();
-        Self::from_provider(provider.clone(), block_number)
-            .with_trie_cursor_factory(InMemoryTrieCursorFactory::new(
+        Proof::new(
+            InMemoryTrieCursorFactory::new(
                 OpProofsTrieCursorFactory::new(provider.clone(), block_number),
                 &nodes_sorted,
-            ))
-            .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
+            ),
+            HashedPostStateCursorFactory::new(
                 OpProofsHashedAccountCursorFactory::new(provider, block_number),
                 &state_sorted,
-            ))
-            .with_prefix_sets_mut(input.prefix_sets)
-            .multiproof(targets)
+            ),
+        )
+        .with_prefix_sets_mut(input.prefix_sets)
+        .multiproof(targets)
     }
 
     /// Generates the state [`DecodedMultiProofV2`] for target hashed account and storage keys.
@@ -120,17 +123,19 @@ where
     ) -> Result<DecodedMultiProofV2, StateProofError> {
         let nodes_sorted = input.nodes.into_sorted();
         let state_sorted = input.state.into_sorted();
-        Self::from_provider(provider.clone(), block_number)
-            .with_trie_cursor_factory(InMemoryTrieCursorFactory::new(
+        MultiProofCalculator::new(
+            InMemoryTrieCursorFactory::new(
                 OpProofsTrieCursorFactory::new(provider.clone(), block_number),
                 &nodes_sorted,
-            ))
-            .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
+            ),
+            HashedPostStateCursorFactory::new(
                 OpProofsHashedAccountCursorFactory::new(provider, block_number),
                 &state_sorted,
-            ))
-            .with_prefix_sets_mut(input.prefix_sets)
-            .multiproof_v2(targets)
+            ),
+            input.prefix_sets.freeze(),
+            Default::default(),
+        )
+        .multiproof(targets)
     }
 }
 
@@ -159,11 +164,7 @@ pub trait DatabaseStorageProof<P> {
 }
 
 impl<P> DatabaseStorageProof<P>
-    for proof::StorageProof<
-        'static,
-        OpProofsTrieCursorFactory<P>,
-        OpProofsHashedAccountCursorFactory<P>,
-    >
+    for proof::StorageProof<OpProofsTrieCursorFactory<P>, OpProofsHashedAccountCursorFactory<P>>
 where
     P: OpProofsProviderRO + Clone,
 {
@@ -189,13 +190,16 @@ where
             Default::default(),
             HashMap::from_iter([(hashed_address, hashed_storage.into_sorted())]),
         );
-        Self::from_provider(provider.clone(), block_number, address)
-            .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
+        proof::StorageProof::new(
+            OpProofsTrieCursorFactory::new(provider.clone(), block_number),
+            HashedPostStateCursorFactory::new(
                 OpProofsHashedAccountCursorFactory::new(provider, block_number),
                 &state_sorted,
-            ))
-            .with_prefix_set_mut(prefix_set)
-            .storage_proof(slot)
+            ),
+            address,
+        )
+        .with_prefix_set_mut(prefix_set)
+        .storage_proof(slot)
     }
 
     fn overlay_storage_multiproof(
@@ -212,13 +216,16 @@ where
             Default::default(),
             HashMap::from_iter([(hashed_address, hashed_storage.into_sorted())]),
         );
-        Self::from_provider(provider.clone(), block_number, address)
-            .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
+        proof::StorageProof::new(
+            OpProofsTrieCursorFactory::new(provider.clone(), block_number),
+            HashedPostStateCursorFactory::new(
                 OpProofsHashedAccountCursorFactory::new(provider, block_number),
                 &state_sorted,
-            ))
-            .with_prefix_set_mut(prefix_set)
-            .storage_multiproof(targets)
+            ),
+            address,
+        )
+        .with_prefix_set_mut(prefix_set)
+        .storage_multiproof(targets)
     }
 }
 
@@ -418,17 +425,18 @@ where
     ) -> Result<B256Map<Bytes>, TrieWitnessError> {
         let nodes_sorted = input.nodes.into_sorted();
         let state_sorted = input.state.into_sorted();
-        Self::from_provider(provider.clone(), block_number)
-            .with_trie_cursor_factory(InMemoryTrieCursorFactory::new(
+        TrieWitness::new(
+            InMemoryTrieCursorFactory::new(
                 OpProofsTrieCursorFactory::new(provider.clone(), block_number),
                 &nodes_sorted,
-            ))
-            .with_hashed_cursor_factory(HashedPostStateCursorFactory::new(
+            ),
+            HashedPostStateCursorFactory::new(
                 OpProofsHashedAccountCursorFactory::new(provider, block_number),
                 &state_sorted,
-            ))
-            .with_prefix_sets_mut(input.prefix_sets)
-            .always_include_root_node()
-            .compute(target)
+            ),
+        )
+        .with_prefix_sets_mut(input.prefix_sets)
+        .always_include_root_node()
+        .compute(target)
     }
 }

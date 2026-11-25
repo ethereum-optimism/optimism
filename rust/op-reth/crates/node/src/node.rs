@@ -69,7 +69,7 @@ use reth_optimism_txpool::{
     OpPool, OpPooledTx, interop::InteropFailsafe, interop_filter::InteropFilterClient,
 };
 use reth_provider::{
-    BlockReaderIdExt, CanonStateSubscriptions, DatabaseProviderFactory, StorageSettingsCache,
+    CanonStateSubscriptions, DatabaseProviderFactory, StorageSettingsCache,
     providers::ProviderFactoryBuilder,
 };
 use reth_rpc_api::{
@@ -633,11 +633,11 @@ where
 
 /// RPC methods an OP node does not serve, on any transport.
 ///
-/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-2 `reth_rpc_eth_api::EthApi`
+/// UPSTREAM-MIRROR(set): reth@op-v2.8.1-0 `reth_rpc_eth_api::EthApi`
 ///
-/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-2 `reth_rpc_api::DebugApi`
+/// UPSTREAM-MIRROR(set): reth@op-v2.8.1-0 `reth_rpc_api::DebugApi`
 ///
-/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-2 `reth_rpc_api::EngineEthApi`
+/// UPSTREAM-MIRROR(set): reth@op-v2.8.1-0 `reth_rpc_api::EngineEthApi`
 ///
 /// Upstream installs these methods as part of the full `eth` and `debug` APIs, and the auth-port
 /// `eth` namespace.
@@ -657,7 +657,7 @@ const UNSERVED_RPC_METHODS: &[&str] = &[
 
 /// Rejects the RPC cache options that compute EIP-7928 block access lists by re-executing blocks.
 ///
-/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-2 `reth_node_core::args::RpcStateCacheArgs`
+/// UPSTREAM-MIRROR(set): reth@op-v2.8.1-0 `reth_node_core::args::RpcStateCacheArgs`
 ///
 /// Upstream replays every new canonical block to compute its BAL with `--rpc-cache.prewarm-bals`
 /// until a block carries a `block_access_list_hash`, which OP blocks never do, and transaction
@@ -1321,15 +1321,9 @@ where
             Some(builder.build().await)
         };
 
-        // Reth's validator assumes a 30M block gas limit until it sees its first canonical update.
-        // Start it with the chain's limit.
-        let latest_header =
-            ctx.provider().latest_header()?.ok_or_else(|| eyre::eyre!("no latest header"))?;
-
         let blob_store = reth_node_builder::components::create_blob_store(ctx)?;
         let validator =
             TransactionValidationTaskExecutor::eth_builder(ctx.provider().clone(), evm_config)
-                .set_block_gas_limit(latest_header.gas_limit())
                 .no_eip4844()
                 .with_max_tx_input_bytes(ctx.config().txpool.max_tx_input_bytes)
                 .kzg_settings(ctx.kzg_settings()?)

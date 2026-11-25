@@ -29,7 +29,7 @@ impl OpBlockAssembler {
         Self { chain_spec }
     }
 
-    /// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.8.1-0
     /// `reth_evm_ethereum::EthBlockAssembler::assemble_block`
     ///
     /// Copies upstream block assembly with OP receipt roots, withdrawals, and DA fields.

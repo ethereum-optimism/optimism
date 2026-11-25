@@ -197,6 +197,14 @@ main's CI actually validated.
    unrelated drift or replace its branch with an intentionally reviewed exact
    revision before proceeding.
 
+   The update can also float a crates.io dependency past the version reth's own
+   `Cargo.lock` resolves, and a patch release can still break reth. For
+   example, `alloy-trie` 0.9.9 added a public `HashBuilder` field that v2.8.1
+   builds with a struct literal. When reth fails to compile in its own crates,
+   compare the lockfile with reth's at the new pin and lock the offender to
+   reth's version with `cargo update -p <crate> --precise <version>`, in both
+   lockfiles.
+
 6. Revisit the upstream slot-preimage seeding API.
    `op-reth/crates/cli/src/commands/slot_preimages_seed.rs` uses reth's public
    `SlotPreimages` helper directly. Review changes to that helper and its MDBX
@@ -339,6 +347,13 @@ onto it:
    (networking, storage, engine tree, RPC) count even without an op- override.
    Confirm the defect in the pinned source and name the op- site, or the
    subsystem op-reth enables.
+
+   A verdict reused from an earlier sweep holds only if its premise still
+   holds at the new base. Re-derive any verdict that rests on a property of the
+   old base, such as which code path a caller takes. The v2.8.1 sweep reused
+   "unreachable" for paradigmxyz/reth#28249 because every overlay caller used
+   trie changesets, but paradigmxyz/reth#27651, in v2.8.1, had moved
+   `storage_root` off them.
 4. For each reth finding, test whether it cherry-picks cleanly and builds on
    the pin, and list the commits it depends on. For revm and alloy findings,
    check whether a semver-compatible release contains the fix.
@@ -403,6 +418,10 @@ git push git@github.com:ethereum-optimism/reth.git <you>/op-v<version>-prep
 gh pr create --repo ethereum-optimism/reth --base op-v<version> \
   --head <you>/op-v<version>-prep
 ```
+
+`cargo check --workspace` builds revmc's LLVM backend, which needs LLVM 22. On
+macOS, run `brew install llvm@22` and export `LLVM_SYS_221_PREFIX` and `PATH`
+from `brew --prefix llvm@22`, as `.github/scripts/install_llvm_brew.sh` does.
 
 Merge the prep PR with **rebase-merge**. It lands each commit on the branch
 on its own, with its `-x` source line, which the next update's step 2 audit

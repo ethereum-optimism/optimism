@@ -352,7 +352,7 @@ pub(crate) fn build_chain_with_partial_state_trie(
 ) -> (ProviderFactory<reth_provider::test_utils::MockNodeTypesWithDB>, u64, B256) {
     use reth_chain_state::ExecutedBlock;
     use reth_provider::SaveBlocksInput;
-    use reth_trie::ComputedTrieData;
+    use reth_trie::SortedTrieData;
 
     let key_pair = deterministic_keypair();
     let sender = public_key_to_address(key_pair.public_key());
@@ -380,7 +380,7 @@ pub(crate) fn build_chain_with_partial_state_trie(
         let executed = ExecutedBlock::new(
             Arc::new(block),
             Arc::new(exec),
-            ComputedTrieData::new(Arc::new(hashed_state), Arc::new(trie_updates)),
+            SortedTrieData::new(Arc::new(hashed_state), Arc::new(trie_updates)),
         );
 
         let provider_rw = shadow.provider_rw().unwrap();
