@@ -92,6 +92,12 @@ func New(ctx context.Context, log oplog.Logger, version string, commit string, r
 			log.Error("missing virtual node config for chain", "chain", id)
 			continue
 		}
+		if cfg.L1BlobPrefetchDepth > 0 && s.beaconClient != nil {
+			prefetcher := resources.NewBlobPrefetcher(log.New("chain", chainID), initOverrides.L1Source, initOverrides.Beacon,
+				vnCfgs[chainID].Rollup.BatchInboxAddress, cfg.L1BlobPrefetchDepth, s.supernodeMetrics)
+			initOverrides.L1Source = prefetcher
+			initOverrides.Beacon = prefetcher
+		}
 		container, err := cc.NewChainContainer(chainID, vnCfgs[chainID], log, *cfg, initOverrides, nil, s.rpcRouter, s.metricsFanIn.SetMetricsRegistry, s.supernodeMetrics, version)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create chain container for chain %s: %w", chainID, err)

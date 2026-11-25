@@ -26,6 +26,9 @@ type SupernodeMetrics struct {
 	// InteropActivityState tracks the interop activity lifecycle:
 	// 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.
 	InteropActivityState prometheus.Gauge
+	// BlobPrefetchLookups counts derivation blob lookups by result: hit (served from
+	// the read-ahead cache) or miss (fetched from the beacon node).
+	BlobPrefetchLookups *prometheus.CounterVec
 
 	registry *prometheus.Registry
 }
@@ -117,6 +120,11 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "interop_activity_state",
 			Help:      "Interop activity lifecycle state: 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.",
 		}),
+		BlobPrefetchLookups: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "supernode",
+			Name:      "blob_prefetch_lookups_total",
+			Help:      "Derivation blob lookups by result: hit (read-ahead cache) or miss (beacon fetch).",
+		}, []string{"result"}),
 		registry: reg,
 	}
 	reg.MustRegister(
@@ -136,6 +144,7 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 		m.LogBackfillRetries,
 		m.ActivityErrors,
 		m.InteropActivityState,
+		m.BlobPrefetchLookups,
 	)
 	return m
 }

@@ -61,6 +61,12 @@ var (
 		EnvVars: prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:   DefaultL1HTTPPollInterval,
 	}
+	L1BlobPrefetchDepth = &cli.Uint64Flag{
+		Name:    "l1.blob-prefetch-depth",
+		Usage:   "Number of L1 blocks ahead of each chain's derivation whose batch-inbox blobs are prefetched from the beacon node. 0 disables prefetching.",
+		EnvVars: prefixEnvVars("L1_BLOB_PREFETCH_DEPTH"),
+		Value:   0,
+	}
 	DisableP2P = &cli.BoolFlag{
 		Name:     "disable-p2p",
 		Usage:    "Disable P2P for all chains. Affects configuration handed to virtual nodes.",
@@ -83,6 +89,7 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	L1HTTPPollInterval,
+	L1BlobPrefetchDepth,
 	DisableP2P,
 	DependencySet,
 }

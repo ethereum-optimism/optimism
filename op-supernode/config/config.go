@@ -20,6 +20,7 @@ type CLIConfig struct {
 	L1HTTPPollInterval         time.Duration
 	L1BeaconAddr               string
 	L1BeaconFallbackAddrs      []string
+	L1BlobPrefetchDepth        uint64
 	RPCConfig                  oprpc.CLIConfig
 	LogConfig                  logcli.CLIConfig
 	MetricsConfig              opmetrics.CLIConfig
@@ -70,6 +71,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		L1HTTPPollInterval:      ctx.Duration(flags.L1HTTPPollInterval.Name),
 		L1BeaconAddr:            ctx.String(flags.L1BeaconAddr.Name),
 		L1BeaconFallbackAddrs:   ctx.StringSlice(flags.L1BeaconFallbackAddrs.Name),
+		L1BlobPrefetchDepth:     ctx.Uint64(flags.L1BlobPrefetchDepth.Name),
 		RPCConfig:               oprpc.ReadCLIConfig(ctx),
 		LogConfig:               logcli.ReadCLIConfig(ctx),
 		MetricsConfig:           opmetrics.ReadCLIConfig(ctx),
