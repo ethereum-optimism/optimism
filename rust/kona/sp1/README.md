@@ -305,9 +305,12 @@ super-root `ZKDisputeGame` (game type 10) end to end:
    more intervals behind, after downtime or because each game takes longer than
    an interval to create or, in fast finality mode, to prove, a game spans up to
    `OP_ZK_PROPOSER_MAX_PROPOSAL_SPAN_INTERVALS` intervals, so the bond and prove
-   duration must cover that span. While the registered anchor is not a ZK game,
-   every game is a root from the anchor placed on the interval grid, so its span
-   is not capped.
+   duration must cover that span. Three kinds of root game are not capped: every
+   game while the registered anchor is not a ZK game (each is a root from the
+   anchor); the fallback root when the registry rejects the head's chain (it keeps
+   the head's timestamp); and, with no anchor game registered, the next root after
+   the head drops (it spans from the registry's starting root). A collision walk
+   also moves a game off the interval grid by a second at a time.
 2. **Defend**: when an owned game is challenged, fetches the span's super
    roots, collects witnesses through the kona `InteropHost`
    (`super-range-executor` library), obtains SP1 proofs (`prover.rs` providers,
@@ -348,9 +351,9 @@ the resolved set at startup.
 - **Validation**: only games from owned creators are checked against the
   supernode. Other games are cached as records, without validation, so anchor
   tracking keeps working when a foreign game becomes the anchor. They are never a
-  parent, a proof target, or a resolution target. A resolved record leaves the
-  cache once the signer holds no credit in it, and a lost one unless it has a
-  cached child.
+  parent, a proof target, or a resolution target. A resolved record stays while
+  it is ahead of the anchor; behind it, it leaves once the signer holds no credit
+  in it. A lost one leaves unless it has a cached child.
 - **Defense and resolution**: owned games only. The proposer resolves a listed
   creator's game when it wins, and a signer game on any outcome. A challenged
   game from an owned creator with an unknown or poisoned prestate is skipped,

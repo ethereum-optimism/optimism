@@ -128,7 +128,7 @@ async fn listed_creator_game_is_defended_and_resolved_but_not_fast_finalized() {
     world.add_game(challenged);
     world.set_horizons(2, 2);
     let mut config = ff_config(3);
-    config.owned_creators = Some(vec![LISTED_CREATOR]);
+    config.owned_creators = vec![LISTED_CREATOR];
     let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
 
     let proving = scenario.tick().await.unwrap();

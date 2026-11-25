@@ -413,7 +413,7 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
         local_cuda: Default::default(),
         log_path: crate::config::LogPath::Table,
         data_dir: None,
-        owned_creators: None,
+        owned_creators: Vec::new(),
     }
 }
 
@@ -422,7 +422,7 @@ fn test_config(fetch_interval: u64) -> ProposerConfig {
 const LISTED_CREATOR: Address = Address::repeat_byte(0x5a);
 
 fn listed_creator_config() -> ProposerConfig {
-    ProposerConfig { owned_creators: Some(vec![LISTED_CREATOR]), ..scenario_config() }
+    ProposerConfig { owned_creators: vec![LISTED_CREATOR], ..scenario_config() }
 }
 
 async fn proposer_with(config: ProposerConfig, l1_view: Arc<ScenarioL1View>) -> Arc<Proposer> {

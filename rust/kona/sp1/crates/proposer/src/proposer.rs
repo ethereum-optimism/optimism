@@ -1049,8 +1049,15 @@ impl Proposer {
     ) -> Result<Self> {
         let identity = ProposerIdentity::new();
         identity.log_startup_info(&config.prestates_url);
+        if config.owned_creators.contains(&proposer_address) {
+            tracing::warn!(
+                %proposer_address,
+                "OP_ZK_PROPOSER_OWNED_CREATORS lists the signer, which is always owned; list the rotated-out signer instead"
+            );
+        }
         let mut owned_creators = HashSet::from([proposer_address]);
-        owned_creators.extend(config.owned_creators.iter().flatten().copied());
+        owned_creators.extend(config.owned_creators.iter().copied());
+        tracing::info!(?owned_creators, "Owning games from these creators");
 
         Ok(Self {
             config,
@@ -1076,11 +1083,6 @@ impl Proposer {
             undefendable: Arc::new(Mutex::new(HashSet::new())),
             missed_deadlines: Arc::new(Mutex::new(HashSet::new())),
         })
-    }
-
-    /// Creators whose games this proposer owns: the signer plus `OP_ZK_PROPOSER_OWNED_CREATORS`.
-    pub fn owned_creators(&self) -> &HashSet<Address> {
-        &self.owned_creators
     }
 
     /// Registers process-wide SIGUSR1 recovery. Call before advertising readiness.
@@ -4533,7 +4535,7 @@ impl From<U256> for Cursor {
 /// Normally `head + interval` (fixed grid). When the head lags the bound by two or more
 /// intervals, the game reaches toward `max_proposable` but spans at most `max_span_intervals`
 /// intervals, so the proposer catches up when one game takes longer than an interval to create
-/// or prove, and no game it creates exceeds what the bond and prove duration are sized for.
+/// or prove. Root games can exceed the cap; see the README's proposer section.
 pub fn next_proposal_timestamp(
     head: u64,
     interval: u64,
@@ -5736,7 +5738,7 @@ mod tests {
             local_cuda: Default::default(),
             log_path: crate::config::LogPath::Table,
             data_dir: None,
-            owned_creators: None,
+            owned_creators: Vec::new(),
         }
     }
 
@@ -7439,10 +7441,8 @@ mod tests {
             },
             ..Default::default()
         });
-        let config = ProposerConfig {
-            owned_creators: Some(vec![Address::repeat_byte(0x5a)]),
-            ..test_config()
-        };
+        let config =
+            ProposerConfig { owned_creators: vec![Address::repeat_byte(0x5a)], ..test_config() };
         let mut proposer = test_proposer_with(config).await;
         proposer.l1_view = view.clone();
         proposer.superroot_source = Arc::new(UnavailableSuperRootSource);
@@ -7547,7 +7547,7 @@ mod tests {
         let foreign = Address::repeat_byte(0xbb);
         for (sequence_number, super_root_at, claim, own_game, expected) in cases {
             let game_address = Address::repeat_byte(0x44);
-            let config = ProposerConfig { owned_creators: Some(vec![listed]), ..test_config() };
+            let config = ProposerConfig { owned_creators: vec![listed], ..test_config() };
             let mut proposer = test_proposer_with(config).await;
             // Rows that are not the signer's own game use a listed creator: validated, but not
             // retained through the signer-only lifecycle paths.
@@ -8528,10 +8528,10 @@ mod tests {
         #[tokio::test]
         async fn owned_creators_always_include_the_signer() {
             let listed = Address::left_padding_from(&[0xbb]);
-            assert_eq!(*test_proposer().await.owned_creators(), HashSet::from([TEST_SIGNER]));
-            let config = ProposerConfig { owned_creators: Some(vec![listed]), ..test_config() };
+            assert_eq!(*test_proposer().await.owned_creators, HashSet::from([TEST_SIGNER]));
+            let config = ProposerConfig { owned_creators: vec![listed], ..test_config() };
             assert_eq!(
-                *test_proposer_with(config).await.owned_creators(),
+                *test_proposer_with(config).await.owned_creators,
                 HashSet::from([TEST_SIGNER, listed])
             );
         }

@@ -104,7 +104,7 @@ func TestProposerDoesNotDefendForeignValidGame(gt *testing.T) {
 // credit on a challenged valid game from a creator listed in
 // OP_ZK_PROPOSER_OWNED_CREATORS, the key-rotation path.
 func TestProposerDefendsListedCreatorGame(gt *testing.T) {
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	// The honest challenger resolves games and claims credit on the
 	// proposer's behalf; disable it so every assertion below binds to the
 	// proposer.

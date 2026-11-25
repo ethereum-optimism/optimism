@@ -2498,7 +2498,7 @@ pub(super) fn scenario_config() -> ProposerConfig {
         local_cuda: Default::default(),
         log_path: crate::config::LogPath::Table,
         data_dir: None,
-        owned_creators: None,
+        owned_creators: Vec::new(),
     }
 }
 

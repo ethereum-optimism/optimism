@@ -82,8 +82,8 @@ func TestProposerCreatesRootGameInsteadOfBuildingOnForeignGame(gt *testing.T) {
 }
 
 // TestProposerRejectsValidChildOfInvalidGame seeds both games from an owned
-// creator, so the proposer skips them for their invalid ancestry rather than
-// for their creator.
+// creator, so the proposer skips the invalid game for its claim and the orphan
+// for its ancestry, rather than either for its creator.
 func TestProposerRejectsValidChildOfInvalidGame(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t,
@@ -499,6 +499,8 @@ func TestProposerProvesChunksInsideReplacementIdleGap(gt *testing.T) {
 				"the proof must include every idle timestamp and the next advancing block")
 			span := game.L2SequenceNumber() - parentTimestamp
 			t.Require().LessOrEqual(span, rangeSplitCount, "each timestamp must be its own proof chunk")
+			t.Require().LessOrEqual(span, uint64(4*8),
+				"a game spans at most OP_ZK_PROPOSER_MAX_PROPOSAL_SPAN_INTERVALS (default 4) intervals")
 			requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
 			proposer.VerifyState(testCase.batches)
 		})

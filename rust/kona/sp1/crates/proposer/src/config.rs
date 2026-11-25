@@ -254,8 +254,9 @@ pub struct ProposerConfig {
 
     /// Addresses besides the signer whose games this proposer owns
     /// (`OP_ZK_PROPOSER_OWNED_CREATORS`), such as a rotated-out signer whose games
-    /// still need defense. The signer is always owned and need not be listed.
-    pub owned_creators: Option<Vec<Address>>,
+    /// still need defense. The signer is always owned and need not be listed; empty means the
+    /// signer only.
+    pub owned_creators: Vec<Address>,
 }
 
 fn required_env(suffix: &str) -> Result<String> {
@@ -459,7 +460,8 @@ impl ProposerConfig {
                     parse_address_list(&list)
                         .with_context(|| format!("invalid {}", env_var("OWNED_CREATORS")))
                 })
-                .transpose()?,
+                .transpose()?
+                .unwrap_or_default(),
         })
     }
 }
@@ -467,13 +469,24 @@ impl ProposerConfig {
 fn parse_address_list(value: &str) -> Result<Vec<Address>> {
     let mut addresses = Vec::new();
     for entry in value.split(',').map(str::trim).filter(|entry| !entry.is_empty()) {
-        let address =
-            entry.parse::<Address>().map_err(|err| anyhow!("invalid address {entry}: {err}"))?;
+        let address = parse_address(entry)?;
+        anyhow::ensure!(address != Address::ZERO, "zero address");
         anyhow::ensure!(!addresses.contains(&address), "duplicate address {address}");
         addresses.push(address);
     }
     anyhow::ensure!(!addresses.is_empty(), "expected at least one address");
     Ok(addresses)
+}
+
+/// Parses a hex address, enforcing its EIP-55 checksum when the entry mixes cases.
+fn parse_address(entry: &str) -> Result<Address> {
+    let hex = entry.strip_prefix("0x").unwrap_or(entry);
+    if hex.bytes().any(|b| b.is_ascii_uppercase()) && hex.bytes().any(|b| b.is_ascii_lowercase()) {
+        Address::parse_checksummed(entry, None)
+            .map_err(|err| anyhow!("invalid address {entry}: {err}"))
+    } else {
+        entry.parse::<Address>().map_err(|err| anyhow!("invalid address {entry}: {err}"))
+    }
 }
 
 fn parse_url_list(value: &str) -> Result<Vec<Url>> {
@@ -1261,17 +1274,31 @@ mod tests {
         fn owned_creators_parses_comma_list_and_rejects_bad_entries() {
             clear_proposer_env();
             set_required_mock_env();
-            assert_eq!(ProposerConfig::from_env(None).unwrap().owned_creators, None);
+            assert!(ProposerConfig::from_env(None).unwrap().owned_creators.is_empty());
 
             let first = Address::repeat_byte(0x11);
             let second = Address::repeat_byte(0x22);
             set_proposer_env("OWNED_CREATORS", &format!(" {first}, ,{second} "));
-            assert_eq!(
-                ProposerConfig::from_env(None).unwrap().owned_creators,
-                Some(vec![first, second])
-            );
+            assert_eq!(ProposerConfig::from_env(None).unwrap().owned_creators, vec![first, second]);
 
-            for invalid in [format!("{first},{first}"), "0x1234".to_string(), " , ".to_string()] {
+            let lettered = Address::repeat_byte(0xab);
+            let checksummed = lettered.to_checksum(None);
+            for valid in [checksummed.clone(), checksummed.to_lowercase()] {
+                set_proposer_env("OWNED_CREATORS", &valid);
+                assert_eq!(ProposerConfig::from_env(None).unwrap().owned_creators, vec![lettered]);
+            }
+            let mut miscased = checksummed.into_bytes();
+            let letter = miscased.iter().skip(2).position(u8::is_ascii_alphabetic).unwrap() + 2;
+            miscased[letter] ^= 0x20;
+            let miscased = String::from_utf8(miscased).unwrap();
+
+            for invalid in [
+                format!("{first},{first}"),
+                "0x1234".to_string(),
+                " , ".to_string(),
+                Address::ZERO.to_string(),
+                miscased,
+            ] {
                 set_proposer_env("OWNED_CREATORS", &invalid);
                 let err = format!("{:#}", ProposerConfig::from_env(None).unwrap_err());
                 assert!(err.contains("invalid OP_ZK_PROPOSER_OWNED_CREATORS"), "{invalid}: {err}");
