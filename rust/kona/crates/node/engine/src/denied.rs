@@ -68,6 +68,12 @@ impl DeniedBlocks {
         Ok(denied.as_ref().ok_or(DeniedBlocksUnknown)?.contains(&block))
     }
 
+    /// The height of the highest block the verifier denied. `None` when it denied nothing, or has
+    /// not answered yet.
+    pub fn highest(&self) -> Option<u64> {
+        self.denied.borrow().as_ref()?.iter().map(|block| block.number).max()
+    }
+
     /// Fails unless the verifier answered, for a block of L2 time `timestamp`.
     pub fn ensure_known(&self, timestamp: u64) -> Result<(), DeniedBlocksUnknown> {
         if timestamp < self.activation_timestamp {

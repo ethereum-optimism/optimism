@@ -476,14 +476,17 @@ where
                     .enqueue(EngineTask::Undo(Box::new(UndoTask::new(self.client.clone(), done))));
             }
             EngineActorRequest::ProcessUnsafeL2Block(envelope) => {
-                let task = EngineTask::Insert(Box::new(InsertTask::new(
-                    self.client.clone(),
-                    self.rollup.clone(),
-                    *envelope,
-                    false, /* The payload is not derived in this case. This is an unsafe
-                            * block. */
-                    Arc::clone(&self.block_sink),
-                )));
+                let task = EngineTask::Insert(Box::new(
+                    InsertTask::new(
+                        self.client.clone(),
+                        self.rollup.clone(),
+                        *envelope,
+                        false, /* The payload is not derived in this case. This is an unsafe
+                                * block. */
+                        Arc::clone(&self.block_sink),
+                    )
+                    .with_denied_blocks(self.denied.clone()),
+                ));
                 self.engine.enqueue(task);
             }
             EngineActorRequest::Reset(reset_request) => {
@@ -494,15 +497,18 @@ where
             }
             EngineActorRequest::Canonicalize(request) => {
                 let CanonicalizeRequest { payload, parent, result_tx } = *request;
-                self.engine.enqueue(EngineTask::Canonicalize(Box::new(CanonicalizeTask::new(
-                    self.client.clone(),
-                    self.rollup.clone(),
-                    payload,
-                    parent,
-                    result_tx,
-                    self.unsafe_head_tx.clone(),
-                    Arc::clone(&self.block_sink),
-                ))));
+                self.engine.enqueue(EngineTask::Canonicalize(Box::new(
+                    CanonicalizeTask::new(
+                        self.client.clone(),
+                        self.rollup.clone(),
+                        payload,
+                        parent,
+                        result_tx,
+                        self.unsafe_head_tx.clone(),
+                        Arc::clone(&self.block_sink),
+                    )
+                    .with_denied_blocks(self.denied.clone()),
+                )));
             }
             EngineActorRequest::OpStack(request) => {
                 self.engine.enqueue(EngineTask::OpStack(Box::new(OpStackTask::new(

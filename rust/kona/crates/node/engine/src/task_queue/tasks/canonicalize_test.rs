@@ -224,3 +224,37 @@ async fn invalid_forkchoice_state_is_relayed_as_a_reset_error() {
     l1.assert_finished();
     l2.assert_finished();
 }
+
+/// A sequenced payload whose block the cross-chain verifier denied is refused before it reaches
+/// the execution layer, as op-node drops its own payloads on its super authority's deny list.
+#[tokio::test]
+async fn denied_payload_is_refused_without_import() {
+    let PayloadFixture { payload, cfg } = payload_fixture();
+    let (client, l1, l2) = test_engine_client(cfg.clone());
+    let (tx, mut rx) = mpsc::channel(1);
+    let mut state = EngineState::default();
+    let original = state;
+    let sink = Arc::new(RecordingSink::default());
+    let denied =
+        alloy_eips::BlockNumHash { number: payload.block_number(), hash: payload.block_hash() };
+    let task = CanonicalizeTask::new(
+        Arc::new(client),
+        cfg,
+        payload,
+        L2BlockInfo::default(),
+        tx,
+        None,
+        sink.clone(),
+    )
+    .with_denied_blocks(crate::DeniedBlocks::applied(vec![denied]));
+
+    task.execute(&mut state).await.unwrap();
+
+    assert!(
+        matches!(rx.recv().await.unwrap(), Err(CanonicalizeTaskError::Denied(block)) if block == denied)
+    );
+    assert_eq!(state, original);
+    assert!(sink.0.lock().unwrap().is_empty());
+    l1.assert_finished();
+    l2.assert_finished();
+}

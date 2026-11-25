@@ -161,6 +161,12 @@ impl EngineTask {
                 )) => {
                     warn!(target: "engine", %status, "Dropping invalid unsafe payload");
                 }
+                Err(err @ InsertTaskError::DeniedChainRecovery { .. }) => {
+                    debug!(target: "engine", %err, "Dropping unsafe payload during invalidation recovery");
+                }
+                Err(err @ InsertTaskError::AtOrBelowLocalSafe { .. }) => {
+                    debug!(target: "engine", %err, "Dropping unsafe payload older than the local-safe head");
+                }
                 Err(err) => return Err(err.into()),
                 Ok(_) => {}
             },
@@ -369,7 +375,10 @@ mod tests {
 
     #[tokio::test]
     async fn imported_blocks_are_handed_to_the_block_sink() {
-        let payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
+        // Above the local-safe head of the default state, which takes no unsafe block below it.
+        let mut block = Block::<OpTxEnvelope>::default();
+        block.header.number = 1;
+        let payload = ExecutionPayloadV1::from_block_slow(&block);
         let envelope = OpExecutionPayloadEnvelope::V1(payload);
         // Pin genesis to this block so the L2BlockInfo can be built without an L1-info deposit.
         // The engine hashes the block it reconstructs from the payload, so key off that.
@@ -378,7 +387,7 @@ mod tests {
         let imported_hash = imported.header.hash_slow();
         let config = Arc::new(RollupConfig {
             genesis: kona_genesis::ChainGenesis {
-                l2: alloy_eips::BlockNumHash { hash: imported_hash, number: 0 },
+                l2: alloy_eips::BlockNumHash { hash: imported_hash, number: 1 },
                 ..Default::default()
             },
             ..Default::default()
@@ -405,7 +414,7 @@ mod tests {
 
         assert_eq!(
             sink.0.lock().unwrap().as_slice(),
-            &[(imported_hash, 0)],
+            &[(imported_hash, 1)],
             "a successfully imported block must reach the sink"
         );
         l1.assert_finished();
@@ -425,6 +434,8 @@ mod tests {
         let client = Arc::new(client);
         let mut payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
         payload.transactions = vec![Bytes::from_static(&[0xff])];
+        // Above the local-safe head of the default state, which takes no unsafe block below it.
+        payload.block_number = 1;
         let task = EngineTask::Insert(Box::new(InsertTask::new(
             client,
             config,
@@ -445,8 +456,12 @@ mod tests {
     async fn canyon_payload_insert_carries_its_withdrawals() {
         let config = Arc::new(RollupConfig::default());
         let (client, l1, l2) = test_engine_client(config.clone());
+        let mut payload_inner =
+            ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
+        // Above the local-safe head of the default state, which takes no unsafe block below it.
+        payload_inner.block_number = 1;
         let payload = ExecutionPayloadV2 {
-            payload_inner: ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default()),
+            payload_inner,
             withdrawals: vec![Withdrawal {
                 index: 1,
                 validator_index: 2,

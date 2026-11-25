@@ -300,11 +300,14 @@ mod recovery_tests {
 
     #[tokio::test]
     async fn temporary_failure_returns_with_task_retained_for_recovery() {
-        let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(
-            &alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default(),
-        ));
+        // The blocks are above the local-safe head of the default state, which takes no unsafe
+        // block below it.
+        let mut first = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
+        first.header.number = 1;
+        let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(&first));
         let block: op_alloy_consensus::OpBlock = payload.clone().try_into_block().unwrap();
         let mut config = RollupConfig::default();
+        config.genesis.l2.number = 1;
         config.genesis.l2.hash = block.header.hash_slow();
         let config = Arc::new(config);
         let (client, l1, l2) = test_engine_client(config.clone());
@@ -328,7 +331,7 @@ mod recovery_tests {
         assert_eq!(engine.len(), 1);
         // Accumulate additional unsafe imports during the outage. Equal-priority heap
         // entries must remain FIFO; otherwise the final unsafe head can move backwards.
-        for number in 1..=3 {
+        for number in 2..=4 {
             let mut block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
             block.header.number = number;
             let payload =
@@ -354,7 +357,7 @@ mod recovery_tests {
         }
         engine.drain().await.unwrap();
         assert!(engine.is_empty());
-        assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 3);
+        assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 4);
         l1.assert_finished();
         l2.assert_finished();
     }

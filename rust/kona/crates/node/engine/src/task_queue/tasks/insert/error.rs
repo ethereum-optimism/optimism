@@ -26,6 +26,25 @@ pub enum InsertTaskError {
     /// The forkchoice update call to consolidate the block into the engine state failed.
     #[error(transparent)]
     ForkchoiceUpdateFailed(#[from] SynchronizeTaskError),
+    /// An unsafe payload at or below the local-safe head is not imported.
+    #[error("Unsafe payload {number} is at or below the local-safe head {local_safe}")]
+    AtOrBelowLocalSafe {
+        /// The payload's block number.
+        number: u64,
+        /// The local-safe head's block number.
+        local_safe: u64,
+    },
+    /// An unsafe payload is not imported while a cross-chain verifier denied a block above the
+    /// finalized head.
+    #[error(
+        "Unsafe payloads are held off until finality passes the denied block {highest_denied}, finalized is {finalized}"
+    )]
+    DeniedChainRecovery {
+        /// The height of the highest denied block.
+        highest_denied: u64,
+        /// The height of the finalized head.
+        finalized: u64,
+    },
 }
 
 impl EngineTaskError for InsertTaskError {
@@ -38,6 +57,9 @@ impl EngineTaskError for InsertTaskError {
                 EngineTaskErrorSeverity::Temporary
             }
             Self::ForkchoiceUpdateFailed(inner) => inner.severity(),
+            Self::AtOrBelowLocalSafe { .. } | Self::DeniedChainRecovery { .. } => {
+                EngineTaskErrorSeverity::Skip
+            }
         }
     }
 }

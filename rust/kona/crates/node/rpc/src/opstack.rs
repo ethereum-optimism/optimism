@@ -153,7 +153,12 @@ fn commit_error(err: InsertTaskError) -> ErrorObjectOwned {
         InsertTaskError::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }) => {
             (code::INVALID_INPUT, "execution invalid")
         }
-        InsertTaskError::InsertFailed(_) | InsertTaskError::UnexpectedPayloadStatus(_) => {
+        // A commit imports without the checks an unsafe payload from the network takes, as
+        // op-node's does, so it never fails those.
+        InsertTaskError::InsertFailed(_) |
+        InsertTaskError::UnexpectedPayloadStatus(_) |
+        InsertTaskError::AtOrBelowLocalSafe { .. } |
+        InsertTaskError::DeniedChainRecovery { .. } => {
             (code::SERVER_ERROR, "failed to insert payload")
         }
         InsertTaskError::ForkchoiceUpdateFailed(_) => {

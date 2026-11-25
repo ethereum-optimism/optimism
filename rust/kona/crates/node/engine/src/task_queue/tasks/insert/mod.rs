@@ -6,3 +6,6 @@ pub(in crate::task_queue) use task::{insert_payload, new_payload};
 
 mod error;
 pub use error::InsertTaskError;
+
+#[cfg(test)]
+mod task_test;

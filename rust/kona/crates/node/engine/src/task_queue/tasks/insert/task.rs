@@ -1,8 +1,8 @@
 //! A task to insert an unsafe payload into the execution engine.
 
 use crate::{
-    EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink, InsertTaskError,
-    state::EngineSyncStateUpdate, task_queue::synchronize,
+    DeniedBlocks, EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink,
+    InsertTaskError, state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -27,18 +27,35 @@ pub struct InsertTask {
     is_payload_safe: bool,
     /// Where to hand the decoded block once the engine has canonicalized it.
     block_sink: Arc<dyn ImportedBlockSink>,
+    /// The blocks a cross-chain verifier denied, which hold off unsafe imports.
+    denied: DeniedBlocks,
 }
 
 impl InsertTask {
     /// Creates a new insert task.
-    pub const fn new(
+    pub fn new(
         client: Arc<EngineClient>,
         rollup_config: Arc<RollupConfig>,
         payload: OpExecutionPayloadEnvelope,
         is_attributes_derived: bool,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, rollup_config, payload, is_payload_safe: is_attributes_derived, block_sink }
+        Self {
+            client,
+            rollup_config,
+            payload,
+            is_payload_safe: is_attributes_derived,
+            block_sink,
+            denied: DeniedBlocks::none(),
+        }
+    }
+
+    /// Holds off the import of an unsafe payload while `denied` has a block above the finalized
+    /// head, as op-node gates unsafe payloads on its super authority's deny list: until finality
+    /// passes the highest denied block, an unsafe payload could bring back the denied chain, and
+    /// derivation alone moves the chain. A verifier that has not answered yet holds off nothing.
+    pub fn with_denied_blocks(self, denied: DeniedBlocks) -> Self {
+        Self { denied, ..self }
     }
 }
 
@@ -49,6 +66,26 @@ impl ExecutableEngineTask for InsertTask {
     type Error = InsertTaskError;
 
     async fn execute(&self, state: &mut EngineState) -> Result<L2BlockInfo, InsertTaskError> {
+        if !self.is_payload_safe {
+            // As op-node drops an unsafe payload at or below its safe head, which it could only
+            // import by failing the forkchoice update or moving the unsafe head below local-safe.
+            let number = self.payload.block_number();
+            let local_safe = state.sync_state.local_safe_head().block_info.number;
+            if number <= local_safe {
+                return Err(InsertTaskError::AtOrBelowLocalSafe { number, local_safe });
+            }
+            // Like op-node on a failed deny-list read, a node that has not heard the denied
+            // blocks yet imports the payload.
+            if self.denied.ensure_known(self.payload.timestamp()).is_err() {
+                debug!(target: "engine", "The denied blocks are not known yet; importing the unsafe payload");
+            }
+            let finalized = state.sync_state.finalized_head().block_info.number;
+            if let Some(highest_denied) = self.denied.highest() &&
+                highest_denied > finalized
+            {
+                return Err(InsertTaskError::DeniedChainRecovery { highest_denied, finalized });
+            }
+        }
         insert_payload(
             self.client.as_ref(),
             &self.rollup_config,
