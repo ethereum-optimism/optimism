@@ -24,15 +24,19 @@ func (id BlockID) TerminalString() string {
 	return fmt.Sprintf("%s:%d", id.Hash.TerminalString(), id.Number)
 }
 
-// CheckHeader returns an error if h is nil or its number is missing or does not fit a uint64.
-// go-ethereum decodes the number of a JSON-RPC header as an arbitrary 256-bit integer, and the
-// header conversions in this package require a uint64, so headers from an RPC need this check.
+// CheckHeader returns an error if h is nil, its number does not fit a uint64, or it has no base fee.
+// go-ethereum decodes the number of a JSON-RPC header as a 256-bit integer, but the header
+// conversions in this package require a uint64. The base fee is optional in go-ethereum headers, but
+// every chain these headers come from is past London.
 func CheckHeader(h *types.Header) error {
 	if h == nil {
 		return errors.New("nil header")
 	}
 	if h.Number == nil || !h.Number.IsUint64() {
 		return fmt.Errorf("invalid header number %v", h.Number)
+	}
+	if h.BaseFee == nil {
+		return fmt.Errorf("header %d has no base fee", h.Number)
 	}
 	return nil
 }

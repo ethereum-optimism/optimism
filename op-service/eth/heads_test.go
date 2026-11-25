@@ -46,7 +46,7 @@ func TestWatchHeadChanges(t *testing.T) {
 	}
 
 	t.Run("valid", func(t *testing.T) {
-		header := &types.Header{Number: big.NewInt(7), Time: 42}
+		header := &types.Header{Number: big.NewInt(7), Time: 42, BaseFee: big.NewInt(1)}
 		sig, err := watch(t, header)
 		require.NoError(t, err)
 		require.Equal(t, *BlockRefFromHeader(header), sig)

@@ -1,11 +1,27 @@
 package eth
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCheckHeader(t *testing.T) {
+	require.NoError(t, CheckHeader(&types.Header{Number: big.NewInt(1), BaseFee: big.NewInt(1)}))
+	for name, h := range map[string]*types.Header{
+		"nil header":       nil,
+		"nil number":       {BaseFee: big.NewInt(1)},
+		"number above u64": {Number: new(big.Int).Lsh(big.NewInt(1), 64), BaseFee: big.NewInt(1)},
+		"nil base fee":     {Number: big.NewInt(1)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Error(t, CheckHeader(h))
+		})
+	}
+}
 
 func TestL2BlockRefAdvances(t *testing.T) {
 	current := L2BlockRef{Hash: common.Hash{0x01}, Number: 1}
