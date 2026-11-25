@@ -397,7 +397,10 @@ impl L1BlockInfoTx {
 mod test {
     use super::*;
     use crate::test_utils::{RAW_BEDROCK_INFO_TX, RAW_ECOTONE_INFO_TX, RAW_ISTHMUS_INFO_TX};
-    use alloc::{string::ToString, vec::Vec};
+    use alloc::{
+        string::{String, ToString},
+        vec::Vec,
+    };
     use alloy_primitives::{address, b256};
     use kona_genesis::HardForkConfig;
     use kona_registry::L1Config;
@@ -1129,5 +1132,123 @@ mod test {
         assert_eq!(deposit_tx.gas_limit, REGOLITH_SYSTEM_TX_GAS);
         assert!(!deposit_tx.is_system_transaction);
         assert_eq!(deposit_tx.input, l1_info.encode_calldata());
+    }
+
+    /// Pins, for each L1-info calldata format, the calldata encoding and decoding, the source hash
+    /// and the deposit tx hash of the vectors that op-node asserts too, in
+    /// `TestL1InfoDepositSharedVectors` (op-node/rollup/derive/l1_block_info_vectors_test.go).
+    #[test]
+    fn test_l1_info_shared_vectors() {
+        let vectors: serde_json::Value =
+            serde_json::from_str(include_str!("../../testdata/l1_info_vectors.json")).unwrap();
+        let mut variants = Vec::new();
+        for v in vectors.as_array().unwrap() {
+            let name = v["name"].as_str().unwrap();
+            let str_of = |value: &serde_json::Value, key: &str| -> String {
+                value[key].as_str().unwrap_or_else(|| panic!("{name}: missing {key}")).to_string()
+            };
+            let fields = &v["l1Info"];
+            let u64_of =
+                |key: &str| fields[key].as_u64().unwrap_or_else(|| panic!("{name}: missing {key}"));
+            let u32_of = |key: &str| u32::try_from(u64_of(key)).unwrap();
+            let u256_of = |key: &str| str_of(fields, key).parse::<U256>().unwrap();
+            let u128_of = |key: &str| u256_of(key).to::<u128>();
+
+            let number = u64_of("number");
+            let time = u64_of("time");
+            let base_fee = u256_of("baseFee").to::<u64>();
+            let block_hash = str_of(fields, "blockHash").parse::<B256>().unwrap();
+            let sequence_number = u64_of("sequenceNumber");
+            let batcher = str_of(fields, "batcherAddr").parse::<Address>().unwrap();
+
+            let variant = str_of(v, "variant");
+            let expected = match variant.as_str() {
+                "bedrock" => L1BlockInfoTx::Bedrock(L1BlockInfoBedrock::new(
+                    number,
+                    time,
+                    base_fee,
+                    block_hash,
+                    sequence_number,
+                    batcher,
+                    u256_of("l1FeeOverhead"),
+                    u256_of("l1FeeScalar"),
+                )),
+                "ecotone" => L1BlockInfoTx::Ecotone(L1BlockInfoEcotone::new(
+                    number,
+                    time,
+                    base_fee,
+                    block_hash,
+                    sequence_number,
+                    batcher,
+                    u128_of("blobBaseFee"),
+                    u32_of("blobBaseFeeScalar"),
+                    u32_of("baseFeeScalar"),
+                    false,
+                    U256::ZERO,
+                )),
+                "isthmus" => L1BlockInfoTx::Isthmus(L1BlockInfoIsthmus::new(
+                    number,
+                    time,
+                    base_fee,
+                    block_hash,
+                    sequence_number,
+                    batcher,
+                    u128_of("blobBaseFee"),
+                    u32_of("blobBaseFeeScalar"),
+                    u32_of("baseFeeScalar"),
+                    u32_of("operatorFeeScalar"),
+                    u64_of("operatorFeeConstant"),
+                )),
+                "jovian" => L1BlockInfoTx::Jovian(L1BlockInfoJovian::new(
+                    number,
+                    time,
+                    base_fee,
+                    block_hash,
+                    sequence_number,
+                    batcher,
+                    u128_of("blobBaseFee"),
+                    u32_of("blobBaseFeeScalar"),
+                    u32_of("baseFeeScalar"),
+                    u32_of("operatorFeeScalar"),
+                    u64_of("operatorFeeConstant"),
+                    u16::try_from(u64_of("daFootprintGasScalar")).unwrap(),
+                )),
+                other => panic!("{name}: unknown variant {other}"),
+            };
+            variants.push(variant);
+
+            let calldata = str_of(v, "calldata").parse::<Bytes>().unwrap();
+            assert_eq!(L1BlockInfoTx::decode_calldata(&calldata), Ok(expected), "{name}: decode");
+            assert_eq!(expected.encode_calldata(), calldata, "{name}: encode");
+
+            let source_hash = DepositSourceDomain::L1Info(L1InfoDepositSource {
+                l1_block_hash: block_hash,
+                seq_number: sequence_number,
+            })
+            .source_hash();
+            assert_eq!(
+                source_hash,
+                str_of(v, "sourceHash").parse::<B256>().unwrap(),
+                "{name}: source hash"
+            );
+            let deposit = TxDeposit {
+                source_hash,
+                from: L1_INFO_DEPOSITOR_ADDRESS,
+                to: TxKind::Call(Predeploys::L1_BLOCK_INFO),
+                mint: U256::ZERO,
+                value: U256::ZERO,
+                gas_limit: REGOLITH_SYSTEM_TX_GAS,
+                is_system_transaction: false,
+                input: calldata,
+            };
+            assert_eq!(
+                deposit.seal_slow().hash(),
+                str_of(v, "txHash").parse::<B256>().unwrap(),
+                "{name}: deposit tx hash"
+            );
+        }
+        for variant in ["bedrock", "ecotone", "isthmus", "jovian"] {
+            assert!(variants.iter().any(|v| v == variant), "no vector for variant {variant}");
+        }
     }
 }
