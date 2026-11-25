@@ -593,6 +593,9 @@ func startMixedKonaNode(
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
 	envVars = append(envVars, konaL2CLEnv(startCfg.L2CLConfig, startCfg.SequencerStopped)...)
+	if startCfg.InteropAuthorityRPC != "" {
+		envVars = append(envVars, "KONA_NODE_INTEROP_AUTHORITY_RPC="+startCfg.InteropAuthorityRPC)
+	}
 
 	execPath, err := rustbin.Spec{
 		SrcDir:  "rust/kona",

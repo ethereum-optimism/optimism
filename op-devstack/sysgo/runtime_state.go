@@ -171,6 +171,7 @@ type MultiChainRuntime struct {
 	DelaySeconds       uint64
 	InteropFilter      *InteropFilter // nil if not using interop filter
 	SyncTester         *SyncTesterRuntime
+	Lokahi             *Lokahi // nil unless the chains follow lokahi
 }
 
 // StartZKProposer starts the configured op-zk-proposer. It is intended for

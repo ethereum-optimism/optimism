@@ -18,6 +18,9 @@ type konaNodeStartConfig struct {
 	// to start through admin_startSequencer. Otherwise the sequencer boots
 	// active, as an op-node sequencer does. See konaL2CLEnv.
 	SequencerStopped bool
+	// InteropAuthorityRPC is the RPC of the interop authority (lokahi) whose heads the node's
+	// safe and finalized labels follow. Empty leaves both to the node itself.
+	InteropAuthorityRPC string
 }
 
 func resolveKonaL2CLConfig(t devtest.T, key string, chainID eth.ChainID, isSequencer bool, followSource string, opts []L2CLOption) *L2CLConfig {
