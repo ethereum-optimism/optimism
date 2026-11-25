@@ -130,7 +130,7 @@ func TestSpanBatchOverlapContent(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	matrix.AddDefaultTestCases(
 		nil,
-		helpers.NewForkMatrix(helpers.Fjord, helpers.Holocene, helpers.LatestFork),
+		helpers.NewForkMatrix(helpers.Fjord, helpers.Holocene, helpers.Karst, helpers.LatestFork),
 		runTest,
 	)
 	matrix.Run(gt)

@@ -133,10 +133,13 @@ var (
 	Isthmus  = &Hardfork{Name: string(forks.Isthmus), Precedence: 8}
 	Jovian   = &Hardfork{Name: string(forks.Jovian), Precedence: 9}
 	Karst    = &Hardfork{Name: string(forks.Karst), Precedence: 10}
+	Lagoon   = &Hardfork{Name: string(forks.Lagoon), Precedence: 11}
 )
 
 var (
-	Hardforks      = ForkMatrix{Bedrock, Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, Karst}
+	Hardforks = ForkMatrix{Bedrock, Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, Karst, Lagoon}
+	// LatestFork activates interop, so derivation tests also list Karst to keep covering chains
+	// that have not activated it.
 	LatestFork     = Hardforks[len(Hardforks)-1]
 	LatestForkOnly = ForkMatrix{LatestFork}
 )

@@ -105,7 +105,7 @@ func runDepositInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[bool]) {
 }
 
 func TestDepositInBatch(gt *testing.T) {
-	forks := helpers.NewForkMatrix(helpers.Granite, helpers.Holocene, helpers.Isthmus, helpers.LatestFork)
+	forks := helpers.NewForkMatrix(helpers.Granite, helpers.Holocene, helpers.Isthmus, helpers.Karst, helpers.LatestFork)
 	matrix := helpers.NewMatrix[bool]()
 	matrix.AddDefaultTestCasesWithName("BareDeposit", bareDeposit, forks, runDepositInBatchTest)
 	matrix.AddDefaultTestCasesWithName("TaggedDeposit", !bareDeposit, forks, runDepositInBatchTest)

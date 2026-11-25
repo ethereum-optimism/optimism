@@ -249,7 +249,7 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 
 func TestSequenceWindowExpired(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
-	forks := helpers.ForkMatrix{helpers.Granite, helpers.LatestFork}
+	forks := helpers.ForkMatrix{helpers.Granite, helpers.Karst, helpers.LatestFork}
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,

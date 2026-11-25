@@ -105,14 +105,14 @@ func TestGarbageChannel(gt *testing.T) {
 		matrix.AddTestCase(
 			fmt.Sprintf("HonestClaim-%s", garbageKind.String()),
 			garbageKind,
-			helpers.LatestForkOnly,
+			helpers.NewForkMatrix(helpers.Karst, helpers.LatestFork),
 			runGarbageChannelTest,
 			helpers.ExpectNoError(),
 		)
 		matrix.AddTestCase(
 			fmt.Sprintf("JunkClaim-%s", garbageKind.String()),
 			garbageKind,
-			helpers.LatestForkOnly,
+			helpers.NewForkMatrix(helpers.Karst, helpers.LatestFork),
 			runGarbageChannelTest,
 			helpers.ExpectError(helpers.ErrClaimNotValid),
 			helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
