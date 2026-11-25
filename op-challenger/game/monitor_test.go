@@ -46,7 +46,8 @@ func TestMonitorGames(t *testing.T) {
 				if headerNotSent {
 					select {
 					case sub.headers <- &ethtypes.Header{
-						Number: big.NewInt(1),
+						Number:  big.NewInt(1),
+						BaseFee: big.NewInt(1),
 					}:
 						headerNotSent = false
 					case <-ctx.Done():
@@ -95,7 +96,8 @@ func TestMonitorGames(t *testing.T) {
 				}
 				select {
 				case sub.headers <- &ethtypes.Header{
-					Number: big.NewInt(1),
+					Number:  big.NewInt(1),
+					BaseFee: big.NewInt(1),
 				}:
 				case <-ctx.Done():
 					return

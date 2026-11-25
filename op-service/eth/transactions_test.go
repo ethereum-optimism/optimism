@@ -110,7 +110,7 @@ func TestTransactions_checkRecentTxs(t *testing.T) {
 			ctx := context.Background()
 
 			// Setup mock responses
-			l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(tt.currentBlock)}, nil)
+			l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(tt.currentBlock), BaseFee: big.NewInt(1)}, nil)
 			for blockNum, block := range tt.blocks {
 				for _, nonce := range block {
 					l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(blockNum)).Return(nonce, nil).Once()
@@ -130,7 +130,7 @@ func TestTransactions_checkRecentTxs(t *testing.T) {
 func TestCheckRecentTxsShallowChain(t *testing.T) {
 	l1Client := new(MockL1Client)
 	ctx := context.Background()
-	l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(3)}, nil)
+	l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(3), BaseFee: big.NewInt(1)}, nil)
 	l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(3)).Return(uint64(1), nil)
 	l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(0)).Return(uint64(1), nil)
 
@@ -162,7 +162,7 @@ func TestCheckRecentTxsPersistentReorg(t *testing.T) {
 	l1Client := new(MockL1Client)
 	ctx := context.Background()
 	errExtraAttempt := errors.New("unexpected extra attempt")
-	l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(500)}, nil).Times(checkRecentTxsAttempts)
+	l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(500), BaseFee: big.NewInt(1)}, nil).Times(checkRecentTxsAttempts)
 	l1Client.On("HeaderByNumber", ctx, (*big.Int)(nil)).Return(nil, errExtraAttempt)
 	l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(500)).Return(uint64(6), nil)
 	l1Client.On("NonceAt", ctx, common.Address{}, big.NewInt(495)).Return(uint64(5), nil)
