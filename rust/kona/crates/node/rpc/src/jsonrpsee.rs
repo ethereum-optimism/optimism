@@ -4,11 +4,12 @@ use crate::{
     OutputResponse, SafeHeadResponse, health::HealthzResponse,
     superroot::SuperRootAtTimestampResponse,
 };
-use alloy_eips::BlockNumberOrTag;
+use alloy_eips::{BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::{B256, U64};
 use core::net::IpAddr;
 use ipnet::IpNet;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use kona_engine::VerifierHead;
 use kona_genesis::{DependencySet, RollupConfig};
 use kona_gossip::{PeerCount, PeerDump, PeerInfo, PeerStats};
 use kona_protocol::SyncStatus;
@@ -65,6 +66,28 @@ pub trait SuperRootApi {
         &self,
         timestamp: U64,
     ) -> RpcResult<SuperRootAtTimestampResponse>;
+}
+
+/// The cross-chain verification authority a node follows for its safe and finalized labels.
+///
+/// A node polls it: the safe label follows [`Self::verified_head`], finality
+/// [`Self::finalized_head`]. The authority serves any number of nodes per chain and knows none of
+/// them.
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "interop"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "interop"))]
+pub trait InteropAuthorityApi {
+    /// The cross-chain verified safe head of `chain_id`.
+    #[method(name = "verifiedHead")]
+    async fn verified_head(&self, chain_id: u64) -> RpcResult<VerifierHead>;
+
+    /// The verified head of `chain_id` whose L1 inclusion is finalized.
+    #[method(name = "finalizedHead")]
+    async fn finalized_head(&self, chain_id: u64) -> RpcResult<VerifierHead>;
+
+    /// The blocks of `chain_id` at or above `from_number` that verification rejected, in
+    /// ascending order.
+    #[method(name = "deniedBlocks")]
+    async fn denied_blocks(&self, chain_id: u64, from_number: u64) -> RpcResult<Vec<BlockNumHash>>;
 }
 
 /// The opp2p namespace handles peer interactions.
