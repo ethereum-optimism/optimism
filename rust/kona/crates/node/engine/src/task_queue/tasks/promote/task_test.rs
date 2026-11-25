@@ -62,8 +62,26 @@ fn cfg() -> Arc<RollupConfig> {
     Arc::new(RollupConfig { block_time: 2, ..Default::default() })
 }
 
+/// `block` verified on L1 genesis, which needs no L1 lookup.
 fn verified(block: L2BlockInfo) -> VerifierHead {
-    VerifierHead::Verified { block: block.block_info.id(), timestamp: block.block_info.timestamp }
+    verified_on(block, BlockNumHash::default())
+}
+
+fn verified_on(block: L2BlockInfo, l1: BlockNumHash) -> VerifierHead {
+    VerifierHead::Verified {
+        block: block.block_info.id(),
+        timestamp: block.block_info.timestamp,
+        l1,
+    }
+}
+
+/// L1 block `number` of fork `fork`.
+fn l1_block(number: u64, fork: u8) -> alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction> {
+    let mut block = alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+    block.header.inner.number = number;
+    block.header.inner.extra_data = vec![fork].into();
+    block.header.hash = block.header.inner.hash_slow();
+    block
 }
 
 /// A verified head the engine has not derived to yet holds the safe label where it is, without a
@@ -127,12 +145,63 @@ async fn non_canonical_verified_head_holds_the_safe_label() {
     let task = PromoteTask::new(
         Arc::new(client),
         cfg,
-        VerifierHead::Verified { block: other_block, timestamp: 24 },
+        VerifierHead::Verified { block: other_block, timestamp: 24, l1: BlockNumHash::default() },
     );
 
     task.execute(&mut state).await.unwrap();
 
     assert_eq!(state, state_before);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A verified head whose L1 block is not canonical on the node's L1 chain, or not seen by it yet,
+/// holds the safe label: the node's L1 view differs from the verifier's for a moment.
+#[rstest::rstest]
+#[case::reorged(Some(1))]
+#[case::not_seen(None)]
+#[tokio::test]
+async fn verified_head_off_the_nodes_l1_chain_holds_the_safe_label(#[case] fork: Option<u8>) {
+    let chain = Chain::new();
+    let mut state = chain.verified_engine_state();
+    let state_before = state;
+    let cfg = cfg();
+    let (client, l1, l2) = test_engine_client(cfg.clone());
+    let params = serde_json::json!(["0x7", false]);
+    match fork {
+        Some(fork) => l1.expect_params("eth_getBlockByNumber", params, l1_block(7, fork)),
+        None => l1.expect_params("eth_getBlockByNumber", params, serde_json::Value::Null),
+    }
+    let decided_on = BlockNumHash { number: 7, hash: l1_block(7, 0).header.hash };
+    let task = PromoteTask::new(Arc::new(client), cfg, verified_on(chain.info(12), decided_on));
+
+    task.execute(&mut state).await.unwrap();
+
+    assert_eq!(state, state_before);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A verified head whose L1 block is canonical on the node's L1 chain moves the safe label.
+#[tokio::test]
+async fn verified_head_on_the_nodes_l1_chain_moves_the_safe_label() {
+    let chain = Chain::new();
+    let mut state = chain.verified_engine_state();
+    let expected = state.sync_state.apply_update(EngineSyncStateUpdate {
+        safe_head: Some(chain.info(12)),
+        ..Default::default()
+    });
+    let cfg = cfg();
+    let (client, l1, l2) = test_engine_client(cfg.clone());
+    l1.expect_params("eth_getBlockByNumber", serde_json::json!(["0x7", false]), l1_block(7, 0));
+    l2.expect_block_by_number(12, Some(chain.rpc_block(12)));
+    l2.expect_forkchoice_updated(expected.create_forkchoice_state(), PayloadStatusEnum::Valid);
+    let decided_on = BlockNumHash { number: 7, hash: l1_block(7, 0).header.hash };
+    let task = PromoteTask::new(Arc::new(client), cfg, verified_on(chain.info(12), decided_on));
+
+    task.execute(&mut state).await.unwrap();
+
+    assert_eq!(state.sync_state.safe_head(), chain.info(12));
     l1.assert_finished();
     l2.assert_finished();
 }

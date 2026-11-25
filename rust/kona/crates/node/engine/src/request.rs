@@ -1,8 +1,8 @@
 //! Requests sent to the node engine actor and their replies.
 
 use crate::{
-    BuildTaskError, CanonicalizeTaskError, ConsolidateInput, DeniedBlock, FinalizeBlockId,
-    InsertTaskError, OpenBlockError, SealTaskError, VerifierHead,
+    BuildTaskError, CanonicalizeTaskError, ConsolidateInput, FinalizeBlockId, InsertTaskError,
+    OpenBlockError, SealTaskError, VerifierHead,
 };
 use alloy_eips::BlockNumHash;
 use alloy_rpc_types_engine::PayloadId;
@@ -26,10 +26,11 @@ pub enum EngineActorRequest {
     /// Request to process a cross-chain verifier's finalized head, which the node's own L1
     /// finality bounds.
     ProcessVerifiedFinalizedHead(Box<VerifierHead>),
-    /// Request to process a cross-chain verifier's denied blocks above the finalized head, with
-    /// the L1 blocks the denials were decided on, or with `None`, when the verifier cannot be
-    /// reached, to judge its last answer again on the node's L1 chain.
-    ProcessDeniedBlocks(Option<Vec<DeniedBlock>>),
+    /// Request to process a cross-chain verifier's denied blocks above the finalized head.
+    ProcessDeniedBlocks(Vec<BlockNumHash>),
+    /// Request to derive again from the finalized head with a cross-chain verifier's new denied
+    /// blocks, because the verifier undid verifications: its epoch changed.
+    UndoVerifications(Box<UndoRequest>),
     /// Request to process a received unsafe L2 block.
     ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
     /// Request to reset the forkchoice and signal derivation to reset.
@@ -90,6 +91,17 @@ pub struct BuildRequest {
 pub struct ResetRequest {
     /// The channel on which the reset result will be sent.
     pub result_tx: mpsc::Sender<EngineRequestResult<()>>,
+}
+
+/// A request to derive again from the finalized head after a cross-chain verifier undid
+/// verifications.
+#[derive(Debug)]
+pub struct UndoRequest {
+    /// The verifier's denied blocks above the finalized head, which the derivation again uses.
+    pub denied: Vec<BlockNumHash>,
+    /// Hears once the local-safe head and the safe label moved back to the finalized head on the
+    /// execution layer. Dropped without a message if the undo did not take effect.
+    pub done: mpsc::Sender<()>,
 }
 
 /// A request to fetch a sealed payload without changing forkchoice.

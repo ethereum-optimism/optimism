@@ -12,7 +12,9 @@ mod clock;
 pub use clock::{Clock, SystemClock};
 
 mod authority;
-pub use authority::{AUTHORITY_POLL_INTERVAL, AuthorityActor, AuthorityActorError};
+pub use authority::{
+    AUTHORITY_POLL_INTERVAL, AppliedEpoch, AppliedEpochRpc, AuthorityActor, AuthorityActorError,
+};
 
 mod engine;
 pub use engine::{

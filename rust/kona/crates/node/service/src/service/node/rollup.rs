@@ -1,12 +1,12 @@
 //! Contains the [`RollupNode`] implementation.
 use crate::{
-    AUTHORITY_POLL_INTERVAL, AuthorityActor, ConductorClient, DelegateDerivationActor,
-    DerivationActor, DerivationActorRequest, DerivationError, EngineActor, EngineActorRequest,
-    EngineConfig, L1OriginSelector, L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder,
-    NetworkConfig, NetworkHandler, NodeActor, NodeMode, QueuedDerivationEngineClient,
-    QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient,
-    QueuedSequencerEngineClient, RpcActor, SequencerActor, SequencerConfig, SignedPayload,
-    SignerActor, SystemClock,
+    AUTHORITY_POLL_INTERVAL, AppliedEpoch, AppliedEpochRpc, AuthorityActor, ConductorClient,
+    DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationError, EngineActor,
+    EngineActorRequest, EngineConfig, L1OriginSelector, L1WatcherActor, L1WatcherChain,
+    NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
+    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
+    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerActor,
+    SequencerConfig, SignedPayload, SignerActor, SystemClock,
     actors::{
         BlockStream, OriginPrefetcher, OriginPreparation, PreparedAttributesProvider,
         PreparedOriginProvider, QueuedUnsafePayloadGossipClient,
@@ -38,9 +38,9 @@ use kona_providers_alloy::{
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
-    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, L1WatcherQueries, OpP2PApiServer,
-    OpStackApiServer, OpStackRpc, P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder,
-    SequencerAdminCommand, SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
+    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, InteropNodeApiServer, L1WatcherQueries,
+    OpP2PApiServer, OpStackApiServer, OpStackRpc, P2pRpc, RollupNodeApiServer, RollupRpc,
+    RpcBuilder, SequencerAdminCommand, SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
 };
 use kona_safedb::SafeDb;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -110,6 +110,8 @@ pub struct RollupNode {
     pub(crate) verifier_l1_confs: u64,
     /// The cross-chain verification authority whose heads the safe and finalized labels follow.
     pub(crate) interop_authority_url: Option<Url>,
+    /// The file recording the authority epoch the node derives under.
+    pub(crate) interop_authority_epoch_path: Option<std::path::PathBuf>,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -335,21 +337,23 @@ impl RollupNode {
         &self,
         engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
         engine_state_rx: watch::Receiver<EngineState>,
+        applied_epoch: Option<AppliedEpoch>,
     ) -> Result<Option<AuthorityActor<HttpClient>>, String> {
-        let Some(url) = &self.interop_authority_url else {
+        let (Some(url), Some(applied_epoch)) = (&self.interop_authority_url, applied_epoch) else {
             return Ok(None);
         };
         let authority = HttpClientBuilder::default()
             .request_timeout(INTEROP_AUTHORITY_REQUEST_TIMEOUT)
             .build(url)
             .map_err(|e| format!("Failed to build interop authority client: {e}"))?;
-        info!(target: "rollup_node", %url, "Following the interop authority for the safe and finalized labels");
+        info!(target: "rollup_node", %url, applied_epoch = ?applied_epoch.get(), "Following the interop authority for the safe and finalized labels");
         Ok(Some(AuthorityActor::new(
             authority,
             self.config.clone(),
             engine_actor_request_tx,
             engine_state_rx,
             AUTHORITY_POLL_INTERVAL,
+            applied_epoch,
         )))
     }
 
@@ -486,6 +490,7 @@ impl RollupNode {
 
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
     /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
+    #[allow(clippy::too_many_arguments)]
     async fn build_rpc_actor(
         &self,
         l2_query_client: EngineQueryClient,
@@ -494,6 +499,7 @@ impl RollupNode {
         p2p_rpc: P2pRpc,
         opstack_rpc: Option<OpStackRpc>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
+        applied_epoch: Option<watch::Receiver<Option<alloy_primitives::B256>>>,
     ) -> Result<Option<RpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
             return Ok(None);
@@ -543,6 +549,11 @@ impl RollupNode {
                 .into_rpc(),
             )
             .map_err(|e| format!("Failed to register superroot module: {e:?}"))?;
+        if let Some(applied_epoch) = applied_epoch {
+            modules
+                .merge(AppliedEpochRpc(applied_epoch).into_rpc())
+                .map_err(|e| format!("Failed to register interop module: {e:?}"))?;
+        }
 
         let middleware = tower::ServiceBuilder::new()
             .layer(
@@ -636,8 +647,18 @@ impl RollupNode {
             unsafe_head_tx,
         );
 
-        let authority =
-            self.build_authority_actor(engine_actor_request_tx.clone(), engine_state_rx.clone())?;
+        let applied_epoch = self
+            .interop_authority_url
+            .as_ref()
+            .map(|_| AppliedEpoch::load(self.interop_authority_epoch_path.clone()))
+            .transpose()
+            .map_err(|e| format!("Failed to read the applied interop authority epoch: {e}"))?;
+        let applied_epoch_rx = applied_epoch.as_ref().map(AppliedEpoch::watch);
+        let authority = self.build_authority_actor(
+            engine_actor_request_tx.clone(),
+            engine_state_rx.clone(),
+            applied_epoch,
+        )?;
 
         let derivation = self
             .build_derivation_actor(
@@ -721,6 +742,7 @@ impl RollupNode {
                 p2p_rpc,
                 opstack_rpc,
                 l1_query_tx,
+                applied_epoch_rx,
             )
             .await?;
 

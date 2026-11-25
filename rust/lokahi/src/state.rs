@@ -291,9 +291,17 @@ impl Verified {
         Ok(denied)
     }
 
-    /// Deletes a denial, durably, before the authority stops answering it.
-    pub(crate) fn undeny(&self, record: &DeniedRecord) -> Result<(), StoreError> {
-        self.store.delete_denied(record)
+    /// The denied blocks of every chain decided at or after `timestamp`.
+    pub(crate) fn denials_decided_from(
+        &self,
+        timestamp: u64,
+    ) -> Result<Vec<DeniedRecord>, StoreError> {
+        self.store.denials_decided_from(timestamp)
+    }
+
+    /// The epoch, which changes with every rewind that deletes a denial.
+    pub(crate) const fn epoch(&self) -> alloy_primitives::B256 {
+        self.store.epoch()
     }
 
     /// The L1 inclusion a result at the next timestamp would have with the frontier inclusion
@@ -349,6 +357,7 @@ impl Verified {
             Some((timestamp, result)) => VerifierHead::Verified {
                 block: result.chains[&chain_id].block,
                 timestamp: *timestamp,
+                l1: result.l1_inclusion,
             },
             // Clamped to genesis so the node can resolve it.
             None => VerifierHead::Anchor {
@@ -406,8 +415,16 @@ pub(crate) mod tests {
         open_state(dir, ACTIVATION, BTreeMap::from([(CHAIN, ACTIVATION)]))
     }
 
-    fn verified(l2: u64, timestamp: u64) -> Option<VerifierHead> {
-        Some(VerifierHead::Verified { block: block(l2), timestamp })
+    fn verified(l2: u64, timestamp: u64) -> Option<(BlockNumHash, u64)> {
+        Some((block(l2), timestamp))
+    }
+
+    /// The verified block and timestamp of `head`, without its L1 block.
+    fn verified_at(head: Option<VerifierHead>) -> Option<(BlockNumHash, u64)> {
+        match head? {
+            VerifierHead::Verified { block, timestamp, .. } => Some((block, timestamp)),
+            _ => None,
+        }
     }
 
     #[test]
@@ -443,15 +460,15 @@ pub(crate) mod tests {
         state.commit(ACTIVATION + 2, result(3, 8)).unwrap();
         finalize_at(&mut state, 7);
 
-        assert_eq!(state.verified_head(CHAIN), verified(3, ACTIVATION + 2));
-        assert_eq!(state.finalized_head(CHAIN), verified(2, ACTIVATION + 1));
+        assert_eq!(verified_at(state.verified_head(CHAIN)), verified(3, ACTIVATION + 2));
+        assert_eq!(verified_at(state.finalized_head(CHAIN)), verified(2, ACTIVATION + 1));
         assert_eq!(state.next_timestamp(), ACTIVATION + 3);
 
         // Finality never moves back, also for an older finalized L1 block.
         finalize_at(&mut state, 5);
-        assert_eq!(state.finalized_head(CHAIN), verified(2, ACTIVATION + 1));
+        assert_eq!(verified_at(state.finalized_head(CHAIN)), verified(2, ACTIVATION + 1));
         finalize_at(&mut state, 9);
-        assert_eq!(state.finalized_head(CHAIN), verified(3, ACTIVATION + 2));
+        assert_eq!(verified_at(state.finalized_head(CHAIN)), verified(3, ACTIVATION + 2));
     }
 
     /// An L1 inclusion below an earlier one is raised to it: the later result needs the earlier
@@ -489,14 +506,14 @@ pub(crate) mod tests {
 
         assert_eq!(state.rewind(ACTIVATION + 2).unwrap(), (2, 1));
 
-        assert_eq!(state.verified_head(CHAIN), verified(2, ACTIVATION + 1));
+        assert_eq!(verified_at(state.verified_head(CHAIN)), verified(2, ACTIVATION + 1));
         assert_eq!(state.next_timestamp(), ACTIVATION + 2);
-        assert_eq!(state.finalized_head(CHAIN), verified(1, ACTIVATION));
+        assert_eq!(verified_at(state.finalized_head(CHAIN)), verified(1, ACTIVATION));
         assert_eq!(state.denied_blocks(CHAIN, 0).unwrap(), vec![denial(2, ACTIVATION + 1)]);
 
         // Everything after the finalized result can go.
         state.rewind(ACTIVATION + 1).unwrap();
-        assert_eq!(state.verified_head(CHAIN), verified(1, ACTIVATION));
+        assert_eq!(verified_at(state.verified_head(CHAIN)), verified(1, ACTIVATION));
     }
 
     #[test]
@@ -534,7 +551,7 @@ pub(crate) mod tests {
 
         let mut state = state(dir.path());
 
-        assert_eq!(state.verified_head(CHAIN), verified(7, ACTIVATION + 6));
+        assert_eq!(verified_at(state.verified_head(CHAIN)), verified(7, ACTIVATION + 6));
         assert_eq!(state.next_timestamp(), ACTIVATION + 7);
         assert_eq!(
             state.finalized_head(CHAIN),
@@ -543,7 +560,7 @@ pub(crate) mod tests {
         assert_eq!(state.latest_included_by(4).unwrap(), None);
         assert_eq!(state.latest_included_by(5).unwrap(), Some((ACTIVATION + 1, result(2, 5))));
         finalize_at(&mut state, 8);
-        assert_eq!(state.finalized_head(CHAIN), verified(5, ACTIVATION + 4));
+        assert_eq!(verified_at(state.finalized_head(CHAIN)), verified(5, ACTIVATION + 4));
         assert_eq!(state.result_at(ACTIVATION + 2).unwrap(), Some(result(3, 6)));
         assert_eq!(state.result_at(ACTIVATION + 7).unwrap(), None);
         assert_eq!(
@@ -551,7 +568,7 @@ pub(crate) mod tests {
             vec![block(9)]
         );
         state.commit(ACTIVATION + 7, result(8, 12)).unwrap();
-        assert_eq!(state.verified_head(CHAIN), verified(8, ACTIVATION + 7));
+        assert_eq!(verified_at(state.verified_head(CHAIN)), verified(8, ACTIVATION + 7));
     }
 
     #[rstest::rstest]
@@ -569,11 +586,12 @@ pub(crate) mod tests {
         assert!(matches!(opened, Err(StoreError::OtherConfig { .. })), "got {opened:?}");
     }
 
-    /// A denied block is told apart from another block at its height and on another chain.
+    /// A denied block is told apart from another block at its height and on another chain, and a
+    /// rewind that deletes it changes the epoch.
     #[test]
-    fn a_denial_matches_the_chain_and_the_block_and_can_go() {
+    fn a_denial_matches_the_chain_and_the_block_and_a_rewind_deleting_it_changes_the_epoch() {
         let dir = tempfile::tempdir().unwrap();
-        let state = state(dir.path());
+        let mut state = state(dir.path());
         let denied = DeniedRecord {
             chain_id: CHAIN,
             block: block(3),
@@ -592,8 +610,9 @@ pub(crate) mod tests {
         assert_eq!(state.denial(CHAIN, block(4)).unwrap(), None);
         assert_eq!(state.denial(CHAIN + 1, block(3)).unwrap(), None);
 
-        state.undeny(&denied).unwrap();
+        let epoch = state.epoch();
+        assert_eq!(state.rewind(ACTIVATION + 2).unwrap(), (0, 2));
         assert_eq!(state.denial(CHAIN, block(3)).unwrap(), None);
-        assert!(state.denial(CHAIN, block(5)).unwrap().is_some());
+        assert_ne!(state.epoch(), epoch);
     }
 }

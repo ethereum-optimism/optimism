@@ -1,13 +1,14 @@
-//! The head a cross-chain verifier reports for a chain.
+//! What a cross-chain verifier reports for a chain.
 
 use alloy_eips::BlockNumHash;
+use alloy_primitives::B256;
 use serde::{Deserialize, Serialize};
 
 /// The safe or finalized head a cross-chain verifier reports for one chain.
 ///
-/// On the wire it is `{ block: { hash, number }, timestamp, source }`, `source` being
-/// `pre-activation`, `anchor` or `verified`, with the block and timestamp zero where the variant
-/// carries none.
+/// On the wire it is `{ block: { hash, number }, timestamp, source, l1 }`, `source` being
+/// `pre-activation`, `anchor` or `verified`, with the block, timestamp and L1 block zero where the
+/// variant carries none.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(into = "WireVerifierHead", from = "WireVerifierHead")]
 pub enum VerifierHead {
@@ -26,6 +27,9 @@ pub enum VerifierHead {
         block: BlockNumHash,
         /// The L2 timestamp the verifier verified up to.
         timestamp: u64,
+        /// The latest L1 block the verification depended on: it holds on an L1 chain that
+        /// includes this block.
+        l1: BlockNumHash,
     },
 }
 
@@ -44,19 +48,22 @@ struct WireVerifierHead {
     block: BlockNumHash,
     timestamp: u64,
     source: Source,
+    #[serde(default)]
+    l1: BlockNumHash,
 }
 
 impl From<VerifierHead> for WireVerifierHead {
     fn from(head: VerifierHead) -> Self {
+        let none = BlockNumHash::default();
         match head {
             VerifierHead::PreActivation => {
-                Self { block: BlockNumHash::default(), timestamp: 0, source: Source::PreActivation }
+                Self { block: none, timestamp: 0, source: Source::PreActivation, l1: none }
             }
             VerifierHead::Anchor { timestamp } => {
-                Self { block: BlockNumHash::default(), timestamp, source: Source::Anchor }
+                Self { block: none, timestamp, source: Source::Anchor, l1: none }
             }
-            VerifierHead::Verified { block, timestamp } => {
-                Self { block, timestamp, source: Source::Verified }
+            VerifierHead::Verified { block, timestamp, l1 } => {
+                Self { block, timestamp, source: Source::Verified, l1 }
             }
         }
     }
@@ -67,21 +74,39 @@ impl From<WireVerifierHead> for VerifierHead {
         match wire.source {
             Source::PreActivation => Self::PreActivation,
             Source::Anchor => Self::Anchor { timestamp: wire.timestamp },
-            Source::Verified => Self::Verified { block: wire.block, timestamp: wire.timestamp },
+            Source::Verified => {
+                Self::Verified { block: wire.block, timestamp: wire.timestamp, l1: wire.l1 }
+            }
         }
     }
+}
+
+/// Everything a cross-chain verifier reports for one chain, from one snapshot of its state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerifierStatus {
+    /// The verifier's epoch. It changes whenever the verifier deletes a denial, and with a new
+    /// store: a node that applied another epoch may hold blocks the verifier no longer stands
+    /// behind, and derives again from its finalized head before it follows this answer.
+    pub epoch: B256,
+    /// The verified safe head, or `None` while the verifier cannot answer it yet, as until it
+    /// has caught up with its sources after a start.
+    pub verified: Option<VerifierHead>,
+    /// The verified head whose L1 inclusion is finalized, or `None` like `verified`.
+    pub finalized: Option<VerifierHead>,
+    /// The blocks the verifier denied, at or above the requested height, ascending.
+    pub denied: Vec<BlockNumHash>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::B256;
 
     #[test]
     fn verified_head_has_the_flat_wire_form() {
         let head = VerifierHead::Verified {
             block: BlockNumHash { number: 7, hash: B256::repeat_byte(1) },
             timestamp: 14,
+            l1: BlockNumHash { number: 3, hash: B256::repeat_byte(2) },
         };
 
         let json = serde_json::to_value(head).unwrap();
@@ -92,6 +117,7 @@ mod tests {
                 "block": { "number": 7, "hash": B256::repeat_byte(1) },
                 "timestamp": 14,
                 "source": "verified",
+                "l1": { "number": 3, "hash": B256::repeat_byte(2) },
             })
         );
         assert_eq!(serde_json::from_value::<VerifierHead>(json).unwrap(), head);
@@ -105,5 +131,20 @@ mod tests {
 
         assert_eq!(json["source"], source);
         assert_eq!(serde_json::from_value::<VerifierHead>(json).unwrap(), head);
+    }
+
+    #[test]
+    fn a_status_without_heads_round_trips() {
+        let status = VerifierStatus {
+            epoch: B256::repeat_byte(9),
+            verified: None,
+            finalized: None,
+            denied: vec![BlockNumHash { number: 4, hash: B256::repeat_byte(4) }],
+        };
+
+        let json = serde_json::to_value(&status).unwrap();
+
+        assert_eq!(json["verified"], serde_json::Value::Null);
+        assert_eq!(serde_json::from_value::<VerifierStatus>(json).unwrap(), status);
     }
 }

@@ -4,6 +4,7 @@ use crate::{
     EngineClient, EngineState, ExecutableEngineTask, PromoteTaskError, VerifierHead,
     state::EngineSyncStateUpdate, task_queue::synchronize,
 };
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use derive_more::Constructor;
 use kona_genesis::RollupConfig;
@@ -17,8 +18,10 @@ use std::sync::Arc;
 /// - [`VerifierHead::Anchor`]: the canonical block at the anchor timestamp, or the local-safe head
 ///   if derivation has not reached it.
 /// - [`VerifierHead::Verified`]: the verified block, if it is the engine's canonical block at its
-///   height and not ahead of the local-safe head. Otherwise the label holds where it is; it never
-///   falls back to local-safe.
+///   height, not ahead of the local-safe head, and the L1 block the verification depended on is
+///   canonical on the node's L1 chain. Otherwise the label holds where it is; it never falls back
+///   to local-safe. An L1 block the node has not seen yet only means its L1 view lags the
+///   verifier's for a moment, so it holds the label too.
 ///
 /// The label then stays between the finalized and the local-safe head, and is the local-safe head
 /// while that is before the verifier's activation, whatever the verifier answers, see
@@ -46,9 +49,13 @@ impl PromoteTask {
                 }
                 self.canonical_block(number).await.map(Some)
             }
-            VerifierHead::Verified { block, .. } => {
+            VerifierHead::Verified { block, l1, .. } => {
                 if block.number > local_safe.block_info.number {
                     debug!(target: "engine", verified = ?block, local_safe = %local_safe, "Verified head is ahead of the local-safe head; holding the safe label");
+                    return Ok(None);
+                }
+                if !l1_block_is_canonical(&self.client, l1).await {
+                    debug!(target: "engine", verified = ?block, ?l1, "The verified head's L1 block is not canonical on the node's L1 chain; holding the safe label");
                     return Ok(None);
                 }
                 if block == local_safe.block_info.id() {
@@ -73,6 +80,21 @@ impl PromoteTask {
             .await?
             .ok_or(PromoteTaskError::BlockNotFound(number))?;
         Ok(L2BlockInfo::from_block_and_genesis(&block.into_consensus(), &self.cfg.genesis)?)
+    }
+}
+
+/// Whether `l1` is the canonical L1 block at its height on the L1 chain `client` reads. An L1
+/// block the node has not seen yet, or a failed lookup, is not. Genesis carries no L1 block.
+pub async fn l1_block_is_canonical(client: &EngineClient, l1: BlockNumHash) -> bool {
+    if l1.hash.is_zero() {
+        return true;
+    }
+    match client.l1_block_hash_by_number(l1.number).await {
+        Ok(hash) => hash == Some(l1.hash),
+        Err(err) => {
+            debug!(target: "engine", %err, ?l1, "Failed to look up an L1 block a verifier reported");
+            false
+        }
     }
 }
 

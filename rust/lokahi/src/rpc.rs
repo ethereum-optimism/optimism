@@ -16,7 +16,7 @@ use jsonrpsee::{
     proc_macros::rpc,
     types::{ErrorCode, ErrorObject},
 };
-use kona_engine::{DeniedBlock, VerifierHead};
+use kona_engine::VerifierStatus;
 use kona_interop::{OutputRootWithChain, SuperRoot};
 use kona_protocol::OutputRoot;
 use kona_rpc::{
@@ -29,10 +29,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 use tracing::info;
-
-/// The error code of a head asked for before verification caught up with the sources. The error
-/// data is the timestamp being verified.
-const NOT_CAUGHT_UP: i32 = -32001;
 
 /// The response of `supernode_syncStatus`, in op-supernode's shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -107,11 +103,12 @@ pub(crate) trait TestControlApi {
 
 /// Serves every namespace from the verifier's state and the chains' sources.
 ///
-/// The `interop` heads are answered only once verification has caught up with the sources'
+/// `interop_chainStatus` answers the heads only once verification has caught up with the sources'
 /// local-safe heads since the start: before that, a store that is empty or behind would answer
 /// heads far below the ones the nodes were told before, and the nodes would drop their labels to
-/// them. An error makes the nodes hold their labels instead. The denied blocks are answered at
-/// once: every denial is in the store before it is answered.
+/// them. Without heads the nodes hold their labels instead. The epoch and the denied blocks are
+/// answered at once: every denial is in the store before it is answered, and a node must take a
+/// new epoch on before verification reads it again, also while it catches up.
 #[derive(Debug, Clone)]
 pub(crate) struct Rpc {
     pub state: Arc<RwLock<Verified>>,
@@ -149,25 +146,6 @@ impl Rpc {
             module.merge(TestControlApiServer::into_rpc(self))?;
         }
         Ok(module)
-    }
-
-    /// The head `head` reads from the state, once verification has caught up.
-    fn head(
-        &self,
-        chain_id: u64,
-        head: impl FnOnce(&Verified, u64) -> Option<VerifierHead>,
-    ) -> RpcResult<VerifierHead> {
-        let state = self.state.read().expect("state lock");
-        let head = head(&state, chain_id).ok_or_else(|| unknown_chain(chain_id))?;
-        if !state.is_caught_up() {
-            let next_timestamp = state.next_timestamp();
-            return Err(ErrorObject::owned(
-                NOT_CAUGHT_UP,
-                format!("verification has not caught up with the sources yet, at {next_timestamp}"),
-                Some(next_timestamp),
-            ));
-        }
-        Ok(head)
     }
 }
 
@@ -280,22 +258,18 @@ fn super_root_data(
 
 #[async_trait]
 impl InteropAuthorityApiServer for Rpc {
-    async fn verified_head(&self, chain_id: u64) -> RpcResult<VerifierHead> {
-        self.head(chain_id, Verified::verified_head)
-    }
-
-    async fn finalized_head(&self, chain_id: u64) -> RpcResult<VerifierHead> {
-        self.head(chain_id, Verified::finalized_head)
-    }
-
-    async fn denied_blocks(&self, chain_id: u64, from: u64) -> RpcResult<Vec<DeniedBlock>> {
+    async fn chain_status(&self, chain_id: u64, denied_from: u64) -> RpcResult<VerifierStatus> {
         let state = self.state.read().expect("state lock");
-        state.verified_head(chain_id).ok_or_else(|| unknown_chain(chain_id))?;
-        let denied = state.denied_blocks(chain_id, from).map_err(internal)?;
-        Ok(denied
-            .into_iter()
-            .map(|record| DeniedBlock { block: record.block, l1: record.l1 })
-            .collect())
+        let verified = state.verified_head(chain_id).ok_or_else(|| unknown_chain(chain_id))?;
+        let finalized = state.finalized_head(chain_id).ok_or_else(|| unknown_chain(chain_id))?;
+        let caught_up = state.is_caught_up();
+        let denied = state.denied_blocks(chain_id, denied_from).map_err(internal)?;
+        Ok(VerifierStatus {
+            epoch: state.epoch(),
+            verified: caught_up.then_some(verified),
+            finalized: caught_up.then_some(finalized),
+            denied: denied.into_iter().map(|record| record.block).collect(),
+        })
     }
 }
 
@@ -677,7 +651,7 @@ mod tests {
             "superroot_atTimestamp",
             "supernode_syncStatus",
             "heartbeat_check",
-            "interop_verifiedHead",
+            "interop_chainStatus",
         ] {
             assert!(without.iter().any(|name| name == method), "{method} missing from {without:?}");
         }
@@ -685,40 +659,44 @@ mod tests {
         assert!(methods(true).iter().any(|name| name == "lokahitest_pauseAt"));
     }
 
-    /// Until verification caught up the heads are an error, which makes the nodes hold their
-    /// labels, while the denied blocks are answered from the start.
+    /// Until verification caught up the status carries no heads, which makes the nodes hold their
+    /// labels, while the epoch and the denied blocks are answered from the start, the denied
+    /// blocks from the height asked for.
     #[tokio::test]
-    async fn heads_wait_for_the_catch_up_and_denials_do_not() {
+    async fn the_status_answers_heads_once_caught_up_and_denials_at_once() {
         let dir = tempfile::tempdir().unwrap();
         let state = open_state(dir.path(), 100, BTreeMap::from([(CHAIN, 100)]));
+        let epoch = state.epoch();
         let rpc = Rpc { state: Arc::new(RwLock::new(state)), sources: Default::default() };
 
-        let err = rpc.verified_head(CHAIN).await.unwrap_err();
-        assert_eq!(err.code(), NOT_CAUGHT_UP);
-        assert_eq!(err.data().map(|data| data.get()), Some("100"), "the timestamp being verified");
-        assert_eq!(rpc.finalized_head(CHAIN).await.unwrap_err().code(), NOT_CAUGHT_UP);
-        assert_eq!(rpc.denied_blocks(CHAIN, 0).await.unwrap(), vec![]);
+        let status = rpc.chain_status(CHAIN, 0).await.unwrap();
         assert_eq!(
-            rpc.verified_head(CHAIN + 1).await.unwrap_err().code(),
+            status,
+            VerifierStatus { epoch, verified: None, finalized: None, denied: vec![] }
+        );
+        assert_eq!(
+            rpc.chain_status(CHAIN + 1, 0).await.unwrap_err().code(),
             ErrorCode::InvalidParams.code()
         );
 
-        let block = BlockNumHash { number: 3, hash: alloy_primitives::B256::repeat_byte(3) };
-        let l1 = BlockNumHash { number: 7, hash: alloy_primitives::B256::repeat_byte(7) };
-        let record = crate::state::DeniedRecord {
-            chain_id: CHAIN,
-            block,
-            output: crate::state::tests::output_of(block),
-            timestamp: 106,
-            l1,
-        };
-        rpc.state.read().unwrap().deny(&record).unwrap();
-        assert_eq!(rpc.denied_blocks(CHAIN, 0).await.unwrap(), vec![DeniedBlock { block, l1 }]);
+        let denied = |number| BlockNumHash { number, hash: B256::repeat_byte(number as u8) };
+        for number in [3, 5] {
+            let record = crate::state::DeniedRecord {
+                chain_id: CHAIN,
+                block: denied(number),
+                output: crate::state::tests::output_of(denied(number)),
+                timestamp: 100 + number,
+                l1: BlockNumHash { number: 7, hash: B256::repeat_byte(7) },
+            };
+            rpc.state.read().unwrap().deny(&record).unwrap();
+        }
+        assert_eq!(rpc.chain_status(CHAIN, 0).await.unwrap().denied, vec![denied(3), denied(5)]);
+        assert_eq!(rpc.chain_status(CHAIN, 4).await.unwrap().denied, vec![denied(5)]);
 
         rpc.state.write().unwrap().set_caught_up();
-        assert_eq!(
-            rpc.verified_head(CHAIN).await.unwrap(),
-            VerifierHead::Anchor { timestamp: 100 }
-        );
+        let status = rpc.chain_status(CHAIN, 0).await.unwrap();
+        assert_eq!(status.verified, Some(kona_engine::VerifierHead::Anchor { timestamp: 100 }));
+        assert_eq!(status.finalized, Some(kona_engine::VerifierHead::Anchor { timestamp: 100 }));
+        assert_eq!(status.epoch, epoch);
     }
 }

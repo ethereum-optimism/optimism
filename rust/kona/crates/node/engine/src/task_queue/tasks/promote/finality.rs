@@ -113,7 +113,7 @@ mod tests {
 
     #[rstest::rstest]
     // Nothing is final before the node's own L1 finality covers it.
-    #[case::no_l1_finality(None, Some(VerifierHead::Verified { block: block(12), timestamp: 124 }), None)]
+    #[case::no_l1_finality(None, Some(VerifierHead::Verified { block: block(12), timestamp: 124, l1: BlockNumHash::default() }), None)]
     // Before activation L1 finality alone finalizes, also without an answer from the verifier,
     // but never past the last block before activation.
     #[case::pre_activation_without_verifier(Some(7), None, Some(FinalizeBlockId::ByNumber(7)))]
@@ -124,12 +124,12 @@ mod tests {
     // A verified head is final by hash once L1 finality covers it, and L1 finality bounds it.
     #[case::verified_within_l1_finality(
         Some(30),
-        Some(VerifierHead::Verified { block: block(12), timestamp: 124 }),
+        Some(VerifierHead::Verified { block: block(12), timestamp: 124, l1: BlockNumHash::default() }),
         Some(FinalizeBlockId::ByHash(block(12)))
     )]
     #[case::verified_beyond_l1_finality(
         Some(11),
-        Some(VerifierHead::Verified { block: block(12), timestamp: 124 }),
+        Some(VerifierHead::Verified { block: block(12), timestamp: 124, l1: BlockNumHash::default() }),
         Some(FinalizeBlockId::ByNumber(11))
     )]
     #[case::pre_activation_answer(

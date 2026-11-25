@@ -35,7 +35,8 @@ pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
 mod promote;
 pub use promote::{
-    PromoteTask, PromoteTaskError, VerifierFinality, VerifierHead, verifier_activation_timestamp,
+    PromoteTask, PromoteTaskError, VerifierFinality, VerifierHead, VerifierStatus,
+    l1_block_is_canonical, verifier_activation_timestamp,
 };
 
 mod replace;
@@ -44,6 +45,9 @@ pub(super) use replace::replace_denied;
 
 mod deny;
 pub use deny::{DenyTask, DenyTaskError};
+
+mod undo;
+pub use undo::{UndoTask, UndoTaskError};
 
 mod util;
 pub(super) use util::{BuildAndImportError, build_and_import};

@@ -6,7 +6,7 @@ use crate::{
     store::StoreError,
 };
 use alloy_eips::{BlockNumHash, BlockNumberOrTag};
-use alloy_primitives::map::HashMap;
+use alloy_primitives::{B256, map::HashMap};
 use alloy_provider::{Provider, RootProvider};
 use kona_genesis::RollupConfig;
 use kona_interop::{BlocksWithReceipts, DependencySet, MessageGraph, MessageGraphError};
@@ -34,6 +34,10 @@ pub(crate) enum Wait {
     /// A test paused verification at or before the timestamp.
     #[error("verification is paused at {timestamp}")]
     Paused { timestamp: u64 },
+    /// A source has not taken the verifier's epoch on yet: it may still hold blocks it built on
+    /// a decision the verifier undid, so nothing it reports is read.
+    #[error("chain {chain_id}'s source derives under epoch {applied:?}, not {epoch}")]
+    OtherEpoch { chain_id: u64, applied: Option<B256>, epoch: B256 },
     /// An L1 block a chain derived from is not canonical on the verifier's L1.
     #[error("L1 inclusion {l1:?} of chain {chain_id} is not on the canonical L1 chain")]
     L1Inconsistent { chain_id: u64, l1: BlockNumHash },
@@ -130,6 +134,9 @@ impl Verifier {
                     match &wait {
                         Wait::NotLocalSafe { .. } | Wait::Paused { .. } => {
                             debug!(%reason, "Waiting")
+                        }
+                        Wait::OtherEpoch { .. } if changed => {
+                            info!(%reason, "Waiting for a source to derive again under the epoch")
                         }
                         Wait::Denied { .. } => {
                             warn!(%reason, "Denied blocks with invalid executing messages")
@@ -244,9 +251,10 @@ impl Verifier {
     /// Every chain's local-safe block at `timestamp`, unless one has not derived it yet or its
     /// block there is denied and not replaced yet.
     ///
-    /// A denial holds only on the L1 chain it was decided on, and the nodes apply it only while
-    /// its L1 block is canonical. One whose L1 block was reorged out is deleted instead of waited
-    /// on, and the block is verified again.
+    /// Each source is read only once it derives under the verifier's epoch: before, it may still
+    /// hold a block it replaced on a denial the verifier deleted. A denial holds only on the L1
+    /// chain it was decided on; one whose L1 block a reorg removed is deleted with the results
+    /// after it, see [`Self::rewind_reorged_results`].
     ///
     /// Also returns the lowest L1 block the sources are at.
     async fn read_frontier(
@@ -255,7 +263,12 @@ impl Verifier {
     ) -> Result<(BTreeMap<u64, LocalSafeAt>, BlockNumHash), Wait> {
         let mut frontier = BTreeMap::new();
         let mut current_l1 = None;
+        let epoch = self.state.read().expect("state lock").epoch();
         for (&chain_id, source) in self.sources.iter() {
+            let applied = source.applied_epoch().await?;
+            if applied != Some(epoch) {
+                return Err(Wait::OtherEpoch { chain_id, applied, epoch });
+            }
             let progress = source.progress_at(timestamp).await?;
             let lowest_l1 = lowest(current_l1.into_iter().chain([progress.current_l1]));
             current_l1 = Some(lowest_l1);
@@ -264,13 +277,8 @@ impl Verifier {
                 timestamp,
                 current_l1: lowest_l1,
             })?;
-            let denial = self.state.read().expect("state lock").denial(chain_id, at.block)?;
-            if let Some(denial) = denial {
-                if self.is_canonical(denial.l1).await? {
-                    return Err(Wait::AwaitingReplacement { chain_id, block: at.block, timestamp });
-                }
-                warn!(chain_id, block = ?at.block, l1 = ?denial.l1, "Deleting a denial decided on an L1 block that was reorged out");
-                self.state.read().expect("state lock").undeny(&denial)?;
+            if self.state.read().expect("state lock").denial(chain_id, at.block)?.is_some() {
+                return Err(Wait::AwaitingReplacement { chain_id, block: at.block, timestamp });
             }
             frontier.insert(chain_id, at);
         }
@@ -316,28 +324,55 @@ impl Verifier {
         Ok(())
     }
 
-    /// Rewinds the committed results whose L1 inclusion is no longer canonical.
+    /// Rewinds the committed results and the denials that no longer hold on the canonical L1
+    /// chain: from the first result whose L1 inclusion, or the first denial whose L1 block, is
+    /// off it.
     ///
     /// L1 inclusions never decrease with the timestamp, and a reorg replaces the L1 chain above
     /// a fork point, so the results off the canonical L1 chain are the ones from the first whose
     /// inclusion is off it: a check of the latest result finds whether there are any, and a
-    /// binary search the first. The results from it on are deleted with the denials decided on
-    /// them, in one write, and verified again. A finalized result is never deleted: one whose
-    /// inclusion is off the canonical chain stops the verifier.
+    /// binary search the first. A denial off the canonical chain voids the results from its
+    /// timestamp on, which build on the replacement its chain made. The results from the first
+    /// timestamp either finds on are deleted with the denials decided on them, in one write that
+    /// also changes the epoch if it deletes a denial, and verified again. A finalized result is
+    /// never deleted: one whose inclusion is off the canonical chain stops the verifier.
     async fn rewind_reorged_results(&self) -> Result<(), Wait> {
         let (latest, floor) = {
             let state = self.state.read().expect("state lock");
             (state.latest().cloned(), state.first_unfinalized_timestamp())
         };
-        let Some((latest_ts, latest)) = latest else { return Ok(()) };
-        if self.is_canonical(latest.l1_inclusion).await? {
-            return Ok(());
+        let mut from = match latest {
+            Some((latest_ts, latest)) if !self.is_canonical(latest.l1_inclusion).await? => {
+                if latest_ts < floor {
+                    return Err(finality_violation(latest_ts, latest.l1_inclusion));
+                }
+                Some((self.first_reorged_result(floor, latest_ts).await?, latest.l1_inclusion))
+            }
+            _ => None,
+        };
+        let denials = self.state.read().expect("state lock").denials_decided_from(floor)?;
+        for denial in denials {
+            if from.is_some_and(|(from, _)| denial.timestamp >= from) {
+                continue;
+            }
+            if !self.is_canonical(denial.l1).await? {
+                warn!(chain_id = denial.chain_id, block = ?denial.block, timestamp = denial.timestamp, l1 = ?denial.l1, "A denial was decided on an L1 block a reorg removed");
+                from = Some((denial.timestamp, denial.l1));
+            }
         }
-        if latest_ts < floor {
-            return Err(Wait::FinalityViolation { timestamp: latest_ts, l1: latest.l1_inclusion });
-        }
+        let Some((from, l1)) = from else { return Ok(()) };
+        let mut state = self.state.write().expect("state lock");
+        let epoch = state.epoch();
+        let (results, denied) = state.rewind(from)?;
+        warn!(from, results, denied, reorged = ?l1, epoch_changed = state.epoch() != epoch, "Rewound the results and denials off the canonical L1 chain");
+        Err(Wait::Rewound { from, l1 })
+    }
+
+    /// The first result in `floor..=latest` whose L1 inclusion is off the canonical L1 chain,
+    /// given the latest one is. If it is `floor`, the finalized result before it is checked too.
+    async fn first_reorged_result(&self, floor: u64, latest: u64) -> Result<u64, Wait> {
         // The first result off the canonical chain is in `lo..=hi`.
-        let (mut lo, mut hi) = (floor, latest_ts);
+        let (mut lo, mut hi) = (floor, latest);
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
             let result = self
@@ -357,12 +392,10 @@ impl Verifier {
             if let Some((timestamp, result)) = finalized &&
                 !self.is_canonical(result.l1_inclusion).await?
             {
-                return Err(Wait::FinalityViolation { timestamp, l1: result.l1_inclusion });
+                return Err(finality_violation(timestamp, result.l1_inclusion));
             }
         }
-        let (results, denied) = self.state.write().expect("state lock").rewind(lo)?;
-        warn!(from = lo, results, denied, reorged = ?latest.l1_inclusion, "Rewound the results whose L1 inclusion was reorged out");
-        Err(Wait::Rewound { from: lo, l1: latest.l1_inclusion })
+        Ok(lo)
     }
 
     /// Whether `l1` is the canonical L1 block at its height. Genesis carries no L1 block.
@@ -466,6 +499,12 @@ impl Verifier {
         );
         invalid_chains(timestamp, graph.resolve().await)
     }
+}
+
+/// The stop for the finalized result at `timestamp`, whose L1 inclusion `l1` is off the canonical
+/// L1 chain.
+const fn finality_violation(timestamp: u64, l1: BlockNumHash) -> Wait {
+    Wait::FinalityViolation { timestamp, l1 }
 }
 
 /// The lowest of `blocks` by number.
@@ -649,9 +688,19 @@ pub(crate) mod tests {
 
     /// A source CL answering one local-safe block, at genesis, or none. Each request takes the
     /// first of its answers, until only the last one is left.
+    #[derive(Clone)]
     struct SourceCl {
         chain_id: u64,
         answers: Arc<Mutex<Vec<AtGenesis>>>,
+        /// The epoch the source derives under.
+        applied: Arc<Mutex<Option<B256>>>,
+    }
+
+    #[async_trait]
+    impl kona_rpc::InteropNodeApiServer for SourceCl {
+        async fn applied_epoch(&self) -> RpcResult<Option<B256>> {
+            Ok(*self.applied.lock().unwrap())
+        }
     }
 
     #[async_trait]
@@ -689,9 +738,10 @@ pub(crate) mod tests {
         }
     }
 
-    /// The output the stubbed sources report for the block `hash`.
+    /// The output the stubbed sources report for the block `hash`: its state root is the one of
+    /// every stubbed header.
     pub(crate) fn output(hash: B256) -> OutputRoot {
-        OutputRoot::from_parts(B256::repeat_byte(0x5a), hash, hash)
+        OutputRoot::from_parts(Header::default().state_root, hash, hash)
     }
 
     /// The L1 block every stubbed source's derivation is at.
@@ -810,6 +860,8 @@ pub(crate) mod tests {
         pub l1: L1Chain,
         /// What each chain's source answers at genesis, by chain.
         answers: BTreeMap<u64, Arc<Mutex<Vec<AtGenesis>>>>,
+        /// The epoch every source derives under.
+        applied: Arc<Mutex<Option<B256>>>,
         _servers: Vec<ServerHandle>,
         pub store_dir: tempfile::TempDir,
     }
@@ -818,6 +870,12 @@ pub(crate) mod tests {
         /// Makes chain `chain_id`'s source answer `answer` from now on.
         pub(crate) fn answer(&self, chain_id: u64, answer: AtGenesis) {
             *self.answers[&chain_id].lock().unwrap() = vec![answer];
+        }
+
+        /// Makes every source take the verifier's current epoch on, as the nodes do after they
+        /// derived again.
+        pub(crate) fn apply_epoch(&self) {
+            *self.applied.lock().unwrap() = Some(self.state.read().unwrap().epoch());
         }
     }
 
@@ -839,10 +897,14 @@ pub(crate) mod tests {
         let mut servers = vec![execution_handle];
         let mut sources = Vec::new();
         let mut chain_answers = BTreeMap::new();
+        let applied = Arc::new(Mutex::new(None));
         for (chain_id, answers) in [CHAIN_A, CHAIN_B].into_iter().zip(answers) {
             let answers = Arc::new(Mutex::new(answers));
             chain_answers.insert(chain_id, answers.clone());
-            let (cl, handle) = serve(SourceCl { chain_id, answers }.into_rpc()).await;
+            let cl = SourceCl { chain_id, answers, applied: applied.clone() };
+            let mut module = SuperRootApiServer::into_rpc(cl.clone());
+            module.merge(kona_rpc::InteropNodeApiServer::into_rpc(cl)).unwrap();
+            let (cl, handle) = serve(module).await;
             servers.push(handle);
             sources.push(
                 ChainSource::connect(rollup_config(chain_id), &cl, &execution).await.unwrap(),
@@ -855,6 +917,7 @@ pub(crate) mod tests {
         };
         let store_dir = tempfile::tempdir().unwrap();
         let state = Arc::new(RwLock::new(open_state(store_dir.path(), activation)));
+        *applied.lock().unwrap() = Some(state.read().unwrap().epoch());
         let l1_chain = L1Chain::new(l1_block().number);
         let (l1, l1_handle) = l1_chain.serve().await;
         servers.push(l1_handle);
@@ -869,6 +932,7 @@ pub(crate) mod tests {
             sources,
             l1: l1_chain,
             answers: chain_answers,
+            applied,
             _servers: servers,
             store_dir,
         }
@@ -905,6 +969,7 @@ pub(crate) mod tests {
             Some(kona_engine::VerifierHead::Verified {
                 block: BlockNumHash { number: 0, hash: b },
                 timestamp: GENESIS_TIME,
+                l1: l1_inclusion(),
             })
         );
         assert_eq!(
@@ -912,6 +977,7 @@ pub(crate) mod tests {
             Some(kona_engine::VerifierHead::Verified {
                 block: BlockNumHash { number: 0, hash: a },
                 timestamp: GENESIS_TIME,
+                l1: l1_inclusion(),
             })
         );
     }
@@ -988,7 +1054,8 @@ pub(crate) mod tests {
             state.verified_head(CHAIN_B),
             Some(kona_engine::VerifierHead::Verified {
                 block: replacement,
-                timestamp: GENESIS_TIME
+                timestamp: GENESIS_TIME,
+                l1: l1_inclusion(),
             })
         );
         assert_eq!(state.denied_blocks(CHAIN_B, 0).unwrap().len(), 1);
@@ -1009,6 +1076,9 @@ pub(crate) mod tests {
 
         fixture.l1.reorg_from(6);
         fixture.answer(CHAIN_B, at_genesis(&replacement_block()));
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::Rewound { .. }), "got {wait:?}");
+        fixture.apply_epoch();
         fixture.verifier.round().await.unwrap();
 
         let result = fixture.state.read().unwrap().result_at(GENESIS_TIME).unwrap().unwrap();
@@ -1266,10 +1336,16 @@ pub(crate) mod tests {
         // source derives the invalid block again from an earlier one.
         fixture.l1.reorg_from(6);
         fixture.answer(CHAIN_B, at_genesis(&invalid_block()));
+        let epoch = fixture.state.read().unwrap().epoch();
         let wait = fixture.verifier.round().await.unwrap_err();
         assert!(matches!(wait, Wait::Rewound { from: GENESIS_TIME, .. }), "got {wait:?}");
         assert_eq!(denied(), vec![]);
+        assert_ne!(fixture.state.read().unwrap().epoch(), epoch, "the rewind deleted a denial");
 
+        // Nothing is read from a source before it derives again under the new epoch.
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::OtherEpoch { chain_id: CHAIN_A, .. }), "got {wait:?}");
+        fixture.apply_epoch();
         let wait = fixture.verifier.round().await.unwrap_err();
         assert!(matches!(wait, Wait::Denied { timestamp: GENESIS_TIME, .. }), "got {wait:?}");
         assert_eq!(
@@ -1280,8 +1356,9 @@ pub(crate) mod tests {
 
     /// A denial holds only on the L1 chain it was decided on: while its L1 block is canonical
     /// the round waits for the replacement, and once a reorg removed that block, even with every
-    /// committed result still canonical, the denial is deleted and the block is checked, and
-    /// here denied, again, on the new L1 chain.
+    /// committed result still canonical, the denial is deleted with a new epoch, and once the
+    /// sources derive under it the block is checked, and here denied, again, on the new L1
+    /// chain.
     #[tokio::test]
     async fn a_denial_decided_on_a_reorged_l1_block_is_decided_again() {
         let invalid = invalid_block().hash_slow();
@@ -1296,10 +1373,48 @@ pub(crate) mod tests {
         fixture.l1.reorg_from(6);
         fixture.answer(CHAIN_B, at_genesis(&invalid_block()));
         let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::Rewound { from: GENESIS_TIME, .. }), "got {wait:?}");
+        assert_eq!(denials(), vec![]);
+        fixture.apply_epoch();
+        let wait = fixture.verifier.round().await.unwrap_err();
 
         assert!(matches!(wait, Wait::Denied { timestamp: GENESIS_TIME, .. }), "got {wait:?}");
         let records = denials();
         assert_eq!(records.len(), 1);
         assert_eq!((records[0].block.hash, records[0].l1), (invalid, l1_inclusion()));
+    }
+
+    /// A rewind that deletes no denial keeps the epoch, so the sources are read on at once.
+    #[tokio::test]
+    async fn a_rewind_without_a_denial_keeps_the_epoch() {
+        let fixture = fixture_with_results(&[6], &[]).await;
+        let epoch = fixture.state.read().unwrap().epoch();
+        fixture.l1.reorg_from(6);
+
+        let wait = fixture.verifier.round().await.unwrap_err();
+
+        assert!(matches!(wait, Wait::Rewound { .. }), "got {wait:?}");
+        assert_eq!(fixture.state.read().unwrap().epoch(), epoch);
+        fixture.verifier.round().await.unwrap();
+    }
+
+    /// A source on another epoch, or none, is not read, also when everything else would commit.
+    #[rstest::rstest]
+    #[case::none(None)]
+    #[case::another(Some(B256::repeat_byte(0xab)))]
+    #[tokio::test]
+    async fn a_source_on_another_epoch_is_not_read(#[case] applied: Option<B256>) {
+        let fixture = fixture([chain_a_at_genesis(), vec![at_genesis(&l2_genesis(CHAIN_B))]]).await;
+        *fixture.applied.lock().unwrap() = applied;
+
+        let wait = fixture.verifier.round().await.unwrap_err();
+
+        assert!(
+            matches!(wait, Wait::OtherEpoch { chain_id: CHAIN_A, applied: a, .. } if a == applied),
+            "got {wait:?}"
+        );
+        assert_eq!(fixture.state.read().unwrap().next_timestamp(), GENESIS_TIME);
+        fixture.apply_epoch();
+        fixture.verifier.round().await.unwrap();
     }
 }

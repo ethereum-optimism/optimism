@@ -149,6 +149,12 @@ pub struct NodeCommand {
     /// follows L1.
     #[arg(long = "interop.authority-rpc", env = "KONA_NODE_INTEROP_AUTHORITY_RPC")]
     pub interop_authority_rpc: Option<Url>,
+    /// File recording the interop authority epoch the node derives under, so that a restart
+    /// knows whether the authority undid verifications meanwhile. Defaults to
+    /// `<safedb.path>.authority-epoch` when a safe head database is configured; without either,
+    /// every start derives again from the finalized head once the authority answers.
+    #[arg(long = "interop.authority-epoch-path", env = "KONA_NODE_INTEROP_AUTHORITY_EPOCH_PATH")]
+    pub interop_authority_epoch_path: Option<PathBuf>,
     /// Number of L1 blocks to keep behind the L1 head before deriving L2 data.
     /// Reorgs are supported, but may be slow to recover from.
     #[arg(long = "verifier.l1-confs", env = "KONA_NODE_VERIFIER_L1_CONFS", default_value_t = 0)]
@@ -175,6 +181,7 @@ impl Default for NodeCommand {
             interop_dependency_set: None,
             safedb_path: None,
             interop_authority_rpc: None,
+            interop_authority_epoch_path: None,
             verifier_l1_confs: 0,
             node_mode: NodeMode::Validator,
             p2p_flags: P2PArgs::default(),
@@ -352,6 +359,7 @@ impl NodeCommand {
 
         let dependency_set = self.load_dependency_set(&cfg)?;
         let safe_db = self.open_safe_db()?;
+        let authority_epoch_path = self.authority_epoch_path();
         let derivation_delegate_url = self.derivation_delegate_args.l2_follow_source;
         if safe_db.is_some() && derivation_delegate_url.is_some() {
             bail!(
@@ -382,6 +390,7 @@ impl NodeCommand {
         .with_safe_db(safe_db)
         .with_verifier_l1_confs(self.verifier_l1_confs)
         .with_interop_authority_url(self.interop_authority_rpc)
+        .with_interop_authority_epoch_path(authority_epoch_path)
         .build()
         .start()
         .await
@@ -391,6 +400,18 @@ impl NodeCommand {
         })?;
 
         Ok(())
+    }
+
+    /// The file recording the applied interop authority epoch: `--interop.authority-epoch-path`,
+    /// or else next to the safe head database.
+    fn authority_epoch_path(&self) -> Option<PathBuf> {
+        self.interop_authority_epoch_path.clone().or_else(|| {
+            self.safedb_path.as_ref().map(|safedb| {
+                let mut path = safedb.clone().into_os_string();
+                path.push(".authority-epoch");
+                PathBuf::from(path)
+            })
+        })
     }
 
     /// Opens the safe head database when `--safedb.path` is configured.

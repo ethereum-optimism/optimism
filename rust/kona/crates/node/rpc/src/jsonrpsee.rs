@@ -9,7 +9,7 @@ use alloy_primitives::{B256, U64};
 use core::net::IpAddr;
 use ipnet::IpNet;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use kona_engine::{DeniedBlock, VerifierHead};
+use kona_engine::VerifierStatus;
 use kona_genesis::{DependencySet, RollupConfig};
 use kona_gossip::{PeerCount, PeerDump, PeerInfo, PeerStats};
 use kona_protocol::SyncStatus;
@@ -70,25 +70,27 @@ pub trait SuperRootApi {
 
 /// The cross-chain verification authority a node follows for its safe and finalized labels.
 ///
-/// A node polls it: the safe label follows [`Self::verified_head`], finality
-/// [`Self::finalized_head`]. The authority serves any number of nodes per chain and knows none of
-/// them.
+/// A node polls [`Self::chain_status`]: the safe label follows its verified head, finality its
+/// finalized head, derivation replaces its denied blocks, and a change of its epoch makes the node
+/// derive again from its finalized head. The authority serves any number of nodes per chain and
+/// knows none of them.
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "interop"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "interop"))]
 pub trait InteropAuthorityApi {
-    /// The cross-chain verified safe head of `chain_id`.
-    #[method(name = "verifiedHead")]
-    async fn verified_head(&self, chain_id: u64) -> RpcResult<VerifierHead>;
+    /// The authority's epoch, the verified and finalized heads of `chain_id`, and its blocks at or
+    /// above `denied_from` that verification rejected, ascending, all from one snapshot.
+    #[method(name = "chainStatus")]
+    async fn chain_status(&self, chain_id: u64, denied_from: u64) -> RpcResult<VerifierStatus>;
+}
 
-    /// The verified head of `chain_id` whose L1 inclusion is finalized.
-    #[method(name = "finalizedHead")]
-    async fn finalized_head(&self, chain_id: u64) -> RpcResult<VerifierHead>;
-
-    /// The blocks of `chain_id` at or above `from_number` that verification rejected, in
-    /// ascending order, each with the L1 block the denial was decided on: it holds only on an L1
-    /// chain that includes that block.
-    #[method(name = "deniedBlocks")]
-    async fn denied_blocks(&self, chain_id: u64, from_number: u64) -> RpcResult<Vec<DeniedBlock>>;
+/// What a node following a cross-chain verification authority serves the authority.
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "interop"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "interop"))]
+pub trait InteropNodeApi {
+    /// The authority epoch the node derives under: it derived again from its finalized head when
+    /// it took this epoch on. `None` until it did, and on a node that follows no authority.
+    #[method(name = "appliedEpoch")]
+    async fn applied_epoch(&self) -> RpcResult<Option<B256>>;
 }
 
 /// The opp2p namespace handles peer interactions.

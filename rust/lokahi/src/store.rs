@@ -1,4 +1,5 @@
-//! The verifier's durable store: verified results by timestamp and denied blocks, in `RocksDB`.
+//! The verifier's durable store: verified results by timestamp, denied blocks, and the epoch, in
+//! `RocksDB`.
 //!
 //! Every write is one atomic batch, synced to the write-ahead log before it returns. After a
 //! crash the store holds a prefix of the writes made: a torn last batch is dropped whole.
@@ -15,6 +16,8 @@ use thiserror::Error;
 const RESULT: u8 = b'r';
 /// The key prefix of denied blocks: `d ‖ chain ID ‖ block number ‖ block hash`.
 const DENIED: u8 = b'd';
+/// The key of the epoch, which sorts between the denied blocks and the results.
+const EPOCH: [u8; 1] = *b"e";
 
 const RESULT_KEY_LEN: usize = 1 + 8;
 const DENIED_KEY_LEN: usize = 1 + 8 + 8 + 32;
@@ -65,6 +68,9 @@ pub(crate) enum StoreError {
 #[derive(Debug)]
 pub(crate) struct Store {
     db: DB,
+    /// The epoch: a random value made with the store and replaced by every rewind that deletes a
+    /// denial, so a node can tell whether the verifier undid a decision it may have acted on.
+    epoch: B256,
 }
 
 impl Store {
@@ -77,7 +83,24 @@ impl Store {
         // store then holds a prefix of what was written, so every result it holds has every
         // earlier result too.
         options.set_wal_recovery_mode(DBRecoveryMode::PointInTime);
-        Ok(Self { db: DB::open(&options, path)? })
+        let db = DB::open(&options, path)?;
+        let epoch = match db.get_pinned(EPOCH)? {
+            Some(value) if value.len() == 32 => B256::from_slice(&value),
+            Some(_) => return Err(corrupt("epoch", &EPOCH)),
+            None => B256::ZERO,
+        };
+        let mut store = Self { db, epoch };
+        if epoch.is_zero() {
+            let mut batch = WriteBatch::default();
+            store.epoch = new_epoch(&mut batch);
+            store.write(batch)?;
+        }
+        Ok(store)
+    }
+
+    /// The epoch.
+    pub(crate) const fn epoch(&self) -> B256 {
+        self.epoch
     }
 
     /// Writes the result of `timestamp`.
@@ -132,8 +155,9 @@ impl Store {
     }
 
     /// Deletes the results from `timestamp` on and the denied blocks decided at or after it, in
-    /// one write. Returns how many results and denied blocks it deleted.
-    pub(crate) fn rewind(&self, timestamp: u64) -> Result<(usize, usize), StoreError> {
+    /// one write, with a new epoch if it deletes a denied block. Returns how many results and
+    /// denied blocks it deleted.
+    pub(crate) fn rewind(&mut self, timestamp: u64) -> Result<(usize, usize), StoreError> {
         let mut batch = WriteBatch::default();
         let mut results = 0;
         let start = result_key(timestamp);
@@ -156,15 +180,31 @@ impl Store {
                 denied += 1;
             }
         }
+        let epoch = (denied > 0).then(|| new_epoch(&mut batch));
         self.write(batch)?;
+        if let Some(epoch) = epoch {
+            self.epoch = epoch;
+        }
         Ok((results, denied))
     }
 
-    /// Deletes the denial of `record`'s block.
-    pub(crate) fn delete_denied(&self, record: &DeniedRecord) -> Result<(), StoreError> {
-        let mut batch = WriteBatch::default();
-        batch.delete(denied_key(record.chain_id, record.block.number, record.block.hash));
-        self.write(batch)
+    /// The denied blocks of every chain decided at or after `timestamp`.
+    pub(crate) fn denials_decided_from(
+        &self,
+        timestamp: u64,
+    ) -> Result<Vec<DeniedRecord>, StoreError> {
+        let mut records = Vec::new();
+        for entry in self.db.iterator(IteratorMode::From(&[DENIED], Direction::Forward)) {
+            let (key, value) = entry?;
+            if key.first() != Some(&DENIED) {
+                break;
+            }
+            let record = decode_denied(&key, &value)?;
+            if record.timestamp >= timestamp {
+                records.push(record);
+            }
+        }
+        Ok(records)
     }
 
     /// The denied blocks of `chain_id` at or above `from_number`, by number.
@@ -190,6 +230,13 @@ impl Store {
         options.set_sync(true);
         Ok(self.db.write_opt(batch, &options)?)
     }
+}
+
+/// Puts a new random epoch into `batch`, and returns it.
+fn new_epoch(batch: &mut WriteBatch) -> B256 {
+    let epoch = B256::random();
+    batch.put(EPOCH, epoch.as_slice());
+    epoch
 }
 
 fn result_key(timestamp: u64) -> [u8; RESULT_KEY_LEN] {
@@ -387,9 +434,11 @@ mod tests {
         assert_eq!(store.denied(901, 4).unwrap(), vec![denied(901, 7)]);
         assert_eq!(store.denied(902, 0).unwrap(), vec![denied(902, 5)]);
         assert_eq!(store.denied(903, 0).unwrap(), vec![]);
-
-        store.delete_denied(&denied(901, 3)).unwrap();
-        assert_eq!(store.denied(901, 0).unwrap(), vec![denied(901, 7)]);
+        assert_eq!(
+            store.denials_decided_from(1005).unwrap(),
+            vec![denied(901, 7), denied(902, 5)],
+            "every chain's, decided at or after the timestamp"
+        );
     }
 
     /// A rewind deletes the results from its timestamp on and the denials decided at or after
@@ -398,7 +447,7 @@ mod tests {
     fn rewind_deletes_later_results_and_denials() {
         let dir = tempfile::tempdir().unwrap();
         {
-            let store = Store::open(dir.path()).unwrap();
+            let mut store = Store::open(dir.path()).unwrap();
             for ts in 1000..1015 {
                 store.put_result(ts, &result(ts)).unwrap();
             }
@@ -416,6 +465,34 @@ mod tests {
         assert_eq!(store.result(1010).unwrap(), None);
         assert_eq!(store.denied(901, 0).unwrap(), vec![denied(901, 2)]);
         assert_eq!(store.denied(902, 0).unwrap(), vec![denied(902, 9)]);
+    }
+
+    /// The epoch is made with the store and kept across a reopen; a rewind that deletes a denial
+    /// replaces it, durably, and one that deletes none keeps it. Another store has another epoch.
+    #[test]
+    fn a_rewind_that_deletes_a_denial_changes_the_epoch() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = {
+            let mut store = Store::open(dir.path()).unwrap();
+            let first = store.epoch();
+            for ts in 1000..1006 {
+                store.put_result(ts, &result(ts)).unwrap();
+            }
+            store.put_denied(&denied(901, 3)).unwrap();
+            assert_ne!(Store::open(&dir.path().join("other")).unwrap().epoch(), first);
+
+            assert_eq!(store.rewind(1005).unwrap(), (1, 0));
+            assert_eq!(store.epoch(), first, "no denial deleted");
+            first
+        };
+        let mut store = Store::open(dir.path()).unwrap();
+        assert_eq!(store.epoch(), first, "kept across a reopen");
+
+        assert_eq!(store.rewind(1003).unwrap(), (2, 1));
+        let second = store.epoch();
+        assert_ne!(second, first);
+        drop(store);
+        assert_eq!(Store::open(dir.path()).unwrap().epoch(), second);
     }
 
     #[test]

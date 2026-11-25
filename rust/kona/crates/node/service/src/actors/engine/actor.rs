@@ -6,9 +6,9 @@ use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
     BuildTask, CanonicalizeTask, ConsolidateTask, DeniedBlocks, DeniedBlocksSender, DenyTask,
     Engine, EngineActorRequest, EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
-    EngineTaskErrors, FinalizeBlockId, FinalizeTask, HeardDenials, ImportedBlockSink, InsertTask,
-    OpStackTask, PromoteTask, SealTask, VerifierFinality, VerifierHead,
-    verifier_activation_timestamp,
+    EngineTaskErrors, FinalizeBlockId, FinalizeTask, ImportedBlockSink, InsertTask, OpStackTask,
+    PromoteTask, SealTask, UndoRequest, UndoTask, VerifierFinality, VerifierHead,
+    l1_block_is_canonical, verifier_activation_timestamp,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -77,8 +77,6 @@ where
     denied: DeniedBlocks,
     /// Publishes the verifier's denied blocks to `denied`, when the node follows a verifier.
     denied_sender: Option<DeniedBlocksSender>,
-    /// The verifier's denials the node heard, judged on its L1 chain before they are published.
-    heard_denials: HeardDenials,
     /// The finality of a node following a verifier, which combines the verifier's finalized head
     /// with the node's own L1 finality.
     verifier_finality: Option<VerifierFinality>,
@@ -115,7 +113,6 @@ where
             retry_delay: Duration::from_millis(100),
             denied: DeniedBlocks::none(),
             denied_sender: None,
-            heard_denials: HeardDenials::default(),
             verifier_finality: None,
         }
     }
@@ -431,6 +428,14 @@ where
                 self.finalize(FinalityUpdate::L1(*finalized_l2_block_id));
             }
             EngineActorRequest::ProcessVerifiedFinalizedHead(head) => {
+                // A finalized head verified on an L1 block the node's L1 chain does not have, yet
+                // or any more, is held back: the views differ only for a moment.
+                if let VerifierHead::Verified { block, l1, .. } = *head &&
+                    !l1_block_is_canonical(&self.client, l1).await
+                {
+                    debug!(target: "engine", finalized = ?block, ?l1, "The verifier's finalized head's L1 block is not canonical on the node's L1 chain; holding finality");
+                    return Ok(());
+                }
                 self.finalize(FinalityUpdate::Verifier(*head));
             }
             EngineActorRequest::ProcessVerifiedSafeHead(head) => {
@@ -440,28 +445,30 @@ where
                     *head,
                 ))));
             }
-            EngineActorRequest::ProcessDeniedBlocks(answer) => {
+            EngineActorRequest::ProcessDeniedBlocks(denied) => {
                 let Some(denied_sender) = &self.denied_sender else {
                     warn!(target: "engine", "Ignoring denied blocks: the node follows no verifier");
                     return Ok(());
                 };
-                let finalized = self.engine.state().sync_state.finalized_head().block_info.number;
-                let Some(judged) = self.heard_denials.judge(&self.client, answer, finalized).await
-                else {
-                    return Ok(());
-                };
-                denied_sender.publish(&judged);
-                if !judged.reorged.is_empty() {
-                    warn!(target: "engine", reorged = ?judged.reorged, "Denials were decided on L1 blocks a reorg removed; they no longer hold");
-                }
-                if !judged.applied.is_empty() || !judged.reorged.is_empty() {
+                denied_sender.publish(denied.clone());
+                if !denied.is_empty() {
                     self.engine.enqueue(EngineTask::Deny(Box::new(DenyTask::new(
                         self.client.clone(),
                         self.rollup.clone(),
-                        judged.applied,
-                        judged.reorged,
+                        denied,
                     ))));
                 }
+            }
+            EngineActorRequest::UndoVerifications(request) => {
+                let Some(denied_sender) = &self.denied_sender else {
+                    warn!(target: "engine", "Ignoring an undo: the node follows no verifier");
+                    return Ok(());
+                };
+                let UndoRequest { denied, done } = *request;
+                // Derivation again consults the new denied blocks from the start.
+                denied_sender.publish(denied);
+                self.engine
+                    .enqueue(EngineTask::Undo(Box::new(UndoTask::new(self.client.clone(), done))));
             }
             EngineActorRequest::ProcessUnsafeL2Block(envelope) => {
                 let task = EngineTask::Insert(Box::new(InsertTask::new(

@@ -44,14 +44,13 @@ pub use task_queue::{
     EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors,
     ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask,
     InsertTaskError, OpStackTask, OpenBlockError, PromoteTask, PromoteTaskError,
-    ReplaceDeniedError, SealTask, SealTaskError, SynchronizeTaskError, VerifierFinality,
-    VerifierHead, verifier_activation_timestamp,
+    ReplaceDeniedError, SealTask, SealTaskError, SynchronizeTaskError, UndoTask, UndoTaskError,
+    VerifierFinality, VerifierHead, VerifierStatus, l1_block_is_canonical,
+    verifier_activation_timestamp,
 };
 
 mod denied;
-pub use denied::{
-    DeniedBlock, DeniedBlocks, DeniedBlocksSender, DeniedBlocksUnknown, HeardDenials, JudgedDenials,
-};
+pub use denied::{DeniedBlocks, DeniedBlocksSender, DeniedBlocksUnknown};
 
 mod attributes;
 pub use attributes::{AttributesMatch, AttributesMismatch};
@@ -65,7 +64,7 @@ pub use client::{EngineClient, EngineClientError, EngineQueryClient};
 mod request;
 pub use request::{
     BuildRequest, CanonicalizeRequest, EngineActorRequest, EngineRequestError, EngineRequestResult,
-    OpStackRequest, ResetRequest, SealRequest,
+    OpStackRequest, ResetRequest, SealRequest, UndoRequest,
 };
 
 mod versions;

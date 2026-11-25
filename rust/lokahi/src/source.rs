@@ -14,7 +14,7 @@ use jsonrpsee::{
 use kona_genesis::RollupConfig;
 use kona_interop::{BlockWithReceipts, InitiatingLogs, InteropProvider};
 use kona_protocol::{OutputRoot, SyncStatus};
-use kona_rpc::{DecimalChainId, SuperRootApiClient};
+use kona_rpc::{DecimalChainId, InteropNodeApiClient, SuperRootApiClient};
 use op_alloy_consensus::OpReceiptEnvelope;
 use op_alloy_network::Optimism;
 use std::{collections::BTreeMap, sync::RwLock, time::Duration};
@@ -176,6 +176,11 @@ impl ChainSource {
             local_safe_timestamp: response.current_local_safe_timestamp,
             finalized_timestamp: response.current_finalized_timestamp,
         })
+    }
+
+    /// The authority epoch the source derives under, if it took one on.
+    pub(crate) async fn applied_epoch(&self) -> Result<Option<B256>, SourceError> {
+        Ok(self.cl.applied_epoch().await?)
     }
 
     /// The source's `optimism_syncStatus`, as it answered it and decoded.

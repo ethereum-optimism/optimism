@@ -4,11 +4,11 @@
 
 use super::{
     BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, DenyTask, FinalizeTask,
-    InsertTask, OpStackTask, PromoteTask,
+    InsertTask, OpStackTask, PromoteTask, UndoTask,
 };
 use crate::{
     BuildTaskError, ConsolidateTaskError, DenyTaskError, EngineState, FinalizeTaskError,
-    InsertTaskError, PromoteTaskError,
+    InsertTaskError, PromoteTaskError, UndoTaskError,
     task_queue::{SealTask, SealTaskError},
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
@@ -92,6 +92,9 @@ pub enum EngineTaskErrors {
     /// An error, or the outcome, of handling a verifier's denied blocks.
     #[error(transparent)]
     Deny(#[from] DenyTaskError),
+    /// An error, or the outcome, of deriving again after a verifier undid verifications.
+    #[error(transparent)]
+    Undo(#[from] UndoTaskError),
 }
 
 impl EngineTaskError for EngineTaskErrors {
@@ -105,6 +108,7 @@ impl EngineTaskError for EngineTaskErrors {
             Self::Finalize(inner) => inner.severity(),
             Self::Promote(inner) => inner.severity(),
             Self::Deny(inner) => inner.severity(),
+            Self::Undo(inner) => inner.severity(),
         }
     }
 }
@@ -133,6 +137,9 @@ pub enum EngineTask {
     Promote(Box<PromoteTask>),
     /// Makes derivation replace the local-safe blocks a cross-chain verifier denied.
     Deny(Box<DenyTask>),
+    /// Makes derivation derive again from the finalized head after a cross-chain verifier undid
+    /// verifications.
+    Undo(Box<UndoTask>),
 }
 
 impl EngineTask {
@@ -157,6 +164,7 @@ impl EngineTask {
             Self::Finalize(task) => task.execute(state).await?,
             Self::Promote(task) => task.execute(state).await?,
             Self::Deny(task) => task.execute(state).await?,
+            Self::Undo(task) => task.execute(state).await?,
             Self::Build(task) => {
                 task.execute(state).await?;
             }
@@ -173,7 +181,7 @@ impl EngineTask {
             Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
             Self::Finalize(_) => crate::Metrics::FINALIZE_TASK_LABEL,
             Self::Promote(_) => crate::Metrics::PROMOTE_TASK_LABEL,
-            Self::Deny(_) => crate::Metrics::DENY_TASK_LABEL,
+            Self::Deny(_) | Self::Undo(_) => crate::Metrics::DENY_TASK_LABEL,
             Self::OpStack(_) => crate::Metrics::OPSTACK_TASK_LABEL,
         }
     }
@@ -191,7 +199,8 @@ impl PartialEq for EngineTask {
                 (Self::Consolidate(_), Self::Consolidate(_)) |
                 (Self::Finalize(_), Self::Finalize(_)) |
                 (Self::Promote(_), Self::Promote(_)) |
-                (Self::Deny(_), Self::Deny(_))
+                (Self::Deny(_), Self::Deny(_)) |
+                (Self::Undo(_), Self::Undo(_))
         )
     }
 }
@@ -223,6 +232,8 @@ impl Ord for EngineTask {
         // - Promote tasks come before Finalize tasks, so a verifier's safe head lands before the
         //   finalized head it bounds.
         // - Finalize tasks have the lowest priority, as they only update finalized status.
+        // - Undo tasks come before all others: every queued task was made for derivation the undo
+        //   abandons.
         match (self, other) {
             // Same variant cases
             (Self::Insert(_), Self::Insert(_)) |
@@ -233,7 +244,11 @@ impl Ord for EngineTask {
             (Self::OpStack(_), Self::OpStack(_)) |
             (Self::Deny(_), Self::Deny(_)) |
             (Self::Promote(_), Self::Promote(_)) |
-            (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
+            (Self::Finalize(_), Self::Finalize(_)) |
+            (Self::Undo(_), Self::Undo(_)) => Ordering::Equal,
+
+            (Self::Undo(_), _) => Ordering::Greater,
+            (_, Self::Undo(_)) => Ordering::Less,
 
             // Finish importing a sequenced block before starting another build.
             (Self::Canonicalize(_), _) => Ordering::Greater,
