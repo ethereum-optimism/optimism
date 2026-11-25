@@ -67,17 +67,21 @@ To restart the blockchain, use the same order of components you did when you ini
       --poll-interval=12s \
       --rpc.port=8560 \
       --rollup-rpc=http://localhost:8547 \
-      --l2oo-address=0xYourL2OutputOracleAddress \
+      --game-factory-address=0xYourDisputeGameFactoryAddress \
+      --game-type=0 \
+      --proposal-interval=3600s \
       --private-key=$PROPOSER_PRIVATE_KEY \
       --l1-eth-rpc=$L1_RPC_URL
     ```
-    | Parameter     | Description                                                    |
-    | ------------- | -------------------------------------------------------------- |
-    | poll-interval | How often to check for new output proposals (recommended: 12s) |
-    | rpc.port      | Local RPC port for the proposer service                        |
-    | l2oo-address  | The L2 Output Oracle contract address (0x-prefixed hex)        |
-    | private-key   | Private key for signing proposals                              |
-    | l1-eth-rpc    | L1 network RPC endpoint URL                                    |
+    | Parameter            | Description                                                             |
+    | -------------------- | ----------------------------------------------------------------------- |
+    | poll-interval        | How often to check for new output proposals (recommended: 12s)          |
+    | rpc.port             | Local RPC port for the proposer service                                 |
+    | game-factory-address | The `DisputeGameFactory` proxy address (0x-prefixed hex)                |
+    | game-type            | Dispute game type to create; must match the chain's respected game type |
+    | proposal-interval    | Interval between proposals (for example `3600s`)                        |
+    | private-key          | Private key for signing proposals                                       |
+    | l1-eth-rpc           | L1 network RPC endpoint URL                                             |
   </Step>
 </Steps>
 <Info>
