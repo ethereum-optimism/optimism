@@ -74,10 +74,10 @@ impl EngineTaskError for ReplaceDeniedError {
             Self::NotValidated(PayloadStatusEnum::Invalid { .. }) |
             Self::DepositsOnlyDenied(_) |
             Self::FromBlock(_) => EngineTaskErrorSeverity::Critical,
-            Self::Unknown(_) |
-            Self::NotValidated(_) |
-            Self::NotCanonical { .. } |
-            Self::Lookup(_) => EngineTaskErrorSeverity::Temporary,
+            Self::Unknown(_) => EngineTaskErrorSeverity::Waiting,
+            Self::NotValidated(_) | Self::NotCanonical { .. } | Self::Lookup(_) => {
+                EngineTaskErrorSeverity::Temporary
+            }
             Self::Build(inner) => inner.severity(),
             Self::GetPayload(inner) => inner.severity(),
             Self::Insert(inner) => inner.severity(),

@@ -41,6 +41,13 @@ pub enum EngineTaskErrorSeverity {
     /// The task moved the local-safe head back, so derivation restarts from it. The task is done.
     #[display("rederive")]
     Rederive,
+    /// The task needs a cross-chain verifier's denied blocks, which the node has not heard yet.
+    /// The queue sets it aside and runs the other tasks, and runs it again once the denied blocks
+    /// arrive, see [`Engine::wake_waiting`].
+    ///
+    /// [`Engine::wake_waiting`]: crate::Engine::wake_waiting
+    #[display("waiting")]
+    Waiting,
 }
 
 /// The interface for an engine task error.

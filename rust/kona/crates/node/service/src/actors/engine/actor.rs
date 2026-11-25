@@ -297,6 +297,8 @@ where
                         return Ok(());
                     }
                     EngineTaskErrorSeverity::Skip => self.log_skipped_task(&err),
+                    // The queue sets a waiting task aside rather than return its error.
+                    EngineTaskErrorSeverity::Waiting => {}
                     EngineTaskErrorSeverity::Rederive => {
                         warn!(target: "engine", %err, "Restarting derivation from the local-safe head");
                         return self.restart_derivation().await;
@@ -451,6 +453,8 @@ where
                     return Ok(());
                 };
                 denied_sender.publish(denied.clone());
+                // The derived imports that waited for the denied blocks can run now.
+                self.engine.wake_waiting();
                 if !denied.is_empty() {
                     self.engine.enqueue(EngineTask::Deny(Box::new(DenyTask::new(
                         self.client.clone(),
@@ -467,6 +471,7 @@ where
                 let UndoRequest { denied, done } = *request;
                 // Derivation again consults the new denied blocks from the start.
                 denied_sender.publish(denied);
+                self.engine.wake_waiting();
                 self.engine
                     .enqueue(EngineTask::Undo(Box::new(UndoTask::new(self.client.clone(), done))));
             }

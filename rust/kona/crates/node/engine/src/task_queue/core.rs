@@ -53,6 +53,10 @@ impl Ord for QueuedTask {
 /// they are not popped from the queue, the error is returned, and they are retried on the
 /// next call to [`Engine::drain`]. A task that fails with a flush error has already replaced its
 /// block, so it is popped before the error is returned.
+///
+/// A task that waits for a cross-chain verifier's denied blocks, the derived import of a node
+/// that has not heard them yet, is set aside instead, so it holds up nothing else: sequencing and
+/// unsafe imports go on. It runs again once [`Engine::wake_waiting`] is called.
 #[derive(Debug)]
 pub struct Engine {
     /// The state of the engine.
@@ -65,6 +69,8 @@ pub struct Engine {
     /// Preserve the task being retried ahead of newly enqueued work: it may have already
     /// performed part of an Engine API operation.
     active: Option<EngineTask>,
+    /// The tasks set aside until the verifier's denied blocks arrive.
+    waiting: Vec<EngineTask>,
 }
 
 impl Engine {
@@ -75,6 +81,7 @@ impl Engine {
             state_sender,
             tasks: BinaryHeap::default(),
             active: None,
+            waiting: Vec::new(),
             next_sequence: 0,
         }
     }
@@ -97,14 +104,29 @@ impl Engine {
         self.tasks.push(QueuedTask { sequence, task });
     }
 
-    /// Number of queued and active tasks, including work awaiting a retry.
+    /// Number of queued and active tasks, including work awaiting a retry, but not the tasks set
+    /// aside until the verifier's denied blocks arrive.
     pub fn len(&self) -> usize {
         self.tasks.len() + usize::from(self.active.is_some())
     }
 
-    /// Whether there is no pending work.
+    /// Whether there is no pending work but, possibly, tasks set aside until the verifier's denied
+    /// blocks arrive.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Number of tasks set aside until the verifier's denied blocks arrive.
+    pub const fn waiting(&self) -> usize {
+        self.waiting.len()
+    }
+
+    /// Queues the tasks set aside until the verifier's denied blocks arrive again, for when the
+    /// node has heard them.
+    pub fn wake_waiting(&mut self) {
+        for task in std::mem::take(&mut self.waiting) {
+            self.enqueue(task);
+        }
     }
 
     /// Resets the engine by finding a plausible sync starting point via
@@ -129,10 +151,11 @@ impl Engine {
         Ok(start.safe)
     }
 
-    /// Clears the task queue.
+    /// Clears the task queue, and the tasks set aside.
     pub fn clear(&mut self) {
         self.tasks.clear();
         self.active = None;
+        self.waiting.clear();
     }
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
@@ -146,6 +169,14 @@ impl Engine {
             }
             let Some(task) = &self.active else { break };
             let result = task.execute(&mut self.state).await;
+
+            if let Err(err) = &result &&
+                err.severity() == EngineTaskErrorSeverity::Waiting
+            {
+                debug!(target: "engine", %err, "Setting a task aside until the denied blocks arrive");
+                self.waiting.extend(self.active.take());
+                continue;
+            }
 
             // A flush reports that the task replaced its block with a deposits-only block, so the
             // task is done; retrying it would replace that block again. A skip reports a task that
@@ -324,6 +355,57 @@ mod recovery_tests {
         engine.drain().await.unwrap();
         assert!(engine.is_empty());
         assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 3);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    // A derived import that waits for the verifier's denied blocks holds up nothing else: the
+    // sequencer's build runs, and the import is set aside until the denied blocks arrive.
+    #[tokio::test]
+    async fn derived_import_waiting_for_denials_does_not_hold_up_the_queue() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        let head = test_block_info(10);
+        let attributes = TestAttributesBuilder::new().with_parent(head).build();
+        let payload_id = PayloadId::new([3; 8]);
+        l2.expect(
+            "engine_forkchoiceUpdatedV2",
+            ForkchoiceUpdated {
+                payload_status: PayloadStatus::from_status(PayloadStatusEnum::Valid),
+                payload_id: Some(payload_id),
+            },
+        );
+        let (_denials, unknown) = crate::DeniedBlocks::from_verifier(0);
+        let state = TestEngineStateBuilder::new().with_unsafe_head(head).build();
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        engine.enqueue(EngineTask::Consolidate(Box::new(
+            ConsolidateTask::new(
+                client.clone(),
+                config.clone(),
+                ConsolidateInput::Attributes(Box::new(attributes.clone())),
+                Arc::new(NoopBlockSink),
+            )
+            .with_denied_blocks(unknown),
+        )));
+        let (build_tx, mut build_rx) = tokio::sync::mpsc::channel(1);
+        engine.enqueue(EngineTask::Build(Box::new(crate::BuildTask::new(
+            client, config, attributes, build_tx,
+        ))));
+
+        engine.drain().await.unwrap();
+
+        assert_eq!(build_rx.recv().await.unwrap().unwrap(), payload_id);
+        assert!(engine.is_empty());
+        assert_eq!(engine.waiting(), 1);
+        // Woken while the denied blocks are still unknown, it is set aside again.
+        engine.wake_waiting();
+        assert_eq!(engine.len(), 1);
+        engine.drain().await.unwrap();
+        assert_eq!(engine.waiting(), 1);
+        engine.clear();
+        assert_eq!(engine.waiting(), 0);
         l1.assert_finished();
         l2.assert_finished();
     }

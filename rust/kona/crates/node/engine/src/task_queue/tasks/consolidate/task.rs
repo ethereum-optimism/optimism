@@ -1438,7 +1438,7 @@ mod tests {
                 matches!(err, ConsolidateTaskError::Denied(ReplaceDeniedError::Unknown(_))),
                 "{err:?}"
             );
-            assert_eq!(err.severity(), EngineTaskErrorSeverity::Temporary);
+            assert_eq!(err.severity(), EngineTaskErrorSeverity::Waiting);
             assert_eq!(state, state_before);
             l1.assert_finished();
             l2.assert_finished();
