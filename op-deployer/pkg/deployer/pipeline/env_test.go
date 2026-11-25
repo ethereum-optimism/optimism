@@ -4,10 +4,10 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -257,13 +257,18 @@ func TestReadIntent_RejectsUnknownKeys(t *testing.T) {
 		{
 			name: "keys of a known table",
 			toml: "[superchainRoles]\nguardian = \"0x0000000000000000000000000000000000000001\"\nproxyAdminOwner = \"0x0000000000000000000000000000000000000002\"\n",
-			keys: "superchainRoles.guardian, superchainRoles.proxyAdminOwner",
+			keys: "superchainRoles.guardian (the key is SuperchainGuardian), superchainRoles.proxyAdminOwner (the key is SuperchainProxyAdminOwner)",
 		},
 		{
 			name: "chain key lists once for several chains",
 			toml: chain + "chainFeesRecipient = \"0x0000000000000000000000000000000000000001\"\n" +
 				chain + "chainFeesRecipient = \"0x0000000000000000000000000000000000000002\"\n",
-			keys: "chains.chainFeesRecipient",
+			keys: "chains.chainFeesRecipient (removed, delete it)",
+		},
+		{
+			name: "removed key in another case",
+			toml: "[SuperchainRoles]\nprotocolVersionsOwner = \"0x0000000000000000000000000000000000000001\"\n",
+			keys: "SuperchainRoles.protocolVersionsOwner (removed, delete it)",
 		},
 		{
 			name: "unknown table",
@@ -341,47 +346,67 @@ e = 5
 
 // ReadIntent must accept every key that op-deployer itself writes.
 func TestReadIntent_AcceptsWrittenIntent(t *testing.T) {
-	addr := common.HexToAddress("0x0000000000000000000000000000000000000001")
-	for _, configType := range []state.IntentType{state.IntentTypeStandard, state.IntentTypeCustom, state.IntentTypeStandardOverrides} {
-		t.Run(string(configType), func(t *testing.T) {
-			intent, err := state.NewIntent(configType, 11155111, []common.Hash{common.BigToHash(big.NewInt(901))})
-			require.NoError(t, err)
-			intent.SuperchainConfigProxy = &addr
-			intent.SuperchainRoles = &addresses.SuperchainRoles{SuperchainProxyAdminOwner: addr, SuperchainGuardian: addr, Challenger: addr}
-			intent.GlobalDeployOverrides = map[string]any{"l2BlockTime": int64(1), "nested": map[string]any{"a": int64(1)}}
-			intent.L1DevGenesisParams = &state.L1DevGenesisParams{
-				PragueTimeOffset: new(uint64),
-				BlobSchedule:     &params.BlobScheduleConfig{Cancun: params.DefaultCancunBlobConfig},
-			}
-			chain := intent.Chains[0]
-			chain.DeployOverrides = map[string]any{"customGasToken": map[string]any{"name": "Token"}}
-			chain.AdditionalDisputeGames = []state.AdditionalDisputeGame{{
-				VMType:        state.VMTypeCannon,
-				ZKDisputeGame: &state.ZKDisputeGameParams{ChallengerBond: (*hexutil.Big)(big.NewInt(1))},
-			}}
-			chain.CustomGasToken = state.CustomGasToken{Name: "Token", Symbol: "TKN", InitialLiquidity: (*hexutil.Big)(big.NewInt(1))}
-			chain.L1StartBlockHash = &common.Hash{1}
-			chain.DangerousAltDAConfig = genesis.AltDADeployConfig{UseAltDA: true, DACommitmentType: "KeccakCommitment"}
-			chain.OperatorFeeScalar = 1
-			chain.OperatorFeeConstant = 1
-			chain.MinBaseFee = 1
-			chain.DAFootprintGasScalar = 1
-			chain.BridgeHook = &addr
-			chain.L2DevGenesisParams = &state.L2DevGenesisParams{}
+	var intent state.Intent
+	fillIntent(t, reflect.ValueOf(&intent).Elem())
 
-			dir := t.TempDir()
-			intentPath := filepath.Join(dir, "intent.toml")
-			require.NoError(t, intent.WriteToFile(intentPath))
-			written, err := os.ReadFile(intentPath)
-			require.NoError(t, err)
+	dir := t.TempDir()
+	intentPath := filepath.Join(dir, "intent.toml")
+	require.NoError(t, intent.WriteToFile(intentPath))
+	written, err := os.ReadFile(intentPath)
+	require.NoError(t, err)
 
-			got, err := ReadIntent(dir)
-			require.NoError(t, err)
-			require.NoError(t, got.WriteToFile(intentPath))
-			rewritten, err := os.ReadFile(intentPath)
-			require.NoError(t, err)
-			require.Equal(t, string(written), string(rewritten))
-		})
+	got, err := ReadIntent(dir)
+	require.NoError(t, err)
+	require.NoError(t, got.WriteToFile(intentPath))
+	rewritten, err := os.ReadFile(intentPath)
+	require.NoError(t, err)
+	require.Equal(t, string(written), string(rewritten))
+}
+
+// fillIntent sets every field below v to a non-zero value, so that a field added to the intent
+// type is written and read back without a change to the test.
+func fillIntent(t *testing.T, v reflect.Value) {
+	switch x := v.Addr().Interface().(type) {
+	case *hexutil.Big:
+		*x = hexutil.Big(*big.NewInt(1))
+		return
+	case *artifacts.Locator:
+		*x = *artifacts.EmbeddedLocator
+		return
+	}
+	switch v.Kind() {
+	case reflect.Pointer:
+		v.Set(reflect.New(v.Type().Elem()))
+		fillIntent(t, v.Elem())
+	case reflect.Struct:
+		for i := range v.NumField() {
+			require.True(t, v.Field(i).CanSet(), "unexported field %s in %s", v.Type().Field(i).Name, v.Type())
+			fillIntent(t, v.Field(i))
+		}
+	case reflect.Slice:
+		v.Set(reflect.MakeSlice(v.Type(), 1, 1))
+		fillIntent(t, v.Index(0))
+	case reflect.Array:
+		fillIntent(t, v.Index(0))
+	case reflect.Map:
+		// The TOML library cannot write a map with a non-string key, which the prefund maps have.
+		if v.Type().Key().Kind() != reflect.String {
+			return
+		}
+		v.Set(reflect.ValueOf(map[string]any{"key": int64(1), "table": map[string]any{"key": int64(1)}}))
+	case reflect.Bool:
+		v.SetBool(true)
+	case reflect.String:
+		v.SetString("value")
+	default:
+		switch {
+		case v.CanUint():
+			v.SetUint(1)
+		case v.CanInt():
+			v.SetInt(1)
+		default:
+			require.Failf(t, "unhandled field type", "%s", v.Type())
+		}
 	}
 }
 

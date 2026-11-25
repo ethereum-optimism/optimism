@@ -82,6 +82,15 @@ func ReadIntent(workdir string) (*state.Intent, error) {
 	return intent, nil
 }
 
+// staleKeyHints holds a hint for each unknown key that older intents and the old docs example carry,
+// by the lower-case key.
+var staleKeyHints = map[string]string{
+	"superchainroles.proxyadminowner":       "the key is SuperchainProxyAdminOwner",
+	"superchainroles.guardian":              "the key is SuperchainGuardian",
+	"superchainroles.protocolversionsowner": "removed, delete it",
+	"chains.chainfeesrecipient":             "removed, delete it",
+}
+
 // checkIntentKeys returns an error that names each undecoded key of an intent, if there are any
 // outside globalDeployOverrides and chains.deployOverrides.
 func checkIntentKeys(undecoded []toml.Key) error {
@@ -106,6 +115,8 @@ func checkIntentKeys(undecoded []toml.Key) error {
 		if isBelow(key, "l1DevGenesisParams", "blobSchedule") {
 			inBlobSchedule = true
 			name = blobScheduleKeyName(key)
+		} else if hint, ok := staleKeyHints[strings.ToLower(name)]; ok {
+			name += " (" + hint + ")"
 		}
 		if !slices.Contains(unknown, name) {
 			unknown = append(unknown, name)
