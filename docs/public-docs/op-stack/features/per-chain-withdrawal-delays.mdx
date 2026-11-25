@@ -16,7 +16,7 @@ import { OpEnterpriseFeature } from "/snippets/op-enterprise-feature.mdx"
 
 Before Upgrade 22, every standard OP Stack chain waited the same fixed time before a withdrawal could finalize on L1.
 The delays that make up that wait were constants in the shared contract implementations.
-Upgrade 22 moves them into each chain's own contracts.
+Upgrade 22 brings [`op-contracts/v10.0.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv10.0.0) to production, and that release is what enables this capability: it moves the delays into each chain's own contracts.
 A chain can then set its own delays within bounds that the implementation fixes.
 With every delay at its lower bound, a withdrawal can finalize about one day after it is proven, which is why this feature is often called *1-day withdrawals*.
 
@@ -27,7 +27,7 @@ Shortening a delay is a separate, deliberate action by the chain's L1 ProxyAdmin
 <Warning>
   The withdrawal delays are the time your chain has to catch and stop an invalid withdrawal before it finalizes.
   Shortening them can shrink that time to as little as 12 hours.
-  Optimism strongly discourages shortening a chain's delays without redundant security monitoring and 24/7 incident response in place.
+  It is strongly discouraged to shorten a chain's delays without redundant security monitoring and 24/7 incident response in place.
   Read [Before you shorten a chain's delays](#before-you-shorten-a-chains-delays) first.
 </Warning>
 
@@ -153,7 +153,8 @@ See [How the delays set a withdrawal's wait](#how-the-delays-set-a-withdrawals-w
 
 ### Rules for changing the delays
 
-Because a new value applies to everything already in flight, follow these rules for every change:
+Because a new value applies to everything already in flight, follow these rules for every change.
+They are the minimum requirements, not an exhaustive list.
 
 * **Do not lower a delay while a security alert is open**, and never while a known-invalid game has resolved.
   Lowering the delay could make withdrawals proven against that game finalizable at once.
@@ -175,7 +176,9 @@ It cannot check for open security alerts, so that confirmation stays manual.
 
 <OpEnterpriseFeature availability="offered" />
 
-OP Enterprise customers who shorten their chain's delays get this as part of OP Enterprise.
+OP Labs has done extensive failure mode analysis and threat modeling of the contract changes, the monitoring, and the incident response process for shorter delays.
+That work is what gives OP Labs the confidence to offer shorter withdrawal delays through OP Enterprise.
+OP Enterprise customers who shorten their chain's delays get security monitoring as part of OP Enterprise.
 OP Enterprise security monitoring watches the contracts and accounts your chain depends on, including that every withdrawal proven on L1 was initiated on L2, and runs its critical monitors with redundancy.
 See [OP Enterprise security monitoring](/chain-operators/tools/chain-monitoring#op-enterprise-security-monitoring) for what it covers.
 
