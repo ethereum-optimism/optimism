@@ -4,6 +4,7 @@ use crate::{
     BuildTaskError, CanonicalizeTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError,
     VerifierHead,
 };
+use alloy_eips::BlockNumHash;
 use alloy_rpc_types_engine::PayloadId;
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -21,6 +22,8 @@ pub enum EngineActorRequest {
     ProcessFinalizedL2Block(Box<FinalizeBlockId>),
     /// Request to move the safe label to a cross-chain verifier's head.
     ProcessVerifiedSafeHead(Box<VerifierHead>),
+    /// Request to process a cross-chain verifier's denied blocks above the finalized head.
+    ProcessDeniedBlocks(Vec<BlockNumHash>),
     /// Request to process a received unsafe L2 block.
     ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
     /// Request to reset the forkchoice and signal derivation to reset.

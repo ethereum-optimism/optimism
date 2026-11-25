@@ -61,6 +61,37 @@ impl ExecutableEngineTask for InsertTask {
     }
 }
 
+/// Sends `payload` to the execution engine with `engine_newPayload` and returns the status the
+/// engine answered.
+pub(in crate::task_queue) async fn new_payload(
+    client: &EngineClient,
+    payload: OpExecutionPayloadEnvelope,
+) -> Result<PayloadStatusEnum, InsertTaskError> {
+    let response = match payload {
+        // A V1 envelope has no withdrawals, so it is a pre-Canyon payload. It goes through
+        // engine_newPayloadV2, which accepts a V1 payload; op-reth serves no engine_newPayloadV1.
+        OpExecutionPayloadEnvelope::V1(payload) => {
+            let payload_input =
+                ExecutionPayloadInputV2 { execution_payload: payload, withdrawals: None };
+            client.new_payload_v2(payload_input).await
+        }
+        OpExecutionPayloadEnvelope::V2(payload) => {
+            let payload_input = ExecutionPayloadInputV2 {
+                execution_payload: payload.payload_inner,
+                withdrawals: Some(payload.withdrawals),
+            };
+            client.new_payload_v2(payload_input).await
+        }
+        OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
+            client.new_payload_v3(payload, parent_beacon_block_root).await
+        }
+        OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
+            client.new_payload_v4(payload, parent_beacon_block_root).await
+        }
+    };
+    Ok(response.map_err(InsertTaskError::InsertFailed)?.status)
+}
+
 /// Inserts `payload` into the execution engine with `engine_newPayload`, then makes it the unsafe
 /// head, and the local-safe head too if `is_payload_safe`, with a forkchoice update. Returns the
 /// inserted block's [`L2BlockInfo`].
@@ -86,35 +117,9 @@ pub(in crate::task_queue) async fn insert_payload(
     is_payload_safe: bool,
     block_sink: &dyn ImportedBlockSink,
 ) -> Result<L2BlockInfo, InsertTaskError> {
-    // Insert the new payload.
-    // Form the new unsafe block ref from the execution payload.
-    let response = match payload.clone() {
-        // A V1 envelope has no withdrawals, so it is a pre-Canyon payload. It goes through
-        // engine_newPayloadV2, which accepts a V1 payload; op-reth serves no engine_newPayloadV1.
-        OpExecutionPayloadEnvelope::V1(payload) => {
-            let payload_input =
-                ExecutionPayloadInputV2 { execution_payload: payload, withdrawals: None };
-            client.new_payload_v2(payload_input).await
-        }
-        OpExecutionPayloadEnvelope::V2(payload) => {
-            let payload_input = ExecutionPayloadInputV2 {
-                execution_payload: payload.payload_inner,
-                withdrawals: Some(payload.withdrawals),
-            };
-            client.new_payload_v2(payload_input).await
-        }
-        OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
-            client.new_payload_v3(payload, parent_beacon_block_root).await
-        }
-        OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
-            client.new_payload_v4(payload, parent_beacon_block_root).await
-        }
-    };
-
-    // Check the `engine_newPayload` response.
-    let response = response.map_err(InsertTaskError::InsertFailed)?;
-    if !matches!(response.status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing) {
-        return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
+    let status = new_payload(client, payload.clone()).await?;
+    if !matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing) {
+        return Err(InsertTaskError::UnexpectedPayloadStatus(status));
     }
 
     let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;

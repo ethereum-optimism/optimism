@@ -40,11 +40,15 @@ extern crate tracing;
 mod task_queue;
 pub use task_queue::{
     BuildTask, BuildTaskError, CanonicalizeTask, CanonicalizeTaskError, ConsolidateInput,
-    ConsolidateTask, ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, ExecutableEngineTask,
-    FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask, InsertTaskError, PromoteTask,
-    PromoteTaskError, SealTask, SealTaskError, SynchronizeTaskError, VerifierHead,
+    ConsolidateTask, ConsolidateTaskError, DenyTask, DenyTaskError, Engine, EngineBuildError,
+    EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors,
+    ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask,
+    InsertTaskError, PromoteTask, PromoteTaskError, ReplaceDeniedError, SealTask, SealTaskError,
+    SynchronizeTaskError, VerifierHead,
 };
+
+mod denied;
+pub use denied::{DeniedBlocks, DeniedBlocksSender, DeniedBlocksUnknown};
 
 mod attributes;
 pub use attributes::{AttributesMatch, AttributesMismatch};

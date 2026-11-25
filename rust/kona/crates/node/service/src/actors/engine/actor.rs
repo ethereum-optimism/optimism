@@ -4,9 +4,9 @@ use crate::{
 use async_trait::async_trait;
 use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
-    BuildTask, CanonicalizeTask, ConsolidateTask, Engine, EngineActorRequest, EngineClient,
-    EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, FinalizeTask,
-    ImportedBlockSink, InsertTask, PromoteTask, SealTask,
+    BuildTask, CanonicalizeTask, ConsolidateTask, DeniedBlocks, DeniedBlocksSender, DenyTask,
+    Engine, EngineActorRequest, EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
+    EngineTaskErrors, FinalizeTask, ImportedBlockSink, InsertTask, PromoteTask, SealTask,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -62,6 +62,10 @@ where
     retry_at: Instant,
     /// Exponentially increasing retry delay, capped to keep recovery responsive.
     retry_delay: Duration,
+    /// The blocks a cross-chain verifier denied, which derived attributes never import.
+    denied: DeniedBlocks,
+    /// Publishes the verifier's denied blocks to `denied`, when the node follows a verifier.
+    denied_sender: Option<DeniedBlocksSender>,
 }
 
 impl<DerivationClient> EngineActor<DerivationClient>
@@ -93,7 +97,17 @@ where
             reset_waiters: Vec::new(),
             retry_at: Instant::now(),
             retry_delay: Duration::from_millis(100),
+            denied: DeniedBlocks::none(),
+            denied_sender: None,
         }
+    }
+
+    /// Makes derivation consult the denied blocks of a cross-chain verifier, which arrive as
+    /// [`EngineActorRequest::ProcessDeniedBlocks`]. Until the first arrive, no derived block is
+    /// imported.
+    pub fn with_verifier_denials(self) -> Self {
+        let (denied_sender, denied) = DeniedBlocks::from_verifier();
+        Self { denied, denied_sender: Some(denied_sender), ..self }
     }
 
     /// Logs a skipped task at `warn!` when its error differs from the last skip, and at `debug!`
@@ -228,6 +242,10 @@ where
                         return Ok(());
                     }
                     EngineTaskErrorSeverity::Skip => self.log_skipped_task(&err),
+                    EngineTaskErrorSeverity::Rederive => {
+                        warn!(target: "engine", %err, "Restarting derivation from the local-safe head");
+                        return self.restart_derivation().await;
+                    }
                 }
             }
         }
@@ -242,6 +260,22 @@ where
             }
         }
 
+        Ok(())
+    }
+
+    /// Restarts derivation from the local-safe head, which a task moved back. Like a reset, it
+    /// drops the queued tasks, which were made for the derivation it abandons.
+    async fn restart_derivation(&mut self) -> Result<(), EngineError> {
+        self.engine.clear();
+        self.last_skipped_task_error = None;
+        let l2_safe_head = self.engine.state().sync_state.local_safe_head();
+        let signal = Signal::Reset(ResetSignal { l2_safe_head });
+        self.derivation_client.send_signal(signal).await.map_err(|err| {
+            error!(target: "engine", ?err, "Failed to send reset signal to the derivation actor");
+            EngineError::ChannelClosed
+        })?;
+        info!(target: "engine", local_safe = ?l2_safe_head.block_info.id(), "Restarted derivation from the local-safe head");
+        self.last_engine_safe_head_sent = l2_safe_head;
         Ok(())
     }
 
@@ -326,13 +360,14 @@ where
                 self.engine.enqueue(task);
             }
             EngineActorRequest::ProcessSafeL2Signal(safe_signal) => {
-                let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+                let task = ConsolidateTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
                     safe_signal,
                     Arc::clone(&self.block_sink),
-                )));
-                self.engine.enqueue(task);
+                )
+                .with_denied_blocks(self.denied.clone());
+                self.engine.enqueue(EngineTask::Consolidate(Box::new(task)));
             }
             EngineActorRequest::ProcessFinalizedL2Block(finalized_l2_block_id) => {
                 // Finalize the L2 block identified by the provided [`FinalizeBlockId`].
@@ -349,6 +384,20 @@ where
                     self.rollup.clone(),
                     *head,
                 ))));
+            }
+            EngineActorRequest::ProcessDeniedBlocks(denied) => {
+                let Some(denied_sender) = &self.denied_sender else {
+                    warn!(target: "engine", "Ignoring denied blocks: the node follows no verifier");
+                    return Ok(());
+                };
+                denied_sender.publish(denied.clone());
+                if !denied.is_empty() {
+                    self.engine.enqueue(EngineTask::Deny(Box::new(DenyTask::new(
+                        self.client.clone(),
+                        self.rollup.clone(),
+                        denied,
+                    ))));
+                }
             }
             EngineActorRequest::ProcessUnsafeL2Block(envelope) => {
                 let task = EngineTask::Insert(Box::new(InsertTask::new(

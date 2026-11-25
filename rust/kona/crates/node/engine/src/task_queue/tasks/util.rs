@@ -1,7 +1,11 @@
 //! Shared steps for building, sealing, and importing blocks.
 
-use super::{EngineBuildError, SealTaskError, get_payload, insert_payload, start_build};
-use crate::{EngineClient, EngineState, ImportedBlockSink, InsertTaskError};
+use super::{
+    EngineBuildError, ReplaceDeniedError, SealTaskError, get_payload, insert_payload,
+    replace_denied, start_build,
+};
+use crate::{DeniedBlocks, EngineClient, EngineState, ImportedBlockSink, InsertTaskError};
+use alloy_eips::BlockNumHash;
 use kona_genesis::RollupConfig;
 use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -15,6 +19,9 @@ pub(in crate::task_queue) enum BuildAndImportError {
     /// An error occurred while sealing or importing the block.
     #[error(transparent)]
     Seal(#[from] SealTaskError),
+    /// The block is denied, or the denied blocks are not known yet.
+    #[error(transparent)]
+    Denied(#[from] ReplaceDeniedError),
 }
 
 /// Builds a block from derived `attributes`, seals it, and imports it as the new safe head.
@@ -22,13 +29,18 @@ pub(in crate::task_queue) enum BuildAndImportError {
 /// Build and import run inside the same engine task, so no other task can move the unsafe head in
 /// between, and no staleness check is needed. A derivation-driven reorg legitimately builds on a
 /// parent that differs from the current unsafe head.
+///
+/// A built block that a cross-chain verifier `denied` is never imported: the deposits-only block
+/// replaces it, see [`replace_denied`]. Nothing is built while the denied blocks are unknown.
 pub(in crate::task_queue) async fn build_and_import(
     engine: &EngineClient,
     cfg: &RollupConfig,
     state: &mut EngineState,
     attributes: OpAttributesWithParent,
+    denied: &DeniedBlocks,
     block_sink: &dyn ImportedBlockSink,
 ) -> Result<(), BuildAndImportError> {
+    denied.ensure_known().map_err(ReplaceDeniedError::from)?;
     let payload_id = match start_build(engine, cfg, state, attributes.clone()).await {
         Err(err) if err.is_invalid_attributes() => {
             warn!(target: "engine", %err, "Derived attributes rejected at forkchoiceUpdated");
@@ -42,6 +54,12 @@ pub(in crate::task_queue) async fn build_and_import(
     let payload =
         get_payload(engine, cfg, payload_id, attributes.attributes().payload_attributes.timestamp)
             .await?;
+    let built = BlockNumHash { number: payload.block_number(), hash: payload.block_hash() };
+    if denied.contains(built).map_err(ReplaceDeniedError::from)? {
+        return Err(replace_denied(engine, cfg, state, &attributes, built, block_sink)
+            .await
+            .into());
+    }
     let new_block_ref =
         insert_payload_with_holocene_fallback(engine, cfg, state, &attributes, payload, block_sink)
             .await?;
@@ -181,7 +199,15 @@ mod tests {
         l2.expect_error("engine_getPayloadV3");
         let mut state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(15)).build();
 
-        let result = build_and_import(&engine, &cfg, &mut state, attributes, &NoopBlockSink).await;
+        let result = build_and_import(
+            &engine,
+            &cfg,
+            &mut state,
+            attributes,
+            &DeniedBlocks::none(),
+            &NoopBlockSink,
+        )
+        .await;
 
         // The injected payload-fetch failure shows the build was not aborted as stale.
         assert!(
@@ -248,7 +274,16 @@ mod tests {
         let mut state = EngineState::default();
 
         let err = if rejected_at_build {
-            match build_and_import(&engine, &cfg, &mut state, attributes, &NoopBlockSink).await {
+            match build_and_import(
+                &engine,
+                &cfg,
+                &mut state,
+                attributes,
+                &DeniedBlocks::none(),
+                &NoopBlockSink,
+            )
+            .await
+            {
                 Err(BuildAndImportError::Seal(err)) => err,
                 other => panic!("expected a seal error after recovery, got {other:?}"),
             }
@@ -408,7 +443,9 @@ mod tests {
         let attributes =
             TestAttributesBuilder::new().with_parent(kona_protocol::L2BlockInfo::default()).build();
 
-        build_and_import(&engine, &cfg, &mut state, attributes, &sink).await.unwrap();
+        build_and_import(&engine, &cfg, &mut state, attributes, &DeniedBlocks::none(), &sink)
+            .await
+            .unwrap();
 
         assert_eq!(state.sync_state.unsafe_head().block_info.hash, expected.block_hash());
         assert_eq!(state.sync_state.safe_head().block_info.hash, expected.block_hash());

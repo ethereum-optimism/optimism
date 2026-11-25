@@ -3,12 +3,12 @@
 //! [`Engine`]: crate::Engine
 
 use super::{
-    BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, FinalizeTask, InsertTask,
-    PromoteTask,
+    BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, DenyTask, FinalizeTask,
+    InsertTask, PromoteTask,
 };
 use crate::{
-    BuildTaskError, ConsolidateTaskError, EngineState, FinalizeTaskError, InsertTaskError,
-    PromoteTaskError,
+    BuildTaskError, ConsolidateTaskError, DenyTaskError, EngineState, FinalizeTaskError,
+    InsertTaskError, PromoteTaskError,
     task_queue::{SealTask, SealTaskError},
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
@@ -38,6 +38,9 @@ pub enum EngineTaskErrorSeverity {
     /// the engine keeps running.
     #[display("skip")]
     Skip,
+    /// The task moved the local-safe head back, so derivation restarts from it. The task is done.
+    #[display("rederive")]
+    Rederive,
 }
 
 /// The interface for an engine task error.
@@ -86,6 +89,9 @@ pub enum EngineTaskErrors {
     /// An error that occurred while moving the safe label to a verifier's head.
     #[error(transparent)]
     Promote(#[from] PromoteTaskError),
+    /// An error, or the outcome, of handling a verifier's denied blocks.
+    #[error(transparent)]
+    Deny(#[from] DenyTaskError),
 }
 
 impl EngineTaskError for EngineTaskErrors {
@@ -98,6 +104,7 @@ impl EngineTaskError for EngineTaskErrors {
             Self::Consolidate(inner) => inner.severity(),
             Self::Finalize(inner) => inner.severity(),
             Self::Promote(inner) => inner.severity(),
+            Self::Deny(inner) => inner.severity(),
         }
     }
 }
@@ -122,6 +129,8 @@ pub enum EngineTask {
     Finalize(Box<FinalizeTask>),
     /// Moves the safe label to a cross-chain verifier's head.
     Promote(Box<PromoteTask>),
+    /// Makes derivation replace the local-safe blocks a cross-chain verifier denied.
+    Deny(Box<DenyTask>),
 }
 
 impl EngineTask {
@@ -144,6 +153,7 @@ impl EngineTask {
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
             Self::Promote(task) => task.execute(state).await?,
+            Self::Deny(task) => task.execute(state).await?,
             Self::Build(task) => {
                 task.execute(state).await?;
             }
@@ -160,6 +170,7 @@ impl EngineTask {
             Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
             Self::Finalize(_) => crate::Metrics::FINALIZE_TASK_LABEL,
             Self::Promote(_) => crate::Metrics::PROMOTE_TASK_LABEL,
+            Self::Deny(_) => crate::Metrics::DENY_TASK_LABEL,
         }
     }
 }
@@ -174,7 +185,8 @@ impl PartialEq for EngineTask {
                 (Self::Canonicalize(_), Self::Canonicalize(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
                 (Self::Finalize(_), Self::Finalize(_)) |
-                (Self::Promote(_), Self::Promote(_))
+                (Self::Promote(_), Self::Promote(_)) |
+                (Self::Deny(_), Self::Deny(_))
         )
     }
 }
@@ -197,8 +209,10 @@ impl Ord for EngineTask {
         //   sequencer. BuildTask handles forkchoice updates automatically.
         // - InsertUnsafe tasks are prioritized over Consolidate tasks, to ensure that unsafe block
         //   gossip is imported promptly.
-        // - Consolidate tasks are prioritized over Promote and Finalize tasks, as they advance the
-        //   local-safe chain via derivation.
+        // - Consolidate tasks are prioritized over Deny, Promote and Finalize tasks, as they
+        //   advance the local-safe chain via derivation.
+        // - Deny tasks come before Promote tasks, so the safe label never moves onto a block the
+        //   verifier denied after it was promoted.
         // - Promote tasks come before Finalize tasks, so a verifier's safe head lands before the
         //   finalized head it bounds.
         // - Finalize tasks have the lowest priority, as they only update finalized status.
@@ -209,6 +223,7 @@ impl Ord for EngineTask {
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
             (Self::Canonicalize(_), Self::Canonicalize(_)) |
+            (Self::Deny(_), Self::Deny(_)) |
             (Self::Promote(_), Self::Promote(_)) |
             (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
 
@@ -228,9 +243,13 @@ impl Ord for EngineTask {
             (Self::Insert(_), _) => Ordering::Greater,
             (_, Self::Insert(_)) => Ordering::Less,
 
-            // Consolidate tasks are prioritized over Promote and Finalize tasks
+            // Consolidate tasks are prioritized over Deny, Promote and Finalize tasks
             (Self::Consolidate(_), _) => Ordering::Greater,
             (_, Self::Consolidate(_)) => Ordering::Less,
+
+            // Deny tasks are prioritized over Promote and Finalize tasks
+            (Self::Deny(_), _) => Ordering::Greater,
+            (_, Self::Deny(_)) => Ordering::Less,
 
             // Promote tasks are prioritized over Finalize tasks
             (Self::Promote(_), _) => Ordering::Greater,

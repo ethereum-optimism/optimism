@@ -146,11 +146,14 @@ impl Engine {
 
             // A flush reports that the task replaced its block with a deposits-only block, so the
             // task is done; retrying it would replace that block again. A skip reports a task that
-            // no longer applies, so retrying it cannot succeed either.
+            // no longer applies, so retrying it cannot succeed either. A rederive reports that the
+            // task moved the local-safe head back, which is done too.
             if let Err(err) = &result &&
                 !matches!(
                     err.severity(),
-                    EngineTaskErrorSeverity::Flush | EngineTaskErrorSeverity::Skip
+                    EngineTaskErrorSeverity::Flush |
+                        EngineTaskErrorSeverity::Skip |
+                        EngineTaskErrorSeverity::Rederive
                 )
             {
                 return result;

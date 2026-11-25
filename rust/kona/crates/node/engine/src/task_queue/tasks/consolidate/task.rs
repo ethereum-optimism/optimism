@@ -1,10 +1,12 @@
 //! A task to consolidate the engine state.
 
 use crate::{
-    ConsolidateTaskError, EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink,
+    ConsolidateTaskError, DeniedBlocks, EngineClient, EngineState, ExecutableEngineTask,
+    ImportedBlockSink, ReplaceDeniedError,
     state::EngineSyncStateUpdate,
-    task_queue::{build_and_import, synchronize, synchronize_unconditionally},
+    task_queue::{build_and_import, replace_denied, synchronize, synchronize_unconditionally},
 };
+use alloy_eips::BlockNumHash;
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
@@ -70,17 +72,25 @@ pub struct ConsolidateTask {
     pub input: ConsolidateInput,
     /// Where to hand the decoded block once the engine has canonicalized it.
     pub block_sink: Arc<dyn ImportedBlockSink>,
+    /// The blocks a cross-chain verifier denied, which derived attributes never import.
+    pub denied: DeniedBlocks,
 }
 
 impl ConsolidateTask {
-    /// Creates a new [`ConsolidateTask`] with the specified input
-    pub const fn new(
+    /// Creates a new [`ConsolidateTask`] with the specified input, for a node that follows no
+    /// cross-chain verifier.
+    pub fn new(
         client: Arc<EngineClient>,
         cfg: Arc<RollupConfig>,
         input: ConsolidateInput,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, cfg, input, block_sink }
+        Self { client, cfg, input, block_sink, denied: DeniedBlocks::none() }
+    }
+
+    /// Consults `denied` before importing a block from derived attributes.
+    pub fn with_denied_blocks(self, denied: DeniedBlocks) -> Self {
+        Self { denied, ..self }
     }
 
     /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
@@ -94,6 +104,7 @@ impl ConsolidateTask {
             &self.cfg,
             state,
             attributes.clone(),
+            &self.denied,
             self.block_sink.as_ref(),
         )
         .await?;
@@ -290,6 +301,23 @@ impl ConsolidateTask {
         let block_hash = block.header.hash;
 
         if self.input.is_consistent_with_block(&self.cfg, &block) {
+            // The block derived attributes produce is never adopted once denied, whether the node
+            // still has it or re-derives it.
+            if let ConsolidateInput::Attributes(attributes) = &self.input {
+                let block_id = BlockNumHash { number: block_num, hash: block_hash };
+                if self.denied.contains(block_id).map_err(ReplaceDeniedError::from)? {
+                    return Err(replace_denied(
+                        self.client.as_ref(),
+                        &self.cfg,
+                        state,
+                        attributes,
+                        block_id,
+                        self.block_sink.as_ref(),
+                    )
+                    .await
+                    .into());
+                }
+            }
             trace!(
                 target: "engine",
                 input = ?self.input,
@@ -399,6 +427,15 @@ impl ExecutableEngineTask for ConsolidateTask {
     //   injected safe head is ahead of the EngineActor's unsafe head, we reconcile the unsafe chain
     //   up to the safe head instead of consolidating.
     async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
+        // Derivation builds on the local-safe head. Attributes on another block were derived
+        // before a reset or a denied block moved the local-safe head, and derivation restarts.
+        if let ConsolidateInput::Attributes(attributes) = &self.input {
+            let local_safe = state.sync_state.local_safe_head().block_info.id();
+            let parent = attributes.parent.block_info.id();
+            if parent != local_safe {
+                return Err(ConsolidateTaskError::StaleAttributes { parent, local_safe });
+            }
+        }
         if let ConsolidateInput::BlockInfo(safe_l2) = &self.input {
             state.sync_state.ensure_respects_finality(safe_l2.block_info.id())?;
             // Labels with the unsafe head below the safe head take the paths below, which move the
@@ -1122,5 +1159,311 @@ mod tests {
         assert_eq!(state.sync_state, expected_sync_state);
         l1.assert_finished();
         l2.assert_finished();
+    }
+
+    /// The denial cases: attributes with a user transaction on block 9, the engine at block 20.
+    mod denied {
+        use super::*;
+        use crate::{
+            DeniedBlocks, EngineClient, EngineSyncStateUpdate, EngineTaskErrorSeverity,
+            ReplaceDeniedError,
+        };
+        use alloy_consensus::{Block, Signed, TxEip1559};
+        use alloy_primitives::Signature;
+        use alloy_rpc_types_engine::{
+            ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2, ExecutionPayloadV1, PayloadId,
+        };
+        use op_alloy_consensus::{OpBlock, OpTxEnvelope};
+        use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+
+        fn user_transaction() -> OpTxEnvelope {
+            let tx = TxEip1559 { chain_id: 10, nonce: 1, gas_limit: 21_000, ..Default::default() };
+            OpTxEnvelope::Eip1559(Signed::new_unhashed(tx, Signature::test_signature()))
+        }
+
+        /// Derived attributes on block 9 with the L1 info deposit and a user transaction.
+        fn attributes() -> OpAttributesWithParent {
+            TestAttributesBuilder::new()
+                .with_parent(test_block_info(9))
+                .with_transactions(vec![
+                    l1_info_deposit().encoded_2718().into(),
+                    user_transaction().encoded_2718().into(),
+                ])
+                .build()
+        }
+
+        /// The block `attributes` produce, which a verifier denies.
+        fn denied_block(attributes: &OpAttributesWithParent) -> RpcBlock<Transaction> {
+            let mut block = unsafe_block_matching(attributes);
+            let BlockTransactions::Full(transactions) = &mut block.transactions else {
+                unreachable!()
+            };
+            transactions.push(Transaction::from_transaction(
+                Recovered::new_unchecked(user_transaction(), Address::ZERO),
+                Default::default(),
+            ));
+            block
+        }
+
+        fn id(block: &RpcBlock<Transaction>) -> BlockNumHash {
+            BlockNumHash { number: block.header.number, hash: block.header.hash }
+        }
+
+        /// The engine at block 20, with `attributes`' parent as its local-safe head.
+        fn state(attributes: &OpAttributesWithParent) -> EngineState {
+            TestEngineStateBuilder::new()
+                .with_unsafe_head(test_block_info(20))
+                .with_safe_head(attributes.parent)
+                .with_finalized_head(test_block_info(5))
+                .build()
+        }
+
+        fn denied(blocks: Vec<BlockNumHash>) -> DeniedBlocks {
+            let (sender, denied) = DeniedBlocks::from_verifier();
+            sender.publish(blocks);
+            denied
+        }
+
+        fn task(
+            client: EngineClient,
+            cfg: Arc<RollupConfig>,
+            attributes: &OpAttributesWithParent,
+            denied: DeniedBlocks,
+        ) -> ConsolidateTask {
+            ConsolidateTask::new(
+                Arc::new(client),
+                cfg,
+                ConsolidateInput::Attributes(Box::new(attributes.clone())),
+                Arc::new(NoopBlockSink),
+            )
+            .with_denied_blocks(denied)
+        }
+
+        /// An empty pre-Canyon payload at block 10 whose advertised hash survives decoding, and the
+        /// config pinning genesis to it so it needs no L1 info deposit.
+        fn payload_at_10(
+            parent: BlockNumHash,
+        ) -> (ExecutionPayloadEnvelopeV2, OpBlock, Arc<RollupConfig>) {
+            let mut block = Block::<OpTxEnvelope>::default();
+            block.header.number = 10;
+            block.header.parent_hash = parent.hash;
+            // V1 round trips restore Some(0); keep the advertised and decoded hashes identical.
+            block.header.base_fee_per_gas = Some(0);
+            let payload = ExecutionPayloadV1::from_block_slow(&block);
+            let decoded: OpBlock =
+                OpExecutionPayloadEnvelope::V1(payload.clone()).try_into_block().unwrap();
+            let mut cfg = RollupConfig::default();
+            cfg.genesis.l2 = BlockNumHash { number: 10, hash: decoded.header.hash_slow() };
+            let envelope = ExecutionPayloadEnvelopeV2 {
+                execution_payload: ExecutionPayloadFieldV2::V1(payload),
+                block_value: Default::default(),
+            };
+            (envelope, decoded, Arc::new(cfg))
+        }
+
+        fn forkchoice_with_payload_id() -> ForkchoiceUpdated {
+            ForkchoiceUpdated {
+                payload_status: PayloadStatus::from_status(PayloadStatusEnum::Valid),
+                payload_id: Some(PayloadId::new([1; 8])),
+            }
+        }
+
+        /// A denied block the engine has is not adopted: the deposits-only block is built on its
+        /// parent, made the head once validated, and read back, and the channel is flushed.
+        #[tokio::test]
+        async fn denied_block_is_replaced_with_the_deposits_only_block() {
+            let attributes = attributes();
+            let denied_block = denied_block(&attributes);
+            let (payload, replacement, cfg) = payload_at_10(attributes.parent.block_info.id());
+            let replacement_info =
+                L2BlockInfo::from_block_and_genesis(&replacement, &cfg.genesis).unwrap();
+            let mut state = state(&attributes);
+            let build_forkchoice = state
+                .sync_state
+                .apply_update(EngineSyncStateUpdate {
+                    unsafe_head: Some(attributes.parent),
+                    ..Default::default()
+                })
+                .create_forkchoice_state();
+            let head_forkchoice = state
+                .sync_state
+                .apply_update(EngineSyncStateUpdate {
+                    unsafe_head: Some(replacement_info),
+                    local_safe_head: Some(replacement_info),
+                    ..Default::default()
+                })
+                .create_forkchoice_state();
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            for _ in 0..2 {
+                l2.expect_block_by_number(10, Some(denied_block.clone()));
+            }
+            l2.expect_params(
+                "engine_forkchoiceUpdatedV2",
+                serde_json::json!([build_forkchoice, attributes.as_deposits_only().attributes]),
+                forkchoice_with_payload_id(),
+            );
+            l2.expect("engine_getPayloadV2", payload);
+            l2.expect("engine_newPayloadV2", PayloadStatus::from_status(PayloadStatusEnum::Valid));
+            l2.expect_forkchoice_updated(head_forkchoice, PayloadStatusEnum::Valid);
+            l2.expect_block_header_by_number(
+                10,
+                Some(crate::test_utils::test_rpc_block(&replacement)),
+            );
+            let task = task(client, cfg, &attributes, denied(vec![id(&denied_block)]));
+
+            let err = task.execute(&mut state).await.unwrap_err();
+
+            assert!(
+                matches!(
+                    err,
+                    ConsolidateTaskError::Denied(ReplaceDeniedError::Replaced { denied, replacement })
+                        if denied == id(&denied_block) && replacement == replacement_info.block_info.id()
+                ),
+                "{err:?}"
+            );
+            assert_eq!(err.severity(), EngineTaskErrorSeverity::Flush);
+            assert_eq!(state.sync_state.unsafe_head(), replacement_info);
+            assert_eq!(state.sync_state.local_safe_head(), replacement_info);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
+
+        /// A replacement the engine does not validate is never made the head.
+        #[tokio::test]
+        async fn unvalidated_replacement_does_not_become_the_head() {
+            let attributes = attributes();
+            let denied_block = denied_block(&attributes);
+            let (payload, _, cfg) = payload_at_10(attributes.parent.block_info.id());
+            let mut state = state(&attributes);
+            let state_before = state;
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            for _ in 0..2 {
+                l2.expect_block_by_number(10, Some(denied_block.clone()));
+            }
+            l2.expect("engine_forkchoiceUpdatedV2", forkchoice_with_payload_id());
+            l2.expect("engine_getPayloadV2", payload);
+            l2.expect(
+                "engine_newPayloadV2",
+                PayloadStatus::from_status(PayloadStatusEnum::Syncing),
+            );
+            let task = task(client, cfg, &attributes, denied(vec![id(&denied_block)]));
+
+            let err = task.execute(&mut state).await.unwrap_err();
+
+            assert!(
+                matches!(err, ConsolidateTaskError::Denied(ReplaceDeniedError::NotValidated(_))),
+                "{err:?}"
+            );
+            assert_eq!(err.severity(), EngineTaskErrorSeverity::Temporary);
+            assert_eq!(state, state_before);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
+
+        /// Re-deriving a replaced block, as after a restart, finds the deposits-only block where
+        /// the attributes produce a denied one: it is adopted as local-safe without a reorg, and
+        /// the channel is flushed.
+        #[tokio::test]
+        async fn rederived_denied_block_adopts_the_existing_replacement() {
+            let attributes = attributes();
+            let replacement = unsafe_block_matching(&attributes.as_deposits_only());
+            let (rebuilt_denied, rebuilt_block, _) =
+                payload_at_10(attributes.parent.block_info.id());
+            let rebuilt_denied_id =
+                BlockNumHash { number: 10, hash: rebuilt_block.header.hash_slow() };
+            let cfg = Arc::new(RollupConfig::default());
+            let replacement_info = block_info_of(&cfg, &replacement);
+            let mut state = state(&attributes);
+            let unsafe_head = state.sync_state.unsafe_head();
+            let expected = state.sync_state.apply_update(EngineSyncStateUpdate {
+                local_safe_head: Some(replacement_info),
+                ..Default::default()
+            });
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            l2.expect_block_by_number(10, Some(replacement.clone()));
+            l2.expect_params(
+                "engine_forkchoiceUpdatedV2",
+                serde_json::json!([
+                    state
+                        .sync_state
+                        .apply_update(EngineSyncStateUpdate {
+                            unsafe_head: Some(attributes.parent),
+                            ..Default::default()
+                        })
+                        .create_forkchoice_state(),
+                    attributes.attributes
+                ]),
+                forkchoice_with_payload_id(),
+            );
+            l2.expect("engine_getPayloadV2", rebuilt_denied);
+            l2.expect_block_by_number(10, Some(replacement.clone()));
+            l2.expect_forkchoice_updated(
+                expected.create_forkchoice_state(),
+                PayloadStatusEnum::Valid,
+            );
+            let task = task(client, cfg, &attributes, denied(vec![rebuilt_denied_id]));
+
+            let err = task.execute(&mut state).await.unwrap_err();
+
+            assert!(
+                matches!(
+                    err,
+                    ConsolidateTaskError::Denied(ReplaceDeniedError::Replaced { replacement, .. })
+                        if replacement == replacement_info.block_info.id()
+                ),
+                "{err:?}"
+            );
+            assert_eq!(state.sync_state, expected);
+            assert_eq!(state.sync_state.unsafe_head(), unsafe_head, "no reorg");
+            l1.assert_finished();
+            l2.assert_finished();
+        }
+
+        /// Until the verifier's denied blocks are known, no derived block is adopted.
+        #[tokio::test]
+        async fn unknown_denied_blocks_hold_derived_attributes() {
+            let attributes = attributes();
+            let cfg = Arc::new(RollupConfig::default());
+            let mut state = state(&attributes);
+            let state_before = state;
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            l2.expect_block_by_number(10, Some(denied_block(&attributes)));
+            let task = task(client, cfg, &attributes, DeniedBlocks::from_verifier().1);
+
+            let err = task.execute(&mut state).await.unwrap_err();
+
+            assert!(
+                matches!(err, ConsolidateTaskError::Denied(ReplaceDeniedError::Unknown(_))),
+                "{err:?}"
+            );
+            assert_eq!(err.severity(), EngineTaskErrorSeverity::Temporary);
+            assert_eq!(state, state_before);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
+
+        /// Attributes that do not build on the local-safe head were derived before it moved, and
+        /// are skipped without touching the engine.
+        #[tokio::test]
+        async fn attributes_off_the_local_safe_head_are_skipped() {
+            let attributes = attributes();
+            let cfg = Arc::new(RollupConfig::default());
+            let mut state = TestEngineStateBuilder::new()
+                .with_unsafe_head(test_block_info(20))
+                .with_safe_head(test_block_info(8))
+                .with_finalized_head(test_block_info(5))
+                .build();
+            let state_before = state;
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            let task = task(client, cfg, &attributes, DeniedBlocks::none());
+
+            let err = task.execute(&mut state).await.unwrap_err();
+
+            assert!(matches!(err, ConsolidateTaskError::StaleAttributes { .. }), "{err:?}");
+            assert_eq!(err.severity(), EngineTaskErrorSeverity::Skip);
+            assert_eq!(state, state_before);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
     }
 }

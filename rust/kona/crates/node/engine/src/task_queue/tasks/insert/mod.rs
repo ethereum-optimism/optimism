@@ -2,7 +2,7 @@
 
 mod task;
 pub use task::InsertTask;
-pub(in crate::task_queue) use task::insert_payload;
+pub(in crate::task_queue) use task::{insert_payload, new_payload};
 
 mod error;
 pub use error::InsertTaskError;

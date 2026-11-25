@@ -258,6 +258,11 @@ impl RollupNode {
             engine_request_rx,
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         );
+        let actor = if self.interop_authority_url.is_some() {
+            actor.with_verifier_denials()
+        } else {
+            actor
+        };
 
         (actor, engine_client.query_client(), engine_state_rx)
     }

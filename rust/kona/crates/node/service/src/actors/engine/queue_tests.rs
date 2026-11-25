@@ -390,3 +390,80 @@ async fn skipped_finalization_keeps_the_actor_running_until_a_reset_forgets_it()
     l1.assert_finished();
     l2.assert_finished();
 }
+
+/// A denied block the engine has derived makes the actor move local-safe to the block's parent and
+/// restart derivation from there, so derivation replaces the block as it derives it again.
+#[tokio::test(start_paused = true)]
+async fn denied_local_safe_block_restarts_derivation_from_its_parent() {
+    let mut blocks: Vec<OpBlock> = Vec::new();
+    for number in 0..=20 {
+        let parent = blocks.last().map_or(B256::ZERO, |block| block.header.hash_slow());
+        blocks.push(test_l2_block(number, parent, 0));
+    }
+    let mut config = RollupConfig::default();
+    config.genesis.l2 = alloy_eips::BlockNumHash { number: 0, hash: blocks[0].header.hash_slow() };
+    let config = Arc::new(config);
+    let info = |number: usize| {
+        L2BlockInfo::from_block_and_genesis(&blocks[number], &config.genesis).unwrap()
+    };
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(info(20))
+        .with_safe_head(info(15))
+        .with_finalized_head(info(5))
+        .build();
+    let rewound = state.sync_state.apply_update(EngineSyncStateUpdate {
+        local_safe_head: Some(info(11)),
+        ..Default::default()
+    });
+    let (client, l1, l2) = test_engine_client(config.clone());
+    l2.expect_block_header_by_number(12, Some(test_rpc_block(&blocks[12])));
+    l2.expect_params(
+        "eth_getBlockByHash",
+        serde_json::json!([info(11).hash(), true]),
+        test_rpc_block(&blocks[11]),
+    );
+    l2.expect_forkchoice_updated(rewound.create_forkchoice_state(), PayloadStatusEnum::Valid);
+    let (state_tx, state_rx) = watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config.clone(),
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    )
+    .with_verifier_denials();
+
+    requests
+        .send(EngineActorRequest::ProcessDeniedBlocks(vec![info(12).block_info.id()]))
+        .await
+        .unwrap();
+    time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
+    drop(requests);
+    assert!(matches!(actor.step().await, Err(EngineError::ChannelClosed)));
+
+    // Derivation hears of the engine's local-safe head first, then restarts from the rewound one.
+    let mut signals = Vec::new();
+    while let Ok(request) = derivation_rx.try_recv() {
+        match request {
+            crate::DerivationActorRequest::ProcessEngineSignalRequest(signal) => {
+                signals.push(*signal)
+            }
+            crate::DerivationActorRequest::ProcessEngineSafeHeadUpdateRequest(head) |
+            crate::DerivationActorRequest::ProcessEngineSyncCompletionRequest(head) => {
+                assert!(signals.is_empty(), "no head may follow the restart, got {head:?}");
+                assert_eq!(*head, info(15));
+            }
+            other => panic!("unexpected derivation request {other:?}"),
+        }
+    }
+    assert_eq!(signals, vec![Signal::Reset(ResetSignal { l2_safe_head: info(11) })]);
+    assert_eq!(state_rx.borrow().sync_state.local_safe_head(), info(11));
+    assert_eq!(state_rx.borrow().sync_state.unsafe_head(), info(20));
+    assert!(actor.engine.is_empty());
+    l1.assert_finished();
+    l2.assert_finished();
+}

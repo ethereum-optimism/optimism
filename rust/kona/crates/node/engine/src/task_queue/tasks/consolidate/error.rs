@@ -1,9 +1,11 @@
 //! Contains error types for the [`crate::ConsolidateTask`].
 
 use crate::{
-    BuildTaskError, EngineTaskError, FinalityViolation, SealTaskError, SynchronizeTaskError,
+    BuildTaskError, EngineTaskError, FinalityViolation, ReplaceDeniedError, SealTaskError,
+    SynchronizeTaskError,
     task_queue::tasks::{BuildAndImportError, task::EngineTaskErrorSeverity},
 };
+use alloy_eips::BlockNumHash;
 use thiserror::Error;
 
 /// An error that occurs when running the [`crate::ConsolidateTask`].
@@ -31,6 +33,17 @@ pub enum ConsolidateTaskError {
     /// The consolidation forkchoice update call to the engine api failed.
     #[error(transparent)]
     ForkchoiceUpdateFailed(#[from] SynchronizeTaskError),
+    /// The derived block is denied, or the denied blocks are not known yet.
+    #[error(transparent)]
+    Denied(#[from] ReplaceDeniedError),
+    /// The derived attributes do not build on the local-safe head, so they are stale.
+    #[error("Derived attributes on {parent:?} do not build on the local-safe head {local_safe:?}")]
+    StaleAttributes {
+        /// The parent the attributes build on.
+        parent: BlockNumHash,
+        /// The local-safe head.
+        local_safe: BlockNumHash,
+    },
 }
 
 impl From<BuildAndImportError> for ConsolidateTaskError {
@@ -38,6 +51,7 @@ impl From<BuildAndImportError> for ConsolidateTaskError {
         match err {
             BuildAndImportError::Build(e) => Self::BuildTaskFailed(e.into()),
             BuildAndImportError::Seal(e) => Self::SealTaskFailed(e),
+            BuildAndImportError::Denied(e) => Self::Denied(e),
         }
     }
 }
@@ -45,7 +59,7 @@ impl From<BuildAndImportError> for ConsolidateTaskError {
 impl EngineTaskError for ConsolidateTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
-            Self::BreaksFinality(_) => EngineTaskErrorSeverity::Skip,
+            Self::BreaksFinality(_) | Self::StaleAttributes { .. } => EngineTaskErrorSeverity::Skip,
             Self::MissingUnsafeL2Block(_) => EngineTaskErrorSeverity::Reset,
             Self::FailedToFetchDelegatedSafeBlock(_) | Self::FailedToFetchUnsafeL2Block => {
                 EngineTaskErrorSeverity::Temporary
@@ -53,6 +67,7 @@ impl EngineTaskError for ConsolidateTaskError {
             Self::BuildTaskFailed(inner) => inner.severity(),
             Self::SealTaskFailed(inner) => inner.severity(),
             Self::ForkchoiceUpdateFailed(inner) => inner.severity(),
+            Self::Denied(inner) => inner.severity(),
         }
     }
 }

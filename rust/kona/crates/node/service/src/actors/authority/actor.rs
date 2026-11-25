@@ -15,10 +15,11 @@ pub const AUTHORITY_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 /// The [`NodeActor`] following a cross-chain verification authority.
 ///
-/// It polls the authority for this chain's verified and finalized heads and hands them to the
-/// engine, which owns what the safe label becomes ([`kona_engine::PromoteTask`]) and whether a
-/// finalization applies ([`kona_engine::FinalizeTask`]). An unreachable authority moves nothing:
-/// the labels hold where they are.
+/// It polls the authority for this chain's verified and finalized heads and denied blocks, and
+/// hands them to the engine, which owns what the safe label becomes ([`kona_engine::PromoteTask`]),
+/// whether a finalization applies ([`kona_engine::FinalizeTask`]) and how a denied block is
+/// replaced ([`kona_engine::DenyTask`]). An unreachable authority moves nothing: the labels hold
+/// where they are.
 #[derive(Debug)]
 pub struct AuthorityActor<Authority> {
     /// The authority's client.
@@ -57,14 +58,21 @@ where
     }
 
     /// Polls the authority once and forwards what it reports.
+    ///
+    /// The denied blocks go first, so the engine never promotes a block the same poll denies.
     async fn poll(&mut self) -> Result<(), AuthorityActorError> {
         let chain_id = self.chain_id();
-        let (verified, finalized) = match (
+        // A block at or below the finalized head is never replaced, so older denials are not
+        // asked for.
+        let denied_from =
+            self.engine_state_rx.borrow().sync_state.finalized_head().block_info.number + 1;
+        let (verified, finalized, denied) = match (
             self.authority.verified_head(chain_id).await,
             self.authority.finalized_head(chain_id).await,
+            self.authority.denied_blocks(chain_id, denied_from).await,
         ) {
-            (Ok(verified), Ok(finalized)) => (verified, finalized),
-            (Err(err), _) | (_, Err(err)) => {
+            (Ok(verified), Ok(finalized), Ok(denied)) => (verified, finalized, denied),
+            (Err(err), _, _) | (_, Err(err), _) | (_, _, Err(err)) => {
                 self.log_failure(&err.to_string());
                 return Ok(());
             }
@@ -72,8 +80,9 @@ where
         if self.last_failure.take().is_some() {
             info!(target: "authority", "Interop authority reachable again");
         }
-        debug!(target: "authority", ?verified, ?finalized, "Polled the interop authority");
+        debug!(target: "authority", ?verified, ?finalized, ?denied, "Polled the interop authority");
 
+        self.send(EngineActorRequest::ProcessDeniedBlocks(denied)).await?;
         self.send(EngineActorRequest::ProcessVerifiedSafeHead(Box::new(verified))).await?;
         if let Some(target) = self.finality_target(finalized) {
             self.send(EngineActorRequest::ProcessFinalizedL2Block(Box::new(target))).await?;

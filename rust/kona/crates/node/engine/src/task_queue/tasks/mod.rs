@@ -10,8 +10,8 @@ pub use synchronize::SynchronizeTaskError;
 pub(super) use synchronize::{synchronize, synchronize_unconditionally};
 
 mod insert;
-pub(super) use insert::insert_payload;
 pub use insert::{InsertTask, InsertTaskError};
+pub(super) use insert::{insert_payload, new_payload};
 
 mod build;
 pub(super) use build::start_build;
@@ -32,6 +32,13 @@ pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
 mod promote;
 pub use promote::{PromoteTask, PromoteTaskError, VerifierHead};
+
+mod replace;
+pub use replace::ReplaceDeniedError;
+pub(super) use replace::replace_denied;
+
+mod deny;
+pub use deny::{DenyTask, DenyTaskError};
 
 mod util;
 pub(super) use util::{BuildAndImportError, build_and_import};

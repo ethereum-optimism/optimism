@@ -58,6 +58,8 @@ impl Metrics {
     pub const FINALIZE_TASK_LABEL: &str = "finalize";
     /// Promote task label.
     pub const PROMOTE_TASK_LABEL: &str = "promote";
+    /// Deny task label.
+    pub const DENY_TASK_LABEL: &str = "deny";
 
     /// Identifier for the counter that tracks the number of times the engine has been reset.
     pub const ENGINE_RESET_COUNT: &str = "kona_node_engine_reset_count";
