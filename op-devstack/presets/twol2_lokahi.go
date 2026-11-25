@@ -20,15 +20,25 @@ type TwoL2Lokahi struct {
 	Lokahi *sysgo.Lokahi
 }
 
-// NewTwoL2Lokahi starts a [TwoL2Lokahi] system for the current test.
+// NewTwoL2Lokahi starts a [TwoL2Lokahi] system for the current test. With
+// DEVSTACK_L2CL_KIND=op-reth each chain runs kona inside its op-reth process, otherwise as a
+// kona-node process.
 func NewTwoL2Lokahi(t devtest.T) *TwoL2Lokahi {
 	runtime := sysgo.NewTwoL2LokahiRuntime(t)
+	inOpReth := sysgo.ResolveMixedL2CLKind(t) == sysgo.MixedL2CLOpReth
 	for name, chain := range runtime.Chains {
-		_, isKona := chain.CL.(*sysgo.KonaNode)
-		t.Require().Truef(isKona, "chain %s must be driven by kona-node", name)
+		if inOpReth {
+			cl, ok := chain.CL.(*sysgo.OpRethRollupNode)
+			t.Require().Truef(ok, "chain %s must run kona inside op-reth, not %T", name, chain.CL)
+			t.Require().Samef(chain.EL, cl.EL(), "chain %s must run kona inside its own EL process", name)
+		} else {
+			_, ok := chain.CL.(*sysgo.KonaNode)
+			t.Require().Truef(ok, "chain %s must be driven by a kona-node process, not %T", name, chain.CL)
+		}
 	}
 	t.Require().Equal("lokahi", filepath.Base(runtime.Lokahi.ExecPath()), "the verifier must be lokahi")
-	t.Logger().Info("Two-chain lokahi system is up", "lokahi", runtime.Lokahi.ExecPath(), "lokahi_rpc", runtime.Lokahi.UserRPC())
+	t.Logger().Info("Two-chain lokahi system is up", "kona_in_op_reth", inOpReth,
+		"lokahi", runtime.Lokahi.ExecPath(), "lokahi_rpc", runtime.Lokahi.UserRPC())
 
 	twoL2, components := twoL2FromRuntime(t, runtime)
 	return &TwoL2Lokahi{

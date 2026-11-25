@@ -615,15 +615,20 @@ func startMixedKonaNode(
 		envVars = append(envVars, "KONA_NODE_MODE=Validator")
 	}
 	envVars = append(envVars, konaL2CLEnv(startCfg.L2CLConfig, startCfg.SequencerStopped)...)
-	if startCfg.InteropAuthorityRPC != "" {
-		envVars = append(envVars, "KONA_NODE_INTEROP_AUTHORITY_RPC="+startCfg.InteropAuthorityRPC)
-	}
 
 	if startCfg.InOpReth {
+		// op-reth takes each kona-node flag renamed under --rollup.consensus.
+		var args []string
+		if startCfg.InteropAuthorityRPC != "" {
+			args = append(args, "--rollup.consensus.interop.authority-rpc="+startCfg.InteropAuthorityRPC)
+		}
 		t.Logger().Info("Starting kona inside op-reth", "name", clKey, "chain", l2Net.ChainID(), "el", elKey)
-		cl := opReth.EnableRollupConsensus(envVars)
+		cl := opReth.EnableRollupConsensus(envVars, args...)
 		t.Logger().Info("Kona inside op-reth is up", "name", clKey, "chain", l2Net.ChainID(), "rpc", cl.UserRPC())
 		return cl
+	}
+	if startCfg.InteropAuthorityRPC != "" {
+		envVars = append(envVars, "KONA_NODE_INTEROP_AUTHORITY_RPC="+startCfg.InteropAuthorityRPC)
 	}
 
 	execPath, err := rustbin.Spec{

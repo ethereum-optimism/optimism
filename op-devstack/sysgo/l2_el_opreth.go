@@ -266,8 +266,9 @@ func (n *OpReth) Start() {
 }
 
 // EnableRollupConsensus restarts op-reth with the kona rollup node running in the same process,
-// configured by the KONA_NODE_* variables of env, and returns the rollup node.
-func (n *OpReth) EnableRollupConsensus(env []string) L2CLNode {
+// configured by the KONA_NODE_* variables of env and the --rollup.consensus.* flags of args, and
+// returns the rollup node.
+func (n *OpReth) EnableRollupConsensus(env []string, args ...string) L2CLNode {
 	proxy := tcpproxy.New(n.p.Logger())
 	n.p.Require().NoError(proxy.Start())
 	n.p.Cleanup(func() {
@@ -280,6 +281,7 @@ func (n *OpReth) EnableRollupConsensus(env []string) L2CLNode {
 		defer n.mu.Unlock()
 		n.p.Require().Nil(n.rollupProxy, "rollup consensus is already enabled")
 		n.args = append(n.args, "--rollup.consensus.enabled")
+		n.args = append(n.args, args...)
 		n.env = append(n.env, env...)
 		n.rollupProxy = proxy
 	}()
@@ -311,6 +313,9 @@ func (r *OpRethRollupNode) StopControlled(ctx context.Context) error {
 func (r *OpRethRollupNode) Running() bool { return r.el.Running() }
 
 func (r *OpRethRollupNode) UserRPC() string { return "http://" + r.el.rollupProxy.Addr() }
+
+// EL is the op-reth process the rollup node runs in.
+func (r *OpRethRollupNode) EL() *OpReth { return r.el }
 
 // Stop stops the op-reth node.
 func (n *OpReth) Stop() {
