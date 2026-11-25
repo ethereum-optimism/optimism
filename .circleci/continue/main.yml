@@ -2162,6 +2162,10 @@ jobs:
         description: "L2 consensus layer client (op-node or kona-node)"
         type: string
         default: "op-node"
+      supernode_kind:
+        description: "Interop verifier of the supernode presets (op-supernode or lokahi)"
+        type: string
+        default: "op-supernode"
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -2236,6 +2240,7 @@ jobs:
           command: |
             echo "export DEVSTACK_L1_FORK=<<parameters.l1_fork>>" >> "$BASH_ENV"
             echo "export DEVSTACK_L2CL_KIND=<<parameters.l2_cl_kind>>" >> "$BASH_ENV"
+            echo "export DEVSTACK_SUPERNODE_KIND=<<parameters.supernode_kind>>" >> "$BASH_ENV"
       # Restore cached Go modules (downloaded once by prep-go-modules) plus the
       # per-job build cache. Modules are already present, so the test run below
       # does not need a separate `go mod download`.
@@ -2813,9 +2818,9 @@ workflows:
             # for the gitignored superchain-configs.zip op-acceptance-tests //go:embeds
             - prep-superchain
       # IN-MEMORY - kona/op-reth
-      # 2 nodes, not 4: tests on presets that start no kona-node skip here (op-devstack presets'
-      # skipOpNodeOnlyPresetOnKonaNode), leaving about a third of the test time. The longest
-      # test, TestExecuteStep_CannonKona at about 400 s, still bounds the wall time.
+      # The supernode presets run here on lokahi, with a kona-node per chain, and on op-supernode
+      # in the op-node job, which serves as the control. 4 nodes, as op-node: the supernode presets
+      # hold most of the test time.
       - op-acceptance-tests: &memory_all_kona
           name: memory-all-kona-op-reth-<<matrix.l1_fork>>
           image: <<pipeline.parameters.c-rust_base_image>>
@@ -2823,7 +2828,8 @@ workflows:
             parameters:
               l1_fork: *acceptance_l1_forks
           l2_cl_kind: kona-node
-          parallelism: 2
+          supernode_kind: lokahi
+          parallelism: 4
           acceptance_test_jobs: "16"
           no_output_timeout: 120m
           context:
@@ -3153,6 +3159,8 @@ workflows:
             alias: shipped-memory-all-kona
             parameters:
               l1_fork: *acceptance_l1_forks
+          # The shipped binaries have no lokahi.
+          supernode_kind: op-supernode
           notify_on_fail: false
           requires: *shipped_memory_all_requires
       # Pages on-call once if any job here fails, including a build job that
