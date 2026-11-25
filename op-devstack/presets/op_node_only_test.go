@@ -31,10 +31,10 @@ type supernodePresetCase struct {
 // chain and lokahi instead, or skip where the lokahi backend lacks what they need.
 var supernodePresets = []supernodePresetCase{
 	{presetCase{"NewSimpleInterop", func(t devtest.T) { NewSimpleInterop(t) }}, true},
-	{presetCase{"NewSimpleInteropIsthmusSuper", func(t devtest.T) { NewSimpleInteropIsthmusSuper(t) }}, true},
+	{presetCase{"NewSimpleInteropIsthmusSuper", func(t devtest.T) { NewSimpleInteropIsthmusSuper(t) }}, false},
 	{presetCase{"NewThreeChainInterop", func(t devtest.T) { NewThreeChainInterop(t) }}, true},
 	{presetCase{"NewSingleChainInterop", func(t devtest.T) { NewSingleChainInterop(t) }}, true},
-	{presetCase{"NewSingleChainInteropIsthmusSuper", func(t devtest.T) { NewSingleChainInteropIsthmusSuper(t) }}, true},
+	{presetCase{"NewSingleChainInteropIsthmusSuper", func(t devtest.T) { NewSingleChainInteropIsthmusSuper(t) }}, false},
 	{presetCase{"NewSingleChainInteropSuperRootAtGenesis", func(t devtest.T) { NewSingleChainInteropSuperRootAtGenesis(t) }}, true},
 	{presetCase{"NewTwoL2Supernode", func(t devtest.T) { NewTwoL2Supernode(t) }}, false},
 	{presetCase{"NewTwoL2SupernodeInterop", func(t devtest.T) { NewTwoL2SupernodeInterop(t, 0) }}, true},
