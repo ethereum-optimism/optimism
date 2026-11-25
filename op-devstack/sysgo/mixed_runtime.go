@@ -580,6 +580,9 @@ func startMixedKonaNode(
 		// kona's 384s default, finality would barely move in a test, and two kona nodes that poll
 		// out of phase would hold finalized L1 blocks up to an interval apart.
 		"KONA_NODE_L1_EPOCH_POLL_INTERVAL=2", // seconds
+		// Serve the opstack block-building API the test sequencer drives, as every devstack
+		// op-node does (ExperimentalOPStackAPI).
+		"KONA_NODE_EXPERIMENTAL_SEQUENCER_API=true",
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
 		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"),
