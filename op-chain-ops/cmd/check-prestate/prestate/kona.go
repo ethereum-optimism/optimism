@@ -12,11 +12,24 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
-type KonaPrestate struct {
+// Release tag family per prestate type. The kona-sp1 guests embed the same
+// kona-registry snapshot as kona-client, so both share the registry lookup.
+var konaTagFamilies = map[string]string{
+	"cannon64-kona":         "kona-client",
+	"cannon64-kona-interop": "kona-client",
+	"kona-sp1":              "kona-sp1-program",
 }
 
-func NewKonaPrestate() *KonaPrestate {
-	return &KonaPrestate{}
+type KonaPrestate struct {
+	tagFamily string
+}
+
+func NewKonaPrestate(prestateType string) (*KonaPrestate, bool) {
+	tagFamily, ok := konaTagFamilies[prestateType]
+	if !ok {
+		return nil, false
+	}
+	return &KonaPrestate{tagFamily: tagFamily}, true
 }
 
 func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
@@ -26,7 +39,7 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 	prestateConfigs *superchain.ChainConfigLoader,
 	err error) {
 
-	prestateTag := fmt.Sprintf("kona-client/v%s", prestateVersion)
+	prestateTag := fmt.Sprintf("%s/v%s", p.tagFamily, prestateVersion)
 	log.Info("Found prestate tag", "tag", prestateTag)
 	fppCommitInfo = types.NewCommitInfo("ethereum-optimism", "optimism", prestateTag, "develop", "rust/kona")
 
@@ -52,7 +65,7 @@ func (p *KonaPrestate) FindVersions(log log.Logger, prestateVersion string) (
 }
 
 // fetchSuperchainRegistryCommit returns the superchain-registry commit SHA that
-// the kona-client release identified by ref was built against.
+// the kona release identified by ref was built against.
 //
 // For tags that still carry the legacy `op-core/superchain/superchain-registry-commit.txt`
 // pin (v1.5.1 up to the submodule-coupling change) it reads that file — preferred

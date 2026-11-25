@@ -10,17 +10,37 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestFindVersionsReturnsError checks that FindVersions returns a failed lookup
-// to its caller.
+// TestFindVersionsReturnsError checks that a failed tag lookup is returned to the caller.
 func TestFindVersionsReturnsError(t *testing.T) {
 	t.Chdir(t.TempDir())
 	if _, stderr, err := runGit("init", "--quiet"); err != nil {
 		t.Fatalf("git init: %v (%s)", err, stderr)
 	}
 
-	_, _, _, _, err := NewKonaPrestate().FindVersions(testlog.Logger(t, log.LevelInfo), "0.0.0-missing")
-	if err == nil || !strings.Contains(err.Error(), "failed to fetch superchain registry commit") {
-		t.Fatalf("got err %v, want a superchain registry commit lookup failure", err)
+	for _, tc := range []struct {
+		prestateType string
+		tag          string
+	}{
+		{"cannon64-kona", "kona-client/v0.0.0-missing"},
+		{"cannon64-kona-interop", "kona-client/v0.0.0-missing"},
+		{"kona-sp1", "kona-sp1-program/v0.0.0-missing"},
+	} {
+		t.Run(tc.prestateType, func(t *testing.T) {
+			p, ok := NewKonaPrestate(tc.prestateType)
+			if !ok {
+				t.Fatalf("NewKonaPrestate(%q) reported the type as unsupported", tc.prestateType)
+			}
+			_, _, _, _, err := p.FindVersions(testlog.Logger(t, log.LevelInfo), "0.0.0-missing")
+			if err == nil || !strings.Contains(err.Error(), "failed to fetch superchain registry commit") || !strings.Contains(err.Error(), tc.tag) {
+				t.Fatalf("got err %v, want a superchain registry commit lookup failure for %s", err, tc.tag)
+			}
+		})
+	}
+}
+
+func TestNewKonaPrestateRejectsNonKonaType(t *testing.T) {
+	if _, ok := NewKonaPrestate("cannon64"); ok {
+		t.Fatal("NewKonaPrestate accepted the non-kona type cannon64")
 	}
 }
 
