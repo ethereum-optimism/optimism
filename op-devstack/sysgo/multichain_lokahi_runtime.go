@@ -46,6 +46,9 @@ func NewTwoL2LokahiRuntimeWithInteropDelay(t devtest.T, delaySeconds uint64) *Mu
 
 // lokahiChainsConfig says how [startLokahiChains] starts the chains.
 type lokahiChainsConfig struct {
+	// testControl has lokahi serve its test control, which the supernode handle pauses and
+	// resumes verification through.
+	testControl bool
 	// perChainProposer starts an op-proposer per chain on the chain's node, as the supernode
 	// runtime does on each chain's supernode route.
 	perChainProposer bool
@@ -143,6 +146,7 @@ func startLokahiChains(
 	if depSet != nil {
 		runtimeDepSet = depSet
 		lokahi = newLokahi(t)
+		lokahi.testControl = chainsCfg.testControl
 	}
 
 	els := make([]*OpReth, len(l2Nets))
@@ -257,7 +261,7 @@ func newSingleChainLokahiRuntime(t devtest.T, lagoonAtGenesis bool, cfg PresetCo
 		L1CL:          l1CL,
 		TimeTravel:    timeTravelClock,
 	}
-	startLokahiChains(t, runtime, jwtPath, jwtSecret, cfg, lokahiChainsConfig{},
+	startLokahiChains(t, runtime, jwtPath, jwtSecret, cfg, lokahiChainsConfig{testControl: true},
 		[]runtimeChainSpec{{Name: "l2a", ID: l2Net.ChainID()}}, []*L2Network{l2Net}, depSet)
 	return runtime
 }

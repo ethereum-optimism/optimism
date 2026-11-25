@@ -22,7 +22,8 @@ import (
 // bound address in its "addr" field.
 const lokahiRPCBoundMessage = "RPC server bound to address"
 
-// lokahi's test control: pause verification before a timestamp, and resume it.
+// lokahi's test control, served with LOKAHI_TEST_CONTROL: pause verification before a timestamp,
+// and resume it.
 const (
 	lokahiPauseAtMethod = "lokahitest_pauseAt"
 	lokahiResumeMethod  = "lokahitest_resume"
@@ -51,6 +52,8 @@ type Lokahi struct {
 	args     []string
 	// dataDir holds lokahi's store, which persists across Stop and Start.
 	dataDir string
+	// testControl serves lokahi's test control, which pauses and resumes verification.
+	testControl bool
 
 	userProxy *tcpproxy.Proxy
 	userRPC   string
@@ -158,9 +161,11 @@ func (l *Lokahi) Start() {
 	})
 	l.sub = NewSubProcess(l.p, stdOut, stdErr)
 	l.p.Logger().Info("Starting lokahi", "exec", l.execPath, "args", l.args)
-	// The test control is enabled through the environment: a lokahi without it ignores the
-	// variable, where it would refuse the --test-control flag.
-	l.p.Require().NoError(l.sub.Start(l.execPath, l.args, []string{"LOKAHI_TEST_CONTROL=true"}), "start lokahi")
+	var env []string
+	if l.testControl {
+		env = append(env, "LOKAHI_TEST_CONTROL=true")
+	}
+	l.p.Require().NoError(l.sub.Start(l.execPath, l.args, env), "start lokahi")
 
 	var addr string
 	select {

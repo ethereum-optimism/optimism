@@ -219,8 +219,9 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		require.True(supernodeSequencerEnabled && !cfg.SupernodeVNSequencerForBootstrap,
 			"the lokahi backend has no light sequencers")
 		require.Zero(cfg.InteropLogBackfillDepth, "the log backfill depth configures op-supernode")
+		runtime := newMultiL2LokahiRuntime(t, enableInterop, delaySeconds, cfg,
+			lokahiChainsConfig{testControl: true, perChainProposer: true}, chainSpecs)
 		var activationTime uint64
-		runtime := newMultiL2LokahiRuntime(t, enableInterop, delaySeconds, cfg, lokahiChainsConfig{perChainProposer: true}, chainSpecs)
 		if enableInterop {
 			activationTime = runtime.Chains[chainSpecs[0].Name].Network.rollupCfg.Genesis.L2Time + delaySeconds
 		}
