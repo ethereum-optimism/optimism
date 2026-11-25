@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -215,7 +216,7 @@ func TestReadIntent_RejectsUnknownBlobScheduleKeys(t *testing.T) {
 
 			_, err := ReadIntent(dir)
 			// The entry list is matched by its start, so that a fork added by go-ethereum does not break the test.
-			require.ErrorContains(t, err, "failed to read intent file: unknown blob schedule keys: "+tt.keys+"; valid entries are cancun, prague, bpo1, ")
+			require.ErrorContains(t, err, "failed to read intent file: unknown keys: "+tt.keys+"; valid blobSchedule entries are cancun, prague, bpo1, ")
 			require.ErrorContains(t, err, ", each with target, max and updateFraction")
 		})
 	}
@@ -240,15 +241,173 @@ func TestReadIntent_AcceptsKnownBlobSchedule(t *testing.T) {
 	require.Equal(t, schedule, got.L1DevGenesisParams.BlobSchedule)
 }
 
-// Intents in use carry keys the intent type does not know (e.g. superchainRoles.guardian).
-func TestReadIntent_IgnoresUnknownKeysOutsideBlobSchedule(t *testing.T) {
+func TestReadIntent_RejectsUnknownKeys(t *testing.T) {
+	const chain = "[[chains]]\nid = \"0x0000000000000000000000000000000000000000000000000000000000000001\"\n"
+	tests := []struct {
+		name string
+		toml string
+		// keys is the reported key list, which must hold each unknown key once, without the keys below it.
+		keys string
+	}{
+		{
+			name: "top-level key",
+			toml: "useInterops = true\n",
+			keys: "useInterops",
+		},
+		{
+			name: "keys of a known table",
+			toml: "[superchainRoles]\nguardian = \"0x0000000000000000000000000000000000000001\"\nproxyAdminOwner = \"0x0000000000000000000000000000000000000002\"\n",
+			keys: "superchainRoles.guardian (the key is SuperchainGuardian), superchainRoles.proxyAdminOwner (the key is SuperchainProxyAdminOwner)",
+		},
+		{
+			name: "chain key lists once for several chains",
+			toml: chain + "chainFeesRecipient = \"0x0000000000000000000000000000000000000001\"\n" +
+				chain + "chainFeesRecipient = \"0x0000000000000000000000000000000000000002\"\n",
+			keys: "chains.chainFeesRecipient (removed, delete it)",
+		},
+		{
+			name: "removed key in another case",
+			toml: "[SuperchainRoles]\nprotocolVersionsOwner = \"0x0000000000000000000000000000000000000001\"\n",
+			keys: "SuperchainRoles.protocolVersionsOwner (removed, delete it)",
+		},
+		{
+			name: "unknown table",
+			toml: "[superchain]\nguardian = 1\n[superchain.roles]\nchallenger = 2\n",
+			keys: "superchain",
+		},
+		{
+			name: "unknown inline table",
+			toml: "superchain = { guardian = 1, roles = { challenger = 2 } }\n",
+			keys: "superchain",
+		},
+		{
+			name: "unknown table implied by dotted keys",
+			toml: "superchain.guardian = 1\nsuperchain.roles.challenger = 2\n",
+			keys: "superchain.guardian, superchain.roles.challenger",
+		},
+		{
+			name: "key below a table that differs in case from an unknown key",
+			toml: "Superchain = 1\nsuperchain.guardian = 2\n",
+			keys: "Superchain, superchain.guardian",
+		},
+		{
+			name: "key next to an override map",
+			toml: chain + "deployOverride = 1\n[globalDeployOverrides]\nl2BlockTime = 1\n",
+			keys: "chains.deployOverride",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			intentTOML := "configType = \"custom\"\nl1ChainID = 900\n" + tt.toml
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "intent.toml"), []byte(intentTOML), 0o644))
+
+			_, err := ReadIntent(dir)
+			require.EqualError(t, err, "failed to read intent file: unknown keys: "+tt.keys)
+		})
+	}
+}
+
+// The override maps are free-form, and the decoder lists the keys of their nested tables as undecoded.
+func TestReadIntent_AcceptsNestedOverrides(t *testing.T) {
 	dir := t.TempDir()
-	intentTOML := "configType = \"custom\"\nl1ChainID = 900\n[superchainRoles]\nguardian = \"0x0000000000000000000000000000000000000001\"\n"
+	intentTOML := `configType = "custom"
+l1ChainID = 900
+
+[GlobalDeployOverrides]
+l2BlockTime = 1
+inline = { a = { b = 2 } }
+[globalDeployOverrides.nested]
+c = 3
+[[globalDeployOverrides.list]]
+d = 4
+
+[[chains]]
+id = "0x0000000000000000000000000000000000000000000000000000000000000001"
+[chains.deployOverrides.customGasToken]
+name = "Token"
+[chains.deployOverrides.customGasToken.nested]
+e = 5
+`
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "intent.toml"), []byte(intentTOML), 0o644))
 
 	intent, err := ReadIntent(dir)
 	require.NoError(t, err)
-	require.Equal(t, uint64(900), intent.L1ChainID)
+	require.Equal(t, map[string]any{
+		"l2BlockTime": int64(1),
+		"inline":      map[string]any{"a": map[string]any{"b": int64(2)}},
+		"nested":      map[string]any{"c": int64(3)},
+		"list":        []map[string]any{{"d": int64(4)}},
+	}, intent.GlobalDeployOverrides)
+	require.Equal(t, map[string]any{
+		"customGasToken": map[string]any{"name": "Token", "nested": map[string]any{"e": int64(5)}},
+	}, intent.Chains[0].DeployOverrides)
+}
+
+// ReadIntent must accept every key that op-deployer itself writes.
+func TestReadIntent_AcceptsWrittenIntent(t *testing.T) {
+	var intent state.Intent
+	fillIntent(t, reflect.ValueOf(&intent).Elem())
+
+	dir := t.TempDir()
+	intentPath := filepath.Join(dir, "intent.toml")
+	require.NoError(t, intent.WriteToFile(intentPath))
+	written, err := os.ReadFile(intentPath)
+	require.NoError(t, err)
+
+	got, err := ReadIntent(dir)
+	require.NoError(t, err)
+	require.NoError(t, got.WriteToFile(intentPath))
+	rewritten, err := os.ReadFile(intentPath)
+	require.NoError(t, err)
+	require.Equal(t, string(written), string(rewritten))
+}
+
+// fillIntent sets every field below v to a non-zero value, so that a field added to the intent
+// type is written and read back without a change to the test.
+func fillIntent(t *testing.T, v reflect.Value) {
+	switch x := v.Addr().Interface().(type) {
+	case *hexutil.Big:
+		*x = hexutil.Big(*big.NewInt(1))
+		return
+	case *artifacts.Locator:
+		*x = *artifacts.EmbeddedLocator
+		return
+	}
+	switch v.Kind() {
+	case reflect.Pointer:
+		v.Set(reflect.New(v.Type().Elem()))
+		fillIntent(t, v.Elem())
+	case reflect.Struct:
+		for i := range v.NumField() {
+			require.True(t, v.Field(i).CanSet(), "unexported field %s in %s", v.Type().Field(i).Name, v.Type())
+			fillIntent(t, v.Field(i))
+		}
+	case reflect.Slice:
+		v.Set(reflect.MakeSlice(v.Type(), 1, 1))
+		fillIntent(t, v.Index(0))
+	case reflect.Array:
+		fillIntent(t, v.Index(0))
+	case reflect.Map:
+		// The TOML library cannot write a map with a non-string key, which the prefund maps have.
+		if v.Type().Key().Kind() != reflect.String {
+			return
+		}
+		v.Set(reflect.ValueOf(map[string]any{"key": int64(1), "table": map[string]any{"key": int64(1)}}))
+	case reflect.Bool:
+		v.SetBool(true)
+	case reflect.String:
+		v.SetString("value")
+	default:
+		switch {
+		case v.CanUint():
+			v.SetUint(1)
+		case v.CanInt():
+			v.SetInt(1)
+		default:
+			require.Failf(t, "unhandled field type", "%s", v.Type())
+		}
+	}
 }
 
 // Every state file written before DeploymentCalldata was removed has the field, as null or as
