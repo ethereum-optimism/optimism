@@ -3,10 +3,16 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod cli;
+mod config;
+mod rpc;
+mod source;
+mod state;
+mod verifier;
 mod version;
 
-fn main() {
+#[tokio::main]
+async fn main() -> eyre::Result<()> {
     use clap::Parser;
 
-    cli::Cli::parse().run();
+    cli::Cli::parse().run().await
 }

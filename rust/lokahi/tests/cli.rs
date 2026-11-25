@@ -22,9 +22,13 @@ fn stdout_of(output: &Output) -> &str {
 }
 
 #[test]
-fn prints_the_greeting() {
-    let output = run(&[]);
-    assert_eq!(stdout_of(&output), "Hello Lokahi\n");
+fn refuses_to_start_without_a_config() {
+    let output = Command::new(env!("CARGO_BIN_EXE_lokahi"))
+        .env_remove("LOKAHI_CONFIG")
+        .output()
+        .expect("failed to run the lokahi binary");
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--config"));
 }
 
 #[test]
