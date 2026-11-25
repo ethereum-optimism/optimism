@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params/forks"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +39,7 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 			),
 			func(dp *genesis.DeployConfig) {
 				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(24)) // Activate at second l1 block
-				dp.L1OsakaTimeOffset = nil
+				dp.DisableL1ForksAfter(forks.Prague)
 			},
 		)
 

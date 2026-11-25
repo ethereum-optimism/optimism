@@ -3,7 +3,7 @@ package upgrades
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	transactions "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params/forks"
 )
 
 func TestDencunL1ForkAfterGenesis(gt *testing.T) {
@@ -23,8 +24,7 @@ func TestDencunL1ForkAfterGenesis(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	offset := hexutil.Uint64(24)
 	dp.DeployConfig.L1CancunTimeOffset = &offset
-	dp.DeployConfig.L1PragueTimeOffset = nil
-	dp.DeployConfig.L1OsakaTimeOffset = nil
+	dp.DeployConfig.DisableL1ForksAfter(forks.Cancun)
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, _, verifier, _, batcher := helpers.SetupReorgTestActors(t, dp, sd, log)
@@ -125,7 +125,7 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
 	// This test will fork on the second block
-	dp.DeployConfig.ActivateForkAtOffset(forks.Ecotone, dp.DeployConfig.L2BlockTime*2)
+	dp.DeployConfig.ActivateForkAtOffset(opforks.Ecotone, dp.DeployConfig.L2BlockTime*2)
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)

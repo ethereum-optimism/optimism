@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/stretchr/testify/require"
 
@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
@@ -51,7 +52,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 
 	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
 	// Activate all forks at genesis, and schedule Ecotone the block after
-	dp.DeployConfig.ActivateForkAtOffset(forks.Ecotone, uint64(ecotoneOffset))
+	dp.DeployConfig.ActivateForkAtOffset(opforks.Ecotone, uint64(ecotoneOffset))
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
@@ -246,8 +247,7 @@ func TestEcotoneBeforeL1(gt *testing.T) {
 	farOffset := hexutil.Uint64(10000)
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = &offset
 	dp.DeployConfig.L1CancunTimeOffset = &farOffset // L1 Dencun will not be active at genesis
-	dp.DeployConfig.L1PragueTimeOffset = nil
-	dp.DeployConfig.L1OsakaTimeOffset = nil
+	dp.DeployConfig.DisableL1ForksAfter(forks.Cancun)
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset

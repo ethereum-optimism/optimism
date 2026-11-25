@@ -269,7 +269,7 @@ func NewBatcherCfg(params ...BatcherCfgParam) *helpers.BatcherCfg {
 	return dfault
 }
 
-const L1BlockTime = 12
+const L1BlockTime = helpers.L1BlockTime
 
 // RotateBatcher updates the on-chain batcher address in the SystemConfig contract and replaces
 // env.Batcher with a new one using the given key. The L1 transaction is mined in a new L1 block.

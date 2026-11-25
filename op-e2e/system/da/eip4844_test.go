@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params/forks"
 )
 
 // maxBlobsPerTx is the number of blobs the multi-blob tests put in one transaction: Osaka caps a
@@ -249,7 +250,9 @@ func TestBatcherAutoDA(t *testing.T) {
 
 	// System setup
 	cfg := e2esys.HoloceneSystemConfig(t, new(hexutil.Uint64))
-	// The L1 runs Prague, whose higher calldata cost this test relies on.
+	// The L1 runs Osaka: the test relies on Prague's higher calldata cost, and the fee numbers below
+	// on Prague's blob parameters, which Osaka keeps and BPO1 replaces.
+	cfg.DeployConfig.DisableL1ForksAfter(forks.Osaka)
 	cfg.DataAvailabilityType = batcherFlags.AutoType
 	// We set the genesis fee values and block gas limit such that calldata txs are initially cheaper,
 	// but then manipulate the fee markets over the coming L1 blocks such that blobs become cheaper again.
