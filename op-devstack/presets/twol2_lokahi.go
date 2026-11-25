@@ -44,7 +44,12 @@ func NewTwoL2Lokahi(t devtest.T) *TwoL2Lokahi {
 // genesis.
 func NewTwoL2LokahiWithInteropDelay(t devtest.T, delaySeconds uint64) *TwoL2Lokahi {
 	skipKonaOnlyPresetOnOpNode(t)
-	runtime := sysgo.NewTwoL2LokahiRuntimeWithInteropDelay(t, delaySeconds)
+	return twoL2LokahiFromRuntime(t, sysgo.NewTwoL2LokahiRuntimeWithInteropDelay(t, delaySeconds), delaySeconds)
+}
+
+// twoL2LokahiFromRuntime is the [TwoL2Lokahi] of a lokahi runtime whose interop activates
+// delaySeconds after genesis.
+func twoL2LokahiFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime, delaySeconds uint64) *TwoL2Lokahi {
 	inOpReth := sysgo.ResolveMixedL2CLKind(t) == sysgo.MixedL2CLOpReth
 	for name, chain := range runtime.Chains {
 		if inOpReth {
