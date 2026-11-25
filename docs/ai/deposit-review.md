@@ -41,20 +41,9 @@ Start from [Deposits](https://specs.optimism.io/protocol/deposits.html).
 The base page states the wire format, source hashes, execution rules, receipt fields, and the deposit contract.
 
 Fork documents amend these rules.
-Search every applicable `specs/protocol/<fork>/` directory for touched concepts.
-Do not limit the search to `deposits.md`.
-
-At minimum, check these amendments:
-
-| Fork | Deposit effect | Specification |
-| --- | --- | --- |
-| Regolith | Disables `isSystemTx`, meters real gas, adds `depositNonce` | [Regolith](https://specs.optimism.io/protocol/regolith/overview.html) |
-| Canyon | Makes `depositNonce` and `depositReceiptVersion` always present | [Canyon](https://specs.optimism.io/protocol/canyon/overview.html) |
-| Ecotone | Changes L1 attributes calldata | [Ecotone L1 attributes](https://specs.optimism.io/protocol/ecotone/l1-attributes.html) |
-| Isthmus | Adds upgrade deposits, operator fee, and EIP-6110 request exclusion | [Isthmus derivation](https://specs.optimism.io/protocol/isthmus/derivation.html), [Isthmus execution engine](https://specs.optimism.io/protocol/isthmus/exec-engine.html) |
-| Jovian | Adds upgrade deposits and the DA footprint gas rule | [Jovian derivation](https://specs.optimism.io/protocol/jovian/derivation.html), [Jovian execution engine](https://specs.optimism.io/protocol/jovian/exec-engine.html) |
-| Karst | Enables EIP-7825 and exempts deposits from the cap | [Karst overview](https://specs.optimism.io/protocol/karst/overview.html), [Karst derivation](https://specs.optimism.io/protocol/karst/derivation.html) |
-| Lagoon | Adds post-exec transactions beside deposits | [Lagoon post-exec](https://specs.optimism.io/protocol/lagoon/post-exec.html) |
+The [fork amendments](https://specs.optimism.io/protocol/deposits.html#fork-amendments) table on that page lists them.
+Check every row that applies to the change.
+The table can lag a new fork, so also search every applicable `specs/protocol/<fork>/` directory for touched concepts.
 
 Each fork that adds a network upgrade transaction adds deposit rules.
 Read the full upgrade-transaction section of that fork, including every field value and the intent string.
@@ -92,7 +81,7 @@ It does not vendor them. `op-alloy-consensus` holds the wire format and the sour
 | Deposit log decode and the derived fields | [User-deposited transactions](https://specs.optimism.io/protocol/deposits.html#user-deposited-transactions) | `op-node/rollup/derive`: `UnmarshalDepositLogEvent`, `unmarshalDepositVersion0`, `MarshalDepositLogEvent` | `kona-protocol`: `decode_deposit`, `DepositError` | `OptimismPortal2`: `depositTransaction`, the `opaqueData` packing |
 | Per-block deposit list | [Kinds of deposited transactions](https://specs.optimism.io/protocol/deposits.html#kinds-of-deposited-transactions) | `op-node/rollup/derive`: `UserDeposits`, `DeriveDeposits` | `kona-derive`: `StatefulAttributesBuilder`, `derive_deposits` | n/a |
 | Transaction order in the block | [Kinds of deposited transactions](https://specs.optimism.io/protocol/deposits.html#kinds-of-deposited-transactions) | `op-node/rollup/derive`: `PreparePayloadAttributes` | `kona-derive`: `prepare_payload_attributes` | n/a |
-| L1 attributes deposit and calldata | [L1 attributes deposited transaction](https://specs.optimism.io/protocol/deposits.html#l1-attributes-deposited-transaction), [Ecotone L1 attributes](https://specs.optimism.io/protocol/ecotone/l1-attributes.html) | `op-node/rollup/derive`: `L1InfoDeposit`, `L1InfoDepositBytes`, `L1InfoDepositerAddress`, the per-fork marshal functions | `kona-protocol`: `L1BlockInfoTx`, `try_new_with_deposit_tx`, `encode_calldata`, `decode_calldata`, `L1_INFO_DEPOSITOR_ADDRESS` | `L1Block`: the `setL1BlockValues` functions, `DEPOSITOR_ACCOUNT` |
+| L1 attributes deposit and calldata | [L1 attributes deposited transaction](https://specs.optimism.io/protocol/deposits.html#l1-attributes-deposited-transaction), [Ecotone L1 attributes](https://specs.optimism.io/protocol/ecotone/l1-attributes.html), [Pectra Blob Schedule derivation](https://specs.optimism.io/protocol/pectra-blob-schedule/derivation.html), [Isthmus L1 attributes](https://specs.optimism.io/protocol/isthmus/l1-attributes.html), [Jovian L1 attributes](https://specs.optimism.io/protocol/jovian/l1-attributes.html) | `op-node/rollup/derive`: `L1InfoDeposit`, `L1InfoDepositBytes`, `L1InfoDepositerAddress`, the per-fork marshal functions | `kona-protocol`: `L1BlockInfoTx`, `try_new_with_deposit_tx`, `encode_calldata`, `decode_calldata`, `L1_INFO_DEPOSITOR_ADDRESS` | `L1Block`: the `setL1BlockValues` functions, `DEPOSITOR_ACCOUNT` |
 | Network upgrade deposits | The upgrade-transaction section of each fork specification, [L2 upgrades](https://specs.optimism.io/protocol/l2-upgrades-1-execution.html) | `op-node/rollup/derive`: `UpgradeTransactions`, `UpgradeGas`, `nutBundleForFork`, the Lagoon activation transactions | `kona-hardforks`: the per-fork upgrade types; `op-alloy-consensus`: the NUT bundle conversion | `NetworkUpgradeTxns` |
 | Upgrade bundle data | [L2 upgrades](https://specs.optimism.io/protocol/l2-upgrades-1-execution.html) | `op-core/nuts/bundles`: the per-fork NUT bundle JSON, shared by both clients | the same JSON files | n/a |
 | Validation and authorization | [Validation and authorization](https://specs.optimism.io/protocol/deposits.html#validation-and-authorization-of-deposited-transactions) | n/a | `op-revm`: `validate_env`, `validate_initial_tx_gas` | `OptimismPortal2`: `depositTransaction` |
