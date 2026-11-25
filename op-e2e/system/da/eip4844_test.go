@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	gethutils "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -253,7 +252,7 @@ func TestBatcherAutoDA(t *testing.T) {
 	cfg := e2esys.HoloceneSystemConfig(t, new(hexutil.Uint64))
 	// The L1 runs Osaka: the test relies on Prague's higher calldata cost, and the fee numbers below
 	// on Prague's blob parameters, which Osaka keeps and BPO1 replaces.
-	e2eutils.DisableL1ForksAfter(cfg.DeployConfig, forks.Osaka)
+	cfg.DeployConfig.DisableL1ForksAfter(forks.Osaka)
 	cfg.DataAvailabilityType = batcherFlags.AutoType
 	// We set the genesis fee values and block gas limit such that calldata txs are initially cheaper,
 	// but then manipulate the fee markets over the coming L1 blocks such that blobs become cheaper again.

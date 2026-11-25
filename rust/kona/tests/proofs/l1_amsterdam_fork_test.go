@@ -8,6 +8,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,6 +34,7 @@ func TestL1AmsterdamForkAfterGenesis(gt *testing.T) {
 		env.Sequencer.ActL1HeadSignal(t)
 		env.Sequencer.ActBuildToL1Head(t)
 		env.BatchMineAndSync(t)
+		require.Equal(t, uint8(types.BlobTxType), env.Batcher.LastSubmitted.Type())
 		l1Head := env.Miner.L1Chain().CurrentHeader()
 		require.False(t, l1Cfg.IsAmsterdam(l1Head.Number, l1Head.Time), "the first batch lands before Amsterdam")
 
@@ -43,11 +45,14 @@ func TestL1AmsterdamForkAfterGenesis(gt *testing.T) {
 		env.Alice.ActDeposit(t)
 		env.Miner.ActL1StartBlock(helpers.L1BlockTime)(t)
 		env.Miner.ActL1IncludeTx(env.Alice.Address())(t)
-		env.Miner.ActL1EndBlock(t)
+		depositBlock := env.Miner.ActL1EndBlock(t)
+		require.Equal(t, l1Head.Hash(), depositBlock.ParentHash(), "the deposit block follows the last pre-Amsterdam block")
+		require.True(t, l1Cfg.IsAmsterdam(depositBlock.Number(), depositBlock.Time()), "the deposit block activates Amsterdam")
 		env.Sequencer.ActL1HeadSignal(t)
 		env.Sequencer.ActBuildToL1Head(t)
 		env.Alice.ActCheckDepositStatus(true, true)(t)
 		l2Safe := env.BatchMineAndSync(t)
+		require.Equal(t, uint8(types.BlobTxType), env.Batcher.LastSubmitted.Type())
 		l1Origin := env.Miner.L1Chain().GetHeaderByHash(l2Safe.L1Origin.Hash)
 		require.True(t, l1Cfg.IsAmsterdam(l1Origin.Number, l1Origin.Time), "the safe head has an Amsterdam L1 origin")
 

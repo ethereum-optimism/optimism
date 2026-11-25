@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	gethforks "github.com/ethereum/go-ethereum/params/forks"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/stretchr/testify/require"
@@ -306,6 +307,36 @@ func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 		for _, fork := range scheduleableForks[4:] {
 			require.Nil(t, d.ForkTimeOffset(fork))
 		}
+	})
+}
+
+func TestUpgradeScheduleDeployConfig_DisableL1ForksAfter(t *testing.T) {
+	allL1Forks := func() *UpgradeScheduleDeployConfig {
+		zero := new(hexutil.Uint64)
+		return &UpgradeScheduleDeployConfig{
+			L1CancunTimeOffset: zero, L1PragueTimeOffset: zero, L1OsakaTimeOffset: zero,
+			L1BPO1TimeOffset: zero, L1BPO2TimeOffset: zero, L1AmsterdamTimeOffset: zero,
+			L1BPO3TimeOffset: zero, L1BPO4TimeOffset: zero,
+		}
+	}
+
+	t.Run("cancun", func(t *testing.T) {
+		d := allL1Forks()
+		d.DisableL1ForksAfter(gethforks.Cancun)
+		require.NotNil(t, d.L1CancunTimeOffset)
+		require.Equal(t, &UpgradeScheduleDeployConfig{L1CancunTimeOffset: d.L1CancunTimeOffset}, d)
+	})
+
+	t.Run("amsterdam activates before BPO3", func(t *testing.T) {
+		d := allL1Forks()
+		d.DisableL1ForksAfter(gethforks.Amsterdam)
+		want := allL1Forks()
+		want.L1BPO3TimeOffset, want.L1BPO4TimeOffset = nil, nil
+		require.Equal(t, want, d)
+	})
+
+	t.Run("unschedulable fork", func(t *testing.T) {
+		require.Panics(t, func() { allL1Forks().DisableL1ForksAfter(gethforks.Shanghai) })
 	})
 }
 

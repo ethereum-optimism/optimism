@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/stretchr/testify/require"
 
@@ -368,9 +367,10 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	// Canyon and lower is activated by default
 	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
-	// The L1 forks up to BPO2 are active by default, as on Ethereum mainnet, with mainnet's blob
-	// parameters. Move the default up when mainnet schedules its next fork. The contracts depend on
-	// Cancun, and an L1 includes blob transactions with cell proofs only from Osaka on.
+	// The L1 forks up to BPO2 are active by default, with mainnet's blob parameters: the latest fork
+	// live or scheduled on Ethereum mainnet. Move the default up when mainnet schedules its next fork.
+	// A test that needs an older L1 calls DeployConfig.DisableL1ForksAfter. The contracts need Cancun, and
+	// cell-proof blob transactions Osaka.
 	deployConfig.L1CancunTimeOffset = new(hexutil.Uint64)
 	deployConfig.L1PragueTimeOffset = new(hexutil.Uint64)
 	deployConfig.L1OsakaTimeOffset = new(hexutil.Uint64)
@@ -381,31 +381,5 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 		Prague: params.DefaultPragueBlobConfig,
 		BPO1:   params.DefaultBPO1BlobConfig,
 		BPO2:   params.DefaultBPO2BlobConfig,
-	}
-}
-
-// DisableL1ForksAfter turns off every L1 fork that activates after fork, for a test that runs on an
-// older L1 than the default.
-func DisableL1ForksAfter(deployConfig *genesis.DeployConfig, fork forks.Fork) {
-	later := fork == forks.Cancun // Cancun is always active in the dev L1 genesis.
-	// In activation order, which differs from the order of forks.Fork: Amsterdam precedes BPO3.
-	for _, f := range []struct {
-		fork   forks.Fork
-		offset **hexutil.Uint64
-	}{
-		{forks.Prague, &deployConfig.L1PragueTimeOffset},
-		{forks.Osaka, &deployConfig.L1OsakaTimeOffset},
-		{forks.BPO1, &deployConfig.L1BPO1TimeOffset},
-		{forks.BPO2, &deployConfig.L1BPO2TimeOffset},
-		{forks.Amsterdam, &deployConfig.L1AmsterdamTimeOffset},
-		{forks.BPO3, &deployConfig.L1BPO3TimeOffset},
-		{forks.BPO4, &deployConfig.L1BPO4TimeOffset},
-	} {
-		if later {
-			*f.offset = nil
-		}
-		if f.fork == fork {
-			later = true
-		}
 	}
 }

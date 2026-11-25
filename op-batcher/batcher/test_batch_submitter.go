@@ -36,7 +36,7 @@ func (l *TestBatchSubmitter) JamTxPool(ctx context.Context) error {
 	} else if candidate, err = l.blobTxCandidate(emptyTxData); err != nil {
 		return err
 	}
-	if candidate.GasLimit, err = maxFloorDataGas(l.Txmgr.From(), candidate.To, candidate.TxData); err != nil {
+	if candidate.GasLimit, err = MaxFloorDataGas(l.Txmgr.From(), candidate.To, candidate.TxData); err != nil {
 		return err
 	}
 

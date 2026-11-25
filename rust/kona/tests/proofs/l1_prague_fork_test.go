@@ -6,7 +6,6 @@ import (
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
@@ -40,7 +39,7 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 			),
 			func(dp *genesis.DeployConfig) {
 				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(24)) // Activate at second l1 block
-				e2eutils.DisableL1ForksAfter(dp, forks.Prague)
+				dp.DisableL1ForksAfter(forks.Prague)
 			},
 		)
 

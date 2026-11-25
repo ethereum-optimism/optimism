@@ -109,8 +109,8 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 		}
 
 		if s.l1Cfg.Config.IsAmsterdam(header.Number, header.Time) {
-			// EIP-7843: the beacon slot of the block, counting 12-second slots from genesis.
-			slot := (header.Time - s.l1Cfg.Timestamp) / 12
+			// EIP-7843: the beacon slot of the block.
+			slot := (header.Time - s.l1Cfg.Timestamp) / L1BlockTime
 			header.SlotNumber = &slot
 		}
 
@@ -241,9 +241,8 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 		withdrawals = make([]*types.Withdrawal, 0)
 	}
 
-	// Run the post-execution system calls (EIP-7002, EIP-7251, and the Amsterdam builder queues),
-	// like the go-ethereum block builder does: they read and write state that the block access
-	// list records.
+	// Run the post-execution system calls like the go-ethereum block builder does: they produce the
+	// EIP-7685 requests and touch state that the block access list records.
 	var allLogs []*types.Log
 	for _, r := range s.l1Receipts {
 		allLogs = append(allLogs, r.Logs...)
@@ -291,7 +290,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 
 func (s *L1Miner) ActEmptyBlock(t Testing) *types.Block {
 	t.Helper()
-	s.ActL1StartBlock(12)(t)
+	s.ActL1StartBlock(L1BlockTime)(t)
 	return s.ActL1EndBlock(t)
 }
 

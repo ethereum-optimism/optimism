@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/params"
+	gethforks "github.com/ethereum/go-ethereum/params/forks"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -555,6 +556,36 @@ func (d *UpgradeScheduleDeployConfig) ActivateForkAtOffset(fork rollup.ForkName,
 // See also [ActivateForkAtOffset].
 func (d *UpgradeScheduleDeployConfig) ActivateForkAtGenesis(fork rollup.ForkName) {
 	d.ActivateForkAtOffset(fork, 0)
+}
+
+// DisableL1ForksAfter unschedules every L1 fork that activates after fork, for a dev L1 that runs
+// an older fork than the default. It panics for a fork the dev L1 genesis cannot schedule.
+func (d *UpgradeScheduleDeployConfig) DisableL1ForksAfter(fork gethforks.Fork) {
+	// In activation order (go-ethereum's CheckConfigForkOrder), which differs from the order of
+	// gethforks.Fork: Amsterdam precedes BPO3.
+	l1Forks := []struct {
+		fork   gethforks.Fork
+		offset **hexutil.Uint64
+	}{
+		{gethforks.Cancun, &d.L1CancunTimeOffset},
+		{gethforks.Prague, &d.L1PragueTimeOffset},
+		{gethforks.Osaka, &d.L1OsakaTimeOffset},
+		{gethforks.BPO1, &d.L1BPO1TimeOffset},
+		{gethforks.BPO2, &d.L1BPO2TimeOffset},
+		{gethforks.Amsterdam, &d.L1AmsterdamTimeOffset},
+		{gethforks.BPO3, &d.L1BPO3TimeOffset},
+		{gethforks.BPO4, &d.L1BPO4TimeOffset},
+	}
+	for i, f := range l1Forks {
+		if f.fork != fork {
+			continue
+		}
+		for _, later := range l1Forks[i+1:] {
+			*later.offset = nil
+		}
+		return
+	}
+	panic(fmt.Sprintf("the dev L1 genesis cannot schedule L1 fork %v", fork))
 }
 
 func (d *UpgradeScheduleDeployConfig) RegolithTime(genesisTime uint64) *uint64 {

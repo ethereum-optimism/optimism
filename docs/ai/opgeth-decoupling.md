@@ -173,11 +173,11 @@ forge (`L2Genesis.s.sol`).
 - **L1: go-ethereum in-process is right.** `op-e2e/e2eutils/geth.InitL1` (with its fake-PoS
   driver) and the op-test-sequencer fake-PoS builder use go-ethereum's own block building. The
   action tests' `L1Miner` (`op-e2e/actions/helpers/l1_miner.go`) assembles blocks by hand
-  through go-ethereum's `core` functions; it builds no block access lists, so it refuses
-  Amsterdam blocks.
+  through go-ethereum's `core` functions, in the same steps as go-ethereum's block builder, so it
+  also builds Amsterdam blocks with their block access lists.
 - **L1 blobs need Osaka.** go-ethereum's transaction pool accepts only blob sidecars with cell
   proofs, and its block builder includes them only from Osaka on, so a test L1 that carries blob
-  transactions runs Osaka. The `L1Miner` includes cell-proof blob transactions on any fork.
+  transactions runs Osaka. The `L1Miner` also includes blob transactions only from Osaka on.
 - **Scripts: upstream forge.** op-deployer runs all deployment and genesis scripts with forge
   (the Go script host is gone): keyless `forge script` dry runs whose transactions op-deployer
   sends through txmgr, offline forge for genesis-target L1 and L2 genesis, and forge on an
@@ -217,7 +217,7 @@ A bump can change exported signatures and, more dangerously, semantics. When bum
   leftover budget; `core.GasPool` has two dimensions from Amsterdam. Code that runs plain L1
   calls passes `vm.NewGasBudget(gas, 0)` before Amsterdam.
 - **Intrinsic and floor gas** (`core.IntrinsicGas`, `core.FloorDataGas`) take the fork rules.
-  `op-batcher/batcher.maxFloorDataGas` sets a batch tx's gas limit to the larger floor under the
+  `op-batcher/batcher.MaxFloorDataGas` sets a batch tx's gas limit to the larger floor under the
   pre-Amsterdam and the Amsterdam rules, so a batch stays valid across L1's Amsterdam activation.
 - **Blob schedule.** Upstream has no Osaka or Amsterdam blob-schedule entries: Osaka keeps
   Prague's parameters and Amsterdam the latest BPO's.

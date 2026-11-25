@@ -91,13 +91,14 @@ func TestL1Miner_BuildAmsterdamBlocks(gt *testing.T) {
 					Value:     e2eutils.Ether(2),
 				})
 				require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
-				miner.ActL1StartBlock(12)(t)
+				miner.ActL1StartBlock(L1BlockTime)(t)
 				miner.ActL1IncludeTx(dp.Addresses.Alice)(t)
 				bl := miner.ActL1EndBlock(t)
 				require.Equal(t, 1, bl.Transactions().Len())
-				if sd.L1Cfg.Config.IsAmsterdam(bl.Number(), bl.Time()) {
-					require.NotNil(t, bl.Header().BlockAccessListHash)
-					require.NotNil(t, bl.Header().SlotNumber)
+				amsterdam := sd.L1Cfg.Config.IsAmsterdam(bl.Number(), bl.Time())
+				require.Equal(t, amsterdam, bl.Header().BlockAccessListHash != nil, "a block has an access list hash iff it is Amsterdam")
+				if amsterdam {
+					require.Equal(t, bl.NumberU64(), *bl.Header().SlotNumber, "one slot per block from genesis")
 				}
 			}
 			head := miner.l1Chain.CurrentBlock()
