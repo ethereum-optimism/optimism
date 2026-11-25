@@ -18,14 +18,14 @@ const (
 	// GameType 4 was SuperCannonGameType — removed.
 	SuperPermissionedGameType GameType = 5
 	OPSuccinctGameType        GameType = 6 // Not supported by op-challenger
-	SuperAsteriscKonaGameType GameType = 7 // Not supported by op-challenger
-	CannonKonaGameType        GameType = 8
-	SuperCannonKonaGameType   GameType = 9
-	ZKDisputeGameType         GameType = 10
-	FastGameType              GameType = 254
-	AlphabetGameType          GameType = 255
-	KailuaGameType            GameType = 1337           // Not supported by op-challenger
-	UnknownGameType           GameType = math.MaxUint32 // Not supported by op-challenger
+	// GameType 7 was SuperAsteriscKonaGameType — removed, value reserved.
+	CannonKonaGameType      GameType = 8
+	SuperCannonKonaGameType GameType = 9
+	ZKDisputeGameType       GameType = 10
+	FastGameType            GameType = 254
+	AlphabetGameType        GameType = 255
+	KailuaGameType          GameType = 1337           // Not supported by op-challenger
+	UnknownGameType         GameType = math.MaxUint32 // Not supported by op-challenger
 )
 
 // IsPermissioned returns true for game types played only by trusted actors.
@@ -39,7 +39,7 @@ func (g GameType) IsPermissioned() bool {
 // sequence number is a super root timestamp rather than an L2 block number.
 func (g GameType) UsesSuperRoots() bool {
 	switch g {
-	case SuperPermissionedGameType, SuperAsteriscKonaGameType, SuperCannonKonaGameType, ZKDisputeGameType:
+	case SuperPermissionedGameType, SuperCannonKonaGameType, ZKDisputeGameType:
 		return true
 	default:
 		return false
@@ -114,8 +114,6 @@ func (g GameType) String() string {
 		return "super-permissioned"
 	case OPSuccinctGameType:
 		return "op-succinct"
-	case SuperAsteriscKonaGameType:
-		return "super-asterisc-kona"
 	case CannonKonaGameType:
 		return "cannon-kona"
 	case SuperCannonKonaGameType:

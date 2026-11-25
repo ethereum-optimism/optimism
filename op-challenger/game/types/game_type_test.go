@@ -105,6 +105,22 @@ func TestIsPermissioned(t *testing.T) {
 	}
 }
 
+func TestUsesSuperRoots(t *testing.T) {
+	superRoots := []GameType{SuperPermissionedGameType, SuperCannonKonaGameType, ZKDisputeGameType}
+	for _, gameType := range superRoots {
+		t.Run(gameType.String(), func(t *testing.T) {
+			require.True(t, gameType.UsesSuperRoots())
+		})
+	}
+
+	notSuperRoots := []GameType{CannonGameType, PermissionedGameType, GameType(4), GameType(7), CannonKonaGameType, FastGameType, AlphabetGameType}
+	for _, gameType := range notSuperRoots {
+		t.Run(gameType.String(), func(t *testing.T) {
+			require.False(t, gameType.UsesSuperRoots())
+		})
+	}
+}
+
 func TestStableStringForAllLifecycleGameTypes(t *testing.T) {
 	expected := map[GameType]string{
 		AlphabetGameType:          "alphabet",
