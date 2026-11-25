@@ -67,17 +67,21 @@ diataxis: how-to
       --poll-interval=12s \
       --rpc.port=8560 \
       --rollup-rpc=http://localhost:8547 \
-      --l2oo-address=0xYourL2OutputOracleAddress \
+      --game-factory-address=0xYourDisputeGameFactoryAddress \
+      --game-type=0 \
+      --proposal-interval=3600s \
       --private-key=$PROPOSER_PRIVATE_KEY \
       --l1-eth-rpc=$L1_RPC_URL
     ```
-    | 파라미터      | 설명                                                           |
-    | ------------- | -------------------------------------------------------------- |
-    | poll-interval | 새 output proposal을 확인하는 주기 (권장: 12s)                 |
-    | rpc.port      | proposer 서비스의 로컬 RPC 포트                                |
-    | l2oo-address  | L2 Output Oracle 컨트랙트 주소 (0x 접두사가 붙은 hex)          |
-    | private-key   | proposal 서명용 개인 키                                        |
-    | l1-eth-rpc    | L1 네트워크 RPC 엔드포인트 URL                                 |
+    | 파라미터             | 설명                                                               |
+    | -------------------- | ------------------------------------------------------------------ |
+    | poll-interval        | 새 output proposal을 확인하는 주기 (권장: 12s)                     |
+    | rpc.port             | proposer 서비스의 로컬 RPC 포트                                    |
+    | game-factory-address | `DisputeGameFactory` 프록시 주소 (0x 접두사가 붙은 hex)            |
+    | game-type            | 생성할 dispute game 타입; 체인의 respected game type과 일치해야 함 |
+    | proposal-interval    | proposal 제출 간격 (예: `3600s`)                                   |
+    | private-key          | proposal 서명용 개인 키                                            |
+    | l1-eth-rpc           | L1 네트워크 RPC 엔드포인트 URL                                     |
   </Step>
 </Steps>
 <Info>
