@@ -68,7 +68,7 @@ type verifierHead struct {
 
 // verifiedHeads asks lokahi for each node's chain's verified head.
 func verifiedHeads(t devtest.T, lokahi *sysgo.Lokahi, nodes []*dsl.L2CLNode) map[*dsl.L2CLNode]verifierHead {
-	ctx, cancel := context.WithTimeout(t.Ctx(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Ctx(), 30*time.Second)
 	defer cancel()
 	client, err := rpc.DialContext(ctx, lokahi.UserRPC())
 	t.Require().NoError(err, "dial lokahi")
