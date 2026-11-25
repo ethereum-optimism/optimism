@@ -320,7 +320,7 @@ mod tests {
     use alloy_consensus::Header;
     use alloy_primitives::{B256, Bytes, Log, LogData, U64, U256, address};
     use kona_genesis::{CONFIG_UPDATE_TOPIC, HardForkConfig, SystemConfig};
-    use kona_protocol::{BlockInfo, DepositError};
+    use kona_protocol::{BlockInfo, BlockInfoError, DepositError};
     use kona_registry::L1Config;
 
     fn generate_valid_log() -> Log {
@@ -505,6 +505,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_prepare_payload_missing_l1_base_fee_is_critical() {
+        let block_time = 10;
+        let timestamp = 100;
+        let cfg = Arc::new(RollupConfig { block_time, ..Default::default() });
+        let l1_cfg = Arc::new(L1Config::sepolia().into());
+        let l2_number = 1;
+        let mut fetcher = TestSystemConfigL2Fetcher::default();
+        fetcher.insert(B256::ZERO, SystemConfig::default());
+        let mut provider = TestChainProvider::default();
+        let header = Header { timestamp, base_fee_per_gas: None, ..Default::default() };
+        let hash = header.hash_slow();
+        provider.insert_header(hash, header);
+        let mut builder = StatefulAttributesBuilder::new(cfg, l1_cfg, fetcher, provider, None);
+        let epoch = BlockNumHash { hash, number: l2_number };
+        let l2_parent = L2BlockInfo {
+            block_info: BlockInfo {
+                hash: B256::ZERO,
+                number: l2_number,
+                timestamp,
+                parent_hash: hash,
+            },
+            l1_origin: BlockNumHash { hash, number: l2_number },
+            seq_num: 0,
+        };
+        let err = builder.prepare_payload_attributes(l2_parent, epoch).await.unwrap_err();
+        let expected = PipelineError::AttributesBuilder(BuilderError::Custom(
+            BlockInfoError::MissingL1BaseFee.to_string(),
+        ))
+        .crit();
+        assert_eq!(err, expected);
+    }
+
+    #[tokio::test]
     async fn test_prepare_payload_without_forks() {
         let block_time = 10;
         let timestamp = 100;
@@ -514,7 +547,7 @@ mod tests {
         let mut fetcher = TestSystemConfigL2Fetcher::default();
         fetcher.insert(B256::ZERO, SystemConfig::default());
         let mut provider = TestChainProvider::default();
-        let header = Header { timestamp, ..Default::default() };
+        let header = Header { timestamp, base_fee_per_gas: Some(7), ..Default::default() };
         let prev_randao = header.mix_hash;
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
@@ -568,7 +601,7 @@ mod tests {
         let mut fetcher = TestSystemConfigL2Fetcher::default();
         fetcher.insert(B256::ZERO, SystemConfig::default());
         let mut provider = TestChainProvider::default();
-        let header = Header { timestamp, ..Default::default() };
+        let header = Header { timestamp, base_fee_per_gas: Some(7), ..Default::default() };
         let prev_randao = header.mix_hash;
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
@@ -622,7 +655,7 @@ mod tests {
         let mut fetcher = TestSystemConfigL2Fetcher::default();
         fetcher.insert(B256::ZERO, SystemConfig::default());
         let mut provider = TestChainProvider::default();
-        let header = Header { timestamp, ..Default::default() };
+        let header = Header { timestamp, base_fee_per_gas: Some(7), ..Default::default() };
         let parent_beacon_block_root = Some(header.parent_beacon_block_root.unwrap_or_default());
         let prev_randao = header.mix_hash;
         let hash = header.hash_slow();
@@ -677,7 +710,7 @@ mod tests {
         let mut fetcher = TestSystemConfigL2Fetcher::default();
         fetcher.insert(B256::ZERO, SystemConfig::default());
         let mut provider = TestChainProvider::default();
-        let header = Header { timestamp, ..Default::default() };
+        let header = Header { timestamp, base_fee_per_gas: Some(7), ..Default::default() };
         let prev_randao = header.mix_hash;
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
@@ -739,7 +772,7 @@ mod tests {
         // L2 parent is at number 1, its l1_origin is at genesis (number 0, hash = parent_hash
         // of the epoch header). The epoch is at number 1 — different from l1_origin.number,
         // so the code enters the first-block-of-epoch branch that fetches receipts.
-        let epoch_header = Header { timestamp, ..Default::default() };
+        let epoch_header = Header { timestamp, base_fee_per_gas: Some(7), ..Default::default() };
         let epoch_hash = epoch_header.hash_slow();
         let parent_origin_hash = epoch_header.parent_hash;
 
@@ -841,7 +874,7 @@ mod tests {
         let mut fetcher = TestSystemConfigL2Fetcher::default();
         fetcher.insert(B256::ZERO, SystemConfig::default());
         let mut provider = TestChainProvider::default();
-        let header = Header { timestamp, ..Default::default() };
+        let header = Header { timestamp, base_fee_per_gas: Some(7), ..Default::default() };
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
         let dep_set = build_interop_dep_set(1);
@@ -879,7 +912,7 @@ mod tests {
         let mut fetcher = TestSystemConfigL2Fetcher::default();
         fetcher.insert(B256::ZERO, SystemConfig::default());
         let mut provider = TestChainProvider::default();
-        let header = Header { timestamp, ..Default::default() };
+        let header = Header { timestamp, base_fee_per_gas: Some(7), ..Default::default() };
         let hash = header.hash_slow();
         provider.insert_header(hash, header);
         let dep_set = build_interop_dep_set(2);
@@ -922,7 +955,7 @@ mod tests {
             let mut fetcher = TestSystemConfigL2Fetcher::default();
             fetcher.insert(B256::ZERO, sys_config);
             let mut provider = TestChainProvider::default();
-            let header = Header { timestamp, ..Default::default() };
+            let header = Header { timestamp, base_fee_per_gas: Some(7), ..Default::default() };
             let hash = header.hash_slow();
             provider.insert_header(hash, header);
             let dep_set = build_interop_dep_set(chain_count);
