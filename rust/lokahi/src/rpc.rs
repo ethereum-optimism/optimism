@@ -43,14 +43,12 @@ impl InteropAuthorityApiServer for AuthorityRpc {
             .ok_or_else(|| unknown_chain(chain_id))
     }
 
-    /// Nothing is denied: block replacement is not implemented, so the verifier halts at an
-    /// invalid block instead.
-    async fn denied_blocks(&self, chain_id: u64, _from: u64) -> RpcResult<Vec<BlockNumHash>> {
-        self.state
-            .read()
-            .expect("state lock")
-            .verified_head(chain_id)
-            .map(|_| Vec::new())
-            .ok_or_else(|| unknown_chain(chain_id))
+    async fn denied_blocks(&self, chain_id: u64, from: u64) -> RpcResult<Vec<BlockNumHash>> {
+        let state = self.state.read().expect("state lock");
+        state.verified_head(chain_id).ok_or_else(|| unknown_chain(chain_id))?;
+        let denied = state.denied_blocks(chain_id, from).map_err(|err| {
+            ErrorObject::owned(ErrorCode::InternalError.code(), err.to_string(), None::<()>)
+        })?;
+        Ok(denied.into_iter().map(|record| record.block).collect())
     }
 }

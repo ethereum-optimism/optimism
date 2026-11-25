@@ -73,6 +73,8 @@ pub(crate) struct LocalSafeAt {
     pub block: BlockNumHash,
     /// The L1 block that made it local-safe, from the source's safe head database.
     pub l1_inclusion: BlockNumHash,
+    /// The block's output root.
+    pub output_root: B256,
 }
 
 /// What a source reports for a timestamp.
@@ -139,6 +141,7 @@ impl ChainSource {
                     hash: output.output.block_hash,
                 },
                 l1_inclusion: output.required_l1,
+                output_root: output.output_root,
             });
         Ok(SourceProgress {
             at_timestamp,

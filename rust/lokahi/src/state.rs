@@ -167,13 +167,20 @@ impl Verified {
     }
 
     /// Records a denied block, durably, before the authority answers it.
-    #[cfg_attr(not(test), expect(dead_code, reason = "nothing denies blocks yet"))]
     pub(crate) fn deny(&self, record: &DeniedRecord) -> Result<(), StoreError> {
         self.store.put_denied(record)
     }
 
+    /// Whether `chain_id`'s `block` is denied.
+    pub(crate) fn is_denied(&self, chain_id: u64, block: BlockNumHash) -> Result<bool, StoreError> {
+        let denied = self.store.denied(chain_id, block.number)?;
+        Ok(denied
+            .iter()
+            .take_while(|record| record.block.number == block.number)
+            .any(|record| record.block == block))
+    }
+
     /// The denied blocks of `chain_id` at or above `from_number`, by number.
-    #[cfg_attr(not(test), expect(dead_code, reason = "nothing denies blocks yet"))]
     pub(crate) fn denied_blocks(
         &self,
         chain_id: u64,
@@ -373,5 +380,29 @@ pub(crate) mod tests {
         let opened = Verified::open(Store::open(dir.path()).unwrap(), activation, genesis_times);
 
         assert!(matches!(opened, Err(StoreError::OtherConfig { .. })), "got {opened:?}");
+    }
+
+    /// A denied block is told apart from another block at its height and on another chain.
+    #[test]
+    fn is_denied_matches_the_chain_and_the_block() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = state(dir.path());
+        let denied = DeniedRecord {
+            chain_id: CHAIN,
+            block: block(3),
+            output_root: B256::repeat_byte(3),
+            timestamp: ACTIVATION + 2,
+        };
+        state.deny(&denied).unwrap();
+        state.deny(&DeniedRecord { block: block(5), ..denied }).unwrap();
+
+        assert!(state.is_denied(CHAIN, block(3)).unwrap());
+        assert!(
+            !state
+                .is_denied(CHAIN, BlockNumHash { number: 3, hash: B256::repeat_byte(9) })
+                .unwrap()
+        );
+        assert!(!state.is_denied(CHAIN, block(4)).unwrap());
+        assert!(!state.is_denied(CHAIN + 1, block(3)).unwrap());
     }
 }

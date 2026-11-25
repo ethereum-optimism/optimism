@@ -54,5 +54,6 @@ url = { workspace = true, features = ["serde"] }
 rocksdb = { workspace = true, features = ["snappy"] }
 
 [dev-dependencies]
+kona-interop = { workspace = true, features = ["serde", "std", "test-utils"] }
 rstest.workspace = true
 tempfile.workspace = true
