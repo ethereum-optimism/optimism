@@ -9,7 +9,7 @@ run_case() {
   local expected=$2
   local root
   root=$(mktemp -d)
-  mkdir -p "$root/ops/prestate-reproducibility" "$root/bin"
+  mkdir -p "$root/ops/prestate-reproducibility" "$root/bin" "$root/rust/kona/sp1"
   cp "$SOURCE_DIR/build-prestates.sh" "$root/ops/prestate-reproducibility/"
   cat > "$root/bin/git" << 'STUB'
 #!/usr/bin/env bash
@@ -92,7 +92,7 @@ case "$1" in
         [[ "$TEST_SCENARIO" != "zero-vkey" ]] || hash=0x0000000000000000000000000000000000000000000000000000000000000000
         printf 'super-aggregation = "%s"\n' "$hash" > elf/vkeys.toml
         case "$TEST_SCENARIO" in
-          log-commitment|log-vkey-mismatch)
+          log-commitment|log-vkey-mismatch|pin-mismatch)
             printf 'elf' > elf/log-commitment-elf
             printf 'log-commitment = "%s"\n' "$hash" >> elf/vkeys.toml ;;
           log-missing-elf) printf 'log-commitment = "%s"\n' "$hash" >> elf/vkeys.toml ;;
@@ -106,6 +106,9 @@ case "$1" in
         esac
         [[ "$TEST_SCENARIO" != "test-build-marker" ]] || printf 'git_sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test"\n' >> elf/vkeys.toml
         [[ "$TEST_SCENARIO" != "duplicate-vkey" ]] || printf 'super-aggregation = "%s"\n' "$hash" >> elf/vkeys.toml ;;
+      "just verify-elfs")
+        printf '%s %s\n' "$PWD" "$3" >> "$TEST_ROOT/verify.calls"
+        [[ "$TEST_SCENARIO" != "pin-mismatch" ]] || { echo 'FAIL: super-range-elf embeds the log-commitment vkey 0 times' >&2; exit 1; } ;;
       "cargo metadata")
         [[ "$TEST_SCENARIO" != "failed-metadata" ]] || exit 1
         [[ "$TEST_SCENARIO" != "invalid-metadata" ]] || { printf 'invalid metadata'; exit 0; }
@@ -213,6 +216,21 @@ STUB
       cat "$root/output"
       exit 1
     }
+  elif [[ "$scenario" == "pin-mismatch" ]]; then
+    grep -q "do not pin each other's vkeys" "$root/output" || {
+      cat "$root/output"
+      exit 1
+    }
+  elif [[ "$scenario" == "log-commitment" ]]; then
+    grep -Eq "^$root/rust/kona/sp1 .*/optimism/rust/kona/sp1/elf\$" "$root/verify.calls" || {
+      echo 'verify-elfs did not run on the rebuilt guest set' >&2
+      exit 1
+    }
+  elif [[ "$scenario" == "success" ]]; then
+    [[ ! -f "$root/verify.calls" ]] || {
+      echo 'verify-elfs ran on a tag without the log-commitment guest' >&2
+      exit 1
+    }
   elif [[ "$scenario" == "symlink-parent" ]]; then
     [[ -f "$root/outside/docker/marker" ]] || {
       echo 'cleanup followed a symlink outside the worktree' >&2
@@ -228,7 +246,7 @@ run_case zero zero
 run_case sudo-fails success
 run_case symlink-parent success
 run_case stdin-consumer two
-for scenario in missing-tag failed-recipe missing-vkey malformed-vkey uppercase-vkey duplicate-vkey zero-vkey vkey-mismatch derived-long custom-config stale failed-metadata invalid-metadata test-config-fallback test-build-marker test-elf-marker log-missing-elf log-missing-vkey log-malformed-vkey log-duplicate-vkey log-vkey-mismatch; do
+for scenario in missing-tag failed-recipe missing-vkey malformed-vkey uppercase-vkey duplicate-vkey zero-vkey vkey-mismatch derived-long custom-config stale failed-metadata invalid-metadata test-config-fallback test-build-marker test-elf-marker log-missing-elf log-missing-vkey log-malformed-vkey log-duplicate-vkey log-vkey-mismatch pin-mismatch; do
   run_case "$scenario" failure
 done
 echo "Kona SP1 build driver fixtures passed"

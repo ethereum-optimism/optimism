@@ -211,6 +211,11 @@ function build_kona_sp1() {
       fail_kona_sp1 "$version" "manifest log-commitment vkey ${log_hash} differs from ELF vkey ${derived}"
       return 1
     fi
+    # Uses this checkout's recipe, which older tags lack.
+    if ! (cd "${REPO_ROOT}/rust/kona/sp1" && mise exec -- just verify-elfs "${WORKTREE_DIR}/rust/kona/sp1/elf") 2>&1 | tee -a "$log_file"; then
+      fail_kona_sp1 "$version" "guest ELFs do not pin each other's vkeys"
+      return 1
+    fi
   fi
   VERSIONS_JSON=$(printf '%s\n' "$VERSIONS_JSON" | jq --arg version "$version" --arg hash "$hash" '. + [{version: $version, hash: $hash, type: "kona-sp1"}]')
   echo "Kona SP1 version ${version}: rebuilt super-aggregation vkey ${hash}"

@@ -105,6 +105,8 @@ native manifest with the generated ELFs. Native ELF hashes may differ across bui
 because paths and other environment details are embedded. The daily reproducibility job
 rebuilds each `kona-sp1` registry version from `kona-sp1-program/v<version>` using that tag's
 Docker `just build-elfs` recipe and compares only its `super-aggregation` vkey to the registry.
+For tags that include the `log-commitment` guest, it also runs `just verify-elfs` on the rebuilt
+set.
 
 Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
 artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
