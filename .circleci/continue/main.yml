@@ -861,7 +861,7 @@ jobs:
       - rust-build:
           directory: rust
           profile: release
-          package: "kona-host kona-client kona-node op-zk-proposer"
+          package: "kona-host kona-client kona-node op-zk-proposer lokahi"
           save_cache: true
           fetch_workspace: true
       - persist_to_workspace:
@@ -869,6 +869,7 @@ jobs:
           paths:
             - "rust/target/release/kona-*"
             - "rust/target/release/op-zk-proposer"
+            - "rust/target/release/lokahi"
 
   rust-op-reth-binary:
     docker:
