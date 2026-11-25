@@ -11,7 +11,7 @@ use jsonrpsee::{
     server::{Server, ServerHandle},
     types::ErrorObjectOwned,
 };
-use kona_engine::{EngineActorRequest, EngineState, VerifierHead};
+use kona_engine::{DeniedBlock, EngineActorRequest, EngineState, VerifierHead};
 use kona_genesis::RollupConfig;
 use kona_rpc::InteropAuthorityApiServer;
 use std::{
@@ -26,7 +26,7 @@ use tokio::sync::{mpsc, watch};
 struct FixedAuthority {
     verified: Option<VerifierHead>,
     finalized: Option<VerifierHead>,
-    denied: Vec<BlockNumHash>,
+    denied: Vec<DeniedBlock>,
     denied_from: Arc<Mutex<Option<u64>>>,
 }
 
@@ -44,7 +44,7 @@ impl InteropAuthorityApiServer for FixedAuthority {
         self.finalized.ok_or_else(not_caught_up)
     }
 
-    async fn denied_blocks(&self, _chain_id: u64, from: u64) -> RpcResult<Vec<BlockNumHash>> {
+    async fn denied_blocks(&self, _chain_id: u64, from: u64) -> RpcResult<Vec<DeniedBlock>> {
         *self.denied_from.lock().unwrap() = Some(from);
         Ok(self.denied.clone())
     }
@@ -81,7 +81,10 @@ fn actor(
 async fn poll_forwards_the_denied_blocks_and_the_verified_and_finalized_heads() {
     let safe = BlockNumHash { number: 9, hash: B256::repeat_byte(9) };
     let finalized = BlockNumHash { number: 4, hash: B256::repeat_byte(4) };
-    let denied = BlockNumHash { number: 11, hash: B256::repeat_byte(11) };
+    let denied = DeniedBlock {
+        block: BlockNumHash { number: 11, hash: B256::repeat_byte(11) },
+        l1: BlockNumHash { number: 3, hash: B256::repeat_byte(3) },
+    };
     let denied_from = Arc::new(Mutex::new(None));
     let (client, _server) = serve(FixedAuthority {
         verified: Some(VerifierHead::Verified { block: safe, timestamp: 18 }),
@@ -100,7 +103,7 @@ async fn poll_forwards_the_denied_blocks_and_the_verified_and_finalized_heads() 
         "asked from above the engine's finalized genesis"
     );
     match requests.try_recv().unwrap() {
-        EngineActorRequest::ProcessDeniedBlocks(blocks) => assert_eq!(blocks, vec![denied]),
+        EngineActorRequest::ProcessDeniedBlocks(blocks) => assert_eq!(blocks, Some(vec![denied])),
         other => panic!("expected the denied blocks, got {other:?}"),
     }
     match requests.try_recv().unwrap() {
@@ -122,7 +125,10 @@ async fn poll_forwards_the_denied_blocks_and_the_verified_and_finalized_heads() 
 /// label.
 #[tokio::test]
 async fn authority_without_heads_forwards_only_the_denied_blocks() {
-    let denied = BlockNumHash { number: 11, hash: B256::repeat_byte(11) };
+    let denied = DeniedBlock {
+        block: BlockNumHash { number: 11, hash: B256::repeat_byte(11) },
+        l1: BlockNumHash { number: 3, hash: B256::repeat_byte(3) },
+    };
     let (client, _server) =
         serve(FixedAuthority { denied: vec![denied], ..Default::default() }).await;
     let (mut actor, mut requests) = actor(client);
@@ -130,15 +136,16 @@ async fn authority_without_heads_forwards_only_the_denied_blocks() {
     actor.step().await.unwrap();
 
     match requests.try_recv().unwrap() {
-        EngineActorRequest::ProcessDeniedBlocks(blocks) => assert_eq!(blocks, vec![denied]),
+        EngineActorRequest::ProcessDeniedBlocks(blocks) => assert_eq!(blocks, Some(vec![denied])),
         other => panic!("expected the denied blocks, got {other:?}"),
     }
     assert!(requests.try_recv().is_err());
 }
 
-/// An unreachable authority moves nothing, so the engine holds its labels.
+/// An unreachable authority moves no label, so the engine holds them. The engine judges the
+/// authority's last denials again on its L1 chain.
 #[tokio::test]
-async fn unreachable_authority_sends_the_engine_nothing() {
+async fn unreachable_authority_moves_no_label() {
     let (client, server) = serve(FixedAuthority::default()).await;
     server.stop().unwrap();
     server.stopped().await;
@@ -146,5 +153,9 @@ async fn unreachable_authority_sends_the_engine_nothing() {
 
     actor.step().await.unwrap();
 
+    match requests.try_recv().unwrap() {
+        EngineActorRequest::ProcessDeniedBlocks(None) => {}
+        other => panic!("expected the last denials to be judged again, got {other:?}"),
+    }
     assert!(requests.try_recv().is_err());
 }

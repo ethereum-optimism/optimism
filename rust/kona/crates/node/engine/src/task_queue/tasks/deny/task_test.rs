@@ -83,7 +83,7 @@ async fn denied_local_safe_block_moves_local_safe_to_its_parent() {
         chain.rpc_block(11),
     );
     l2.expect_forkchoice_updated(expected.create_forkchoice_state(), PayloadStatusEnum::Valid);
-    let task = DenyTask::new(Arc::new(client), cfg, vec![chain.id(17), chain.id(12)]);
+    let task = DenyTask::new(Arc::new(client), cfg, vec![chain.id(17), chain.id(12)], vec![]);
 
     let err = task.execute(&mut state).await.unwrap_err();
 
@@ -110,7 +110,8 @@ async fn denied_blocks_the_engine_has_not_derived_change_nothing() {
     let (client, l1, l2) = test_engine_client(cfg.clone());
     l2.expect_block_header_by_number(12, Some(chain.rpc_block(12)));
     let replaced = BlockNumHash { number: 12, hash: B256::repeat_byte(0xee) };
-    let task = DenyTask::new(Arc::new(client), cfg, vec![replaced, chain.id(LOCAL_SAFE + 1)]);
+    let task =
+        DenyTask::new(Arc::new(client), cfg, vec![replaced, chain.id(LOCAL_SAFE + 1)], vec![]);
 
     task.execute(&mut state).await.unwrap();
 
@@ -128,13 +129,90 @@ async fn denied_finalized_block_is_not_replaced() {
     let cfg = chain.cfg();
     let (client, l1, l2) = test_engine_client(cfg.clone());
     l2.expect_block_header_by_number(FINALIZED, Some(chain.rpc_block(FINALIZED)));
-    let task = DenyTask::new(Arc::new(client), cfg, vec![chain.id(FINALIZED)]);
+    let task = DenyTask::new(Arc::new(client), cfg, vec![chain.id(FINALIZED)], vec![]);
 
     let err = task.execute(&mut state).await.unwrap_err();
 
     assert!(matches!(err, DenyTaskError::Finalized { .. }), "{err:?}");
     assert_eq!(err.severity(), EngineTaskErrorSeverity::Skip);
     assert_eq!(state, state_before);
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// A block the engine replaced on a denial a reorg voided moves the local-safe head below it, so
+/// derivation derives the height again without the denial; where the engine has the denied
+/// block, or has not derived the height yet, nothing moves. With a denied block below, the
+/// lower height goes first.
+#[rstest::rstest]
+#[case::replaced(12, None, Some(12))]
+#[case::the_engine_has_the_denied_block(12, Some(12), None)]
+#[case::not_derived_yet(LOCAL_SAFE + 1, None, None)]
+#[case::a_denied_block_below_goes_first(13, Some(11), Some(11))]
+#[tokio::test]
+async fn a_replacement_on_a_voided_denial_is_derived_again(
+    #[case] reorged_height: u64,
+    #[case] denied_height: Option<u64>,
+    #[case] rewound_below: Option<u64>,
+) {
+    let chain = Chain::new();
+    let mut state = chain.engine_state();
+    let state_before = state;
+    let cfg = chain.cfg();
+    let (client, l1, l2) = test_engine_client(cfg.clone());
+    // The engine's chain holds a replacement, not the block denied at the reorged height, unless
+    // that height is the denied one too.
+    let voided = if denied_height == Some(reorged_height) {
+        chain.id(reorged_height)
+    } else {
+        BlockNumHash { number: reorged_height, hash: B256::repeat_byte(0xdd) }
+    };
+    let denied: Vec<_> = denied_height
+        .into_iter()
+        .filter(|height| *height != reorged_height)
+        .map(|height| chain.id(height))
+        .collect();
+    let mut lookups: Vec<u64> = denied.iter().map(|block| block.number).collect();
+    if reorged_height <= LOCAL_SAFE {
+        lookups.push(reorged_height);
+    }
+    lookups.sort_unstable();
+    for number in lookups {
+        l2.expect_block_header_by_number(number, Some(chain.rpc_block(number)));
+        if Some(number) == rewound_below {
+            break;
+        }
+    }
+    if let Some(number) = rewound_below {
+        let expected = state.sync_state.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(chain.info(number - 1)),
+            ..Default::default()
+        });
+        l2.expect_params(
+            "eth_getBlockByHash",
+            serde_json::json!([chain.id(number - 1).hash, true]),
+            chain.rpc_block(number - 1),
+        );
+        l2.expect_forkchoice_updated(expected.create_forkchoice_state(), PayloadStatusEnum::Valid);
+    }
+    let task = DenyTask::new(Arc::new(client), cfg, denied.clone(), vec![voided]);
+
+    let result = task.execute(&mut state).await;
+
+    match rewound_below {
+        Some(number) if denied.iter().any(|block| block.number == number) => assert!(
+            matches!(result, Err(DenyTaskError::Rewound { denied, local_safe }) if denied == chain.id(number) && local_safe == chain.id(number - 1)),
+            "{result:?}"
+        ),
+        Some(number) => assert!(
+            matches!(result, Err(DenyTaskError::Restored { replacement, local_safe }) if replacement == chain.id(number) && local_safe == chain.id(number - 1)),
+            "{result:?}"
+        ),
+        None => {
+            result.unwrap();
+            assert_eq!(state, state_before);
+        }
+    }
     l1.assert_finished();
     l2.assert_finished();
 }

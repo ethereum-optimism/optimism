@@ -72,10 +72,12 @@ where
             Ok(denied) => denied,
             Err(err) => {
                 self.log_failure(&err.to_string());
-                return Ok(());
+                // The engine judges the last answer again: a denial on an L1 block a reorg
+                // removed must not hold because the authority is down.
+                return self.send(EngineActorRequest::ProcessDeniedBlocks(None)).await;
             }
         };
-        self.send(EngineActorRequest::ProcessDeniedBlocks(denied.clone())).await?;
+        self.send(EngineActorRequest::ProcessDeniedBlocks(Some(denied.clone()))).await?;
         let (verified, finalized) = match (
             self.authority.verified_head(chain_id).await,
             self.authority.finalized_head(chain_id).await,

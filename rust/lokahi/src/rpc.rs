@@ -1,13 +1,12 @@
 //! The authority RPC the nodes poll.
 
 use crate::state::Verified;
-use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
 use jsonrpsee::{
     core::RpcResult,
     types::{ErrorCode, ErrorObject},
 };
-use kona_engine::VerifierHead;
+use kona_engine::{DeniedBlock, VerifierHead};
 use kona_rpc::InteropAuthorityApiServer;
 use std::sync::{Arc, RwLock};
 
@@ -66,13 +65,16 @@ impl InteropAuthorityApiServer for AuthorityRpc {
         self.head(chain_id, Verified::finalized_head)
     }
 
-    async fn denied_blocks(&self, chain_id: u64, from: u64) -> RpcResult<Vec<BlockNumHash>> {
+    async fn denied_blocks(&self, chain_id: u64, from: u64) -> RpcResult<Vec<DeniedBlock>> {
         let state = self.state.read().expect("state lock");
         state.verified_head(chain_id).ok_or_else(|| unknown_chain(chain_id))?;
         let denied = state.denied_blocks(chain_id, from).map_err(|err| {
             ErrorObject::owned(ErrorCode::InternalError.code(), err.to_string(), None::<()>)
         })?;
-        Ok(denied.into_iter().map(|record| record.block).collect())
+        Ok(denied
+            .into_iter()
+            .map(|record| DeniedBlock { block: record.block, l1: record.l1 })
+            .collect())
     }
 }
 
@@ -101,6 +103,20 @@ mod tests {
             rpc.verified_head(CHAIN + 1).await.unwrap_err().code(),
             ErrorCode::InvalidParams.code()
         );
+
+        let block =
+            alloy_eips::BlockNumHash { number: 3, hash: alloy_primitives::B256::repeat_byte(3) };
+        let l1 =
+            alloy_eips::BlockNumHash { number: 7, hash: alloy_primitives::B256::repeat_byte(7) };
+        let record = crate::state::DeniedRecord {
+            chain_id: CHAIN,
+            block,
+            output_root: alloy_primitives::B256::repeat_byte(1),
+            timestamp: 106,
+            l1,
+        };
+        rpc.state.read().unwrap().deny(&record).unwrap();
+        assert_eq!(rpc.denied_blocks(CHAIN, 0).await.unwrap(), vec![DeniedBlock { block, l1 }]);
 
         rpc.state.write().unwrap().set_caught_up();
         assert_eq!(

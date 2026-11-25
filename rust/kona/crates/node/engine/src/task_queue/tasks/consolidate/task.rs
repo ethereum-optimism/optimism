@@ -1223,9 +1223,7 @@ mod tests {
         }
 
         fn denied(blocks: Vec<BlockNumHash>) -> DeniedBlocks {
-            let (sender, denied) = DeniedBlocks::from_verifier(0);
-            sender.publish(blocks);
-            denied
+            DeniedBlocks::applied(blocks)
         }
 
         fn task(

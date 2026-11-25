@@ -24,6 +24,18 @@ pub enum DenyTaskError {
         /// Its parent, the new local-safe head.
         local_safe: BlockNumHash,
     },
+    /// The local-safe head moved back to `local_safe`, the parent of `replacement`, a block the
+    /// node replaced a denied block with on a denial a reorg voided. Derivation restarts from it
+    /// and derives the height again without the denial.
+    #[error(
+        "Moved the local-safe head back to {local_safe:?}, below {replacement:?}, replaced on a denial a reorg voided"
+    )]
+    Restored {
+        /// The block at the height derived again.
+        replacement: BlockNumHash,
+        /// Its parent, the new local-safe head.
+        local_safe: BlockNumHash,
+    },
     /// A denied block is at or below the finalized head, so it is not replaced.
     #[error(
         "Refusing to replace denied block {denied:?} at or below the finalized head {finalized:?}"
@@ -53,7 +65,7 @@ pub enum DenyTaskError {
 impl EngineTaskError for DenyTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
-            Self::Rewound { .. } => EngineTaskErrorSeverity::Rederive,
+            Self::Rewound { .. } | Self::Restored { .. } => EngineTaskErrorSeverity::Rederive,
             Self::Finalized { .. } |
             Self::ParentNotFound(_) |
             Self::Lookup(_) |

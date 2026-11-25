@@ -5,8 +5,8 @@ use alloy_rpc_types_engine::{
     ExecutionPayloadV1, ForkchoiceState, PayloadStatus, PayloadStatusEnum,
 };
 use kona_engine::{
-    ConsolidateInput, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
-    ResetRequest,
+    ConsolidateInput, DeniedBlock, EngineState, EngineSyncStateUpdate, FinalizeBlockId,
+    NoopBlockSink, ResetRequest,
     test_utils::{
         RpcMock, TestEngineStateBuilder, TestRpcBlock, expect_sync_start, test_block_info,
         test_engine_client, test_l2_block, test_rpc_block,
@@ -391,10 +391,27 @@ async fn skipped_finalization_keeps_the_actor_running_until_a_reset_forgets_it()
     l2.assert_finished();
 }
 
+/// The L1 block a denial was decided on, as the scripted L1 serves it at height 3 on `fork`.
+fn denial_l1(fork: u8) -> alloy_rpc_types_eth::Block<alloy_rpc_types_eth::Transaction> {
+    let mut block = alloy_rpc_types_eth::Block::<alloy_rpc_types_eth::Transaction>::default();
+    block.header.inner.number = 3;
+    block.header.inner.extra_data = vec![fork].into();
+    block.header.hash = block.header.inner.hash_slow();
+    block
+}
+
 /// A denied block the engine has derived makes the actor move local-safe to the block's parent and
-/// restart derivation from there, so derivation replaces the block as it derives it again.
+/// restart derivation from there, so derivation replaces the block as it derives it again, but
+/// only while the L1 block the denial was decided on is canonical on the node's L1 chain: a
+/// denial whose L1 block a reorg replaced, as a stale answer can still hold, moves nothing.
+#[rstest::rstest]
+#[case::decided_on_canonical_l1(0, true)]
+#[case::decided_on_reorged_l1(1, false)]
 #[tokio::test(start_paused = true)]
-async fn denied_local_safe_block_restarts_derivation_from_its_parent() {
+async fn denied_local_safe_block_restarts_derivation_from_its_parent(
+    #[case] canonical_fork: u8,
+    #[case] applies: bool,
+) {
     let mut blocks: Vec<OpBlock> = Vec::new();
     for number in 0..=20 {
         let parent = blocks.last().map_or(B256::ZERO, |block| block.header.hash_slow());
@@ -416,13 +433,21 @@ async fn denied_local_safe_block_restarts_derivation_from_its_parent() {
         ..Default::default()
     });
     let (client, l1, l2) = test_engine_client(config.clone());
-    l2.expect_block_header_by_number(12, Some(test_rpc_block(&blocks[12])));
-    l2.expect_params(
-        "eth_getBlockByHash",
-        serde_json::json!([info(11).hash(), true]),
-        test_rpc_block(&blocks[11]),
+    l1.expect_params(
+        "eth_getBlockByNumber",
+        serde_json::json!(["0x3", false]),
+        denial_l1(canonical_fork),
     );
-    l2.expect_forkchoice_updated(rewound.create_forkchoice_state(), PayloadStatusEnum::Valid);
+    // A voided denial makes the engine look whether it replaced the block; it has the block.
+    l2.expect_block_header_by_number(12, Some(test_rpc_block(&blocks[12])));
+    if applies {
+        l2.expect_params(
+            "eth_getBlockByHash",
+            serde_json::json!([info(11).hash(), true]),
+            test_rpc_block(&blocks[11]),
+        );
+        l2.expect_forkchoice_updated(rewound.create_forkchoice_state(), PayloadStatusEnum::Valid);
+    }
     let (state_tx, state_rx) = watch::channel(state);
     let (requests, request_rx) = mpsc::channel(8);
     let (derivation_tx, mut derivation_rx) = mpsc::channel(8);
@@ -438,7 +463,10 @@ async fn denied_local_safe_block_restarts_derivation_from_its_parent() {
     .following_verifier();
 
     requests
-        .send(EngineActorRequest::ProcessDeniedBlocks(vec![info(12).block_info.id()]))
+        .send(EngineActorRequest::ProcessDeniedBlocks(Some(vec![DeniedBlock {
+            block: info(12).block_info.id(),
+            l1: alloy_eips::BlockNumHash { number: 3, hash: denial_l1(0).header.hash },
+        }])))
         .await
         .unwrap();
     time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
@@ -459,6 +487,13 @@ async fn denied_local_safe_block_restarts_derivation_from_its_parent() {
             }
             other => panic!("unexpected derivation request {other:?}"),
         }
+    }
+    if !applies {
+        assert_eq!(signals, vec![], "a denial on a reorged L1 block restarts nothing");
+        assert_eq!(state_rx.borrow().sync_state.local_safe_head(), info(15));
+        l1.assert_finished();
+        l2.assert_finished();
+        return;
     }
     assert_eq!(signals, vec![Signal::Reset(ResetSignal { l2_safe_head: info(11) })]);
     assert_eq!(state_rx.borrow().sync_state.local_safe_head(), info(11));

@@ -4,12 +4,12 @@ use crate::{
     OutputResponse, SafeHeadResponse, health::HealthzResponse,
     superroot::SuperRootAtTimestampResponse,
 };
-use alloy_eips::{BlockNumHash, BlockNumberOrTag};
+use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::{B256, U64};
 use core::net::IpAddr;
 use ipnet::IpNet;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use kona_engine::VerifierHead;
+use kona_engine::{DeniedBlock, VerifierHead};
 use kona_genesis::{DependencySet, RollupConfig};
 use kona_gossip::{PeerCount, PeerDump, PeerInfo, PeerStats};
 use kona_protocol::SyncStatus;
@@ -85,9 +85,10 @@ pub trait InteropAuthorityApi {
     async fn finalized_head(&self, chain_id: u64) -> RpcResult<VerifierHead>;
 
     /// The blocks of `chain_id` at or above `from_number` that verification rejected, in
-    /// ascending order.
+    /// ascending order, each with the L1 block the denial was decided on: it holds only on an L1
+    /// chain that includes that block.
     #[method(name = "deniedBlocks")]
-    async fn denied_blocks(&self, chain_id: u64, from_number: u64) -> RpcResult<Vec<BlockNumHash>>;
+    async fn denied_blocks(&self, chain_id: u64, from_number: u64) -> RpcResult<Vec<DeniedBlock>>;
 }
 
 /// The opp2p namespace handles peer interactions.

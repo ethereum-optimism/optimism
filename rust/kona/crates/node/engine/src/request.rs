@@ -1,10 +1,9 @@
 //! Requests sent to the node engine actor and their replies.
 
 use crate::{
-    BuildTaskError, CanonicalizeTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError,
-    VerifierHead,
+    BuildTaskError, CanonicalizeTaskError, ConsolidateInput, DeniedBlock, FinalizeBlockId,
+    SealTaskError, VerifierHead,
 };
-use alloy_eips::BlockNumHash;
 use alloy_rpc_types_engine::PayloadId;
 use kona_protocol::OpAttributesWithParent;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -26,8 +25,10 @@ pub enum EngineActorRequest {
     /// Request to process a cross-chain verifier's finalized head, which the node's own L1
     /// finality bounds.
     ProcessVerifiedFinalizedHead(Box<VerifierHead>),
-    /// Request to process a cross-chain verifier's denied blocks above the finalized head.
-    ProcessDeniedBlocks(Vec<BlockNumHash>),
+    /// Request to process a cross-chain verifier's denied blocks above the finalized head, with
+    /// the L1 blocks the denials were decided on, or with `None`, when the verifier cannot be
+    /// reached, to judge its last answer again on the node's L1 chain.
+    ProcessDeniedBlocks(Option<Vec<DeniedBlock>>),
     /// Request to process a received unsafe L2 block.
     ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
     /// Request to reset the forkchoice and signal derivation to reset.

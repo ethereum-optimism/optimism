@@ -32,6 +32,9 @@ pub(crate) struct DeniedRecord {
     pub output_root: B256,
     /// The timestamp whose verification denied the block.
     pub timestamp: u64,
+    /// The latest L1 block the decision depended on: the denial holds on an L1 chain that
+    /// includes it, like a result at the timestamp would.
+    pub l1: BlockNumHash,
 }
 
 /// A verified result and its timestamp.
@@ -197,13 +200,33 @@ impl Verified {
         self.store.put_denied(record)
     }
 
-    /// Whether `chain_id`'s `block` is denied.
-    pub(crate) fn is_denied(&self, chain_id: u64, block: BlockNumHash) -> Result<bool, StoreError> {
+    /// The denial of `chain_id`'s `block`, if it is denied.
+    pub(crate) fn denial(
+        &self,
+        chain_id: u64,
+        block: BlockNumHash,
+    ) -> Result<Option<DeniedRecord>, StoreError> {
         let denied = self.store.denied(chain_id, block.number)?;
         Ok(denied
-            .iter()
+            .into_iter()
             .take_while(|record| record.block.number == block.number)
-            .any(|record| record.block == block))
+            .find(|record| record.block == block))
+    }
+
+    /// Deletes a denial, durably, before the authority stops answering it.
+    pub(crate) fn undeny(&self, record: &DeniedRecord) -> Result<(), StoreError> {
+        self.store.delete_denied(record)
+    }
+
+    /// The L1 inclusion a result at the next timestamp would have with the frontier inclusion
+    /// `frontier`: raised to the latest result's, as [`Self::commit`] does.
+    pub(crate) const fn next_l1_inclusion(&self, frontier: BlockNumHash) -> BlockNumHash {
+        match &self.latest {
+            Some((_, latest)) if latest.l1_inclusion.number > frontier.number => {
+                latest.l1_inclusion
+            }
+            _ => frontier,
+        }
     }
 
     /// The denied blocks of `chain_id` at or above `from_number`, by number.
@@ -361,6 +384,7 @@ pub(crate) mod tests {
             block: block(number),
             output_root: B256::repeat_byte(1),
             timestamp,
+            l1: block(7),
         };
         state.deny(&denial(2, ACTIVATION + 1)).unwrap();
         state.deny(&denial(5, ACTIVATION + 4)).unwrap();
@@ -405,6 +429,7 @@ pub(crate) mod tests {
                     block: block(9),
                     output_root: B256::repeat_byte(1),
                     timestamp: ACTIVATION + 7,
+                    l1: block(12),
                 })
                 .unwrap();
         }
@@ -448,7 +473,7 @@ pub(crate) mod tests {
 
     /// A denied block is told apart from another block at its height and on another chain.
     #[test]
-    fn is_denied_matches_the_chain_and_the_block() {
+    fn a_denial_matches_the_chain_and_the_block_and_can_go() {
         let dir = tempfile::tempdir().unwrap();
         let state = state(dir.path());
         let denied = DeniedRecord {
@@ -456,17 +481,21 @@ pub(crate) mod tests {
             block: block(3),
             output_root: B256::repeat_byte(3),
             timestamp: ACTIVATION + 2,
+            l1: block(6),
         };
         state.deny(&denied).unwrap();
         state.deny(&DeniedRecord { block: block(5), ..denied }).unwrap();
 
-        assert!(state.is_denied(CHAIN, block(3)).unwrap());
-        assert!(
-            !state
-                .is_denied(CHAIN, BlockNumHash { number: 3, hash: B256::repeat_byte(9) })
-                .unwrap()
+        assert_eq!(state.denial(CHAIN, block(3)).unwrap(), Some(denied));
+        assert_eq!(
+            state.denial(CHAIN, BlockNumHash { number: 3, hash: B256::repeat_byte(9) }).unwrap(),
+            None
         );
-        assert!(!state.is_denied(CHAIN, block(4)).unwrap());
-        assert!(!state.is_denied(CHAIN + 1, block(3)).unwrap());
+        assert_eq!(state.denial(CHAIN, block(4)).unwrap(), None);
+        assert_eq!(state.denial(CHAIN + 1, block(3)).unwrap(), None);
+
+        state.undeny(&denied).unwrap();
+        assert_eq!(state.denial(CHAIN, block(3)).unwrap(), None);
+        assert!(state.denial(CHAIN, block(5)).unwrap().is_some());
     }
 }

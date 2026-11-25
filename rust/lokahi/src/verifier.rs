@@ -177,11 +177,7 @@ impl Verifier {
         }
 
         let result = VerifiedResult {
-            l1_inclusion: frontier
-                .values()
-                .map(|at| at.l1_inclusion)
-                .max_by_key(|l1| l1.number)
-                .expect("at least one chain"),
+            l1_inclusion: frontier_l1_inclusion(&frontier),
             heads: frontier.iter().map(|(&chain_id, at)| (chain_id, at.block)).collect(),
         };
         info!(timestamp, heads = ?result.heads, l1_inclusion = result.l1_inclusion.number, "Verified timestamp");
@@ -191,13 +187,22 @@ impl Verifier {
 
     /// Every chain's local-safe block at `timestamp`, unless one has not derived it yet or its
     /// block there is denied and not replaced yet.
+    ///
+    /// A denial holds only on the L1 chain it was decided on, and the nodes apply it only while
+    /// its L1 block is canonical. One whose L1 block was reorged out is deleted instead of waited
+    /// on, and the block is verified again.
     async fn read_frontier(&self, timestamp: u64) -> Result<BTreeMap<u64, LocalSafeAt>, Wait> {
         let mut frontier = BTreeMap::new();
         for (&chain_id, source) in &self.sources {
             let progress = source.progress_at(timestamp).await?;
             let at = progress.at_timestamp.ok_or(Wait::NotLocalSafe { chain_id, timestamp })?;
-            if self.state.read().expect("state lock").is_denied(chain_id, at.block)? {
-                return Err(Wait::AwaitingReplacement { chain_id, block: at.block, timestamp });
+            let denial = self.state.read().expect("state lock").denial(chain_id, at.block)?;
+            if let Some(denial) = denial {
+                if self.is_canonical(denial.l1).await? {
+                    return Err(Wait::AwaitingReplacement { chain_id, block: at.block, timestamp });
+                }
+                warn!(chain_id, block = ?at.block, l1 = ?denial.l1, "Deleting a denial decided on an L1 block that was reorged out");
+                self.state.read().expect("state lock").undeny(&denial)?;
             }
             frontier.insert(chain_id, at);
         }
@@ -338,15 +343,17 @@ impl Verifier {
         invalid: BTreeMap<u64, String>,
     ) -> Result<Wait, StoreError> {
         let state = self.state.read().expect("state lock");
+        let l1 = state.next_l1_inclusion(frontier_l1_inclusion(frontier));
         let mut reasons = Vec::with_capacity(invalid.len());
         for (chain_id, reason) in invalid {
             let at = frontier[&chain_id];
-            warn!(chain_id, timestamp, block = ?at.block, output_root = %at.output_root, %reason, "Denying a block with an invalid executing message");
+            warn!(chain_id, timestamp, block = ?at.block, output_root = %at.output_root, ?l1, %reason, "Denying a block with an invalid executing message");
             state.deny(&DeniedRecord {
                 chain_id,
                 block: at.block,
                 output_root: at.output_root,
                 timestamp,
+                l1,
             })?;
             reasons.push(format!("chain {chain_id} block {}: {reason}", at.block.number));
         }
@@ -391,6 +398,15 @@ impl Verifier {
         );
         invalid_chains(timestamp, graph.resolve().await)
     }
+}
+
+/// The latest L1 block any chain in `frontier` derived its block from.
+fn frontier_l1_inclusion(frontier: &BTreeMap<u64, LocalSafeAt>) -> BlockNumHash {
+    frontier
+        .values()
+        .map(|at| at.l1_inclusion)
+        .max_by_key(|l1| l1.number)
+        .expect("at least one chain")
 }
 
 /// The chains whose block the message rules reject in `resolved`, with the reason, or the wait
@@ -853,6 +869,7 @@ mod tests {
                     block: denied,
                     output_root: output_root(denied.hash),
                     timestamp: GENESIS_TIME,
+                    l1: l1_inclusion(),
                 }]
             );
             assert!(state.denied_blocks(CHAIN_A, 0).unwrap().is_empty());
@@ -977,6 +994,7 @@ mod tests {
             block: BlockNumHash { number: timestamp - GENESIS_TIME, hash: B256::repeat_byte(0xdd) },
             output_root: B256::repeat_byte(0xdd),
             timestamp,
+            l1: l1_id(4, 0),
         }
     }
 
@@ -1100,5 +1118,30 @@ mod tests {
             denied().iter().map(|record| record.block.hash).collect::<Vec<_>>(),
             vec![invalid]
         );
+    }
+
+    /// A denial holds only on the L1 chain it was decided on: while its L1 block is canonical
+    /// the round waits for the replacement, and once a reorg removed that block, even with every
+    /// committed result still canonical, the denial is deleted and the block is checked, and
+    /// here denied, again, on the new L1 chain.
+    #[tokio::test]
+    async fn a_denial_decided_on_a_reorged_l1_block_is_decided_again() {
+        let invalid = invalid_block().hash_slow();
+        let fixture = fixture([chain_a_at_genesis(), vec![Some((invalid, l1_id(6, 0)))]]).await;
+        let denials = || fixture.state.read().unwrap().denied_blocks(CHAIN_B, 0).unwrap();
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::Denied { .. }), "got {wait:?}");
+        assert_eq!(denials()[0].l1, l1_id(6, 0), "decided on the frontier's L1 inclusion");
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::AwaitingReplacement { .. }), "got {wait:?}");
+
+        fixture.l1.reorg_from(6);
+        fixture.answer(CHAIN_B, at_genesis(&invalid_block()));
+        let wait = fixture.verifier.round().await.unwrap_err();
+
+        assert!(matches!(wait, Wait::Denied { timestamp: GENESIS_TIME, .. }), "got {wait:?}");
+        let records = denials();
+        assert_eq!(records.len(), 1);
+        assert_eq!((records[0].block.hash, records[0].l1), (invalid, l1_inclusion()));
     }
 }

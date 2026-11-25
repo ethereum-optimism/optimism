@@ -20,8 +20,8 @@ const DENIED_KEY_LEN: usize = 1 + 8 + 8 + 32;
 /// A result value: the L1 inclusion, then one head per chain.
 const L1_INCLUSION_LEN: usize = 8 + 32;
 const HEAD_LEN: usize = 8 + 8 + 32;
-/// A denied value: the output root and the deciding timestamp.
-const DENIED_VALUE_LEN: usize = 32 + 8;
+/// A denied value: the output root, the deciding timestamp and the L1 block it was decided on.
+const DENIED_VALUE_LEN: usize = 32 + 8 + L1_INCLUSION_LEN;
 
 /// A failed store operation.
 #[derive(Debug, Error)]
@@ -123,6 +123,7 @@ impl Store {
         let mut value = Vec::with_capacity(DENIED_VALUE_LEN);
         value.extend_from_slice(record.output_root.as_slice());
         value.extend_from_slice(&record.timestamp.to_be_bytes());
+        push_block(&mut value, record.l1);
         let mut batch = WriteBatch::default();
         batch.put(denied_key(record.chain_id, record.block.number, record.block.hash), value);
         self.write(batch)
@@ -155,6 +156,13 @@ impl Store {
         }
         self.write(batch)?;
         Ok((results, denied))
+    }
+
+    /// Deletes the denial of `record`'s block.
+    pub(crate) fn delete_denied(&self, record: &DeniedRecord) -> Result<(), StoreError> {
+        let mut batch = WriteBatch::default();
+        batch.delete(denied_key(record.chain_id, record.block.number, record.block.hash));
+        self.write(batch)
     }
 
     /// The denied blocks of `chain_id` at or above `from_number`, by number.
@@ -236,7 +244,8 @@ fn decode_denied(key: &[u8], value: &[u8]) -> Result<DeniedRecord, StoreError> {
         chain_id: be_u64(&key[1..9]),
         block: BlockNumHash { number: be_u64(&key[9..17]), hash: B256::from_slice(&key[17..]) },
         output_root: B256::from_slice(&value[..32]),
-        timestamp: be_u64(&value[32..]),
+        timestamp: be_u64(&value[32..40]),
+        l1: read_block(&value[40..]),
     })
 }
 
@@ -281,6 +290,7 @@ mod tests {
             block: block(number),
             output_root: B256::repeat_byte(0xee),
             timestamp: 1000 + number,
+            l1: block(200 + number),
         }
     }
 
@@ -307,6 +317,9 @@ mod tests {
         assert_eq!(store.denied(901, 4).unwrap(), vec![denied(901, 7)]);
         assert_eq!(store.denied(902, 0).unwrap(), vec![denied(902, 5)]);
         assert_eq!(store.denied(903, 0).unwrap(), vec![]);
+
+        store.delete_denied(&denied(901, 3)).unwrap();
+        assert_eq!(store.denied(901, 0).unwrap(), vec![denied(901, 7)]);
     }
 
     /// A rewind deletes the results from its timestamp on and the denials decided at or after

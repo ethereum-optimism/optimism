@@ -48,7 +48,9 @@ pub use task_queue::{
 };
 
 mod denied;
-pub use denied::{DeniedBlocks, DeniedBlocksSender, DeniedBlocksUnknown};
+pub use denied::{
+    DeniedBlock, DeniedBlocks, DeniedBlocksSender, DeniedBlocksUnknown, HeardDenials, JudgedDenials,
+};
 
 mod attributes;
 pub use attributes::{AttributesMatch, AttributesMismatch};
