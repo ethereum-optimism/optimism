@@ -34,10 +34,10 @@ OP Mainnet and Unichain (and their Sepolia counterparts) are upgraded in two ste
 <Info>
   This notice is provisional.
   Mainnet dates depend on Optimism Governance approval.
-  Component versions and prestate hashes will be added when the releases are published.
+  Node releases are published. Fault proof and proposer component versions and prestate hashes will be added when those releases are published.
 </Info>
 
-{/* TODO: add final node versions once the Lagoon node release carrying the Sepolia and Mainnet timestamps is published. Confirm whether Ink and Soneium also receive an L1 contract upgrade in Upgrade 22. */}
+{/* TODO: Confirm whether Ink and Soneium also receive an L1 contract upgrade in Upgrade 22. */}
 
 <Warning>
   **Withdrawals proven before the migration must be proven again.**
@@ -150,13 +150,11 @@ Upgrade every node on a chain that activates Lagoon to a Lagoon release before t
 
 On **OP Mainnet**, **Unichain**, **OP Sepolia**, and **Unichain Sepolia**, also complete the [Interop activation prep](/notices/interop-prep) checklist: run op-supernode for both chains and run every op-node as a Light CL that follows it.
 
-{/* TODO: fill versions from the release-level affected-components inventory. */}
-
 | Component | Version | Who needs it | Action |
 | --- | --- | --- | --- |
-| `op-node` | To be published | Every chain that activates Lagoon | Upgrade before activation. On OP Mainnet and Unichain, run as a Light CL that follows op-supernode. |
-| `op-reth` | To be published | Every chain that activates Lagoon | Upgrade before activation. |
-| `op-supernode` | To be published | OP Mainnet, Unichain, OP Sepolia, Unichain Sepolia | Run before activation, deriving both chains of the pair. See [Interop activation prep](/notices/interop-prep). |
+| `op-node` | [v1.21.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.21.0) | Every chain that activates Lagoon | Upgrade before activation. On OP Mainnet and Unichain, run as a Light CL that follows op-supernode. |
+| `op-reth` | [v2.10.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.10.0) | Every chain that activates Lagoon | Upgrade before activation. |
+| `op-supernode` | [v1.2.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.2.0) | OP Mainnet, Unichain, OP Sepolia, Unichain Sepolia | Run before activation, deriving both chains of the pair. See [Interop activation prep](/notices/interop-prep). |
 
 ### Chain operators
 
@@ -166,7 +164,7 @@ Upgrade your sequencer and other nodes to the Lagoon releases listed in [Node op
 
 | Component | Version | Who needs it | Action |
 | --- | --- | --- | --- |
-| `op-batcher` | To be published | Every chain that activates Lagoon | Upgrade before activation so it can encode `0x7D` transactions in batches. |
+| `op-batcher` | [v1.19.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.19.0) | Every chain that activates Lagoon | Releases from v1.16.10 already batch `0x7D` transactions. v1.19.0 is recommended; check its breaking changes before you upgrade. |
 | `op-challenger` | To be published | Permissionless chains that activate Lagoon, and challengers on OP Mainnet and Unichain | Upgrade before activation for the Lagoon prestate. On OP Mainnet and Unichain, this release is required before the [ZK switch](#zk-proofs-on-op-mainnet-and-unichain) so the challenger can claim ZK bonds; add the `zk` game type at the switch. |
 | `op-dispute-mon` | To be published | Anyone monitoring dispute games on OP Mainnet and Unichain | Required before the ZK switch. No configuration change is needed on the shared factory: it finds ZK games there. |
 | `op-proposer` | To be published | Chain operators of OP Mainnet and Unichain | From the migration until the ZK switch, run one shared `op-proposer` for both chains on the shared factory, with game type `9` and the op-supernode's root endpoint. See [Cut Over to a Single Shared op-proposer](/chain-operators/tutorials/merge-shared-dispute-game#cut-over-to-a-single-shared-op-proposer). |

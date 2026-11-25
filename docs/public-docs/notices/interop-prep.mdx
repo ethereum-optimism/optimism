@@ -117,16 +117,14 @@ The [specialized op-node topology notice](/notices/specialized-node-topology#why
 ## Required components
 
 Update or install the following components before the activation timestamp.
-{/* TODO(U22): pin the Lagoon activation releases (op-supernode, op-node, op-reth) here and in the Upgrade 22 notice once they are cut. */}
-The versions below are the current minimums for standing up the topology; the activation releases, which carry the Lagoon timestamps, will be pinned in this notice and in the [Upgrade 22 notice](/notices/upgrade-22#node-operators) once they are cut.
-Expect two upgrades: migrate the topology on these versions now, then move every component to its activation release once it is pinned here, before your network's activation timestamp.
+The versions below are the Lagoon activation releases, which carry the Lagoon timestamps. They match the [Upgrade 22 notice](/notices/upgrade-22#node-operators).
 A binary that does not carry the timestamp diverges from the chain at activation and must be resynced; see [Network upgrades](/op-stack/protocol/network-upgrades#activations).
 
 | Component        | Version | Role |
 | ---------------- | ------- | ---- |
-| `op-supernode`   | [`v1.0.6`](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) or later | Runs OP Mainnet and Unichain (or OP Sepolia and Unichain Sepolia) as virtual nodes inside one binary and verifies cross-chain messages. Required component. See the [supernode explainer](/op-stack/interop/supernode) and [configuration guide](/node-operators/guides/configuration/supernode). |
-| `op-node`        | [`v1.19.11`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.11) or later | Runs as a [Light CL](/notices/specialized-node-topology) on every node in the fleet; safe and finalized views are inherited from the supernode. |
-| `op-reth`        | [`v2.6.1`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.6.1) or later | Required execution client. Run one per chain in the dependency set — an execution client cannot back two chains (op-node rejects a mismatched chain ID at startup), so a host serving both chains runs at least two execution-client processes. |
+| `op-supernode`   | [`v1.2.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.2.0) or later | Runs OP Mainnet and Unichain (or OP Sepolia and Unichain Sepolia) as virtual nodes inside one binary and verifies cross-chain messages. Required component. See the [supernode explainer](/op-stack/interop/supernode) and [configuration guide](/node-operators/guides/configuration/supernode). |
+| `op-node`        | [`v1.21.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.21.0) or later | Runs as a [Light CL](/notices/specialized-node-topology) on every node in the fleet; safe and finalized views are inherited from the supernode. |
+| `op-reth`        | [`v2.10.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.10.0) or later | Required execution client. Run one per chain in the dependency set — an execution client cannot back two chains (op-node rejects a mismatched chain ID at startup), so a host serving both chains runs at least two execution-client processes. |
 
 The Lagoon activation timestamp and the dependency set are read from the superchain-registry bundle embedded in each release.
 With `--network` on op-node and `--vn.<chainID>.network` on op-supernode no extra flag is needed, which is also why the activation releases matter: a binary built before the registry update does not know the timestamp.
@@ -134,9 +132,8 @@ The dependency set is looked up by chain ID, so it also applies when you pass a 
 To override the registry's dependency set, pass `--interop.dependency-set` to op-node or `--dependency-set` to op-supernode.
 
 <Info>
-  op-supernode has shipped stable releases since [v1.0.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.0) (August 2026); run [v1.0.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) or later today.
-  The activation releases for op-supernode, op-node, and op-reth will be pinned here once they are cut.
-  Until then, track the [op-supernode](https://github.com/ethereum-optimism/optimism/releases?q=op-supernode), [op-node](https://github.com/ethereum-optimism/optimism/releases?q=op-node), and [op-reth](https://github.com/ethereum-optimism/optimism/releases?q=op-reth) release pages.
+  The activation releases are op-supernode [v1.2.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.2.0), op-node [v1.21.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.21.0), and op-reth [v2.10.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.10.0).
+  Check each release's breaking changes before you upgrade.
 </Info>
 
 ## Action checklist
