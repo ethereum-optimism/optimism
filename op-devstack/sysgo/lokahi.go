@@ -39,6 +39,8 @@ type Lokahi struct {
 	p        devtest.T
 	execPath string
 	args     []string
+	// dataDir holds lokahi's store, which persists across Stop and Start.
+	dataDir string
 
 	userProxy *tcpproxy.Proxy
 	userRPC   string
@@ -106,7 +108,17 @@ func (l *Lokahi) configure(l1EL L1ELNode, depSetJSON []byte, chains []LokahiChai
 	require.NoError(err, "marshal lokahi config")
 	configPath := filepath.Join(dir, "lokahi.json")
 	require.NoError(os.WriteFile(configPath, data, 0o640))
-	l.args = []string{"--config", configPath}
+	l.dataDir = filepath.Join(dir, "data")
+	l.args = []string{"--config", configPath, "--datadir", l.dataDir}
+}
+
+// WipeData removes lokahi's store, so that the next Start verifies again from activation. lokahi
+// must be stopped.
+func (l *Lokahi) WipeData() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.p.Require().Nil(l.sub, "lokahi must be stopped to wipe its store")
+	l.p.Require().NoError(os.RemoveAll(l.dataDir), "wipe lokahi's store")
 }
 
 // Start starts lokahi and points the proxy at its authority RPC once it listens.

@@ -1,8 +1,8 @@
 //! The `lokahi` CLI.
 
 use crate::{
-    config::Config, rpc::AuthorityRpc, source::ChainSource, state::Verified, verifier::Verifier,
-    version,
+    config::Config, rpc::AuthorityRpc, source::ChainSource, state::Verified, store::Store,
+    verifier::Verifier, version,
 };
 use clap::Parser;
 use eyre::Result;
@@ -29,6 +29,10 @@ pub(crate) struct Cli {
     /// Path of the JSON configuration file.
     #[arg(long, env = "LOKAHI_CONFIG")]
     config: PathBuf,
+    /// Directory of the verifier's store, created if it does not exist. A restart resumes from
+    /// it.
+    #[arg(long, env = "LOKAHI_DATADIR")]
+    datadir: PathBuf,
 }
 
 impl Cli {
@@ -49,8 +53,10 @@ impl Cli {
                 (chain.rollup_config.l2_chain_id.id(), chain.rollup_config.genesis.l2_time)
             })
             .collect();
-        let state =
-            Arc::new(RwLock::new(Verified::new(config.activation_timestamp, genesis_times)));
+        let store = Store::open(&self.datadir)?;
+        let state = Verified::open(store, config.activation_timestamp, genesis_times)?;
+        info!(datadir = %self.datadir.display(), next_timestamp = state.next_timestamp(), "Opened the store");
+        let state = Arc::new(RwLock::new(state));
         let mut sources = Vec::with_capacity(config.chains.len());
         for chain in config.chains {
             sources.push(
@@ -71,7 +77,7 @@ impl Cli {
             state,
         );
         tokio::select! {
-            () = verifier.run() => {}
+            result = verifier.run() => result?,
             result = tokio::signal::ctrl_c() => {
                 result?;
                 info!("Received SIGINT, shutting down");

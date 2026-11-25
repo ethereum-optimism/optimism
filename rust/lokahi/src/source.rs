@@ -1,5 +1,6 @@
 //! The source node of one chain: where the verifier reads its local-safe blocks and their data.
 
+use crate::{state::Verified, store::StoreError};
 use alloy_consensus::{Header, Sealed, TxReceipt};
 use alloy_eips::{BlockId, BlockNumHash};
 use alloy_primitives::{B256, Log, U64, map::HashMap};
@@ -11,7 +12,7 @@ use kona_interop::{BlockWithReceipts, InitiatingLogs, InteropProvider};
 use kona_rpc::{DecimalChainId, SuperRootApiClient};
 use op_alloy_consensus::OpReceiptEnvelope;
 use op_alloy_network::Optimism;
-use std::{collections::BTreeMap, time::Duration};
+use std::{collections::BTreeMap, sync::RwLock, time::Duration};
 use thiserror::Error;
 use url::Url;
 
@@ -31,6 +32,14 @@ pub(crate) enum SourceError {
     /// The execution RPC has no such block.
     #[error("block {0} not found")]
     BlockNotFound(BlockId),
+    /// The execution RPC answered a block other than the one asked for by hash.
+    #[error("asked for block {requested}, got {actual}")]
+    WrongBlock {
+        /// The hash asked for.
+        requested: B256,
+        /// The hash of the header answered.
+        actual: B256,
+    },
     /// A message names a chain the verifier has no source for.
     #[error("no source for chain {0}")]
     UnknownChain(u64),
@@ -44,6 +53,17 @@ pub(crate) enum SourceError {
         /// The chain's block at the timestamp being verified.
         frontier: BlockNumHash,
     },
+    /// A block below the frontier that the verifier has no verified result for.
+    #[error("block {number} of chain {chain_id} is below the frontier but not verified")]
+    Unverified {
+        /// The chain.
+        chain_id: u64,
+        /// The block named.
+        number: u64,
+    },
+    /// The verifier's store failed.
+    #[error(transparent)]
+    Store(#[from] StoreError),
 }
 
 /// A chain's local-safe block at a timestamp.
@@ -96,6 +116,13 @@ impl ChainSource {
         timestamp >= genesis && (timestamp - genesis).is_multiple_of(self.rollup_config.block_time)
     }
 
+    /// The timestamp of block `number`.
+    pub(crate) const fn block_timestamp(&self, number: u64) -> u64 {
+        let genesis = &self.rollup_config.genesis;
+        genesis.l2_time +
+            number.saturating_sub(genesis.l2.number).saturating_mul(self.rollup_config.block_time)
+    }
+
     /// The source's local-safe block at `timestamp` and the L1 block it became safe at.
     ///
     /// `superroot_atTimestamp` answers from the local-safe head and the safe head database: the
@@ -140,12 +167,17 @@ impl ChainSource {
         Ok(BlockWithReceipts { header: Sealed::new_unchecked(header, hash), receipts })
     }
 
+    /// The header of the block with hash `hash`, checked to hash to it.
     async fn header_by_hash(&self, hash: B256) -> Result<Header, SourceError> {
         let block = self
             .el
             .get_block_by_hash(hash)
             .await?
             .ok_or(SourceError::BlockNotFound(BlockId::hash(hash)))?;
+        let actual = block.header.inner.hash_slow();
+        if actual != hash {
+            return Err(SourceError::WrongBlock { requested: hash, actual });
+        }
         Ok(block.header.inner)
     }
 
@@ -173,13 +205,39 @@ impl ChainSource {
 }
 
 /// Serves [`kona_interop::MessageGraph`] the initiating blocks it checks, from the chains' source
-/// nodes. A block at a chain's frontier is read by its hash; one below it is the source's
-/// canonical block at its number.
+/// nodes, by hash: a block at a chain's frontier by the frontier's hash, one below it by the hash
+/// the verifier verified at its height. A block before activation, which the verifier verified no
+/// timestamp of, is the source's canonical block at its number.
 #[derive(Debug)]
 pub(crate) struct SourceProvider<'a> {
     pub sources: &'a BTreeMap<u64, ChainSource>,
     /// Each chain's block at the timestamp being verified.
     pub frontier: &'a HashMap<u64, BlockNumHash>,
+    /// The verifier's state, with the blocks verified below the frontier.
+    pub verified: &'a RwLock<Verified>,
+}
+
+impl SourceProvider<'_> {
+    /// The hash of block `number` of `chain_id` in the verified result at its timestamp, or
+    /// `None` for a block before activation.
+    fn verified_hash(
+        &self,
+        source: &ChainSource,
+        chain_id: u64,
+        number: u64,
+    ) -> Result<Option<B256>, SourceError> {
+        let timestamp = source.block_timestamp(number);
+        let verified = self.verified.read().expect("state lock");
+        if timestamp < verified.activation_timestamp() {
+            return Ok(None);
+        }
+        let block = verified
+            .result_at(timestamp)?
+            .and_then(|result| result.heads.get(&chain_id).copied())
+            .filter(|block| block.number == number)
+            .ok_or(SourceError::Unverified { chain_id, number })?;
+        Ok(Some(block.hash))
+    }
 }
 
 #[async_trait]
@@ -195,7 +253,10 @@ impl InteropProvider for SourceProvider<'_> {
         if number == frontier.number {
             return source.header_by_hash(frontier.hash).await;
         }
-        source.header_by_number(number).await
+        match self.verified_hash(source, chain_id, number)? {
+            Some(hash) => source.header_by_hash(hash).await,
+            None => source.header_by_number(number).await,
+        }
     }
 
     async fn initiating_logs(
@@ -205,5 +266,140 @@ impl InteropProvider for SourceProvider<'_> {
     ) -> Result<InitiatingLogs, SourceError> {
         let source = self.sources.get(&chain_id).ok_or(SourceError::UnknownChain(chain_id))?;
         Ok(InitiatingLogs::Receipts(source.logs_by_hash(header.hash_slow()).await?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{VerifiedResult, tests::open_state};
+    use alloy_rpc_types_eth::{Block, BlockTransactions, Header as RpcHeader};
+    use jsonrpsee::{
+        RpcModule,
+        server::{Server, ServerHandle},
+    };
+    use kona_genesis::ChainGenesis;
+
+    const CHAIN: u64 = 901;
+    const GENESIS_TIME: u64 = 1000;
+    /// Later than genesis, so that blocks 0 and 1 are before activation.
+    const ACTIVATION: u64 = 1004;
+
+    fn header(number: u64, extra: &'static [u8]) -> Header {
+        Header {
+            number,
+            timestamp: GENESIS_TIME + 2 * number,
+            extra_data: extra.into(),
+            ..Default::default()
+        }
+    }
+
+    /// The block lokahi verified at height 3.
+    fn verified() -> Header {
+        header(3, b"verified")
+    }
+
+    /// The source's canonical block at height 3 and below: not the verified one.
+    fn canonical(number: u64) -> Header {
+        header(number, b"canonical")
+    }
+
+    /// An execution RPC answering `known` blocks by hash and [`canonical`] blocks by number.
+    async fn serve_execution(known: Vec<Header>) -> (Url, ServerHandle) {
+        let json = |header: Header| {
+            serde_json::to_value(Block::<()>::new(
+                RpcHeader::new(header),
+                BlockTransactions::Hashes(vec![]),
+            ))
+            .unwrap()
+        };
+        let mut module = RpcModule::new(());
+        module
+            .register_method("eth_getBlockByHash", move |params, _, _| {
+                let (hash, _full): (B256, bool) = params.parse().unwrap();
+                known
+                    .iter()
+                    .find(|header| header.hash_slow() == hash)
+                    .map_or(serde_json::Value::Null, |header| json(header.clone()))
+            })
+            .unwrap();
+        module
+            .register_method("eth_getBlockByNumber", move |params, _, _| {
+                let (number, _full): (U64, bool) = params.parse().unwrap();
+                json(canonical(number.to()))
+            })
+            .unwrap();
+        let server = Server::builder().build("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", server.local_addr().unwrap()).parse().unwrap();
+        (url, server.start(module))
+    }
+
+    async fn source(el: &Url) -> ChainSource {
+        let mut rollup_config = RollupConfig {
+            l2_chain_id: CHAIN.into(),
+            block_time: 2,
+            genesis: ChainGenesis { l2_time: GENESIS_TIME, ..Default::default() },
+            ..Default::default()
+        };
+        rollup_config.hardforks.lagoon_time = Some(0);
+        ChainSource::connect(rollup_config, &"http://127.0.0.1:1".parse().unwrap(), el)
+            .await
+            .unwrap()
+    }
+
+    /// The state with every timestamp from activation to the one of block 4 verified, block 3
+    /// being [`verified`].
+    fn state(dir: &std::path::Path) -> RwLock<Verified> {
+        let mut state = open_state(dir, ACTIVATION, BTreeMap::from([(CHAIN, GENESIS_TIME)]));
+        for timestamp in ACTIVATION..GENESIS_TIME + 8 {
+            let number = (timestamp - GENESIS_TIME) / 2;
+            let hash = if number == 3 { verified().hash_slow() } else { B256::with_last_byte(1) };
+            let result = VerifiedResult {
+                l1_inclusion: BlockNumHash::default(),
+                heads: BTreeMap::from([(CHAIN, BlockNumHash { number, hash })]),
+            };
+            state.commit(timestamp, result).unwrap();
+        }
+        RwLock::new(state)
+    }
+
+    async fn header_below_frontier(known: Vec<Header>, number: u64) -> Result<Header, SourceError> {
+        let dir = tempfile::tempdir().unwrap();
+        let (el, _server) = serve_execution(known).await;
+        let sources = BTreeMap::from([(CHAIN, source(&el).await)]);
+        let frontier = HashMap::from_iter([(
+            CHAIN,
+            BlockNumHash { number: 4, hash: B256::with_last_byte(4) },
+        )]);
+        let verified = state(dir.path());
+        let provider =
+            SourceProvider { sources: &sources, frontier: &frontier, verified: &verified };
+        provider.header_by_number(CHAIN, number).await
+    }
+
+    /// A block below the frontier is the one verified at its height, not the source's canonical
+    /// block there.
+    #[tokio::test]
+    async fn a_block_below_the_frontier_is_read_by_its_verified_hash() {
+        let header = header_below_frontier(vec![verified(), canonical(3)], 3).await.unwrap();
+
+        assert_eq!(header.hash_slow(), verified().hash_slow());
+    }
+
+    /// A source without the verified block fails the read: it does not fall back to its
+    /// canonical block.
+    #[tokio::test]
+    async fn a_source_without_the_verified_block_fails_the_read() {
+        let err = header_below_frontier(vec![canonical(3)], 3).await.unwrap_err();
+
+        assert!(matches!(err, SourceError::BlockNotFound(_)), "got {err:?}");
+    }
+
+    /// A block before activation has no verified hash: it is the source's canonical block.
+    #[tokio::test]
+    async fn a_block_before_activation_is_read_by_number() {
+        let header = header_below_frontier(vec![verified()], 1).await.unwrap();
+
+        assert_eq!(header.hash_slow(), canonical(1).hash_slow());
     }
 }

@@ -3,6 +3,7 @@
 use crate::{
     source::{ChainSource, LocalSafeAt, SourceError, SourceProvider},
     state::{Verified, VerifiedResult},
+    store::StoreError,
 };
 use alloy_eips::{BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::map::HashMap;
@@ -44,6 +45,10 @@ pub(crate) enum Wait {
     /// The round ran out of time.
     #[error("round timed out")]
     TimedOut,
+    /// The store failed to record a result. The verifier stops rather than answer what it
+    /// could not record.
+    #[error(transparent)]
+    Store(#[from] StoreError),
 }
 
 /// The verifier.
@@ -71,8 +76,8 @@ impl Verifier {
         Self { sources, rollup_configs, dependency_set, l1, state }
     }
 
-    /// Runs the loop until the task is dropped.
-    pub(crate) async fn run(self) {
+    /// Runs the loop until the task is dropped or the store fails.
+    pub(crate) async fn run(self) -> Result<(), StoreError> {
         let mut last_wait = None;
         loop {
             let round = tokio::time::timeout(ROUND_TIMEOUT, self.round())
@@ -80,6 +85,7 @@ impl Verifier {
                 .unwrap_or(Err(Wait::TimedOut));
             match round {
                 Ok(()) => last_wait = None,
+                Err(Wait::Store(err)) => return Err(err),
                 Err(wait) => {
                     let reason = wait.to_string();
                     let changed = last_wait.as_deref() != Some(reason.as_str());
@@ -129,14 +135,14 @@ impl Verifier {
             heads: frontier.iter().map(|(&chain_id, at)| (chain_id, at.block)).collect(),
         };
         info!(timestamp, heads = ?result.heads, l1_inclusion = result.l1_inclusion.number, "Verified timestamp");
-        self.state.write().expect("state lock").commit(timestamp, result);
+        self.state.write().expect("state lock").commit(timestamp, result)?;
         Ok(())
     }
 
     async fn refresh_finalized_l1(&self) -> Result<(), Wait> {
         if let Some(block) = self.l1.get_block_by_number(BlockNumberOrTag::Finalized).await? {
             let finalized = BlockNumHash { number: block.header.number, hash: block.header.hash };
-            self.state.write().expect("state lock").set_finalized_l1(finalized);
+            self.state.write().expect("state lock").set_finalized_l1(finalized)?;
         }
         Ok(())
     }
@@ -172,7 +178,11 @@ impl Verifier {
         }
         let frontier_blocks: HashMap<u64, BlockNumHash> =
             frontier.iter().map(|(&chain_id, at)| (chain_id, at.block)).collect();
-        let provider = SourceProvider { sources: &self.sources, frontier: &frontier_blocks };
+        let provider = SourceProvider {
+            sources: &self.sources,
+            frontier: &frontier_blocks,
+            verified: &self.state,
+        };
         let graph = MessageGraph::derive(
             &blocks,
             &provider,
@@ -280,16 +290,34 @@ mod tests {
         (url, server.start(module))
     }
 
-    /// An execution RPC, for L1 and the L2 chains alike: every block is the L1 block, and has no
-    /// receipts.
+    /// The genesis block of a stubbed L2 chain.
+    fn l2_genesis(chain_id: u64) -> Header {
+        Header { extra_data: chain_id.to_be_bytes().to_vec().into(), ..Default::default() }
+    }
+
+    /// An execution RPC, for L1 and the L2 chains alike: a block by hash is an L2 genesis block
+    /// with that hash, any other block is the L1 block, and no block has receipts.
     async fn serve_execution() -> (Url, ServerHandle) {
-        let block = Block::<()>::new(RpcHeader::new(l1_block()), BlockTransactions::Hashes(vec![]));
-        let block = serde_json::to_value(block).unwrap();
+        let json = |header: Header| {
+            serde_json::to_value(Block::<()>::new(
+                RpcHeader::new(header),
+                BlockTransactions::Hashes(vec![]),
+            ))
+            .unwrap()
+        };
         let mut module = RpcModule::new(());
-        for method in ["eth_getBlockByNumber", "eth_getBlockByHash"] {
-            let block = block.clone();
-            module.register_method(method, move |_, _, _| block.clone()).unwrap();
-        }
+        module.register_method("eth_getBlockByNumber", move |_, _, _| json(l1_block())).unwrap();
+        module
+            .register_method("eth_getBlockByHash", move |params, _, _| {
+                let (hash, _full): (B256, bool) = params.parse().unwrap();
+                let header = [CHAIN_A, CHAIN_B]
+                    .map(l2_genesis)
+                    .into_iter()
+                    .find(|header| header.hash_slow() == hash)
+                    .unwrap_or_else(l1_block);
+                json(header)
+            })
+            .unwrap();
         module.register_method("eth_getBlockReceipts", |_, _, _| serde_json::json!([])).unwrap();
         serve(module).await
     }
@@ -308,6 +336,7 @@ mod tests {
     /// A verifier over two chains whose source CLs answer `at_genesis`, with every block on L1.
     async fn verifier(
         at_genesis: [Option<(B256, BlockNumHash)>; 2],
+        store_dir: &std::path::Path,
     ) -> (Verifier, Arc<RwLock<Verified>>, Vec<ServerHandle>) {
         let (execution, execution_handle) = serve_execution().await;
         let mut handles = vec![execution_handle];
@@ -323,7 +352,8 @@ mod tests {
             dependencies: [(CHAIN_A, ChainDependency {}), (CHAIN_B, ChainDependency {})].into(),
             override_message_expiry_window: None,
         };
-        let state = Arc::new(RwLock::new(Verified::new(
+        let state = Arc::new(RwLock::new(crate::state::tests::open_state(
+            store_dir,
             GENESIS_TIME,
             [(CHAIN_A, GENESIS_TIME), (CHAIN_B, GENESIS_TIME)].into(),
         )));
@@ -335,9 +365,10 @@ mod tests {
     /// messages is committed, and the authority answers its blocks.
     #[tokio::test]
     async fn round_commits_a_timestamp_every_chain_derived() {
-        let (a, b) = (B256::repeat_byte(0xa), B256::repeat_byte(0xb));
+        let (a, b) = (l2_genesis(CHAIN_A).hash_slow(), l2_genesis(CHAIN_B).hash_slow());
+        let dir = tempfile::tempdir().unwrap();
         let (verifier, state, _servers) =
-            verifier([Some((a, l1_inclusion())), Some((b, l1_inclusion()))]).await;
+            verifier([Some((a, l1_inclusion())), Some((b, l1_inclusion()))], dir.path()).await;
 
         verifier.round().await.unwrap();
 
@@ -366,8 +397,9 @@ mod tests {
     #[case::not_on_l1(Some((B256::repeat_byte(0xb), BlockNumHash { number: 5, hash: B256::repeat_byte(0xee) })))]
     #[tokio::test]
     async fn round_waits_for_every_chain(#[case] chain_b: Option<(B256, BlockNumHash)>) {
+        let dir = tempfile::tempdir().unwrap();
         let (verifier, state, _servers) =
-            verifier([Some((B256::repeat_byte(0xa), l1_inclusion())), chain_b]).await;
+            verifier([Some((B256::repeat_byte(0xa), l1_inclusion())), chain_b], dir.path()).await;
 
         let wait = verifier.round().await.unwrap_err();
 

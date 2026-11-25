@@ -7,6 +7,7 @@ mod config;
 mod rpc;
 mod source;
 mod state;
+mod store;
 mod verifier;
 mod version;
 

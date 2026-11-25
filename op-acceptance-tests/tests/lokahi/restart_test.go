@@ -99,7 +99,7 @@ func watchSafeHeads(t devtest.T, nodes []*dsl.L2CLNode) *safeHeadWatch {
 		w.wg.Add(1)
 		go func() {
 			defer w.wg.Done()
-			var highest uint64
+			var last uint64
 			ticker := time.NewTicker(100 * time.Millisecond)
 			defer ticker.Stop()
 			for {
@@ -113,11 +113,11 @@ func watchSafeHeads(t devtest.T, nodes []*dsl.L2CLNode) *safeHeadWatch {
 					continue
 				}
 				safe := status.SafeL2.Number
-				if safe < highest {
-					t.Logger().Error("Safe head moved back", "node", node.String(), "from", highest, "to", safe)
-					w.fail(fmt.Errorf("%s: safe head moved back from %d to %d", node, highest, safe))
+				if safe < last {
+					t.Logger().Warn("Safe head moved back", "node", node.String(), "from", last, "to", safe)
+					w.fail(fmt.Errorf("%s: safe head moved back from %d to %d", node, last, safe))
 				}
-				highest = max(highest, safe)
+				last = safe
 			}
 		}()
 	}
