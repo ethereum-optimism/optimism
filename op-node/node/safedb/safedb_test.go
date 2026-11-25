@@ -3,9 +3,11 @@ package safedb
 import (
 	"context"
 	"math"
+	"math/rand"
 	"slices"
 	"testing"
 
+	"github.com/cockroachdb/pebble"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -422,6 +424,107 @@ func TestL1AtSafeHead(t *testing.T) {
 		_, _, err := db.L1AtSafeHead(context.Background(), l2a.Number-1)
 		require.ErrorIs(t, err, ErrL1AtSafeHeadUnavailable)
 	})
+}
+
+// l1AtSafeHeadScan is the backwards linear scan L1AtSafeHead used before it
+// became a binary search. It is the reference for TestL1AtSafeHead_MatchesScan.
+func l1AtSafeHeadScan(d *SafeDB, targetL2Num uint64) (l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	iter, err := d.db.NewIter(safeByL1BlockNumKey.IterRange())
+	if err != nil {
+		return
+	}
+	defer iter.Close()
+	if valid := iter.Last(); !valid {
+		err = ErrL1AtSafeHeadNotFound
+		return
+	}
+	cursorL1, cursorL2, err := decodeEntry(iter)
+	if err != nil {
+		return
+	}
+	if targetL2Num > cursorL2.Number {
+		err = ErrL1AtSafeHeadNotFound
+		return
+	}
+	for iter.Prev() {
+		prevL1, prevL2, derr := decodeEntry(iter)
+		if derr != nil {
+			err = derr
+			return
+		}
+		if prevL2.Number < targetL2Num {
+			return cursorL1, cursorL2, nil
+		}
+		cursorL1, cursorL2 = prevL1, prevL2
+	}
+	if cursorL2.Number == targetL2Num {
+		return cursorL1, cursorL2, nil
+	}
+	err = ErrL1AtSafeHeadUnavailable
+	return
+}
+
+func TestL1AtSafeHead_MatchesScan(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		entries   int
+		maxL1Gap  uint64 // L1 numbers are sparse: not every L1 block moves the safe head
+		maxL2Step uint64 // 0 steps leave the same safe head recorded at several L1 blocks
+	}{
+		{name: "single", entries: 1, maxL1Gap: 1, maxL2Step: 1},
+		{name: "two", entries: 2, maxL1Gap: 3, maxL2Step: 3},
+		{name: "dense", entries: 300, maxL1Gap: 1, maxL2Step: 1},
+		{name: "sparse", entries: 300, maxL1Gap: 50, maxL2Step: 8},
+		{name: "repeated-safe-heads", entries: 300, maxL1Gap: 4, maxL2Step: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, err := NewSafeDB(testlog.Logger(t, log.LevelError), t.TempDir())
+			require.NoError(t, err)
+			defer db.Close()
+			db.writeOpts = pebble.NoSync
+
+			rng := rand.New(rand.NewSource(int64(tc.entries)*1000 + int64(tc.maxL1Gap)))
+			l1Num, l2Num := uint64(1000), uint64(5000)
+			firstL2 := l2Num
+			type entry struct{ l1, l2 uint64 }
+			var entries []entry
+			add := func(n int) {
+				for i := 0; i < n; i++ {
+					id := len(entries)
+					l1 := eth.BlockID{Hash: common.Hash{0x01, byte(id), byte(id >> 8)}, Number: l1Num}
+					l2 := eth.L2BlockRef{Hash: common.Hash{0x02, byte(id), byte(id >> 8)}, Number: l2Num}
+					require.NoError(t, db.SafeHeadUpdated(l2, l1))
+					entries = append(entries, entry{l1: l1Num, l2: l2Num})
+					l1Num += 1 + uint64(rng.Int63n(int64(tc.maxL1Gap)))
+					l2Num += uint64(rng.Int63n(int64(tc.maxL2Step) + 1))
+				}
+			}
+			compare := func() {
+				for target := firstL2 - 3; target <= l2Num+3; target++ {
+					wantL1, wantL2, wantErr := l1AtSafeHeadScan(db, target)
+					gotL1, gotL2, gotErr := db.L1AtSafeHead(context.Background(), target)
+					require.Equal(t, wantErr, gotErr, "target %d", target)
+					require.Equal(t, wantL1, gotL1, "target %d", target)
+					require.Equal(t, wantL2, gotL2, "target %d", target)
+				}
+			}
+
+			add(tc.entries)
+			compare()
+
+			// Reset the safe head to the middle of the recorded history, then record on top of it.
+			mid := entries[len(entries)/2]
+			require.NoError(t, db.SafeHeadReset(eth.L2BlockRef{
+				Hash:     common.Hash{0x03},
+				Number:   mid.l2,
+				L1Origin: eth.BlockID{Number: mid.l1 - 1},
+			}))
+			compare()
+			l1Num, l2Num = mid.l1+1, mid.l2+1
+			add(tc.entries)
+			compare()
+		})
+	}
 }
 
 func TestL1AtSafeHead_Disabled(t *testing.T) {
