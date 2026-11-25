@@ -41,22 +41,12 @@ Start from [Deposits](https://specs.optimism.io/protocol/deposits.html).
 The base page states the wire format, source hashes, execution rules, receipt fields, and the deposit contract.
 
 Fork documents amend these rules.
-Its [fork amendments](https://specs.optimism.io/protocol/deposits.html#fork-amendments) table lists the pages that do.
-Search every applicable `specs/protocol/<fork>/` directory for touched concepts.
-Do not limit the search to `deposits.md`.
+The [fork amendments](https://specs.optimism.io/protocol/deposits.html#fork-amendments) table on that page lists them.
+Check every row that applies to the change.
+The table can lag a new fork, so also search every applicable `specs/protocol/<fork>/` directory for touched concepts.
 
-At minimum, check these amendments:
-
-| Fork | Deposit effect | Specification |
-| --- | --- | --- |
-| Regolith | Disables `isSystemTx`, meters real gas, adds `depositNonce` | [Regolith](https://specs.optimism.io/protocol/regolith/overview.html) |
-| Canyon | Makes `depositNonce` and `depositReceiptVersion` always present | [Canyon](https://specs.optimism.io/protocol/canyon/overview.html) |
-| Ecotone | Changes L1 attributes calldata | [Ecotone L1 attributes](https://specs.optimism.io/protocol/ecotone/l1-attributes.html) |
-| Pectra Blob Schedule | Changes the blob base fee in the L1 attributes deposit | [Pectra Blob Schedule derivation](https://specs.optimism.io/protocol/pectra-blob-schedule/derivation.html) |
-| Isthmus | Adds upgrade deposits, operator fee, and EIP-6110 request exclusion; adds operator fee parameters to L1 attributes calldata | [Isthmus L1 attributes](https://specs.optimism.io/protocol/isthmus/l1-attributes.html), [Isthmus derivation](https://specs.optimism.io/protocol/isthmus/derivation.html), [Isthmus execution engine](https://specs.optimism.io/protocol/isthmus/exec-engine.html) |
-| Jovian | Adds upgrade deposits and the DA footprint gas rule; adds `daFootprintGasScalar` to L1 attributes calldata | [Jovian L1 attributes](https://specs.optimism.io/protocol/jovian/l1-attributes.html), [Jovian derivation](https://specs.optimism.io/protocol/jovian/derivation.html), [Jovian execution engine](https://specs.optimism.io/protocol/jovian/exec-engine.html) |
-| Karst | Enables EIP-7825 and exempts deposits from the cap | [Karst overview](https://specs.optimism.io/protocol/karst/overview.html), [Karst derivation](https://specs.optimism.io/protocol/karst/derivation.html) |
-| Lagoon | Adds post-exec transactions beside deposits | [Lagoon post-exec](https://specs.optimism.io/protocol/lagoon/post-exec.html) |
+Isthmus also excludes EIP-6110 deposit requests from the requests of a block: [Isthmus execution engine](https://specs.optimism.io/protocol/isthmus/exec-engine.html#deposit-requests).
+These are EIP-7685 requests, not deposited transactions, so the table does not list them.
 
 Each fork that adds a network upgrade transaction adds deposit rules.
 Read the full upgrade-transaction section of that fork, including every field value and the intent string.
