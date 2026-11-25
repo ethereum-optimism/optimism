@@ -87,6 +87,11 @@ func TestInvalidMessageReplacesBlock(gt *testing.T) {
 		"local_safe", restarted.LocalSafeL2.Number, "finalized", restarted.FinalizedL2.Number)
 	sys.L2BCL.NotAdvanced(safety.LocalSafe, 20)
 	assertReplacement(t, sys.L2ELB, denied, replacement, execMsg.TxHash())
+	// Restarting the node restarts its execution layer too when kona runs inside op-reth. The
+	// head watch subscribes to the running execution layer before re-derivation can start, so it
+	// sees every head re-derivation leads to. Nothing moves the head before: the stalled node
+	// does not sequence either.
+	heads.resubscribe(t)
 
 	// Once lokahi is back the node derives again, past the replaced block, and keeps it.
 	sys.Lokahi.Start()
@@ -104,7 +109,7 @@ func TestInvalidMessageReplacesBlock(gt *testing.T) {
 				"the restarted node must not reorg chain B back from %s to %s", seen[i-1], head)
 		}
 	}
-	t.Logger().Info("Chain B's head only moved forward", "heads", len(seen), "first", seen[0], "last", seen[len(seen)-1])
+	t.Logger().Info("Chain B's head only moved forward", "heads", len(seen), "subscriptions", heads.subscribed(), "first", seen[0], "last", seen[len(seen)-1])
 	logHeads(t, "restarted", []*dsl.L2CLNode{sys.L2ACL, sys.L2BCL})
 
 	receipt, err := sys.L2ELB.Escape().EthClient().TransactionReceipt(ctx, execMsg.TxHash())
@@ -164,39 +169,97 @@ func reachedKeepingReplacement(t devtest.T, node *dsl.L2CLNode, el *dsl.L2ELNode
 	t.Require().NoError(err)
 }
 
-// headWatch records the heads an execution layer announces.
+// headWatch records the heads an execution layer announces, across restarts of the execution
+// layer: when the subscription ends it subscribes again.
 type headWatch struct {
 	mu    sync.Mutex
 	heads []eth.BlockID
+	// subscriptions counts the subscriptions made so far.
+	subscriptions int
+	// unsubscribe ends the current subscription.
+	unsubscribe context.CancelFunc
 }
 
-// watchHeads records every head el announces until the test ends.
+// watchHeads records every head el announces until the test ends. It returns once the first
+// subscription is up.
 func watchHeads(t devtest.T, el *dsl.L2ELNode) *headWatch {
-	client, err := rpc.DialContext(t.Ctx(), el.Escape().UserRPC())
-	t.Require().NoError(err)
-	t.Cleanup(client.Close)
+	ctx, cancel := context.WithCancel(t.Ctx())
+	t.Cleanup(cancel)
+	watch := &headWatch{unsubscribe: func() {}}
+	go func() {
+		for ctx.Err() == nil {
+			subCtx, unsubscribe := context.WithCancel(ctx)
+			watch.mu.Lock()
+			watch.unsubscribe = unsubscribe
+			watch.mu.Unlock()
+			err := watch.follow(subCtx, el.Escape().UserRPC())
+			unsubscribe()
+			if err != nil && ctx.Err() == nil {
+				t.Logger().Info("Head subscription ended; subscribing again", "el", el, "err", err)
+			}
+			select {
+			case <-ctx.Done():
+			case <-time.After(200 * time.Millisecond):
+			}
+		}
+	}()
+	t.Require().Eventuallyf(func() bool { return watch.subscribed() > 0 }, time.Minute, 100*time.Millisecond,
+		"subscribe to the heads of %s", el)
+	return watch
+}
+
+// follow subscribes to the heads at url and records them until the subscription ends or ctx is
+// done.
+func (w *headWatch) follow(ctx context.Context, url string) error {
+	client, err := rpc.DialContext(ctx, url)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
 	type header struct {
 		Number hexutil.Uint64 `json:"number"`
 		Hash   common.Hash    `json:"hash"`
 	}
 	announced := make(chan header, 1024)
-	sub, err := client.EthSubscribe(t.Ctx(), announced, "newHeads")
-	t.Require().NoError(err, "subscribe to the heads of %s", el)
-	t.Cleanup(sub.Unsubscribe)
-	watch := &headWatch{}
-	go func() {
-		for {
-			select {
-			case head := <-announced:
-				watch.mu.Lock()
-				watch.heads = append(watch.heads, eth.BlockID{Number: uint64(head.Number), Hash: head.Hash})
-				watch.mu.Unlock()
-			case <-sub.Err():
-				return
-			}
+	sub, err := client.EthSubscribe(ctx, announced, "newHeads")
+	if err != nil {
+		return err
+	}
+	defer sub.Unsubscribe()
+	w.mu.Lock()
+	w.subscriptions++
+	w.mu.Unlock()
+	for {
+		select {
+		case head := <-announced:
+			w.mu.Lock()
+			w.heads = append(w.heads, eth.BlockID{Number: uint64(head.Number), Hash: head.Hash})
+			w.mu.Unlock()
+		case err := <-sub.Err():
+			return err
+		case <-ctx.Done():
+			return nil
 		}
-	}()
-	return watch
+	}
+}
+
+// resubscribe ends the current subscription and waits for the next one, so that from then on the
+// watch follows the execution layer as it runs now, also after a restart that the current
+// subscription may not have noticed yet.
+func (w *headWatch) resubscribe(t devtest.T) {
+	w.mu.Lock()
+	before, unsubscribe := w.subscriptions, w.unsubscribe
+	w.mu.Unlock()
+	unsubscribe()
+	t.Require().Eventuallyf(func() bool { return w.subscribed() > before }, time.Minute, 100*time.Millisecond,
+		"subscribe to the heads again")
+}
+
+// subscribed returns how many subscriptions the watch has made.
+func (w *headWatch) subscribed() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.subscriptions
 }
 
 // seen returns the heads announced so far.
