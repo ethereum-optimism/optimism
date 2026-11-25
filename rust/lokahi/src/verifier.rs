@@ -38,6 +38,12 @@ pub(crate) enum Wait {
     /// a decision the verifier undid, so nothing it reports is read.
     #[error("chain {chain_id}'s source derives under epoch {applied:?}, not {epoch}")]
     OtherEpoch { chain_id: u64, applied: Option<B256>, epoch: B256 },
+    /// A chain's block at the timestamp does not build on its verified block before it: its source
+    /// is on another chain, as for a moment during a reorg.
+    #[error(
+        "chain {chain_id}'s block {block:?} at {timestamp} does not build on the verified {verified:?}"
+    )]
+    ParentMismatch { chain_id: u64, timestamp: u64, block: BlockNumHash, verified: BlockNumHash },
     /// An L1 block a chain derived from is not canonical on the verifier's L1.
     #[error("L1 inclusion {l1:?} of chain {chain_id} is not on the canonical L1 chain")]
     L1Inconsistent { chain_id: u64, l1: BlockNumHash },
@@ -68,11 +74,11 @@ pub(crate) enum Wait {
     /// were deleted and are verified again.
     #[error("L1 inclusion {l1:?} is not canonical any more; rewound the results from {from} on")]
     Rewound { from: u64, l1: BlockNumHash },
-    /// The L1 inclusion of the finalized result is not canonical: L1 reorged below its finalized
-    /// head, or the L1 RPC serves another chain. Finality cannot move back, so the verifier
-    /// stops.
-    #[error("L1 inclusion {l1:?} of the finalized result at {timestamp} is not canonical")]
-    FinalityViolation { timestamp: u64, l1: BlockNumHash },
+    /// A finalized result no longer holds: its L1 inclusion is not canonical, as when L1 reorged
+    /// below its finalized head or the L1 RPC serves another chain, or a source's chain does not
+    /// build on it. Finality cannot move back, so the verifier stops.
+    #[error("the finalized result at {timestamp} no longer holds: {reason}")]
+    FinalityViolation { timestamp: u64, reason: String },
     /// The store failed to record a result. The verifier stops rather than answer what it
     /// could not record.
     #[error(transparent)]
@@ -196,7 +202,8 @@ impl Verifier {
         for (&chain_id, at) in &frontier {
             self.check_l1_inclusion(chain_id, at.l1_inclusion).await?;
         }
-        let invalid = self.check_messages(timestamp, &frontier).await?;
+        let blocks = self.read_blocks(timestamp, &frontier).await?;
+        let invalid = self.check_messages(timestamp, &frontier, blocks).await?;
         if !invalid.is_empty() {
             self.confirm_frontier(timestamp, &frontier).await?;
             return Err(self.deny(timestamp, &frontier, invalid)?);
@@ -461,7 +468,72 @@ impl Verifier {
         Ok(Wait::Denied { timestamp, reasons: reasons.join("; ") })
     }
 
-    /// Checks the executing messages of every block produced at exactly `timestamp`, with the
+    /// The blocks produced at exactly `timestamp`, with their receipts, each checked to build on
+    /// its chain's verified block before it. A block carried over from an earlier timestamp must
+    /// be the verified block there.
+    ///
+    /// A block that does not build on the verified one waits, as during a reorg of its source,
+    /// unless the verified one is final, which stops the verifier.
+    async fn read_blocks(
+        &self,
+        timestamp: u64,
+        frontier: &BTreeMap<u64, LocalSafeAt>,
+    ) -> Result<BlocksWithReceipts, Wait> {
+        let (previous, finalized) = {
+            let state = self.state.read().expect("state lock");
+            let previous = state.latest().filter(|(ts, _)| ts + 1 == timestamp).cloned();
+            (previous, state.finalized().map(|(ts, _)| *ts))
+        };
+        let mut blocks = BlocksWithReceipts::default();
+        for (&chain_id, at) in frontier {
+            let source = &self.sources[&chain_id];
+            let verified = previous.as_ref().map(|(_, result)| result.chains[&chain_id].block);
+            if !source.has_block_at(timestamp) {
+                if let Some(verified) = verified &&
+                    verified != at.block
+                {
+                    return Err(
+                        self.parent_mismatch(chain_id, timestamp, at.block, verified, finalized)
+                    );
+                }
+                continue;
+            }
+            let block = source.block_with_receipts(at.block.hash).await?;
+            let header = block.header.inner();
+            if let Some(verified) = verified &&
+                (verified.number + 1 != at.block.number || verified.hash != header.parent_hash)
+            {
+                return Err(
+                    self.parent_mismatch(chain_id, timestamp, at.block, verified, finalized)
+                );
+            }
+            blocks.insert(chain_id, block);
+        }
+        Ok(blocks)
+    }
+
+    /// The wait for chain `chain_id`'s `block` at `timestamp` that does not build on the
+    /// `verified` block before it, or the stop if that block is in the `finalized` result.
+    fn parent_mismatch(
+        &self,
+        chain_id: u64,
+        timestamp: u64,
+        block: BlockNumHash,
+        verified: BlockNumHash,
+        finalized: Option<u64>,
+    ) -> Wait {
+        if finalized == Some(timestamp - 1) {
+            return Wait::FinalityViolation {
+                timestamp: timestamp - 1,
+                reason: format!(
+                    "chain {chain_id}'s block {block:?} does not build on {verified:?}"
+                ),
+            };
+        }
+        Wait::ParentMismatch { chain_id, timestamp, block, verified }
+    }
+
+    /// Checks the executing messages of the `blocks` produced at exactly `timestamp`, with the
     /// shared message rules, and returns the chains whose block is invalid, with the reason. A
     /// block carried over from an earlier timestamp was checked there.
     ///
@@ -472,14 +544,8 @@ impl Verifier {
         &self,
         timestamp: u64,
         frontier: &BTreeMap<u64, LocalSafeAt>,
+        blocks: BlocksWithReceipts,
     ) -> Result<BTreeMap<u64, String>, Wait> {
-        let mut blocks = BlocksWithReceipts::default();
-        for (&chain_id, at) in frontier {
-            let source = &self.sources[&chain_id];
-            if source.has_block_at(timestamp) {
-                blocks.insert(chain_id, source.block_with_receipts(at.block.hash).await?);
-            }
-        }
         if blocks.is_empty() {
             return Ok(BTreeMap::new());
         }
@@ -503,8 +569,11 @@ impl Verifier {
 
 /// The stop for the finalized result at `timestamp`, whose L1 inclusion `l1` is off the canonical
 /// L1 chain.
-const fn finality_violation(timestamp: u64, l1: BlockNumHash) -> Wait {
-    Wait::FinalityViolation { timestamp, l1 }
+fn finality_violation(timestamp: u64, l1: BlockNumHash) -> Wait {
+    Wait::FinalityViolation {
+        timestamp,
+        reason: format!("its L1 inclusion {l1:?} is not canonical"),
+    }
 }
 
 /// The lowest of `blocks` by number.
@@ -1382,6 +1451,36 @@ pub(crate) mod tests {
         let records = denials();
         assert_eq!(records.len(), 1);
         assert_eq!((records[0].block.hash, records[0].l1), (invalid, l1_inclusion()));
+    }
+
+    /// A chain's block that is not its verified block before it, here one carried over a
+    /// timestamp without a block of its own, waits, unless that verified block is final, which
+    /// stops the verifier.
+    #[tokio::test]
+    async fn a_block_off_the_verified_chain_waits_unless_the_verified_one_is_final() {
+        let fixture = fixture_with_results(&[5], &[]).await;
+        let frontier = BTreeMap::from([(
+            CHAIN_A,
+            LocalSafeAt {
+                block: BlockNumHash { number: 0, hash: l2_genesis(CHAIN_A).hash_slow() },
+                l1_inclusion: l1_inclusion(),
+                output: output(l2_genesis(CHAIN_A).hash_slow()),
+            },
+        )]);
+
+        let wait = fixture.verifier.read_blocks(GENESIS_TIME + 1, &frontier).await.unwrap_err();
+        assert!(
+            matches!(wait, Wait::ParentMismatch { chain_id: CHAIN_A, .. }) && !wait.is_fatal(),
+            "got {wait:?}"
+        );
+
+        fixture.l1.finalize(5);
+        fixture.verifier.refresh_finalized().await.unwrap();
+        let wait = fixture.verifier.read_blocks(GENESIS_TIME + 1, &frontier).await.unwrap_err();
+        assert!(
+            matches!(wait, Wait::FinalityViolation { timestamp: GENESIS_TIME, .. }),
+            "got {wait:?}"
+        );
     }
 
     /// A rewind that deletes no denial keeps the epoch, so the sources are read on at once.
