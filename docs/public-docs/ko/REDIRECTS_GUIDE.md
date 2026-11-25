@@ -68,7 +68,7 @@ Mintlify 문서 루트로 이동하여 `docs/public-docs/docs.json`을 엽니다
 
 ```bash
 # Run the dev server
-mint dev
+just public-docs  # from the monorepo root
 
 # Test the redirect
 # Navigate to http://localhost:3000/old-page-path

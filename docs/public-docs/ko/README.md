@@ -4,7 +4,7 @@
 
 ## 로컬 개발
 
-문서 페이지를 로컬에서 미리 보고 편집하려면 이 [mintlify 문서](https://www.mintlify.com/docs/installation)를 따르십시오.
+모노레포 루트에서 `just public-docs`를 실행한 뒤 [localhost:3000](http://localhost:3000)에 접속하십시오. [mise](https://mise.jdx.dev)를 설치하고 `mise install bun just`를 실행해 두기만 하면 됩니다. 자세한 내용은 [DOCS_CONTRIBUTING.md](DOCS_CONTRIBUTING.md#개발-환경-설정)를 참고하십시오.
 
 ## 라이선스
 

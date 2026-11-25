@@ -37,15 +37,15 @@ All contributions, pull requests, and issues should be in English at this time.
 - Basic knowledge of Git and GitHub
 - Familiarity with Markdown
 - Understanding of technical documentation principles
-- Node.js and npm installed
+- [mise](https://mise.jdx.dev) installed, then `mise install bun just` from the monorepo root
 
 ### Development Setup
-1. Install [pnpm](https://pnpm.io/installation)
-2. Run `pnpm i` to install dependencies
-3. Run `pnpm dev` to start development server
-4. Visit [localhost:3000](http://localhost:3000)
+1. From the monorepo root, run `just public-docs` to start the development server
+2. Visit [localhost:3000](http://localhost:3000)
 
 You can now start changing content and see the website updated live each time you save a new file. 🤓
+
+`just public-docs` installs the docs dependencies with `bun install` and runs the [Mintlify CLI](https://www.mintlify.com/docs/installation) (pinned in `package.json`) on the `bun` pinned in `mise.toml`, so it needs no Node. From `docs/public-docs`, `bun run dev` does the same once dependencies are installed. Pass extra `mint dev` flags through, e.g. `just public-docs --port 3333`.
 
 ## Contributing Process
 
@@ -110,7 +110,7 @@ prose that ought to read differently per audience.
 
 ### Local Testing
 
-Follow these [docs](https://www.mintlify.com/docs/installation) for local changes.
+Preview local changes with `just public-docs` (see [Development Setup](#development-setup)).
 
 ### Docs lints
 
@@ -143,12 +143,12 @@ until it lands, running them locally before pushing is the gate):
 Run them locally before pushing:
 
 ```bash
-# from docs/public-docs (uses the tsx devDependency)
-pnpm lint:nav
-pnpm lint:redirects
-pnpm lint:reference
+# from docs/public-docs
+bun run lint:nav
+bun run lint:redirects
+bun run lint:reference
 
-# or from the monorepo root with bun (zero-dependency)
+# or from the monorepo root
 bun docs/public-docs/scripts/lint/validate-nav.ts
 bun docs/public-docs/scripts/lint/validate-redirects.ts
 bun docs/public-docs/scripts/lint/validate-reference.ts

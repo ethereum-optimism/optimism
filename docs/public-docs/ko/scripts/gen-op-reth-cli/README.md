@@ -21,7 +21,7 @@ reth의 `docs/cli/update.sh` + `docs/cli/help.rs`(스냅샷의 출력 형식과 
 # in a checkout of the release tag
 cargo build --bin op-reth --manifest-path rust/op-reth/bin/Cargo.toml
 
-node docs/public-docs/scripts/gen-op-reth-cli/main.mjs \
+bun docs/public-docs/scripts/gen-op-reth-cli/main.mjs \
   --bin rust/target/debug/op-reth \
   --tag op-reth/vX.Y.Z
 ```
@@ -30,7 +30,7 @@ node docs/public-docs/scripts/gen-op-reth-cli/main.mjs \
 (불일치가 있으면 0이 아닌 값으로 종료합니다).
 
 ```bash
-node docs/public-docs/scripts/gen-op-reth-cli/main.mjs --bin <op-reth> --check
+bun docs/public-docs/scripts/gen-op-reth-cli/main.mjs --bin <op-reth> --check
 ```
 
 ## 동작 방식
@@ -72,8 +72,8 @@ node docs/public-docs/scripts/gen-op-reth-cli/main.mjs --bin <op-reth> --check
 2. `--tag`를 새 태그로 설정하여 생성기를 실행합니다(태그 체크아웃에서, 커밋할 문서 트리를 대상으로).
 3. 실행 결과 삭제된 페이지가 있다면, 같은 변경에서 삭제된 URL마다 하나의 redirect를 `docs.json`에
    추가하고, 가장 가까운 남아 있는 명령 페이지를 가리키도록 합니다.
-4. 문서 lint(`pnpm lint:nav`, `pnpm lint:redirects`, `pnpm lint:reference`,
-   `node scripts/lint-link-policy.mjs --baseline scripts/lint-link-policy.baseline.json`)를 실행하고,
+4. 문서 lint(`bun run lint:nav`, `bun run lint:redirects`, `bun run lint:reference`,
+   `bun scripts/lint-link-policy.mjs --baseline scripts/lint-link-policy.baseline.json`)를 실행하고,
    페이지, 내비게이션 조각, redirect, `manifest.json`을 함께 커밋합니다.
 
 같은 바이너리로 생성기를 연속 두 번 실행해도 아무 변화가 없습니다.

@@ -16,8 +16,8 @@ Option A 프로그램(slice 6, protocol anchor)에서 사용됩니다. 구현은
 `docs/public-docs/`에서 실행합니다.
 
 ```bash
-pnpm gen:hardforks         # validate + regenerate snippets
-pnpm gen:hardforks:check   # drift check (fails when snippets are stale)
+bun run gen:hardforks         # validate + regenerate snippets
+bun run gen:hardforks:check   # drift check (fails when snippets are stale)
 ```
 
 superchain-registry 서브모듈이 초기화되어 있어야 합니다(모노레포 루트에서
@@ -80,5 +80,5 @@ hardfork_min_versions_source: "[Upgrade 19 notice](/notices/archive/upgrade-19)"
 2.  `docs.json` 내비게이션(Protocol 탭 → Reference → Network upgrades 그룹)에 페이지를 추가합니다.
 3.  superchain-registry에서 활성화 시간이 예정되면, 해당 타임스탬프와 함께 frontmatter를
     `scheduled`(이후 `active`)로 업데이트합니다.
-4.  `pnpm gen:hardforks`를 실행하고 페이지와 재생성된 스니펫을 함께 커밋합니다. 그렇지 않으면
+4.  `bun run gen:hardforks`를 실행하고 페이지와 재생성된 스니펫을 함께 커밋합니다. 그렇지 않으면
     drift 검사가 실패합니다.

@@ -11,7 +11,7 @@
 //
 // Usage:
 //   bun docs/public-docs/scripts/lint/validate-nav.ts     (from monorepo root, CI)
-//   pnpm lint:nav                                          (from docs/public-docs)
+//   bun run lint:nav                                      (from docs/public-docs)
 //
 // Exit codes: 0 = clean, 1 = violations, 2 = setup error.
 

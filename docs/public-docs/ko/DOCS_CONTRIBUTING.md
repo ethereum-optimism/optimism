@@ -37,15 +37,15 @@ Optimism 문서는 오픈 소스이며, GitHub의 [`ethereum-optimism/optimism`]
 - Git 및 GitHub에 대한 기본 지식
 - Markdown에 대한 이해
 - 기술 문서 작성 원칙에 대한 이해
-- Node.js 및 npm 설치
+- [mise](https://mise.jdx.dev) 설치 후, 모노레포 루트에서 `mise install bun just` 실행
 
 ### 개발 환경 설정
-1. [pnpm](https://pnpm.io/installation)을 설치합니다
-2. `pnpm i`를 실행하여 의존성을 설치합니다
-3. `pnpm dev`를 실행하여 개발 서버를 시작합니다
-4. [localhost:3000](http://localhost:3000)에 접속합니다
+1. 모노레포 루트에서 `just public-docs`를 실행하여 개발 서버를 시작합니다
+2. [localhost:3000](http://localhost:3000)에 접속합니다
 
 이제 콘텐츠를 수정할 수 있으며, 새 파일을 저장할 때마다 웹사이트가 실시간으로 업데이트되는 것을 확인할 수 있습니다. 🤓
+
+`just public-docs`는 `bun install`로 문서 의존성을 설치하고, `package.json`에 고정된 [Mintlify CLI](https://www.mintlify.com/docs/installation)를 `mise.toml`에 고정된 `bun`으로 실행하므로 Node가 필요하지 않습니다. 의존성이 설치되어 있다면 `docs/public-docs`에서 `bun run dev`로도 같은 작업을 할 수 있습니다. 추가 `mint dev` 플래그도 그대로 전달할 수 있습니다(예: `just public-docs --port 3333`).
 
 ## 기여 절차
 
@@ -110,7 +110,7 @@ Optimism 문서는 오픈 소스이며, GitHub의 [`ethereum-optimism/optimism`]
 
 ### 로컬 테스트
 
-로컬 변경 사항은 이 [문서](https://www.mintlify.com/docs/installation)를 따르십시오.
+로컬 변경 사항은 `just public-docs`로 미리 볼 수 있습니다([개발 환경 설정](#개발-환경-설정) 참고).
 
 ### Docs lint
 
@@ -142,12 +142,12 @@ pull request에서 CI로 실행됩니다(CI job은
 push 전에 로컬에서 실행하십시오.
 
 ```bash
-# from docs/public-docs (uses the tsx devDependency)
-pnpm lint:nav
-pnpm lint:redirects
-pnpm lint:reference
+# from docs/public-docs
+bun run lint:nav
+bun run lint:redirects
+bun run lint:reference
 
-# or from the monorepo root with bun (zero-dependency)
+# or from the monorepo root
 bun docs/public-docs/scripts/lint/validate-nav.ts
 bun docs/public-docs/scripts/lint/validate-redirects.ts
 bun docs/public-docs/scripts/lint/validate-reference.ts
