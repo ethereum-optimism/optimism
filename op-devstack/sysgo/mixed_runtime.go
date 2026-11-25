@@ -554,11 +554,12 @@ func startMixedKonaNode(
 		"KONA_NODE_ROLLUP_CONFIG=" + tempRollupCfgPath,
 		"KONA_NODE_L1_CHAIN_CONFIG=" + tempL1CfgPath,
 		"KONA_NODE_P2P_PRIV_PATH=" + tempP2PPath,
+		// Poll L1 finality as often as op-node's devstack node does (L1EpochPollInterval). With
+		// kona's 384s default, finality would barely move in a test, and two kona nodes that poll
+		// out of phase would hold finalized L1 blocks up to an interval apart.
+		"KONA_NODE_L1_EPOCH_POLL_INTERVAL=2", // seconds
 		propagateEnvVarOrDefault("KONA_NODE_RPC_ADDR", "127.0.0.1"),
 		propagateEnvVarOrDefault("KONA_NODE_RPC_PORT", "0"),
-		// Acceptance tests drive the sequencer via the admin API (StartSequencer, etc.), which
-		// kona only registers when admin is enabled. op-node's devstack node enables it too.
-		propagateEnvVarOrDefault("KONA_NODE_RPC_ENABLE_ADMIN", "true"),
 		propagateEnvVarOrDefault("KONA_LOG_LEVEL", "3"),
 		propagateEnvVarOrDefault("KONA_LOG_STDOUT_FORMAT", "json"),
 		propagateEnvVarOrDefault("KONA_NODE_P2P_LISTEN_IP", "127.0.0.1"),

@@ -17,7 +17,7 @@ By the end, `op-zk-proposer` creates ZK games for the chain, `op-challenger` che
 </Note>
 
 <Note>
-  This runbook covers a chain with its own `DisputeGameFactory` and `AnchorStateRegistry`. It does not cover an interop set whose chains share them; for that case, see [Path C of the migration specification](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs#path-c-interop-set-shared-contracts).
+  This runbook covers a chain with its own `DisputeGameFactory` and `AnchorStateRegistry`. It does not cover an interop set whose chains share them; for that case, see [Form an interop set with ZK proofs](/op-stack/zk-proofs/interop-sets#form-an-interop-set-with-zk-proofs).
 </Note>
 
 For the normative description of the migration, see the [ZK dispute game migration specification](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs).
@@ -47,7 +47,7 @@ cast call <ASR> 'respectedGameType()(uint32)' --rpc-url $L1_RPC
 
 {/* TODO: add the standard values for the durations and bonds once they are set for the release. */}
 
-**Release artifacts.** The `OPContractsManager` address for `op-contracts/v10.0.0` (Upgrade 22) or a later release, from `validation/standard/standard-versions-<network>.toml` in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry). Earlier releases deploy the ZK dispute game only behind a development feature flag. `OPContractsManager` sets the game's verifier to its `SP1PlonkAdapter`, so you do not supply a verifier.
+**Release artifacts.** The `OPContractsManager` address for `op-contracts/v10.0.0` (Upgrade 22) or a later release, from `validation/standard/standard-versions-<network>.toml` in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry), once the release is published there. Earlier releases deploy the ZK dispute game only behind a development feature flag. `OPContractsManager` sets the game's verifier to its `SP1PlonkAdapter`, so you do not supply a verifier.
 
 {/* TODO: name the superchain-ops template for this upgrade once one supports op-contracts/v10.0.0. */}
 
@@ -144,8 +144,8 @@ Start `op-zk-proposer`. Check its logs for `op-zk-proposer started` and no ancho
 Within one proposal interval, it creates the first ZK game, building on the anchor state. Check the game's configuration and claim:
 
 ```bash
-COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC)
-read -r GAME_TYPE CREATED_AT GAME_PROXY < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
+COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC | cut -d' ' -f1)
+{ read -r GAME_TYPE; read -r CREATED_AT; read -r GAME_PROXY; } < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
 echo "gameType=$GAME_TYPE gameProxy=$GAME_PROXY"
 # Expect: gameType=10
 
@@ -156,8 +156,8 @@ cast call $GAME_PROXY 'challengerBond()(uint256)' --rpc-url $L1_RPC
 # Expect: the configured values
 
 cast call $GAME_PROXY 'rootClaim()(bytes32)' --rpc-url $L1_RPC
-cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
-cast rpc superroot_atTimestamp "$(cast 2h <l2SequenceNumber>)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
+SEQ=$(cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC | cut -d' ' -f1)
+cast rpc superroot_atTimestamp "$(cast 2h $SEQ)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
 # Expect: equals rootClaim
 ```
 

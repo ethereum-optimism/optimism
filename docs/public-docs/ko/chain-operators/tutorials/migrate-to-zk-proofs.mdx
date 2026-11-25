@@ -1,0 +1,174 @@
+---
+title: ZK 증명으로 마이그레이션하기
+description: 단일 opcm.upgrade 호출로 OP Stack 체인을 현재의 super-root 분쟁 게임에서 ZK 분쟁 게임으로 전환한 다음, 제안을 op-zk-proposer로 이전합니다.
+diataxis: how-to
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+이 런북은 단일 OP Stack 체인을 현재의 super-root 분쟁 게임(dispute game)인 `SUPER_CANNON_KONA`(game type `9`) 또는 `SUPER_PERMISSIONED`(game type `5`)에서 ZK 분쟁 게임(`ZK_DISPUTE_GAME`, game type `10`)으로 전환합니다. 이 작업은 체인 자체의 `AnchorStateRegistry`와 `DisputeGameFactory`에 대한 하나의 `opcm.upgrade` 호출로 실행됩니다.
+
+완료되면 `op-zk-proposer`가 체인의 ZK 게임을 생성하고, `op-challenger`가 이를 확인하며, `op-dispute-mon`이 이를 모니터링합니다. 마이그레이션 이전에 생성된 게임은 원래 구현을 유지하고 이전과 동일하게 resolve되며, 해당 게임을 기준으로 증명된 출금은 계속 유효합니다.
+
+<Note>
+  ZK 분쟁 게임은 super root에 커밋합니다. 아직 output-root 게임을 사용하는 체인은 먼저 super root로 전환해야 합니다. [체인을 output root에서 super root로 업그레이드하기](/ko/chain-operators/tutorials/upgrade-chain-to-super-roots)를 따른 후 이 문서로 돌아오십시오.
+</Note>
+
+<Note>
+  이 런북은 자체 `DisputeGameFactory`와 `AnchorStateRegistry`를 가진 체인을 다룹니다. 여러 체인이 이를 공유하는 interop set은 다루지 않습니다. 이 경우에는 [마이그레이션 사양의 Path C](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs#path-c-interop-set-shared-contracts)를 참조하십시오.
+</Note>
+
+마이그레이션에 대한 규범적 설명은 [ZK 분쟁 게임 마이그레이션 사양](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs)을 참조하십시오.
+
+## 시작하기 전에 {#before-you-begin}
+
+### 필수 입력값 수집 {#gather-the-required-inputs}
+
+**체인 주소.** [super root 런북](/ko/chain-operators/tutorials/upgrade-chain-to-super-roots#gather-the-required-inputs)에서와 같이 체인의 superchain-registry 항목 또는 [`op-fetcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-fetcher)를 사용하여 체인의 `SystemConfig`, `AnchorStateRegistry`(`<ASR>`), `DisputeGameFactory`(`<DGF>`) 주소를 확인합니다.
+
+**현재 game type.** 체인의 respected game type을 확인합니다.
+
+```bash
+cast call <ASR> 'respectedGameType()(uint32)' --rpc-url $L1_RPC
+# Expect: 9 (SUPER_CANNON_KONA) or 5 (SUPER_PERMISSIONED)
+```
+
+**ZK 게임 파라미터.**
+
+| 항목 | 출처 |
+| --- | --- |
+| `absolutePrestate` | `kona-sp1-program` 릴리스의 `super-aggregation` verification key입니다. [ZK absolute prestate 검증하기](/ko/chain-operators/tutorials/zk-prestate)를 참조하십시오. |
+| `maxChallengeDuration` | 새 게임에 이의를 제기할 수 있는 시간(초)입니다. |
+| `maxProveDuration` | 이의 제기된 게임을 증명해야 하는 시간(초)입니다. 최악의 경우의 증명 시간보다 여유를 두십시오. [Completeness](/ko/op-stack/zk-proofs/security#completeness)를 참조하십시오. |
+| `challengerBond` | 이의 제기에 필요한 금액(wei)입니다. |
+| Init bond | 게임 생성에 필요한 금액(wei)입니다. |
+
+{/* TODO: add the standard values for the durations and bonds once they are set for the release. */}
+
+**릴리스 아티팩트.** [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)의 `validation/standard/standard-versions-<network>.toml`에서 `op-contracts/v10.0.0`(Upgrade 22) 이상 릴리스의 `OPContractsManager` 주소를 확인합니다. 이전 릴리스는 개발용 feature flag를 통해서만 ZK 분쟁 게임을 배포합니다. `OPContractsManager`가 게임의 verifier를 자체 `SP1PlonkAdapter`로 설정하므로 verifier를 직접 제공할 필요는 없습니다.
+
+{/* TODO: name the superchain-ops template for this upgrade once one supports op-contracts/v10.0.0. */}
+
+### 오프체인 서비스 먼저 준비 {#stand-up-the-off-chain-services-first}
+
+`SUPER_PERMISSIONED`에서 전환하는 체인에서는 이 마이그레이션으로 제안이 permissionless가 됩니다. 어느 경로든 ZK 게임은 respected game type이 되는 순간부터 증명이 가능하고 자금이 충전된 proposer와 challenger를 필요로 합니다. 업그레이드 전에 이들을 준비하십시오.
+
+*   **op-zk-proposer.** [op-zk-proposer 구성](/ko/chain-operators/guides/configuration/zk-proposer)에 따라 구성하고, L1 서명자와 prover network 계정에 자금을 충전하며, prestate의 프로그램 파일을 게시합니다. 아직 시작하지는 마십시오. 업그레이드가 반영되기 전까지는 생성할 ZK 게임이 없습니다.
+*   **op-challenger.** 실행 중인 challenger의 `--game-types`에 `zk`를 추가합니다. `SUPER_CANNON_KONA`에서 전환하는 체인에서는 이미 진행 중인 게임을 계속 방어할 수 있도록 목록에 `super-cannon-kona`를 유지하십시오. [ZK 분쟁 게임용 op-challenger 구성](/ko/chain-operators/guides/configuration/zk-challenger)을 참조하십시오.
+*   **op-dispute-mon.** 변경할 필요가 없습니다. 동일한 `DisputeGameFactory`에서 ZK 게임을 찾아내며 기존 `--superroot-rpc`를 사용합니다.
+
+prestate 파일을 다운로드하고 압축을 해제할 수 있는지 확인합니다. `$ZK_PRESTATE`는 소문자로 된 `0x` 접두사가 붙은 prestate입니다.
+
+```bash
+for kind in agg range log; do
+  curl -fsS "$PRESTATES_URL/$ZK_PRESTATE.$kind.bin.gz" | gzip -t && echo "$kind ok"
+done
+# Expect: agg ok, range ok, log ok
+```
+
+## 업그레이드 구성 {#build-the-upgrade}
+
+업그레이드는 체인에 대한 하나의 `opcm.upgrade` 호출입니다. 입력에는 `OPContractsManager`가 지원하는 6개 game type 각각에 대한 분쟁 게임 구성이 다음 순서로 하나씩 포함됩니다: `CANNON`(`0`), `PERMISSIONED_CANNON`(`1`), `CANNON_KONA`(`8`), `SUPER_PERMISSIONED`(`5`), `SUPER_CANNON_KONA`(`9`), `ZK_DISPUTE_GAME`(`10`). 다음과 같이 설정하십시오.
+
+| Game type | 구성 |
+| --- | --- |
+| `ZK_DISPUTE_GAME` (`10`) | `enabled = true`, 0이 아닌 init bond, 그리고 `(absolutePrestate, maxChallengeDuration, maxProveDuration, challengerBond)`의 ABI 인코딩으로 설정한 `gameArgs`. |
+| `SUPER_PERMISSIONED` (`5`) | 현재 구성으로 활성화 상태를 유지하고 init bond는 `0`으로 설정합니다. standard validator는 super-root 체인이 이 game type을 permissioned fallback으로 유지할 것을 요구하므로, 이 game type에서 전환하는 체인이라도 비활성화하지 마십시오. |
+| `SUPER_CANNON_KONA` (`9`) | `enabled = false`, init bond는 `0`. 이 game type에서 전환하는 체인에서는 구현과 init bond가 제거되어 해당 유형의 새 게임을 생성할 수 없게 됩니다. |
+| `CANNON`, `PERMISSIONED_CANNON`, `CANNON_KONA` | `enabled = false`, init bond는 `0`. super-root 체인에는 이들 중 어느 것도 등록되어 있지 않습니다. |
+
+어느 경로든 데이터가 `abi.encode(uint32(10))`인 `overrides.cfg.startingRespectedGameType` 추가 명령(extra instruction)을 추가하십시오. 이 명령은 respected game type을 `ZK_DISPUTE_GAME`으로 설정합니다. 이 명령이 없으면 respected game type은 현재 값을 유지합니다. 이 경우 `SUPER_CANNON_KONA`에서 전환하는 체인은 업그레이드에 실패합니다. `OPContractsManager`는 업그레이드 후의 respected game type이 활성화되어 있을 것을 요구하기 때문입니다. `SUPER_PERMISSIONED`에서 전환하는 체인은 업그레이드되지만 type `5`가 계속 respected 상태로 남으므로, ZK 게임으로 출금을 뒷받침하거나 앵커 상태를 업데이트할 수 없습니다.
+
+`OPContractsManager`는 입력을 검사하며, 다음 경우에 `OPContractsManagerV2_InvalidGameConfigs`로 revert합니다.
+
+*   항목이 위 순서의 6개 game type이 아닌 경우
+*   ZK prestate가 0인 경우
+*   ZK duration 중 하나가 0이거나 `type(uint32).max`보다 큰 경우
+*   ZK challenger bond 또는 init bond가 0인 경우
+*   비활성화된 항목 또는 `SUPER_PERMISSIONED` 항목의 init bond가 0이 아닌 경우
+*   업그레이드 후의 respected game type이 활성화되어 있지 않은 경우
+
+앵커 상태는 변경되지 않습니다. 현재 game type이 이미 super root에 커밋하므로, 기존 앵커가 첫 번째 ZK 게임의 유효한 시작점이 됩니다.
+
+팀의 표준 `superchain-ops` 워크플로를 사용하여 L1 fork에서 업그레이드를 시뮬레이션하고, 서명하기 전에 보고되는 모든 검증 오류를 해결하십시오. standard validator는 ZK 게임이 릴리스의 구현과 verifier, 예상 prestate를 사용하는지, duration, challenger bond, init bond가 0이 아닌지, 그리고 `SUPER_PERMISSIONED`가 여전히 등록되어 있는지 확인합니다.
+
+## 업그레이드 실행 {#execute-the-upgrade}
+
+1.  **체인의 현재 proposer를 중지합니다.** 이미 진행 중인 게임은 계속 resolve됩니다.
+2.  **`op-challenger`와 `op-dispute-mon`은 계속 실행 상태로 둡니다.**
+3.  **업그레이드에 서명하고 브로드캐스트합니다.**
+4.  **L1 트랜잭션이 확인될 때까지 기다립니다.**
+
+업그레이드는 다음을 수행합니다.
+
+*   `<DGF>`에 ZK 분쟁 게임 구현과 그 구성을 설치합니다.
+*   `SUPER_CANNON_KONA`에서 전환하는 체인에서는 해당 game type의 구현을 제거합니다.
+*   `<ASR>`의 respected game type을 `10`으로 설정합니다.
+
+## 온체인에서 업그레이드 검증 {#verify-the-upgrade-on-chain}
+
+<Warning>검사 중 하나라도 실패하면 중단하고, op-zk-proposer를 시작하지 말고, 사고 대응 프로세스에 따라 에스컬레이션하십시오.</Warning>
+
+```bash
+# Respected game type
+cast call <ASR> 'respectedGameType()(uint32)' --rpc-url $L1_RPC
+# Expect: 10
+
+# ZK game installed, with the expected bond
+cast call <DGF> 'gameImpls(uint32)(address)' 10 --rpc-url $L1_RPC
+# Expect: non-zero
+cast call <DGF> 'initBonds(uint32)(uint256)' 10 --rpc-url $L1_RPC
+# Expect: the configured init bond
+
+# SUPER_PERMISSIONED still installed
+cast call <DGF> 'gameImpls(uint32)(address)' 5 --rpc-url $L1_RPC
+# Expect: non-zero
+
+# On a chain moving from SUPER_CANNON_KONA: that game type cleared
+cast call <DGF> 'gameImpls(uint32)(address)' 9 --rpc-url $L1_RPC
+# Expect: 0x0000000000000000000000000000000000000000
+
+# Anchor state unchanged
+cast call <ASR> 'getAnchorRoot()(bytes32,uint256)' --rpc-url $L1_RPC
+# Expect: the same value as before the upgrade
+```
+
+`OPContractsManager`는 업그레이드 중에 ZK 구성을 검증했습니다. 저장된 값을 확인하려면 첫 번째 게임에서 읽으십시오. 다음 섹션을 참조하십시오.
+
+## op-zk-proposer 시작 {#start-op-zk-proposer}
+
+`op-zk-proposer`를 시작합니다. 로그에 `op-zk-proposer started`가 표시되고 앵커, prestate, verifier 오류가 없는지 확인하십시오. [Proposer 시작](/ko/chain-operators/guides/configuration/zk-proposer#start-the-proposer)을 참조하십시오.
+
+한 번의 제안 간격 내에 proposer는 앵커 상태를 기반으로 첫 번째 ZK 게임을 생성합니다. 게임의 구성과 claim을 확인합니다.
+
+```bash
+COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC)
+read -r GAME_TYPE CREATED_AT GAME_PROXY < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
+echo "gameType=$GAME_TYPE gameProxy=$GAME_PROXY"
+# Expect: gameType=10
+
+cast call $GAME_PROXY 'absolutePrestate()(bytes32)' --rpc-url $L1_RPC
+cast call $GAME_PROXY 'maxChallengeDuration()(uint64)' --rpc-url $L1_RPC
+cast call $GAME_PROXY 'maxProveDuration()(uint64)' --rpc-url $L1_RPC
+cast call $GAME_PROXY 'challengerBond()(uint256)' --rpc-url $L1_RPC
+# Expect: the configured values
+
+cast call $GAME_PROXY 'rootClaim()(bytes32)' --rpc-url $L1_RPC
+cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
+cast rpc superroot_atTimestamp "$(cast 2h <l2SequenceNumber>)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
+# Expect: equals rootClaim
+```
+
+## 마이그레이션 후 검증 {#verify-after-the-migration}
+
+*   **마이그레이션 이전의 게임이 계속 resolve됩니다.** 이전 유형의 진행 중인 게임이 resolve될 때까지 지켜보십시오. `SUPER_CANNON_KONA`에서 전환하는 체인에서는 해당 게임이 모두 resolve될 때까지 `op-challenger --game-types`에 `super-cannon-kona`를 유지하십시오. `op-challenger`는 `SUPER_PERMISSIONED` 게임을 플레이할 수 없으며, `--game-types`도 이를 허용하지 않습니다. 다만 더 이상 플레이하지 않는 모든 game type과 마찬가지로, 해당 게임을 종료하고 bond를 청구하는 작업은 계속 수행합니다.
+*   **op-challenger가 ZK 게임을 감시합니다.** 로그에 각 ZK 게임에 대한 `Game info` 줄이 표시되며, super root 소스 관련 오류가 없어야 합니다.
+*   **op-dispute-mon이 ZK 게임을 보고합니다.** `op_dispute_mon_games`에 `game_type="zk"` 시리즈가 있고, `op_dispute_mon_zk_games_pending_lifecycle_action`이 계속 0보다 큰 상태로 유지되지 않아야 합니다.
+*   **앵커가 전진합니다.** 첫 번째 ZK 게임은 resolve되고 finality delay가 지난 후 누군가 게임을 종료할 때 앵커 상태를 업데이트합니다. `op-zk-proposer`는 bond를 청구할 때 자신의 게임을 종료합니다. proposer가 [fast finality](/ko/chain-operators/guides/configuration/zk-proposer#enable-fast-finality)로 미리 증명하지 않는 한, 게임 종료는 게임 생성 후 최소 `maxChallengeDuration`에 `AnchorStateRegistry` finality delay를 더한 시간이 지나야 가능합니다. 이 기간이 지난 후 `getAnchorRoot()`를 확인하도록 일정을 잡으십시오.
+
+## 다음 단계 {#next-steps}
+
+*   이제 체인을 보호하는 안전장치에 대해서는 [ZK 증명 보안](/ko/op-stack/zk-proofs/security)을 참조하십시오.
+*   [Proposer 모니터링](/ko/chain-operators/guides/configuration/zk-proposer#monitor-the-proposer)에 따라 알림을 설정하십시오.

@@ -1,0 +1,16 @@
+issuer: https://token.actions.githubusercontent.com
+subject: repo:ethereum-optimism/optimism:ref:refs/heads/develop
+audience: nove-renovate-bfmb7fdndq-uc.a.run.app
+claim_pattern:
+  repository: ethereum-optimism/optimism
+  ref: refs/heads/develop
+  event_name: (schedule|workflow_dispatch)
+  workflow_ref: ethereum-optimism/optimism/\.github/workflows/renovate\.yaml@refs/heads/develop
+  job_workflow_ref: ethereum-optimism/factory/\.github/workflows/renovate\.yaml@[0-9a-f]{40}
+permissions:
+  contents: write
+  pull_requests: write
+  issues: write
+  checks: read
+  statuses: read
+  vulnerability_alerts: read

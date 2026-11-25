@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/stretchr/testify/require"
 
@@ -366,9 +367,19 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	// Canyon and lower is activated by default
 	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
-	// The L1 forks up to Osaka are active by default, as on every public L1: the contracts depend
-	// on Cancun, and an L1 includes blob transactions with cell proofs only from Osaka on.
+	// The L1 forks up to BPO2 are active by default, with mainnet's blob parameters: the latest fork
+	// live or scheduled on Ethereum mainnet. Move the default up when mainnet schedules its next fork.
+	// A test that needs an older L1 calls DeployConfig.DisableL1ForksAfter. The contracts need Cancun, and
+	// cell-proof blob transactions Osaka.
 	deployConfig.L1CancunTimeOffset = new(hexutil.Uint64)
 	deployConfig.L1PragueTimeOffset = new(hexutil.Uint64)
 	deployConfig.L1OsakaTimeOffset = new(hexutil.Uint64)
+	deployConfig.L1BPO1TimeOffset = new(hexutil.Uint64)
+	deployConfig.L1BPO2TimeOffset = new(hexutil.Uint64)
+	deployConfig.L1BlobScheduleConfig = &params.BlobScheduleConfig{
+		Cancun: params.DefaultCancunBlobConfig,
+		Prague: params.DefaultPragueBlobConfig,
+		BPO1:   params.DefaultBPO1BlobConfig,
+		BPO2:   params.DefaultBPO2BlobConfig,
+	}
 }

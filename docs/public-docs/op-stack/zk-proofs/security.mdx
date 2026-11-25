@@ -22,7 +22,7 @@ The ZK proof system protects withdrawals with two properties. **Soundness**: an 
 
 An invalid proposal wins only if nobody challenges it, or if someone proves it. Proving an invalid proposal would require breaking one of these:
 
-*   **The verifier.** The SP1 PLONK verifier must reject every proof of an incorrect statement. It is audited. `OPContractsManager` installs the release's verifier on each upgrade.
+*   **The verifier.** The SP1 PLONK verifier must reject every proof of an incorrect statement. See Succinct's [audit reports for the verifier contracts](https://github.com/succinctlabs/sp1-contracts/tree/main/audits). `OPContractsManager` installs the release's verifier on each upgrade.
 *   **The program.** The proof program must implement the OP Stack state transition correctly, and must check every input the prover supplies against the game's public values. It is built from the same Kona code that implements the state transition elsewhere in the OP Stack.
 *   **The prestate.** Each game accepts proofs only from the program its `absolutePrestate` identifies. Changing the program requires changing the prestate.
 

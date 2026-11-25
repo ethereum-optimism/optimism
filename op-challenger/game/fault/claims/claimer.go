@@ -115,7 +115,15 @@ func (c *Claimer) claimBond(ctx context.Context, contract BondContract, game typ
 		return true, fmt.Errorf("failed to claim credit: %w", err)
 	}
 
-	c.metrics.RecordBondClaimed(credit)
+	// Two-phase claims report credit until payout (see ZKDisputeGameContractLatest.GetCredit); record the bond once none remains.
+	remaining, _, err := contract.GetCredit(ctx, addr)
+	if err != nil {
+		c.logger.Warn("Failed to read credit after claim, bond not recorded", "game", game.Proxy, "addr", addr, "err", err)
+		return true, nil
+	}
+	if remaining.Sign() == 0 {
+		c.metrics.RecordBondClaimed(credit)
+	}
 	return true, nil
 }
 

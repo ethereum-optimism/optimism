@@ -61,12 +61,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/da-server.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/da-server-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-alt-da/**",
         "apko/da-server.yaml",
+        "apko/da-server-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -85,12 +96,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-rust"
+          ],
+          "configs": [
+            {
+              "config": "apko/kona-client.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/kona-client-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "rust/**",
-        "apko/kona-client.yaml"
+        "apko/kona-client.yaml",
+        "apko/kona-client-slim.yaml"
       ],
       "smoke": {
         "commands": [
@@ -103,12 +125,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-rust"
+          ],
+          "configs": [
+            {
+              "config": "apko/kona-host.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/kona-host-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "rust/**",
-        "apko/kona-host.yaml"
+        "apko/kona-host.yaml",
+        "apko/kona-host-slim.yaml"
       ],
       "smoke": {
         "commands": [
@@ -121,12 +154,26 @@
         "apko": {
           "needs_packages": [
             "op-stack-rust"
+          ],
+          "configs": [
+            {
+              "config": "apko/kona-node.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/kona-node-slim.yaml",
+              "tag_suffix": "-slim",
+              "allow_packages": [
+                "busybox"
+              ]
+            }
           ]
         }
       },
       "paths": [
         "rust/**",
-        "apko/kona-node.yaml"
+        "apko/kona-node.yaml",
+        "apko/kona-node-slim.yaml"
       ],
       "smoke": {
         "commands": [
@@ -140,12 +187,23 @@
         "apko": {
           "needs_packages": [
             "kona-zkvm-canary"
+          ],
+          "configs": [
+            {
+              "config": "apko/kona-zkvm-canary.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/kona-zkvm-canary-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "rust/**",
         "apko/kona-zkvm-canary.yaml",
+        "apko/kona-zkvm-canary-slim.yaml",
         "melange/kona-zkvm-canary.yaml"
       ],
       "smoke": {
@@ -159,12 +217,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-rust"
+          ],
+          "configs": [
+            {
+              "config": "apko/lokahi.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/lokahi-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "rust/**",
-        "apko/lokahi.yaml"
+        "apko/lokahi.yaml",
+        "apko/lokahi-slim.yaml"
       ],
       "smoke": {
         "commands": [
@@ -178,12 +247,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-batcher.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-batcher-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-batcher/**",
         "apko/op-batcher.yaml",
+        "apko/op-batcher-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -204,6 +284,16 @@
             "op-stack-go",
             "multicannon",
             "op-stack-rust"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-challenger.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-challenger-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
@@ -213,6 +303,7 @@
         "op-preimage/**",
         "rust/kona/**",
         "apko/op-challenger.yaml",
+        "apko/op-challenger-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -234,6 +325,16 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-conductor.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-conductor-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
@@ -241,6 +342,7 @@
         "op-conductor/**",
         "op-node/**",
         "apko/op-conductor.yaml",
+        "apko/op-conductor-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -259,6 +361,16 @@
         "apko": {
           "needs_packages": [
             "op-deployer"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-deployer.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-deployer-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
@@ -266,6 +378,7 @@
         "op-deployer/**",
         "packages/contracts-bedrock/**",
         "apko/op-deployer.yaml",
+        "apko/op-deployer-slim.yaml",
         "melange/op-deployer.yaml",
         "melange/pipelines/op-deployer/embed-artifacts.yaml",
         "melange/pipelines/op-deployer/install-forge.yaml",
@@ -290,12 +403,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-dispute-mon.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-dispute-mon-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-dispute-mon/**",
         "apko/op-dispute-mon.yaml",
+        "apko/op-dispute-mon-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -314,12 +438,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-dripper.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-dripper-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-dripper/**",
         "apko/op-dripper.yaml",
+        "apko/op-dripper-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -338,12 +473,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-faucet.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-faucet-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-faucet/**",
         "apko/op-faucet.yaml",
+        "apko/op-faucet-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -362,12 +508,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-interop-filter.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-interop-filter-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-interop-filter/**",
         "apko/op-interop-filter.yaml",
+        "apko/op-interop-filter-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -386,12 +543,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-interop-mon.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-interop-mon-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-interop-mon/**",
         "apko/op-interop-mon.yaml",
+        "apko/op-interop-mon-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -410,12 +578,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-node.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-node-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-node/**",
         "apko/op-node.yaml",
+        "apko/op-node-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -434,12 +613,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-proposer.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-proposer-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-proposer/**",
         "apko/op-proposer.yaml",
+        "apko/op-proposer-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -458,12 +648,26 @@
         "apko": {
           "needs_packages": [
             "op-stack-rust"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-reth.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-reth-slim.yaml",
+              "tag_suffix": "-slim",
+              "allow_packages": [
+                "busybox"
+              ]
+            }
           ]
         }
       },
       "paths": [
         "rust/**",
-        "apko/op-reth.yaml"
+        "apko/op-reth.yaml",
+        "apko/op-reth-slim.yaml"
       ],
       "smoke": {
         "commands": [
@@ -477,6 +681,19 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-supernode.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-supernode-slim.yaml",
+              "tag_suffix": "-slim",
+              "allow_packages": [
+                "busybox"
+              ]
+            }
           ]
         }
       },
@@ -484,6 +701,7 @@
         "op-supernode/**",
         "op-node/**",
         "apko/op-supernode.yaml",
+        "apko/op-supernode-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -502,12 +720,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-go"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-test-sequencer.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-test-sequencer-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "op-test-sequencer/**",
         "apko/op-test-sequencer.yaml",
+        "apko/op-test-sequencer-slim.yaml",
         "go.mod",
         "go.sum",
         "op-service/**",
@@ -526,12 +755,23 @@
         "apko": {
           "needs_packages": [
             "op-stack-rust"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-zk-proposer.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-zk-proposer-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
       "paths": [
         "rust/**",
-        "apko/op-zk-proposer.yaml"
+        "apko/op-zk-proposer.yaml",
+        "apko/op-zk-proposer-slim.yaml"
       ],
       "smoke": {
         "commands": [
@@ -546,6 +786,16 @@
           "needs_packages": [
             "op-stack-rust",
             "op-zk-proposer-cuda"
+          ],
+          "configs": [
+            {
+              "config": "apko/op-zk-proposer-cuda.yaml",
+              "tag_suffix": ""
+            },
+            {
+              "config": "apko/op-zk-proposer-cuda-slim.yaml",
+              "tag_suffix": "-slim"
+            }
           ]
         }
       },
@@ -554,7 +804,8 @@
       ],
       "paths": [
         "melange/op-zk-proposer-cuda.yaml",
-        "apko/op-zk-proposer-cuda.yaml"
+        "apko/op-zk-proposer-cuda.yaml",
+        "apko/op-zk-proposer-cuda-slim.yaml"
       ],
       "smoke": {
         "commands": [

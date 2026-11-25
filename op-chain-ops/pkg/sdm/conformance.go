@@ -26,9 +26,10 @@ type ConformanceResult struct {
 // post-exec accounting disabled, so replayed balances never include earlier refunds.
 const replayCaveat = "a transaction that reads a balance refunded earlier in the block can cause this without a producer bug"
 
-// ValidatePostExecConformance runs the policy-independent SDM block checks. The
-// replay gas checks additionally assume no transaction's execution depends on a
-// balance refunded earlier in the block.
+// ValidatePostExecConformance runs the policy-independent SDM block checks, including
+// callTracer traces via debug_traceBlockByHash and debug_traceTransaction. The
+// debug_replaySDMBlock gas checks additionally assume no transaction's execution
+// depends on a balance refunded earlier in the block.
 func ValidatePostExecConformance(ctx context.Context, rpcClient Caller, blockNum uint64) (*ConformanceResult, error) {
 	validation, err := ValidatePostExecBlock(ctx, rpcClient, blockNum, DefaultValidationOptions())
 	if err != nil {
@@ -64,7 +65,74 @@ func ValidatePostExecConformance(ctx context.Context, rpcClient Caller, blockNum
 	if err := validateReplayAccounting(validation, receipts); err != nil {
 		return nil, err
 	}
+	if err := validateTracedGas(ctx, rpcClient, validation, receipts); err != nil {
+		return nil, err
+	}
 	return &ConformanceResult{ValidationResult: validation, Receipts: receipts}, nil
+}
+
+// tracedGasCaveat names the defect a traced gas mismatch points to (protocol-team#485).
+const tracedGasCaveat = "RPC replay omits the SDM refund settlement"
+
+// callFrame is the top-level callTracer frame; Error is set when execution reverted.
+type callFrame struct {
+	GasUsed hexutil.Uint64 `json:"gasUsed"`
+	Error   string         `json:"error,omitempty"`
+}
+
+// blockTraceResult is one debug_traceBlockByHash row; Error is a failure to trace that
+// transaction, not an execution revert.
+type blockTraceResult struct {
+	TxHash common.Hash `json:"txHash"`
+	Result callFrame   `json:"result"`
+	Error  string      `json:"error,omitempty"`
+}
+
+// validateTracedGas requires every row of the block trace, and the trace of the last
+// refunded transaction, to report receipt gasUsed and status. Both replay the block's earlier
+// transactions, so they agree with receipts only if replay applies the refund settlement.
+func validateTracedGas(ctx context.Context, rpcClient Caller, validation *ValidationResult, receipts map[common.Hash]*RPCReceipt) error {
+	callTracer := map[string]any{"tracer": "callTracer", "tracerConfig": map[string]any{"onlyTopCall": true}}
+	var blockTraces []blockTraceResult
+	if err := rpcClient.CallContext(ctx, &blockTraces, "debug_traceBlockByHash", validation.Block.Hash, callTracer); err != nil {
+		return fmt.Errorf("debug_traceBlockByHash(%s): %w", validation.Block.Hash, err)
+	}
+	if len(blockTraces) != len(validation.Block.Transactions) {
+		return fmt.Errorf("debug_traceBlockByHash returned %d traces, want %d", len(blockTraces), len(validation.Block.Transactions))
+	}
+	for i, tx := range validation.Block.Transactions {
+		row := blockTraces[i]
+		if row.Error != "" {
+			return fmt.Errorf("debug_traceBlockByHash transaction %d: %s", i, row.Error)
+		}
+		if row.TxHash != tx.Hash {
+			return fmt.Errorf("debug_traceBlockByHash transaction %d hash %s, want %s", i, row.TxHash, tx.Hash)
+		}
+		if err := matchReceipt(row.Result, receipts[tx.Hash]); err != nil {
+			return fmt.Errorf("debug_traceBlockByHash transaction %d %w", i, err)
+		}
+	}
+
+	entries := validation.Payload.GasRefundEntries
+	tx := validation.Block.Transactions[entries[len(entries)-1].Index]
+	var frame callFrame
+	if err := rpcClient.CallContext(ctx, &frame, "debug_traceTransaction", tx.Hash, callTracer); err != nil {
+		return fmt.Errorf("debug_traceTransaction(%s): %w", tx.Hash, err)
+	}
+	if err := matchReceipt(frame, receipts[tx.Hash]); err != nil {
+		return fmt.Errorf("debug_traceTransaction %s %w", tx.Hash, err)
+	}
+	return nil
+}
+
+func matchReceipt(frame callFrame, receipt *RPCReceipt) error {
+	if got, want := uint64(frame.GasUsed), uint64(receipt.GasUsed); got != want {
+		return fmt.Errorf("gasUsed %d, want receipt gasUsed %d (%s)", got, want, tracedGasCaveat)
+	}
+	if reverted, failed := frame.Error != "", uint64(receipt.Status) == types.ReceiptStatusFailed; reverted != failed {
+		return fmt.Errorf("trace error %q, want receipt status %d (%s)", frame.Error, receipt.Status, tracedGasCaveat)
+	}
+	return nil
 }
 
 // ValidateVerifierAgreement checks a verifier serves the same block and refunds.
@@ -96,6 +164,9 @@ func ValidateVerifierAgreement(ctx context.Context, producer *ConformanceResult,
 		if !equalUint64Ptr(verifierReceipt.OPGasRefund, producerReceipt.OPGasRefund) {
 			return fmt.Errorf("verifier receipt %s opGasRefund %s, want %s", tx.Hash, formatUint64Ptr(verifierReceipt.OPGasRefund), formatUint64Ptr(producerReceipt.OPGasRefund))
 		}
+	}
+	if err := validateTracedGas(ctx, verifier, producer.ValidationResult, producer.Receipts); err != nil {
+		return fmt.Errorf("verifier: %w", err)
 	}
 	return nil
 }

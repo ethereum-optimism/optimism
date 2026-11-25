@@ -66,10 +66,18 @@ contract ExecuteNUTBundle is Script {
             string.concat("ExecuteNUTBundle: wrapper gasLimit < intrinsicGas for ", _w.intent)
         );
 
+        uint64 bodyGas = _w.gasLimit - intrinsicGas;
+        // CALL with value adds a 2,300 gas stipend that a deposit's top frame doesn't get.
+        if (_w.value > 0) {
+            require(
+                bodyGas >= 2300, string.concat("ExecuteNUTBundle: value wrapper body gas < stipend for ", _w.intent)
+            );
+            bodyGas -= 2300;
+        }
+
         vm.deal(_w.from, _w.from.balance + _w.mint);
         vm.prank(_w.from);
-        (bool success, bytes memory returnData) =
-            _w.to.call{ gas: _w.gasLimit - intrinsicGas, value: _w.value }(_w.data);
+        (bool success, bytes memory returnData) = _w.to.call{ gas: bodyGas, value: _w.value }(_w.data);
 
         if (!success) {
             string memory reason = UpgradeUtils.getRevertReason(returnData);

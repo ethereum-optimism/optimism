@@ -13,9 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// newOpNodeSystem starts a single-chain interop system with no supernode, running an honest
-// op-challenger whose --superroot-rpc points at the op-node's superroot_atTimestamp endpoint.
-func newOpNodeSystem(t devtest.T) *presets.SingleChainInterop {
+// newL2CLSystem starts a single-chain interop system with no supernode, running an honest
+// op-challenger whose --superroot-rpc points at the CL's superroot_atTimestamp endpoint.
+func newL2CLSystem(t devtest.T) *presets.SingleChainInterop {
 	return presets.NewSingleChainInteropNoSupernodeZKDispute(t)
 }
 
@@ -68,7 +68,7 @@ func honestChallengerBeatsInvalidProposal(t devtest.T, sys *presets.SingleChainI
 // honestChallengerBeatsUnsafeProposal seeds a proposal for a timestamp the node has not yet made
 // safe. It has no canonical super root (Data == nil), which the honest challenger treats as invalid:
 // it challenges and, with no proof submitted, wins once the window expires without ever proving. The
-// op-node source reaches Data == nil via a skeleton result, the supernode source via a NotFound from
+// L2 CL source reaches Data == nil via a skeleton result, the supernode source via a NotFound from
 // VerifiedResultAtTimestamp — distinct paths that must reach the same outcome.
 func honestChallengerBeatsUnsafeProposal(t devtest.T, sys *presets.SingleChainInterop) {
 	factory := sys.DisputeGameFactory()
@@ -97,10 +97,10 @@ func honestChallengerBeatsUnsafeProposal(t devtest.T, sys *presets.SingleChainIn
 // unchallenged valid proposal anchors (source-agnostic lifecycle behavior tested once).
 func TestZK_HonestChallenger_ValidProposal_DefenderWins(gt *testing.T) {
 	gt.Parallel()
-	gt.Run("op-node", func(gt *testing.T) {
+	gt.Run("l2cl", func(gt *testing.T) {
 		t := devtest.SerialT(gt)
-		sys := newOpNodeSystem(t)
-		// The op-node preset runs no op-zk-proposer; seed the proposal manually.
+		sys := newL2CLSystem(t)
+		// The L2 CL preset runs no op-zk-proposer; seed the proposal manually.
 		game := sys.DisputeGameFactory().StartZKGame(sys.FunderL1.NewFundedEOA(eth.OneEther))
 		honestChallengerResolvesValidProposal(t, sys, game)
 	})
@@ -119,14 +119,14 @@ func TestZK_HonestChallenger_ValidProposal_DefenderWins(gt *testing.T) {
 
 // TestZK_HonestChallenger_InvalidProposal_ChallengerWins checks that the honest challenger detects an
 // invalid super-root proposal, challenges it, and — with no prover submitting a proof — resolves it
-// CHALLENGER_WINS. The challenger never proves; proving is the proposer's responsibility. The two
-// super-root sources share the decision body; the supernode subtest additionally proves the
-// challenger claims its credit and the invalid proposal never advances the anchor state.
+// CHALLENGER_WINS. The challenger never proves; proving is the proposer's responsibility. The op-node
+// and supernode subtests run the same challenge flow. The supernode subtest also checks that the
+// challenger receives its credit as ETH and that the invalid proposal never advances the anchor state.
 func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
 	gt.Parallel()
-	gt.Run("op-node", func(gt *testing.T) {
+	gt.Run("l2cl", func(gt *testing.T) {
 		t := devtest.SerialT(gt)
-		honestChallengerBeatsInvalidProposal(t, newOpNodeSystem(t))
+		honestChallengerBeatsInvalidProposal(t, newL2CLSystem(t))
 	})
 	gt.Run("supernode", func(gt *testing.T) {
 		t := devtest.SerialT(gt)
@@ -137,9 +137,14 @@ func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
 		anchorRoot, anchorSequence := registry.AnchorRoot()
 
 		game := honestChallengerBeatsInvalidProposal(t, sys)
-		// The challenger closes the invalid game and claims its credit once finality elapses.
+		// The challenger closes the invalid game and unlocks its credit once finality elapses,
+		// then withdraws it once the DelayedWETH delay elapses.
 		advanceL1To(sys, game.ResolvedAt()+uint64(presets.DefaultZKFinalityDelay/time.Second)+1)
-		game.WaitForClaimedCredit(zkChallengerAddress(t, sys.L2ChainA.ChainID()))
+		challenger := zkChallengerAddress(t, sys.L2ChainA.ChainID())
+		withdrawal := game.WaitForCreditUnlocked(challenger)
+		weth := sys.DisputeGameFactory().DelayedWETH(game.WETHAddress())
+		advanceL1To(sys, withdrawal.MaturesAt(weth.Delay()))
+		game.WaitForClaimedCredit(challenger)
 
 		// The invalid proposal must not advance the anchor state.
 		actualRoot, actualSequence := registry.AnchorRoot()
@@ -154,7 +159,7 @@ func TestZK_HonestChallenger_InvalidProposal_ChallengerWins(gt *testing.T) {
 // submit the on-chain challenge before the challenge window expires.
 func TestZK_HonestChallenger_SourceRecovers_ChallengesInvalidProposal(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := newOpNodeSystem(t)
+	sys := newL2CLSystem(t)
 	proxy := sys.ZKChallengerSuperRootRPCProxy()
 	proxy.Stall()
 
@@ -209,9 +214,9 @@ func TestZK_HonestChallenger_InvalidChainBProposal_ChallengesProposal(gt *testin
 // timestamp, and each super-root source reaches Data == nil differently, so both are exercised.
 func TestZK_HonestChallenger_UnsafeProposal_ChallengerWins(gt *testing.T) {
 	gt.Parallel()
-	gt.Run("op-node", func(gt *testing.T) {
+	gt.Run("l2cl", func(gt *testing.T) {
 		t := devtest.SerialT(gt)
-		honestChallengerBeatsUnsafeProposal(t, newOpNodeSystem(t))
+		honestChallengerBeatsUnsafeProposal(t, newL2CLSystem(t))
 	})
 	gt.Run("supernode", func(gt *testing.T) {
 		t := devtest.SerialT(gt)

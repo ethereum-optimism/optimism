@@ -15,3 +15,8 @@ var (
 	EIP4788ContractCodeHash = common.HexToHash("0xf57acd40259872606d76197ef052f3d35588dadf919ee1f0e3cb9b62d3f4b02c")
 	EIP4788ContractDeployer = common.HexToAddress("0x0B799C86a49DEeb90402691F1041aa3AF2d3C875")
 )
+
+// EIP4788HistoryBufferLength is HISTORY_BUFFER_LENGTH, the length of the ring buffer of the EIP-4788
+// contract. The contract stores a timestamp in slot timestamp % EIP4788HistoryBufferLength, and the
+// beacon block root in the slot EIP4788HistoryBufferLength after it.
+const EIP4788HistoryBufferLength = 8191

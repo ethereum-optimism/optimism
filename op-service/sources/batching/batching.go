@@ -151,12 +151,12 @@ func (ibc *IterativeBatchCall[K, V]) Fetch(ctx context.Context) error {
 			elem.Error = nil // reset, we'll try this element again
 			ibc.scheduled <- elem
 			continue
-		} else {
-			atomic.AddUint32(&ibc.completed, 1)
-			if atomic.LoadUint32(&ibc.completed) >= uint32(len(ibc.requestsKeys)) {
-				close(ibc.scheduled)
-				return io.EOF
-			}
+		}
+		if atomic.AddUint32(&ibc.completed, 1) == uint32(len(ibc.requestsKeys)) {
+			// Only the fetcher that completes the last element closes the channel;
+			// a separate load could let two concurrent fetchers both see completion.
+			close(ibc.scheduled)
+			return io.EOF
 		}
 	}
 	return result

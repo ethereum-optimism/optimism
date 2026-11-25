@@ -15,17 +15,19 @@ import (
 )
 
 func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	sys := newSingleChainTwoVerifiersFollowL2(t)
+	forEachFollowSource(gt, followL2SafeFinalizedCurrentL1)
+}
+
+func followL2SafeFinalizedCurrentL1(t devtest.T, source followSource) {
+	sys := newSingleChainTwoVerifiersFollowL2(t, source)
 	logger := t.Logger()
 
 	// Takes about 2 minutes for L1 finalization
 	attempts := 70
 	target := uint64(3)
 
-	// L2CL is the sequencer and L2CLB the deriving verifier, both op-node by the preset.
-	// L2CLC follows L2CLB with derivation disabled and runs the CL kind DEVSTACK_L2CL_KIND selects.
-	// All verifiers must eventually advance unsafe, safe, finalized
+	// L2CL is the sequencer and L2CLB the deriving verifier. L2CLC follows L2CLB with derivation
+	// disabled. All verifiers must eventually advance unsafe, safe, finalized
 	checkMatchedAll := func(lvl safety.Level) {
 		dsl.CheckAll(t,
 			sys.L2CL.ReachedFn(lvl, target, attempts),
@@ -56,8 +58,11 @@ func TestFollowL2_Safe_Finalized_CurrentL1(gt *testing.T) {
 }
 
 func TestFollowL2_ReorgRecovery(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	sys := newSingleChainTwoVerifiersFollowL2(t)
+	forEachFollowSource(gt, followL2ReorgRecovery)
+}
+
+func followL2ReorgRecovery(t devtest.T, source followSource) {
+	sys := newSingleChainTwoVerifiersFollowL2(t, source)
 	require := t.Require()
 	logger := t.Logger()
 	ctx := t.Ctx()
@@ -163,13 +168,16 @@ func TestFollowL2_ReorgRecovery(gt *testing.T) {
 }
 
 func TestFollowL2_WithoutCLP2P(gt *testing.T) {
-	t := devtest.ParallelT(gt)
+	forEachFollowSource(gt, followL2WithoutCLP2P)
+}
+
+func followL2WithoutCLP2P(t devtest.T, source followSource) {
 	// Without CL P2P, L2CLC learns of new blocks only from its follow source, polled every two
 	// L2 blocks. When the source's local-safe head is past L2CLC's unsafe head, op-node has its
 	// EL sync to it, gets SYNCING back and resets local-safe to the finalized head. It recovers
 	// at the next poll that finds the source's head unchanged. With L1 blocks of 4s or less the
 	// source's safe head moves at almost every poll, so L2CLC keeps resetting. Keep 6s L1 blocks.
-	sys := newSingleChainTwoVerifiersFollowL2(t, presets.WithL1BlockTime(6))
+	sys := newSingleChainTwoVerifiersFollowL2(t, source, presets.WithL1BlockTime(6))
 	require := t.Require()
 	logger := t.Logger()
 
