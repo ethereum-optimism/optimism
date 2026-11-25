@@ -1,6 +1,6 @@
 //! The verifier's configuration file.
 
-use eyre::{Context, Result, bail, ensure};
+use eyre::{Context, Result, ensure};
 use kona_genesis::RollupConfig;
 use kona_interop::DependencySet;
 use serde::Deserialize;
@@ -87,25 +87,72 @@ impl Config {
     }
 }
 
-/// The timestamp from which interop is active on every chain: the latest `lagoon_time`, where a
+/// The timestamp from which interop is active on every chain. Every chain must schedule interop
+/// (`lagoon_time`) at the same time, since verification moves over all of them in lockstep; a
 /// chain activating before its genesis, as at genesis, activates at its genesis.
 fn activation_timestamp(chains: &[Chain]) -> Result<u64> {
-    if chains.is_empty() {
-        bail!("the configuration names no chains");
-    }
-    chains
-        .iter()
-        .map(|chain| {
-            let config = &chain.rollup_config;
-            let lagoon_time = config.hardforks.lagoon_time.ok_or_else(|| {
-                eyre::eyre!("chain {} schedules no interop (lagoon_time)", config.l2_chain_id.id())
-            })?;
-            Ok(lagoon_time.max(config.genesis.l2_time))
+    let Some(first) = chains.first() else {
+        return Err(eyre::eyre!("the configuration names no chains"));
+    };
+    let lagoon_time = |config: &RollupConfig| {
+        config.hardforks.lagoon_time.ok_or_else(|| {
+            eyre::eyre!("chain {} schedules no interop (lagoon_time)", config.l2_chain_id.id())
         })
-        .try_fold(0, |latest, time: Result<u64>| Ok(latest.max(time?)))
+    };
+    let first_time = lagoon_time(&first.rollup_config)?;
+    let mut activation = 0;
+    for chain in chains {
+        let config = &chain.rollup_config;
+        let time = lagoon_time(config)?;
+        ensure!(
+            time == first_time,
+            "chain {} activates interop at {time}, chain {} at {first_time}: all chains must activate it at the same time",
+            config.l2_chain_id.id(),
+            first.rollup_config.l2_chain_id.id()
+        );
+        activation = activation.max(time.max(config.genesis.l2_time));
+    }
+    Ok(activation)
 }
 
 fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T> {
     let file = File::open(path).wrap_err_with(|| format!("open {}", path.display()))?;
     serde_json::from_reader(file).wrap_err_with(|| format!("parse {}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kona_genesis::ChainGenesis;
+
+    fn chain(chain_id: u64, lagoon_time: Option<u64>) -> Chain {
+        let mut rollup_config = RollupConfig {
+            l2_chain_id: chain_id.into(),
+            genesis: ChainGenesis { l2_time: 100, ..Default::default() },
+            ..Default::default()
+        };
+        rollup_config.hardforks.lagoon_time = lagoon_time;
+        Chain {
+            rollup_config,
+            cl_rpc: "http://127.0.0.1:1".parse().unwrap(),
+            el_rpc: "http://127.0.0.1:2".parse().unwrap(),
+        }
+    }
+
+    #[test]
+    fn chains_activating_interop_together_activate_at_that_time_or_genesis() {
+        assert_eq!(activation_timestamp(&[chain(1, Some(150)), chain(2, Some(150))]).unwrap(), 150);
+        assert_eq!(activation_timestamp(&[chain(1, Some(0)), chain(2, Some(0))]).unwrap(), 100);
+    }
+
+    #[rstest::rstest]
+    #[case::other_times(Some(150), Some(160))]
+    #[case::one_without_interop(Some(150), None)]
+    fn chains_activating_interop_apart_are_refused(
+        #[case] first: Option<u64>,
+        #[case] second: Option<u64>,
+    ) {
+        assert!(activation_timestamp(&[chain(1, first), chain(2, second)]).is_err());
+        assert!(activation_timestamp(&[]).is_err());
+    }
 }
