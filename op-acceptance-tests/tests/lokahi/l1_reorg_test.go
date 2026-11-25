@@ -135,8 +135,8 @@ func awaitVerifiedBelow(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode, n
 	chainID, ok := node.ChainID().Uint64()
 	t.Require().True(ok, "chain ID fits in 64 bits")
 	err = wait.For(ctx, 100*time.Millisecond, func() (bool, error) {
-		var head verifierHead
-		if err := client.CallContext(ctx, &head, "interop_verifiedHead", chainID); err != nil {
+		head, err := verifiedHead(ctx, client, chainID)
+		if err != nil {
 			return false, nil
 		}
 		return head.Source == "verified" && head.Block.Number < number, nil
@@ -195,8 +195,7 @@ func watchLabels(t devtest.T, lokahi *sysgo.Lokahi, nodes []*dsl.L2CLNode, els m
 					return
 				case <-ticker.C:
 				}
-				var head verifierHead
-				if err := client.CallContext(ctx, &head, "interop_verifiedHead", chainID); err == nil {
+				if head, err := verifiedHead(ctx, client, chainID); err == nil {
 					w.add(func(r *labelRecord) { r.verified[node] = append(r.verified[node], timedHead{time.Now(), head}) })
 				}
 				status, err := node.Escape().RollupAPI().SyncStatus(ctx)

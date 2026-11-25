@@ -35,20 +35,21 @@ func TestLokahiL1ReorgOfADenial(gt *testing.T) {
 	d.converge(t, sys)
 }
 
-// TestLokahiStaleDenialAcrossL1Reorg checks that a node does not act on a denial decided on L1
-// blocks a reorg removed, although the denial is still in the last answer it has: lokahi is down
-// across the reorg, so the node cannot hear that lokahi deleted it. The node derives the denied
-// block again rather than keep the replacement, and once lokahi is back lokahi decides on the new
-// L1 chain, denies the block again, and the chain converges.
+// TestLokahiStaleDenialAcrossL1Reorg checks a node that holds a denial decided on L1 blocks a
+// reorg removed while lokahi is down across the reorg, so the node cannot hear that lokahi deleted
+// it. The node keeps acting on the last denials it heard: deriving the denied block again from its
+// batch on the new L1 chain, it replaces it again, and its safe head, which only lokahi moves,
+// does not rise. Once lokahi is back it deletes the denial with a new epoch, the node derives again
+// from its finalized head, lokahi decides on the new L1 chain, denies the block again, and the
+// chain converges.
 func TestLokahiStaleDenialAcrossL1Reorg(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2Lokahi(t)
 	d := denyOnHandBuiltL1(t, sys)
+	safeAtStop := sys.L2BCL.HeadBlockRef(safety.CrossSafe)
 	sys.Lokahi.Stop()
 	d.reorg(t, sys)
 
-	// The batch of the denied block lands again on the new L1 chain, and chain B's node derives
-	// the block from it instead of replacing it on the strength of the stale denial.
 	ctx, cancel := context.WithTimeout(t.Ctx(), 3*time.Minute)
 	defer cancel()
 	err := wait.For(ctx, time.Second, func() (bool, error) {
@@ -60,11 +61,14 @@ func TestLokahiStaleDenialAcrossL1Reorg(gt *testing.T) {
 		if err != nil {
 			return false, nil
 		}
+		if status.SafeL2.Number > safeAtStop.Number {
+			return false, fmt.Errorf("chain B's safe head rose to %s while lokahi was down", status.SafeL2)
+		}
 		t.Logger().Info("Waiting for chain B to derive past the denied height", "block", block.ID(),
-			"local_safe", status.LocalSafeL2.Number)
-		return block.ID() == d.denied && status.LocalSafeL2.Number > d.denied.Number, nil
+			"local_safe", status.LocalSafeL2.Number, "safe", status.SafeL2.Number)
+		return block.ID() != d.denied && status.LocalSafeL2.Number > d.denied.Number, nil
 	})
-	t.Require().NoError(err, "chain B's node must derive the denied block %s again while lokahi is down", d.denied)
+	t.Require().NoError(err, "chain B's node must keep the denial of %s while lokahi is down", d.denied)
 	logHeads(t, "lokahi down after the reorg", []*dsl.L2CLNode{sys.L2ACL, sys.L2BCL})
 
 	sys.Lokahi.Start()
@@ -152,7 +156,7 @@ func (d *denialOnHandBuiltL1) converge(t devtest.T, sys *presets.TwoL2Lokahi) {
 	logHeads(t, "converged", []*dsl.L2CLNode{sys.L2ACL, sys.L2BCL})
 	t.Logger().Info("Converged after the reorg", "denied", d.denied, "replacement_before", d.replacement,
 		"block_now", final.ID(), "same_replacement", final.ID() == d.replacement,
-		"denied_again", slices.ContainsFunc(denials, func(r deniedBlock) bool { return r.Block == d.denied }),
+		"denied_again", slices.Contains(denials, d.denied),
 		"denials_now", denials)
 
 	record := d.watch.stop()
@@ -172,14 +176,13 @@ func (d *denialOnHandBuiltL1) converge(t devtest.T, sys *presets.TwoL2Lokahi) {
 	t.Require().NoError(errors.Join(errs...))
 }
 
-// deniedBlock is one entry of lokahi's answer to interop_deniedBlocks.
-type deniedBlock struct {
-	Block eth.BlockID `json:"block"`
-	L1    eth.BlockID `json:"l1"`
+// deniedBlocks asks lokahi for the denied blocks of node's chain.
+func deniedBlocks(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode) []eth.BlockID {
+	return lokahiStatusOf(t, lokahi, node).Denied
 }
 
-// deniedBlocks asks lokahi for the denied blocks of node's chain.
-func deniedBlocks(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode) []deniedBlock {
+// lokahiStatusOf asks lokahi for the status of node's chain.
+func lokahiStatusOf(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode) lokahiStatus {
 	ctx, cancel := context.WithTimeout(t.Ctx(), 30*time.Second)
 	defer cancel()
 	client, err := rpc.DialContext(ctx, lokahi.UserRPC())
@@ -187,7 +190,7 @@ func deniedBlocks(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode) []denie
 	defer client.Close()
 	chainID, ok := node.ChainID().Uint64()
 	t.Require().True(ok, "chain ID fits in 64 bits")
-	var denied []deniedBlock
-	t.Require().NoError(client.CallContext(ctx, &denied, "interop_deniedBlocks", chainID, 0), "interop_deniedBlocks")
-	return denied
+	status, err := chainStatus(ctx, client, chainID)
+	t.Require().NoError(err, "interop_chainStatus")
+	return status
 }

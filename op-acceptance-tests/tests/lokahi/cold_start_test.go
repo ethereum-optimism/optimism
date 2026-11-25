@@ -22,8 +22,9 @@ const coldStartHistory = 100
 
 // TestLokahiColdStart checks that lokahi started with an empty store against chains with history
 // verifies them again from activation up to where it was, and that a restart partway resumes from
-// the store. Until lokahi caught up it answers no heads, so no node's safe head moves back
-// meanwhile. It logs the rate of each leg.
+// the store. The empty store has a new epoch, so each node derives again from its finalized head
+// once, which drops its safe head to the finalized head; otherwise, as lokahi answers no heads
+// until it caught up, no safe head moves back meanwhile. It logs the rate of each leg.
 func TestLokahiColdStart(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewTwoL2Lokahi(t)
@@ -39,27 +40,27 @@ func TestLokahiColdStart(gt *testing.T) {
 	dsl.CheckAll(t, checks...)
 	target := verifiedHeads(t, sys.Lokahi, nodes)[nodes[0]]
 
-	// While lokahi verifies again it answers no heads, so the safe heads hold.
-	watch := watchSafeHeads(t, nodes)
+	// While lokahi verifies again it answers no heads, so the safe heads hold but for the drop to
+	// finality on the new epoch.
+	watch := watchSafeHeadsDropping(t, nodes, 1)
 	sys.Lokahi.Stop()
 	sys.Lokahi.WipeData()
 	sys.Lokahi.Start()
 	start := time.Now()
 
 	halfway := activation + (target.Timestamp-activation)/2
-	mid, midAt := waitVerifiedTimestamp(t, sys.Lokahi, nodes[0], halfway)
-	logRate(t, "cold start to halfway", activation, mid.Timestamp, midAt.Sub(start), rollupCfg.BlockTime, len(nodes))
+	midAt := waitVerifiedTimestamp(t, sys.Lokahi, halfway)
+	logRate(t, "cold start to halfway", activation, halfway, midAt.Sub(start), rollupCfg.BlockTime, len(nodes))
 
 	// A restart partway resumes from the store rather than from activation.
 	sys.Lokahi.Stop()
 	sys.Lokahi.Start()
 	restart := time.Now()
-	resumed := firstProgress(t, sys.Lokahi, nodes[0])
-	t.Require().Greater(resumed, mid.Timestamp, "lokahi resumes from the store")
+	t.Require().True(verifiedOnceAnswering(t, sys.Lokahi, halfway), "lokahi resumes from the store")
 
-	end, endAt := waitVerifiedTimestamp(t, sys.Lokahi, nodes[0], target.Timestamp)
-	logRate(t, "resumed to the head before the cold start", resumed-1, end.Timestamp, endAt.Sub(restart), rollupCfg.BlockTime, len(nodes))
-	logRate(t, "whole cold start, with the restart", activation, end.Timestamp, endAt.Sub(start), rollupCfg.BlockTime, len(nodes))
+	endAt := waitVerifiedTimestamp(t, sys.Lokahi, target.Timestamp)
+	logRate(t, "resumed to the head before the cold start", halfway, target.Timestamp, endAt.Sub(restart), rollupCfg.BlockTime, len(nodes))
+	logRate(t, "whole cold start, with the restart", activation, target.Timestamp, endAt.Sub(start), rollupCfg.BlockTime, len(nodes))
 	t.Require().NoError(watch.stop(), "no safe head may move back while lokahi catches up")
 
 	checks = nil
@@ -70,9 +71,9 @@ func TestLokahiColdStart(gt *testing.T) {
 	logHeads(t, "after the cold start", nodes)
 }
 
-// waitVerifiedTimestamp polls lokahi until node's chain is verified at timestamp, also while
-// lokahi has not caught up yet, returning the verified timestamp and when it was seen.
-func waitVerifiedTimestamp(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode, timestamp uint64) (verifierHead, time.Time) {
+// waitVerifiedTimestamp polls lokahi until it verified timestamp, also while it has not caught up
+// yet, returning when it saw it.
+func waitVerifiedTimestamp(t devtest.T, lokahi *sysgo.Lokahi, timestamp uint64) time.Time {
 	ctx, cancel := context.WithTimeout(t.Ctx(), 5*time.Minute)
 	defer cancel()
 	client, err := rpc.DialContext(ctx, lokahi.UserRPC())
@@ -81,8 +82,8 @@ func waitVerifiedTimestamp(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		if next, _, err := lokahiProgress(ctx, client, node); err == nil && next > timestamp {
-			return verifierHead{Timestamp: next - 1, Source: "verified"}, time.Now()
+		if verified, err := verifiedAt(ctx, client, timestamp); err == nil && verified {
+			return time.Now()
 		}
 		select {
 		case <-ctx.Done():
@@ -101,20 +102,19 @@ func logRate(t devtest.T, leg string, from, to uint64, elapsed time.Duration, bl
 		"blocks_per_s", fmt.Sprintf("%.1f", perSecond*float64(chains)/float64(blockTime)))
 }
 
-// firstProgress returns the next timestamp lokahi verifies for node's chain, as soon as it
-// answers.
-func firstProgress(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode) uint64 {
+// verifiedOnceAnswering reports whether lokahi has timestamp verified as soon as it answers.
+func verifiedOnceAnswering(t devtest.T, lokahi *sysgo.Lokahi, timestamp uint64) bool {
 	ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute)
 	defer cancel()
 	client, err := rpc.DialContext(ctx, lokahi.UserRPC())
 	t.Require().NoError(err, "dial lokahi")
 	defer client.Close()
-	var next uint64
+	var verified bool
 	err = wait.For(ctx, 20*time.Millisecond, func() (bool, error) {
-		n, _, err := lokahiProgress(ctx, client, node)
-		next = n
-		return err == nil && n > 0, nil
+		v, err := verifiedAt(ctx, client, timestamp)
+		verified = v
+		return err == nil, nil
 	})
 	t.Require().NoError(err, "lokahi did not answer")
-	return next
+	return verified
 }

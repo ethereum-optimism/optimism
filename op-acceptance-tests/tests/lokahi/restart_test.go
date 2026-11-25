@@ -2,12 +2,15 @@ package lokahi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -60,11 +63,43 @@ func TestSafeHeadHoldsAcrossLokahiRestart(gt *testing.T) {
 	t.Require().NoError(errors.Join(errs...))
 }
 
-// verifierHead is lokahi's answer to interop_verifiedHead and interop_finalizedHead.
+// verifierHead is a head in lokahi's answer to interop_chainStatus.
 type verifierHead struct {
 	Block     eth.BlockID `json:"block"`
 	Timestamp uint64      `json:"timestamp"`
 	Source    string      `json:"source"`
+	L1        eth.BlockID `json:"l1"`
+}
+
+// lokahiStatus is lokahi's answer to interop_chainStatus: its heads are nil until it caught up
+// with its sources.
+type lokahiStatus struct {
+	Epoch     common.Hash   `json:"epoch"`
+	Verified  *verifierHead `json:"verified"`
+	Finalized *verifierHead `json:"finalized"`
+	Denied    []eth.BlockID `json:"denied"`
+}
+
+// chainStatus asks lokahi for chainID's status, with every denied block.
+func chainStatus(ctx context.Context, client *rpc.Client, chainID uint64) (lokahiStatus, error) {
+	var status lokahiStatus
+	err := client.CallContext(ctx, &status, "interop_chainStatus", chainID, 0)
+	return status, err
+}
+
+// errNotCaughtUp is lokahi answering no heads, as until it caught up with its sources.
+var errNotCaughtUp = errors.New("lokahi answers no heads yet")
+
+// verifiedHead asks lokahi for chainID's verified head.
+func verifiedHead(ctx context.Context, client *rpc.Client, chainID uint64) (verifierHead, error) {
+	status, err := chainStatus(ctx, client, chainID)
+	if err != nil {
+		return verifierHead{}, err
+	}
+	if status.Verified == nil {
+		return verifierHead{}, errNotCaughtUp
+	}
+	return *status.Verified, nil
 }
 
 // verifiedHeads asks lokahi for each node's chain's verified head, waiting until lokahi caught up
@@ -82,37 +117,26 @@ func verifiedHeads(t devtest.T, lokahi *sysgo.Lokahi, nodes []*dsl.L2CLNode) map
 		var head verifierHead
 		var lastErr error
 		err := wait.For(ctx, 50*time.Millisecond, func() (bool, error) {
-			lastErr = client.CallContext(ctx, &head, "interop_verifiedHead", chainID)
+			head, lastErr = verifiedHead(ctx, client, chainID)
 			return lastErr == nil, nil
 		})
-		t.Require().NoError(err, "interop_verifiedHead: %v", lastErr)
+		t.Require().NoError(err, "interop_chainStatus: %v", lastErr)
 		heads[node] = head
 	}
 	return heads
 }
 
-// lokahiProgress asks lokahi for node's chain's verified head and returns the next timestamp it
-// verifies, also while it answers no head because it has not caught up with its sources, and
-// whether it answered a head.
-func lokahiProgress(ctx context.Context, client *rpc.Client, node *dsl.L2CLNode) (next uint64, caughtUp bool, err error) {
-	chainID, ok := node.ChainID().Uint64()
-	if !ok {
-		return 0, false, fmt.Errorf("chain ID %s does not fit in 64 bits", node.ChainID())
+// verifiedAt reports whether lokahi verified timestamp, also while it answers no heads because it
+// has not caught up with its sources: superroot_atTimestamp answers verified timestamps from its
+// store.
+func verifiedAt(ctx context.Context, client *rpc.Client, timestamp uint64) (bool, error) {
+	var resp struct {
+		Data *json.RawMessage `json:"data"`
 	}
-	var head verifierHead
-	err = client.CallContext(ctx, &head, "interop_verifiedHead", chainID)
-	var dataErr rpc.DataError
-	switch {
-	case err == nil && head.Source == "verified":
-		return head.Timestamp + 1, true, nil
-	case err == nil:
-		return 0, true, nil
-	case errors.As(err, &dataErr):
-		if timestamp, ok := dataErr.ErrorData().(float64); ok {
-			return uint64(timestamp), false, nil
-		}
+	if err := client.CallContext(ctx, &resp, "superroot_atTimestamp", hexutil.Uint64(timestamp)); err != nil {
+		return false, err
 	}
-	return 0, false, err
+	return resp.Data != nil, nil
 }
 
 // safeHeadWatch polls nodes' safe heads until stopped and records the first time one decreases.
@@ -124,6 +148,12 @@ type safeHeadWatch struct {
 }
 
 func watchSafeHeads(t devtest.T, nodes []*dsl.L2CLNode) *safeHeadWatch {
+	return watchSafeHeadsDropping(t, nodes, 0)
+}
+
+// watchSafeHeadsDropping is [watchSafeHeads] that lets each node's safe head drop to its
+// finalized head up to drops times, as a node does when lokahi's epoch changes.
+func watchSafeHeadsDropping(t devtest.T, nodes []*dsl.L2CLNode, drops int) *safeHeadWatch {
 	ctx, cancel := context.WithCancel(t.Ctx())
 	w := &safeHeadWatch{cancel: cancel}
 	for _, node := range nodes {
@@ -131,6 +161,7 @@ func watchSafeHeads(t devtest.T, nodes []*dsl.L2CLNode) *safeHeadWatch {
 		go func() {
 			defer w.wg.Done()
 			var last uint64
+			dropped := 0
 			ticker := time.NewTicker(100 * time.Millisecond)
 			defer ticker.Stop()
 			for {
@@ -145,8 +176,13 @@ func watchSafeHeads(t devtest.T, nodes []*dsl.L2CLNode) *safeHeadWatch {
 				}
 				safe := status.SafeL2.Number
 				if safe < last {
-					t.Logger().Warn("Safe head moved back", "node", node.String(), "from", last, "to", safe)
-					w.fail(fmt.Errorf("%s: safe head moved back from %d to %d", node, last, safe))
+					t.Logger().Warn("Safe head moved back", "node", node.String(), "from", last, "to", safe,
+						"finalized", status.FinalizedL2.Number)
+					if dropped < drops && status.SafeL2.ID() == status.FinalizedL2.ID() {
+						dropped++
+					} else {
+						w.fail(fmt.Errorf("%s: safe head moved back from %d to %d", node, last, safe))
+					}
 				}
 				last = safe
 			}
