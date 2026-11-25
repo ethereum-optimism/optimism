@@ -121,7 +121,6 @@ impl ConsolidateTask {
             safe_l2,
             EngineSyncStateUpdate {
                 local_safe_head: Some(*safe_l2),
-                safe_head: Some(*safe_l2),
                 unsafe_head: Some(*safe_l2),
                 ..Default::default()
             },
@@ -153,11 +152,7 @@ impl ConsolidateTask {
         self.apply_delegated_safe_head(
             state,
             safe_l2,
-            EngineSyncStateUpdate {
-                local_safe_head: Some(*safe_l2),
-                safe_head: Some(*safe_l2),
-                ..Default::default()
-            },
+            EngineSyncStateUpdate { local_safe_head: Some(*safe_l2), ..Default::default() },
             "Updated safe head while the execution layer syncs",
         )
         .await
@@ -245,7 +240,7 @@ impl ConsolidateTask {
                 debug!(
                     target: "engine",
                     safe_l2 = %safe_l2,
-                    safe_number = state.sync_state.safe_head().block_info.number,
+                    safe_number = state.sync_state.local_safe_head().block_info.number,
                     "Ignoring a delegated safe head behind the safe head"
                 );
                 Ok(())
@@ -313,7 +308,6 @@ impl ConsolidateTask {
 
                     // Apply a transient update to the safe head.
                     state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
-                        safe_head: Some(block_info),
                         local_safe_head: Some(block_info),
                         ..Default::default()
                     });
@@ -332,7 +326,6 @@ impl ConsolidateTask {
                     self.block_sink.block_imported(consensus_block, block_info);
 
                     let update = EngineSyncStateUpdate {
-                        safe_head: Some(block_info),
                         local_safe_head: Some(block_info),
                         ..Default::default()
                     };
@@ -412,15 +405,17 @@ impl ExecutableEngineTask for ConsolidateTask {
             // labels back to a consistent state; ignoring a lagging delegate would keep them broken
             // until a finalization above the unsafe head fails.
             let are_labels_consistent = state.sync_state.unsafe_head().block_info.number >=
-                state.sync_state.safe_head().block_info.number;
+                state.sync_state.local_safe_head().block_info.number;
             if are_labels_consistent &&
-                safe_l2.block_info.number < state.sync_state.safe_head().block_info.number
+                safe_l2.block_info.number < state.sync_state.local_safe_head().block_info.number
             {
                 return self.follow_delegated_safe_head_behind_safe_head(state, safe_l2).await;
             }
         }
         let safe_head_number = match &self.input {
-            ConsolidateInput::Attributes { .. } => state.sync_state.safe_head().block_info.number,
+            ConsolidateInput::Attributes { .. } => {
+                state.sync_state.local_safe_head().block_info.number
+            }
             ConsolidateInput::BlockInfo(safe_block_info) => safe_block_info.block_info.number,
         };
         if safe_head_number < state.sync_state.unsafe_head().block_info.number {

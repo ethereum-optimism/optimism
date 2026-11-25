@@ -62,7 +62,7 @@ impl ExecutableEngineTask for InsertTask {
 }
 
 /// Inserts `payload` into the execution engine with `engine_newPayload`, then makes it the unsafe
-/// head, and the safe head too if `is_payload_safe`, with a forkchoice update. Returns the
+/// head, and the local-safe head too if `is_payload_safe`, with a forkchoice update. Returns the
 /// inserted block's [`L2BlockInfo`].
 ///
 /// Once the block is canonical it is handed to `block_sink`.
@@ -128,7 +128,6 @@ pub(in crate::task_queue) async fn insert_payload(
         EngineSyncStateUpdate {
             unsafe_head: Some(new_unsafe_ref),
             local_safe_head: is_payload_safe.then_some(new_unsafe_ref),
-            safe_head: is_payload_safe.then_some(new_unsafe_ref),
             ..Default::default()
         },
     )

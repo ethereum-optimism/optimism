@@ -19,7 +19,7 @@ kona-providers-alloy.workspace = true
 
 # alloy
 alloy-hardforks.workspace = true
-alloy-eips.workspace = true
+alloy-eips = { workspace = true, features = ["serde"] }
 alloy-consensus.workspace = true
 alloy-network.workspace = true
 alloy-transport.workspace = true

@@ -30,5 +30,8 @@ pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
 mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
+mod promote;
+pub use promote::{PromoteTask, PromoteTaskError, VerifierHead};
+
 mod util;
 pub(super) use util::{BuildAndImportError, build_and_import};

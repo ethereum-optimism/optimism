@@ -32,9 +32,33 @@ pub struct EngineSyncState {
     safe_head: L2BlockInfo,
     /// Derived from finalized L1 data with only finalized dependencies (highest safety level).
     finalized_head: L2BlockInfo,
+    /// What moves the safe label.
+    safe_label: SafeLabel,
+}
+
+/// What moves the safe label of an [`EngineSyncState`].
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum SafeLabel {
+    /// The safe label is the local-safe head: every local-safe update moves it too.
+    #[default]
+    LocalSafe,
+    /// An external verifier moves the safe label, through [`crate::PromoteTask`]. Local-safe
+    /// updates leave it, except that it never stays ahead of local-safe or below finality: a
+    /// local-safe head moving under it, as a reset does, drops it to the finalized head.
+    Verified,
 }
 
 impl EngineSyncState {
+    /// An empty sync state whose safe label is moved as `safe_label` says.
+    pub fn new(safe_label: SafeLabel) -> Self {
+        Self { safe_label, ..Default::default() }
+    }
+
+    /// Returns what moves the safe label.
+    pub const fn safe_label(&self) -> SafeLabel {
+        self.safe_label
+    }
+
     /// Returns the current unsafe head.
     pub const fn unsafe_head(&self) -> L2BlockInfo {
         self.unsafe_head
@@ -78,6 +102,10 @@ impl EngineSyncState {
 
     /// Applies the update to the provided sync state, using the current state values if the update
     /// is not specified. Returns the new sync state.
+    ///
+    /// The safe label follows [`Self::safe_label`]: with [`SafeLabel::LocalSafe`], a local-safe
+    /// update without a safe head moves the safe label along; with [`SafeLabel::Verified`], only an
+    /// explicit safe head moves it, and it is held between the finalized and the local-safe head.
     pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
         if let Some(unsafe_head) = sync_state_update.unsafe_head {
             Self::update_block_label_metric(
@@ -91,9 +119,6 @@ impl EngineSyncState {
                 local_safe_head.block_info.number,
             );
         }
-        if let Some(safe_head) = sync_state_update.safe_head {
-            Self::update_block_label_metric(Metrics::SAFE_BLOCK_LABEL, safe_head.block_info.number);
-        }
         if let Some(finalized_head) = sync_state_update.finalized_head {
             Self::update_block_label_metric(
                 Metrics::FINALIZED_BLOCK_LABEL,
@@ -101,12 +126,52 @@ impl EngineSyncState {
             );
         }
 
+        let local_safe_head = sync_state_update.local_safe_head.unwrap_or(self.local_safe_head);
+        let finalized_head = sync_state_update.finalized_head.unwrap_or(self.finalized_head);
+        let safe_head = match self.safe_label {
+            SafeLabel::LocalSafe => sync_state_update
+                .safe_head
+                .or(sync_state_update.local_safe_head)
+                .unwrap_or(self.safe_head),
+            SafeLabel::Verified => Self::bounded_verified_safe_head(
+                sync_state_update.safe_head.unwrap_or(self.safe_head),
+                local_safe_head,
+                finalized_head,
+            ),
+        };
+        if safe_head != self.safe_head || sync_state_update.safe_head.is_some() {
+            Self::update_block_label_metric(Metrics::SAFE_BLOCK_LABEL, safe_head.block_info.number);
+        }
+
         Self {
             unsafe_head: sync_state_update.unsafe_head.unwrap_or(self.unsafe_head),
-            local_safe_head: sync_state_update.local_safe_head.unwrap_or(self.local_safe_head),
-            safe_head: sync_state_update.safe_head.unwrap_or(self.safe_head),
-            finalized_head: sync_state_update.finalized_head.unwrap_or(self.finalized_head),
+            local_safe_head,
+            safe_head,
+            finalized_head,
+            safe_label: self.safe_label,
         }
+    }
+
+    /// A verified safe head held between `finalized` and `local_safe`. A safe head ahead of
+    /// local-safe, or a different block at its height, is not on the derived chain any more, so
+    /// the label falls back to the finalized head rather than to anything local-safe. A safe head
+    /// below finality, or a different block at its height such as the empty label before the
+    /// first reset, is raised to the finalized head, which is safe by definition.
+    fn bounded_verified_safe_head(
+        safe: L2BlockInfo,
+        local_safe: L2BlockInfo,
+        finalized: L2BlockInfo,
+    ) -> L2BlockInfo {
+        let (safe_id, local_safe_id, finalized_id) =
+            (safe.block_info.id(), local_safe.block_info.id(), finalized.block_info.id());
+        let off_local_safe_chain = safe_id.number > local_safe_id.number ||
+            (safe_id.number == local_safe_id.number && safe_id != local_safe_id);
+        let below_finalized = safe_id.number < finalized_id.number ||
+            (safe_id.number == finalized_id.number && safe_id != finalized_id);
+        if off_local_safe_chain || below_finalized {
+            return finalized;
+        }
+        safe
     }
 
     /// Updates a block label metric, keyed by the label.
@@ -162,7 +227,7 @@ impl EngineState {
     ///
     /// [Consolidation]: https://specs.optimism.io/protocol/derivation.html#l1-consolidation-payload-attributes-matching
     pub fn needs_consolidation(&self) -> bool {
-        self.sync_state.safe_head() != self.sync_state.unsafe_head()
+        self.sync_state.local_safe_head() != self.sync_state.unsafe_head()
     }
 }
 

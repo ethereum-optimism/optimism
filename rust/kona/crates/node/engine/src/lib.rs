@@ -42,8 +42,8 @@ pub use task_queue::{
     BuildTask, BuildTaskError, CanonicalizeTask, CanonicalizeTaskError, ConsolidateInput,
     ConsolidateTask, ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask,
     EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, ExecutableEngineTask,
-    FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask, InsertTaskError, SealTask,
-    SealTaskError, SynchronizeTaskError,
+    FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask, InsertTaskError, PromoteTask,
+    PromoteTaskError, SealTask, SealTaskError, SynchronizeTaskError, VerifierHead,
 };
 
 mod attributes;
@@ -65,7 +65,9 @@ mod versions;
 pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};
 
 mod state;
-pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate, FinalityViolation};
+pub use state::{
+    EngineState, EngineSyncState, EngineSyncStateUpdate, FinalityViolation, SafeLabel,
+};
 
 mod kinds;
 pub use kinds::EngineKind;

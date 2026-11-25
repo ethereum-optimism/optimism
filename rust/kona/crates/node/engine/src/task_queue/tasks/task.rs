@@ -4,9 +4,11 @@
 
 use super::{
     BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, FinalizeTask, InsertTask,
+    PromoteTask,
 };
 use crate::{
     BuildTaskError, ConsolidateTaskError, EngineState, FinalizeTaskError, InsertTaskError,
+    PromoteTaskError,
     task_queue::{SealTask, SealTaskError},
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
@@ -81,6 +83,9 @@ pub enum EngineTaskErrors {
     /// An error that occurred while finalizing an L2 block.
     #[error(transparent)]
     Finalize(#[from] FinalizeTaskError),
+    /// An error that occurred while moving the safe label to a verifier's head.
+    #[error(transparent)]
+    Promote(#[from] PromoteTaskError),
 }
 
 impl EngineTaskError for EngineTaskErrors {
@@ -92,6 +97,7 @@ impl EngineTaskError for EngineTaskErrors {
             Self::Canonicalize(inner) => inner.severity(),
             Self::Consolidate(inner) => inner.severity(),
             Self::Finalize(inner) => inner.severity(),
+            Self::Promote(inner) => inner.severity(),
         }
     }
 }
@@ -114,6 +120,8 @@ pub enum EngineTask {
     Consolidate(Box<ConsolidateTask>),
     /// Finalizes an L2 block
     Finalize(Box<FinalizeTask>),
+    /// Moves the safe label to a cross-chain verifier's head.
+    Promote(Box<PromoteTask>),
 }
 
 impl EngineTask {
@@ -135,6 +143,7 @@ impl EngineTask {
             Self::Canonicalize(task) => task.execute(state).await?,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
+            Self::Promote(task) => task.execute(state).await?,
             Self::Build(task) => {
                 task.execute(state).await?;
             }
@@ -150,6 +159,7 @@ impl EngineTask {
             Self::Build(_) => crate::Metrics::BUILD_TASK_LABEL,
             Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
             Self::Finalize(_) => crate::Metrics::FINALIZE_TASK_LABEL,
+            Self::Promote(_) => crate::Metrics::PROMOTE_TASK_LABEL,
         }
     }
 }
@@ -163,7 +173,8 @@ impl PartialEq for EngineTask {
                 (Self::Seal(_), Self::Seal(_)) |
                 (Self::Canonicalize(_), Self::Canonicalize(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
-                (Self::Finalize(_), Self::Finalize(_))
+                (Self::Finalize(_), Self::Finalize(_)) |
+                (Self::Promote(_), Self::Promote(_))
         )
     }
 }
@@ -186,8 +197,10 @@ impl Ord for EngineTask {
         //   sequencer. BuildTask handles forkchoice updates automatically.
         // - InsertUnsafe tasks are prioritized over Consolidate tasks, to ensure that unsafe block
         //   gossip is imported promptly.
-        // - Consolidate tasks are prioritized over Finalize tasks, as they advance the safe chain
-        //   via derivation.
+        // - Consolidate tasks are prioritized over Promote and Finalize tasks, as they advance the
+        //   local-safe chain via derivation.
+        // - Promote tasks come before Finalize tasks, so a verifier's safe head lands before the
+        //   finalized head it bounds.
         // - Finalize tasks have the lowest priority, as they only update finalized status.
         match (self, other) {
             // Same variant cases
@@ -196,6 +209,7 @@ impl Ord for EngineTask {
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
             (Self::Canonicalize(_), Self::Canonicalize(_)) |
+            (Self::Promote(_), Self::Promote(_)) |
             (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
 
             // Finish importing a sequenced block before starting another build.
@@ -214,9 +228,13 @@ impl Ord for EngineTask {
             (Self::Insert(_), _) => Ordering::Greater,
             (_, Self::Insert(_)) => Ordering::Less,
 
-            // Consolidate tasks are prioritized over Finalize tasks
+            // Consolidate tasks are prioritized over Promote and Finalize tasks
             (Self::Consolidate(_), _) => Ordering::Greater,
             (_, Self::Consolidate(_)) => Ordering::Less,
+
+            // Promote tasks are prioritized over Finalize tasks
+            (Self::Promote(_), _) => Ordering::Greater,
+            (_, Self::Promote(_)) => Ordering::Less,
         }
     }
 }

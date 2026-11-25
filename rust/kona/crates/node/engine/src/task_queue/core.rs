@@ -3,7 +3,7 @@
 use super::ExecutableEngineTask;
 use crate::{
     EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
+    EngineTaskErrorSeverity, L2ForkchoiceState, Metrics, SyncStartError, SynchronizeTaskError,
     find_starting_forkchoice,
     task_queue::{EngineTaskErrors, synchronize_unconditionally},
 };
@@ -118,17 +118,7 @@ impl Engine {
         // One attempt. The actor retains the reset request and retries transient failures. The
         // execution layer may have lost or changed its forkchoice, so the reset sends one even when
         // the recovered labels equal the current ones.
-        synchronize_unconditionally(
-            client.as_ref(),
-            &mut self.state,
-            EngineSyncStateUpdate {
-                unsafe_head: Some(start.un_safe),
-                local_safe_head: Some(start.safe),
-                safe_head: Some(start.safe),
-                finalized_head: Some(start.finalized),
-            },
-        )
-        .await?;
+        synchronize_unconditionally(client.as_ref(), &mut self.state, reset_update(start)).await?;
 
         self.state_sender.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
@@ -172,6 +162,20 @@ impl Engine {
         }
 
         Ok(())
+    }
+}
+
+/// The labels a reset recovers from the sync `start`.
+///
+/// Derivation resumes from local-safe, so only local-safe is reset. The safe label is left to the
+/// sync state: it follows local-safe, or, when a verifier moves it, it is held and never raised by
+/// a reset, see [`crate::SafeLabel::Verified`].
+const fn reset_update(start: L2ForkchoiceState) -> EngineSyncStateUpdate {
+    EngineSyncStateUpdate {
+        unsafe_head: Some(start.un_safe),
+        local_safe_head: Some(start.safe),
+        safe_head: None,
+        finalized_head: Some(start.finalized),
     }
 }
 
@@ -385,6 +389,40 @@ mod recovery_tests {
         assert_eq!(engine.state().sync_state, state.sync_state);
         l1.assert_finished();
         l2.assert_finished();
+    }
+
+    /// A reset moves local-safe to the sync start and never raises a verified safe label: one
+    /// below the recovered local-safe head is held, and one the recovered local-safe head drops
+    /// below falls to the recovered finalized head. A safe label following local-safe moves with
+    /// it.
+    #[rstest::rstest]
+    #[case::verified_below_start(crate::SafeLabel::Verified, 12, 10, 10)]
+    #[case::verified_above_start(crate::SafeLabel::Verified, 8, 10, 5)]
+    #[case::local_safe(crate::SafeLabel::LocalSafe, 12, 10, 12)]
+    fn reset_never_raises_a_verified_safe_label(
+        #[case] safe_label: crate::SafeLabel,
+        #[case] start_safe: u64,
+        #[case] safe_before: u64,
+        #[case] expected_safe: u64,
+    ) {
+        let blocks: Vec<_> = (0..=20).map(test_block_info).collect();
+        let state = TestEngineStateBuilder::new()
+            .with_safe_label(safe_label)
+            .with_unsafe_head(blocks[20])
+            .with_local_safe_head(blocks[15])
+            .with_safe_head(blocks[safe_before as usize])
+            .with_finalized_head(blocks[5])
+            .build();
+        let start = L2ForkchoiceState {
+            un_safe: blocks[18],
+            safe: blocks[start_safe as usize],
+            finalized: blocks[5],
+        };
+
+        let reset = state.sync_state.apply_update(reset_update(start));
+
+        assert_eq!(reset.local_safe_head(), start.safe);
+        assert_eq!(reset.safe_head(), blocks[expected_safe as usize]);
     }
 
     // A skipped task is dropped instead of being kept for a retry, so it cannot hold the queue.
