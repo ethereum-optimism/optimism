@@ -27,8 +27,9 @@ import (
 var (
 	_                  activity.RunnableActivity     = (*Interop)(nil)
 	_                  activity.VerificationActivity = (*Interop)(nil)
-	backoffPeriod                                    = 1 * time.Second // backoff when chains aren't ready
-	errorBackoffPeriod                               = 2 * time.Second // backoff on errors
+	backoffPeriod                                    = 1 * time.Second       // backoff when chains aren't ready
+	minBackoffPeriod                                 = 50 * time.Millisecond // first backoff after a round that advanced
+	errorBackoffPeriod                               = 2 * time.Second       // backoff on errors
 )
 
 // ErrRewindPastBackfill halts the activity when a rewind would remove the
@@ -217,6 +218,9 @@ type Interop struct {
 
 	// verifyRounds counts verification loop iterations for periodic progress logging.
 	verifyRounds atomic.Int32
+	// idleRounds counts consecutive verification rounds that made no progress.
+	// It only scales the backoff between rounds; it never affects what is verified.
+	idleRounds int
 
 	// l1Checker must be non-nil whenever observeRound runs. Production sets it
 	// via New; tests inject noopL1Checker.
@@ -473,9 +477,23 @@ func (i *Interop) progress() (time.Duration, error) {
 		i.log.Info("interop verification progress", fields...)
 	}
 	if !madeProgress {
-		return backoffPeriod, nil
+		return i.nextIdleBackoff(), nil
 	}
+	i.idleRounds = 0
 	return 0, nil
+}
+
+// nextIdleBackoff returns how long to sleep after a round that made no progress.
+// While catching up, the next timestamp usually becomes ready within milliseconds,
+// so the backoff starts at minBackoffPeriod and doubles per consecutive idle round
+// up to backoffPeriod. At the tip it settles at backoffPeriod within a few rounds.
+func (i *Interop) nextIdleBackoff() time.Duration {
+	d := minBackoffPeriod
+	for n := 0; n < i.idleRounds && d < backoffPeriod; n++ {
+		d *= 2
+	}
+	i.idleRounds++
+	return min(d, backoffPeriod)
 }
 
 // Stop stops the Interop activity.

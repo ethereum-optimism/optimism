@@ -3462,3 +3462,17 @@ func TestInterop_ProgressAndRecord_L1InconsistencyRewindsWhenChainsNotReady(t *t
 
 	require.Empty(t, mock.rewindEngineCalls, "L1 drift rewinds accepted Supernode state only")
 }
+
+func TestNextIdleBackoff(t *testing.T) {
+	i := &Interop{}
+	want := []time.Duration{
+		50 * time.Millisecond, 100 * time.Millisecond, 200 * time.Millisecond,
+		400 * time.Millisecond, 800 * time.Millisecond, backoffPeriod, backoffPeriod,
+	}
+	for n, w := range want {
+		require.Equal(t, w, i.nextIdleBackoff(), "idle round %d", n)
+	}
+	// A round that made progress resets the ladder.
+	i.idleRounds = 0
+	require.Equal(t, minBackoffPeriod, i.nextIdleBackoff())
+}
