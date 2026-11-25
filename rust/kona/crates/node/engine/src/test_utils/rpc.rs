@@ -1,24 +1,36 @@
 //! Scripted RPC expectations over Alloy's mock transport.
 
-use crate::EngineClient;
+use crate::{EngineClient, test_utils::TestRpcBlock};
 use alloy_json_rpc::{ErrorPayload, RequestPacket, ResponsePacket};
 use alloy_network::Network;
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
+use alloy_rpc_types_engine::{
+    ForkchoiceState, ForkchoiceUpdated, PayloadStatus, PayloadStatusEnum,
+};
+use alloy_rpc_types_eth::{Block as EthBlock, Transaction as EthTransaction};
 use alloy_transport::{
     TransportError, TransportErrorKind, TransportFut,
     mock::{Asserter, MockResponse, MockTransport},
 };
 use kona_genesis::RollupConfig;
+use kona_providers_alloy::AlloyChainProvider;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
     collections::VecDeque,
+    num::NonZeroUsize,
     sync::{Arc, Mutex},
     task::{Context, Poll},
     time::Duration,
 };
 use tower::Service;
+
+/// Builds an L1 provider over `provider` that trusts the RPC and caches a few blocks of each kind.
+pub fn trusted_l1_provider(provider: RootProvider) -> AlloyChainProvider {
+    const CACHE_SIZE: NonZeroUsize = NonZeroUsize::new(8).unwrap();
+    AlloyChainProvider::new(provider, CACHE_SIZE, true)
+}
 
 /// Queues replies and checks the method and optional parameters of every outgoing RPC request.
 /// Unexpected requests panic rather than silently satisfying a different operation's reply.
@@ -41,6 +53,11 @@ impl RpcMock {
         RootProvider::new(RpcClient::new(self.clone(), true))
     }
 
+    /// Builds a trusting L1 provider backed by this mock transport.
+    pub fn l1_provider(&self) -> AlloyChainProvider {
+        trusted_l1_provider(self.provider())
+    }
+
     /// Expects one call to `method` and returns the serialized response.
     pub fn expect(&self, method: &'static str, response: impl Serialize) {
         self.expect_with_delay(method, response, Duration::ZERO);
@@ -53,6 +70,40 @@ impl RpcMock {
             Some(params),
             MockResponse::Success(serde_json::value::to_raw_value(&response).unwrap()),
             Duration::ZERO,
+        );
+    }
+
+    /// Expects a full-block `eth_getBlockByNumber` call for `number` and answers it with `block`,
+    /// or with null for `None`.
+    pub fn expect_block_by_number(&self, number: u64, block: Option<TestRpcBlock>) {
+        self.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([format!("{number:#x}"), true]),
+            block,
+        );
+    }
+
+    /// Expects a header-only `eth_getBlockByNumber` call for `number` and answers it with `block`,
+    /// or with null for `None`.
+    pub fn expect_block_header_by_number(&self, number: u64, block: Option<TestRpcBlock>) {
+        self.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([format!("{number:#x}"), false]),
+            block,
+        );
+    }
+
+    /// Expects an `engine_forkchoiceUpdatedV3` call for `forkchoice` without payload attributes and
+    /// answers it with `status`.
+    pub fn expect_forkchoice_updated(
+        &self,
+        forkchoice: ForkchoiceState,
+        status: PayloadStatusEnum,
+    ) {
+        self.expect_params(
+            "engine_forkchoiceUpdatedV3",
+            serde_json::json!([forkchoice, null]),
+            ForkchoiceUpdated::new(PayloadStatus::from_status(status)),
         );
     }
 
@@ -174,6 +225,30 @@ impl Service<RequestPacket> for RpcMock {
 pub fn test_engine_client(cfg: Arc<RollupConfig>) -> (EngineClient, RpcMock, RpcMock) {
     let l1 = RpcMock::default();
     let l2 = RpcMock::default();
-    let client = EngineClient::new(l1.provider(), l2.provider(), cfg);
+    let client = EngineClient::new(l1.l1_provider(), l2.provider(), cfg);
     (client, l1, l2)
+}
+
+/// Expects the sync start a reset performs: the execution layer answering `block` for its
+/// finalized, safe and latest blocks, the L1 head and canonical L1 lookup of its origin, and
+/// `forkchoice` being sent.
+///
+/// `block` must be the default block at genesis, and the rollup config's L1 genesis hash must be
+/// the default header's hash: the L1 genesis, the L2 genesis's origin, is then canonical. It is
+/// also the L1 head.
+pub fn expect_sync_start(
+    l1: &RpcMock,
+    l2: &RpcMock,
+    block: &TestRpcBlock,
+    forkchoice: ForkchoiceState,
+) {
+    for label in ["finalized", "safe", "latest"] {
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!([label, true]), block);
+    }
+    let mut l1_genesis = EthBlock::<EthTransaction>::default();
+    l1_genesis.header.hash = l1_genesis.header.inner.hash_slow();
+    for number in ["latest", "0x0"] {
+        l1.expect_params("eth_getBlockByNumber", serde_json::json!([number, false]), &l1_genesis);
+    }
+    l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
 }

@@ -413,6 +413,8 @@ contract Initializer_Test is CommonTest {
         excludes[j++] = "src/dispute/zk/ZKDisputeGame.sol";
         // L2 contract initialization is tested in Predeploys.t.sol
         excludes[j++] = "src/L2/*";
+        // ComplianceModule is deployed by its own script, not the standard deployment script.
+        excludes[j++] = "src/compliance/*";
 
         // Get all contract names in the src directory, minus the excluded contracts.
         string[] memory contractNames = ForgeArtifacts.getContractNames("src/*", excludes);

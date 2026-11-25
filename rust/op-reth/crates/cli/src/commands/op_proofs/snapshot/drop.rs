@@ -1,10 +1,10 @@
 //! Command that drops the OP proofs trie-state snapshot.
 
+use crate::chainspec::OpChainSpecParser;
 use clap::Parser;
-use reth_chainspec::EthChainSpec;
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
 use reth_node_core::version::version_metadata;
+use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_node::args::ProofsHistoryStorageArgs;
 use reth_optimism_trie::{OpProofsBackfillProvider, OpProofsBackfillStore, db::MdbxProofsStorage};
 use std::sync::Arc;
@@ -12,18 +12,18 @@ use tracing::info;
 
 /// Wipes the snapshot tables and meta row, returning status to `NotStarted`.
 #[derive(Debug, Parser)]
-pub struct SnapshotDropCommand<C: ChainSpecParser> {
+pub struct SnapshotDropCommand {
     #[command(flatten)]
-    env: EnvironmentArgs<C>,
+    env: EnvironmentArgs<OpChainSpecParser>,
 
     /// Shared proofs-history storage flags (storage path + version).
     #[command(flatten)]
     pub history: ProofsHistoryStorageArgs,
 }
 
-impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotDropCommand<C> {
+impl SnapshotDropCommand {
     /// Execute [`SnapshotDropCommand`].
-    pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec>>(
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec>>(
         self,
         runtime: reth_tasks::Runtime,
     ) -> eyre::Result<()> {
@@ -45,11 +45,9 @@ impl<C: ChainSpecParser<ChainSpec: EthChainSpec>> SnapshotDropCommand<C> {
         info!(target: "reth::cli", "Snapshot dropped");
         Ok(())
     }
-}
 
-impl<C: ChainSpecParser> SnapshotDropCommand<C> {
     /// Returns the underlying chain being used to run this command.
-    pub const fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+    pub const fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
         Some(&self.env.chain)
     }
 }

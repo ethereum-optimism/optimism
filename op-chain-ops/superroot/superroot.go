@@ -180,36 +180,37 @@ func (m *Migrator) findAnchorTimestamp(ctx context.Context) error {
 func (m *Migrator) calculateTargetBlockNumbers(ctx context.Context) error {
 	for endpoint, client := range m.ethClients {
 		// Get the latest block
-		latestBlock, err := client.BlockByNumber(ctx, nil)
+		latestBlock, err := client.HeaderByNumber(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("failed to get latest block from %s: %w", endpoint, err)
 		}
 
 		// Get the parent block
-		parentBlock, err := client.BlockByHash(ctx, latestBlock.ParentHash())
+		parentBlock, err := client.HeaderByHash(ctx, latestBlock.ParentHash)
 		if err != nil {
 			return fmt.Errorf("failed to get parent block from %s: %w", endpoint, err)
 		}
 
 		// Calculate block time (difference in timestamps between latest and parent blocks)
-		blockTime := latestBlock.Time() - parentBlock.Time()
+		blockTime := latestBlock.Time - parentBlock.Time
 		if blockTime == 0 {
 			return fmt.Errorf("block time cannot be zero for chain %s", endpoint)
 		}
 
 		// Calculate how many blocks to look back to reach the target timestamp
-		timeDiff := latestBlock.Time() - *m.TargetTimestamp
+		timeDiff := latestBlock.Time - *m.TargetTimestamp
 		blocksToLookBack := timeDiff / blockTime
 		if timeDiff%blockTime != 0 {
 			// Round up the number of blocks to look back to ensure that we get the latest block at or before the timestamp
 			blocksToLookBack++
 		}
 
-		if blocksToLookBack > latestBlock.NumberU64() {
+		latestNumber := bigs.Uint64Strict(latestBlock.Number)
+		if blocksToLookBack > latestNumber {
 			return fmt.Errorf("target timestamp is prior to genesis for endpoint %v", endpoint)
 		}
 		// Compute the target block number
-		targetBlockNumber := new(big.Int).SetUint64(bigs.Uint64Strict(latestBlock.Number()) - blocksToLookBack)
+		targetBlockNumber := new(big.Int).SetUint64(latestNumber - blocksToLookBack)
 
 		// Store the computed values in the chain settings
 		m.chainSettings[endpoint].BlockTime = blockTime

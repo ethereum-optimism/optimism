@@ -95,7 +95,6 @@ func (k *KonaNode) Start() {
 }
 
 // Stop stops the kona node.
-// warning: no restarts supported yet, since the RPC port is not remembered.
 func (k *KonaNode) Stop() {
 	k.mu.Lock()
 	defer k.mu.Unlock()

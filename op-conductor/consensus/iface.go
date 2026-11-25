@@ -74,6 +74,9 @@ type Consensus interface {
 	CommitUnsafePayload(payload *eth.ExecutionPayloadEnvelope) error
 	// LatestUnsafePayload returns the latest unsafe payload from FSM in a strongly consistent fashion.
 	LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, error)
+	// LocalUnsafePayload returns the latest unsafe payload applied to the local FSM, without a barrier.
+	// It works on followers too, and may lag the leader.
+	LocalUnsafePayload() *eth.ExecutionPayloadEnvelope
 
 	// Shutdown shuts down the consensus protocol client.
 	Shutdown() error

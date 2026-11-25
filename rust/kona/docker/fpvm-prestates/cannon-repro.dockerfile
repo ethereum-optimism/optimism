@@ -97,6 +97,10 @@ COPY --from=kona-custom-configs / /usr/local/kona-custom-configs
 ENV KONA_CUSTOM_CONFIGS=${KONA_CUSTOM_CONFIGS}
 
 # --- Layer 5: Build the kona-client ELFs ---
+# Its own stage so `build-kona-env` (`--target kona-build-env`, used by
+# lint-cannon and build-cannon-client) stops before this build. Those recipes
+# build in `docker run` and never read /app/elf.
+FROM kona-build-env AS kona-client-elfs
 # build-kona-client-elfs sets CARGO_BUILD_TARGET to the corrected target spec
 # from the source tree, overriding cannon-builder's baked-in spec. Every
 # variant is built in one cargo invocation so the shared dependency graph is
@@ -115,7 +119,7 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
 #   Generate prestates                                          #
 ################################################################
 
-FROM kona-build-env AS prestate-build
+FROM kona-client-elfs AS prestate-build
 
 COPY --from=cannon-build /app/cannon/bin/cannon /app/cannon
 RUN cd /app/rust && just generate-kona-prestates /app/cannon /app/elf /app/out

@@ -22,3 +22,8 @@ func TestReceiptQueryIntervalFlagIsHiddenWithOneSecondDefault(t *testing.T) {
 	require.Equal(t, time.Second, ReceiptQueryIntervalFlag.Value)
 	require.True(t, ReceiptQueryIntervalFlag.Hidden)
 }
+
+func TestUseForgeFlagIsHidden(t *testing.T) {
+	require.True(t, UseForgeFlag.Hidden)
+	require.Contains(t, ApplyFlags, UseForgeFlag)
+}

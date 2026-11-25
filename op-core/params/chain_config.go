@@ -21,6 +21,9 @@ const (
 	// OPMainnetGenesisBlockNum is the Bedrock-migration block of OP Mainnet, which
 	// it treats as its genesis block.
 	OPMainnetGenesisBlockNum = 105235063
+	// WhitechainMainnetChainID is the chain ID of Whitechain Mainnet, whose genesis state was
+	// imported from its previous chain and is a stateHash stub in the registry.
+	WhitechainMainnetChainID = 1875
 )
 
 // OptimismConfig holds the OP-Stack-specific EIP-1559 parameters of a chain.
@@ -45,11 +48,9 @@ func (o *OptimismConfig) String() string {
 // ChainConfig is the OP-Stack hardfork schedule and configuration of a chain. It is
 // a standalone type: it does not embed go-ethereum's params.ChainConfig, so it carries
 // only OP-specific state and the predicates below. Code that needs a go-ethereum config
-// — to drive an EVM, genesis, or block processor — converts via GethChainConfig.
+// for the Ethereum fork schedule converts via GethChainConfig.
 type ChainConfig struct {
 	ChainID *big.Int `json:"chainId"`
-
-	Optimism *OptimismConfig `json:"optimism,omitempty"`
 
 	BedrockBlock *big.Int `json:"bedrockBlock,omitempty"` // Bedrock switch block (nil = no fork, 0 = already on optimism bedrock)
 	RegolithTime *uint64  `json:"regolithTime,omitempty"` // Regolith switch time (nil = no fork, 0 = already on optimism regolith)
@@ -62,6 +63,10 @@ type ChainConfig struct {
 	JovianTime   *uint64  `json:"jovianTime,omitempty"`   // Jovian switch time (nil = no fork, 0 = already on optimism jovian)
 	KarstTime    *uint64  `json:"karstTime,omitempty"`    // Karst switch time (nil = no fork, 0 = already on optimism karst)
 	LagoonTime   *uint64  `json:"lagoonTime,omitempty"`   // Lagoon switch time (nil = no fork, 0 = already on optimism lagoon)
+
+	// Optimism is declared last: the JSON encoding follows the declaration order, and
+	// "optimism" is its last key.
+	Optimism *OptimismConfig `json:"optimism,omitempty"`
 }
 
 // ActivationTime returns the activation timestamp of the given timestamp-based

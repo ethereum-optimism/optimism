@@ -66,9 +66,12 @@ services:
       - "${KONA_NODE_DISCOVERY_PORT:-9223}:9223/tcp" # discovery
       - "${KONA_NODE_DISCOVERY_PORT:-9223}:9223/udp" # discovery
       - "${KONA_NODE_METRICS_PORT:-9002}:9002" # metrics
-      - "${KONA_NODE_RPC_PORT:-5060}:5060" # rpc
+      # The rpc port serves the unauthenticated admin API, so publish it on the host's loopback only.
+      - "127.0.0.1:${KONA_NODE_RPC_PORT:-5060}:5060" # rpc
     volumes:
-      - "kona_data:/db"
+      # The node keeps its bootstore in its home, at ~/.kona/<chain_id>/bootstore.json. The image
+      # owns /home/app, so the volume gets that owner, and the node can write it.
+      - "kona_data:/home/app"
       - "./jwttoken:/root/jwt:ro"
     environment:
       L1_PROVIDER_RPC: ${L1_PROVIDER_RPC:?}
@@ -83,10 +86,10 @@ services:
       --l1-beacon $L1_BEACON_API
       --l2 http://op-reth:8551
       --l2-engine-jwt-secret /root/jwt/jwt.hex
+      --rpc.addr 0.0.0.0
       --rpc.port 5060
       --p2p.listen.tcp 9223
       --p2p.listen.udp 9223
-      --p2p.bootstore /db
 
 volumes:
   prometheus_data:

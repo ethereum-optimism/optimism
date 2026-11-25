@@ -195,13 +195,13 @@ See a high‐level implementation from this [docs](/chain-operators/tutorials/di
 
 ## 3. Testing off-chain agents
 
-After you've set the permissionless `FaultDisputeContract` implementations on the `DisputeGameFactory` and before you set the respected game type to it (game type 0), you can test `op-challenger` and `op-dispute-mon` to ensure they are working correctly with permissionless games.
+After you've set the permissionless `FaultDisputeContract` implementations on the `DisputeGameFactory` and before you set the respected game type to it (game type 8), you can test `op-challenger` and `op-dispute-mon` to ensure they are working correctly with permissionless games.
 
 There are a number of useful `op-challenger` subcommands that can be used for testing, particularly `list-games`, `list-claims` and `create-game`.  See the [README](https://github.com/ethereum-optimism/optimism/tree/develop/op-challenger#subcommands) and `op-challenger --help` output for further details. The two tests below are basic sanity tests:
 
 ### Test defending valid proposals
 
-Create a valid proposal using the permissionless game type `0`:
+Create a valid proposal using the permissionless game type `8` (`CANNON_KONA`):
 
 1.  Ensure the proposal is from a block at or before the `safe` head:
 
@@ -224,6 +224,7 @@ Create a valid proposal using the permissionless game type `0`:
     ./op-challenger/bin/op-challenger create-game \
       --l1-eth-rpc=<L1_RPC_ENDPOINT> \
       --game-factory-address <DISPUTE_GAME_FACTORY_ADDR> \
+      --game-type cannon-kona \
       --l2-block-num <BLOCK_NUMBER> \
       --output-root <OUTPUT_ROOT> \
       <SIGNER_OPTIONS>
@@ -278,17 +279,17 @@ If your privileged role (such as the Guardian) is controlled by a multisig or DA
     "chainId": "<YOUR_L1_CHAIN_ID>",
     "metadata": {
       "name": "Deputy Guardian - Enable Permissionless Dispute Game",
-      "description": "This task updates the `respectedGameType` in the `AnchorStateRegistry` to `CANNON` (game type 0), enabling users to permissionlessly propose outputs as well as for anyone to participate in the dispute of these proposals. This action requires all in-progress withdrawals to be re-proven against a new `FaultDisputeGame` that was created after this update occurs."
+      "description": "This task updates the `respectedGameType` in the `AnchorStateRegistry` to `CANNON_KONA` (game type 8), enabling users to permissionlessly propose outputs as well as for anyone to participate in the dispute of these proposals. This action requires all in-progress withdrawals to be re-proven against a new `FaultDisputeGame` that was created after this update occurs."
     },
     "transactions": [
       {
         "metadata": {
           "name": "Update `respectedGameType` in the `AnchorStateRegistry`",
-          "description": "Updates the `respectedGameType` to `CANNON` in the `AnchorStateRegistry`, enabling permissionless proposals and challenging."
+          "description": "Updates the `respectedGameType` to `CANNON_KONA` in the `AnchorStateRegistry`, enabling permissionless proposals and challenging."
         },
         "to": "<ASR_ADDRESS>",
         "value": "0x0",
-        "data": "0x7fc485040000000000000000000000000000000000000000000000000000000000000000",
+        "data": "0x7fc485040000000000000000000000000000000000000000000000000000000000000008",
         "contractMethod": {
           "type": "function",
           "name": "setRespectedGameType",
@@ -302,7 +303,7 @@ If your privileged role (such as the Guardian) is controlled by a multisig or DA
           "stateMutability": "nonpayable"
         },
         "contractInputsValues": {
-          "_gameType": "0"
+          "_gameType": "8"
         }
       }
     ]
@@ -313,7 +314,7 @@ If your privileged role (such as the Guardian) is controlled by a multisig or DA
 
 *   **Submit this JSON payload** through your interface (e.g., Safe transaction builder).
 *   **Simulate** this transaction using Tenderly before execution to ensure the expected state changes:
-    *   The `respectedGameType` in the `AnchorStateRegistry` should change from `1` (PERMISSIONED) to `0` (CANNON).
+    *   The `respectedGameType` in the `AnchorStateRegistry` should change from `1` (PERMISSIONED) to `8` (CANNON_KONA).
 
 ***
 
@@ -324,7 +325,7 @@ Alternatively, if you're executing directly from a single-privileged wallet or w
 1.  First, encode the transaction calldata using `cast calldata`:
 
 ```bash
-CALLDATA=$(cast calldata "setRespectedGameType(uint32)" 0)
+CALLDATA=$(cast calldata "setRespectedGameType(uint32)" 8)
 ```
 
 2.  Send the transaction:
@@ -338,24 +339,24 @@ cast send --rpc-url <YOUR_RPC_URL> --private-key <YOUR_PRIVATE_KEY> <ASR_ADDRESS
 
 ```bash
 cast call --rpc-url <YOUR_RPC_URL> <ASR_ADDRESS> "respectedGameType()(uint32)"
-# The value should now be 0 (CANNON)
+# The value should now be 8 (CANNON_KONA)
 
 ```
 
 ### Post-execution configuration:
 
-After updating, configure `op-proposer` to create proposals using the permissionless `CANNON` game type:
+After updating, configure `op-proposer` to create proposals using the permissionless `CANNON_KONA` game type:
 
 Via command-line argument:
 
 ```bash
---game-type 0
+--game-type 8
 ```
 
 Or via environment variable:
 
 ```bash
-OP_PROPOSER_GAME_TYPE=0
+OP_PROPOSER_GAME_TYPE=8
 ```
 
 <Info>

@@ -21,7 +21,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 alloy-hardforks = { workspace = true }
 
 # ethereum
-alloy-chains = { workspace = true }
 alloy-primitives = { workspace = true }
 
 # misc
@@ -32,6 +31,5 @@ serde = { workspace = true, optional = true }
 serde = [
 	"dep:serde",
 	"alloy-hardforks/serde",
-	"alloy-chains/serde",
 	"alloy-primitives/serde"
 ]

@@ -14,10 +14,7 @@ extern crate alloc;
 use alloc::{string::ToString, sync::Arc};
 use alloy_consensus::{BlockHeader, Header};
 use alloy_evm::{EvmFactory, FromRecoveredTx, FromTxWithEncoded, block::BlockExecutorFactory};
-use alloy_op_evm::{
-    block::{OpTxEnv, receipt_builder::OpReceiptBuilder},
-    evm_env_for_op_block, evm_env_for_op_next_block,
-};
+use alloy_op_evm::{block::OpTxEnv, evm_env_for_op_block, evm_env_for_op_next_block};
 use alloy_primitives::B256;
 use core::fmt::Debug;
 use op_alloy_consensus::{
@@ -29,8 +26,8 @@ use reth_chainspec::EthChainSpec;
 use reth_evm::{ConfigureEvm, EvmEnv, eth::NextEvmEnvAttributes, precompiles::PrecompilesMap};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
-use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader, SignedTransaction};
+use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt, OpTransactionSigned};
+use reth_primitives_traits::{SealedBlock, SealedHeader};
 use revm::context::BlockEnv;
 
 #[allow(unused_imports)]
@@ -39,7 +36,7 @@ use {
     alloy_primitives::Bytes,
     op_alloy_rpc_types_engine::OpExecutionData,
     reth_evm::{EvmEnvFor, ExecutionCtxFor},
-    reth_primitives_traits::{TxTy, WithEncoded},
+    reth_primitives_traits::{SignedTransaction, TxTy, WithEncoded},
     reth_storage_errors::any::AnyError,
 };
 
@@ -83,66 +80,81 @@ mod sdm_metrics;
 pub use sdm_metrics::report_post_exec_validation_failure;
 
 /// Optimism-related EVM configuration.
-#[derive(Debug)]
-pub struct OpEvmConfig<
-    ChainSpec = OpChainSpec,
-    N: NodePrimitives = OpPrimitives,
-    R = OpRethReceiptBuilder,
-    EvmFactory = OpEvmFactory<OpTx>,
-> {
+#[derive(Debug, Clone)]
+pub struct OpEvmConfig<EvmFactory = OpEvmFactory<OpTx>> {
     /// Inner [`OpBlockExecutorFactory`].
-    pub executor_factory: OpBlockExecutorFactory<R, Arc<ChainSpec>, EvmFactory>,
+    pub executor_factory:
+        OpBlockExecutorFactory<OpRethReceiptBuilder, Arc<OpChainSpec>, EvmFactory>,
     /// Optimism block assembler.
-    pub block_assembler: OpBlockAssembler<ChainSpec>,
-    #[doc(hidden)]
-    pub _pd: core::marker::PhantomData<N>,
+    pub block_assembler: OpBlockAssembler,
 }
 
-impl<ChainSpec, N: NodePrimitives, R: Clone, EvmFactory: Clone> Clone
-    for OpEvmConfig<ChainSpec, N, R, EvmFactory>
-{
-    fn clone(&self) -> Self {
-        Self {
-            executor_factory: self.executor_factory.clone(),
-            block_assembler: self.block_assembler.clone(),
-            _pd: self._pd,
-        }
-    }
-}
-
-impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks> OpEvmConfig<ChainSpec> {
+impl OpEvmConfig {
     /// Creates a new [`OpEvmConfig`] with the given chain spec for OP chains.
-    pub fn optimism(chain_spec: Arc<ChainSpec>) -> Self {
-        Self::new(chain_spec, OpRethReceiptBuilder::default())
+    pub fn optimism(chain_spec: Arc<OpChainSpec>) -> Self {
+        Self::new_with_evm_factory(chain_spec, OpEvmFactory::<OpTx, NullRefundPolicy>::default())
     }
 }
 
-impl<ChainSpec, N: NodePrimitives, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory> {
+impl<EvmFactory> OpEvmConfig<EvmFactory> {
     /// Creates a new [`OpEvmConfig`] with an explicit EVM factory.
-    pub fn new_with_evm_factory(
-        chain_spec: Arc<ChainSpec>,
-        receipt_builder: R,
-        evm_factory: EvmFactory,
-    ) -> Self {
+    pub fn new_with_evm_factory(chain_spec: Arc<OpChainSpec>, evm_factory: EvmFactory) -> Self {
         sdm_metrics::register_sdm_metrics_at_zero();
         Self {
             block_assembler: OpBlockAssembler::new(chain_spec.clone()),
-            executor_factory: OpBlockExecutorFactory::new(receipt_builder, chain_spec, evm_factory),
-            _pd: core::marker::PhantomData,
+            executor_factory: OpBlockExecutorFactory::new(
+                OpRethReceiptBuilder,
+                chain_spec,
+                evm_factory,
+            ),
         }
     }
-}
 
-impl<ChainSpec: EthChainSpec<Header = Header> + OpHardforks, N: NodePrimitives, R>
-    OpEvmConfig<ChainSpec, N, R>
-{
-    /// Creates a new [`OpEvmConfig`] with the given chain spec.
-    pub fn new(chain_spec: Arc<ChainSpec>, receipt_builder: R) -> Self {
-        Self::new_with_evm_factory(
-            chain_spec,
-            receipt_builder,
-            OpEvmFactory::<OpTx, NullRefundPolicy>::default(),
-        )
+    /// Returns the chain spec associated with this configuration.
+    pub const fn chain_spec(&self) -> &Arc<OpChainSpec> {
+        self.executor_factory.spec()
+    }
+
+    /// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
+    ///
+    /// See the free [`is_sdm_active_at_timestamp`] function, which this delegates to.
+    pub fn is_sdm_active_at_timestamp(&self, timestamp: u64) -> bool {
+        crate::is_sdm_active_at_timestamp(self.chain_spec(), timestamp)
+    }
+
+    /// Builds a block execution context with an optional post-exec mode override.
+    pub fn context_for_block_with_post_exec_mode(
+        &self,
+        block: &SealedBlock<OpBlock>,
+        post_exec_mode: Option<PostExecMode>,
+    ) -> OpBlockExecutionCtx {
+        OpBlockExecutionCtx {
+            parent_hash: block.header().parent_hash(),
+            // No parent header on this path to detect fork-activation blocks, so the executor's
+            // check is skipped; the derivation layer enforces the rule instead.
+            no_user_tx_activation_block: false,
+            parent_beacon_block_root: block.header().parent_beacon_block_root(),
+            extra_data: block.header().extra_data().clone(),
+            post_exec_mode: post_exec_mode.unwrap_or_default(),
+        }
+    }
+
+    /// Builds a next-block execution context with the provided post-exec mode.
+    pub fn context_for_next_block_with_post_exec_mode(
+        &self,
+        parent: &SealedHeader,
+        attributes: OpNextBlockEnvAttributes,
+        post_exec_mode: PostExecMode,
+    ) -> OpBlockExecutionCtx {
+        OpBlockExecutionCtx {
+            parent_hash: parent.hash(),
+            no_user_tx_activation_block: self
+                .chain_spec()
+                .is_no_user_tx_activation_block(parent.timestamp(), attributes.timestamp),
+            parent_beacon_block_root: attributes.parent_beacon_block_root,
+            extra_data: attributes.extra_data,
+            post_exec_mode,
+        }
     }
 }
 
@@ -202,100 +214,35 @@ pub fn validate_post_exec_attributes(
     })
 }
 
-impl<ChainSpec, N, R, EvmFactory> OpEvmConfig<ChainSpec, N, R, EvmFactory>
-where
-    ChainSpec: OpHardforks,
-    N: NodePrimitives,
-{
-    /// Returns the chain spec associated with this configuration.
-    pub const fn chain_spec(&self) -> &Arc<ChainSpec> {
-        self.executor_factory.spec()
-    }
-
-    /// Returns true when SDM post-exec transactions are consensus-active at `timestamp`.
-    ///
-    /// See the free [`is_sdm_active_at_timestamp`] function, which this delegates to.
-    pub fn is_sdm_active_at_timestamp(&self, timestamp: u64) -> bool {
-        crate::is_sdm_active_at_timestamp(self.chain_spec(), timestamp)
-    }
-
-    /// Builds a block execution context with an optional post-exec mode override.
-    pub fn context_for_block_with_post_exec_mode(
-        &self,
-        block: &SealedBlock<N::Block>,
-        post_exec_mode: Option<PostExecMode>,
-    ) -> OpBlockExecutionCtx {
-        OpBlockExecutionCtx {
-            parent_hash: block.header().parent_hash(),
-            // No parent header on this path to detect fork-activation blocks, so the executor's
-            // check is skipped; the derivation layer enforces the rule instead.
-            no_user_tx_activation_block: false,
-            parent_beacon_block_root: block.header().parent_beacon_block_root(),
-            extra_data: block.header().extra_data().clone(),
-            post_exec_mode: post_exec_mode.unwrap_or_default(),
-        }
-    }
-
-    /// Builds a next-block execution context with the provided post-exec mode.
-    pub fn context_for_next_block_with_post_exec_mode(
-        &self,
-        parent: &SealedHeader<N::BlockHeader>,
-        attributes: OpNextBlockEnvAttributes,
-        post_exec_mode: PostExecMode,
-    ) -> OpBlockExecutionCtx {
-        OpBlockExecutionCtx {
-            parent_hash: parent.hash(),
-            no_user_tx_activation_block: self
-                .chain_spec()
-                .is_no_user_tx_activation_block(parent.timestamp(), attributes.timestamp),
-            parent_beacon_block_root: attributes.parent_beacon_block_root,
-            extra_data: attributes.extra_data,
-            post_exec_mode,
-        }
-    }
-}
-
-/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream `ConfigureEvm` plumbing with OP environments and execution context.
-impl<ChainSpec, N, R, EvmF> ConfigureEvm for OpEvmConfig<ChainSpec, N, R, EvmF>
+impl<EvmF> ConfigureEvm for OpEvmConfig<EvmF>
 where
-    ChainSpec: EthChainSpec<Header = Header> + OpHardforks,
-    N: NodePrimitives<
-            Receipt = R::Receipt,
-            SignedTx = R::Transaction,
-            BlockHeader = Header,
-            BlockBody = alloy_consensus::BlockBody<R::Transaction>,
-            Block = alloy_consensus::Block<R::Transaction>,
-        >,
-    OpTx: FromRecoveredTx<N::SignedTx> + FromTxWithEncoded<N::SignedTx>,
-    N::SignedTx: OpConsensusTransaction,
-    R: OpReceiptBuilder<
-            Receipt: DepositReceipt,
-            Transaction: SignedTransaction + OpConsensusTransaction,
-        >,
     EvmF: EvmFactory<
-            Tx: FromRecoveredTx<R::Transaction>
-                    + FromTxWithEncoded<R::Transaction>
+            Tx: FromRecoveredTx<OpTransactionSigned>
+                    + FromTxWithEncoded<OpTransactionSigned>
                     + alloy_evm::TransactionEnvMut
                     + OpTxEnv,
             Precompiles = PrecompilesMap,
             Spec = OpSpecId,
             BlockEnv = BlockEnv,
         > + Debug,
-    OpBlockExecutorFactory<R, Arc<ChainSpec>, EvmF>: for<'a> BlockExecutorFactory<
-            EvmFactory = EvmF,
-            ExecutionCtx<'a> = OpBlockExecutionCtx,
-            Transaction = R::Transaction,
-            Receipt = R::Receipt,
-        >,
+    OpBlockExecutorFactory<OpRethReceiptBuilder, Arc<OpChainSpec>, EvmF>:
+        for<'a> BlockExecutorFactory<
+                EvmFactory = EvmF,
+                ExecutionCtx<'a> = OpBlockExecutionCtx,
+                Transaction = OpTransactionSigned,
+                Receipt = OpReceipt,
+            >,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
-    type Primitives = N;
+    type Primitives = OpPrimitives;
     type Error = EIP1559ParamError;
     type NextBlockEnvCtx = OpNextBlockEnvAttributes;
-    type BlockExecutorFactory = OpBlockExecutorFactory<R, Arc<ChainSpec>, EvmF>;
-    type BlockAssembler = OpBlockAssembler<ChainSpec>;
+    type BlockExecutorFactory =
+        OpBlockExecutorFactory<OpRethReceiptBuilder, Arc<OpChainSpec>, EvmF>;
+    type BlockAssembler = OpBlockAssembler;
 
     fn block_executor_factory(&self) -> &Self::BlockExecutorFactory {
         &self.executor_factory
@@ -331,7 +278,7 @@ where
 
     fn context_for_block(
         &self,
-        block: &'_ SealedBlock<N::Block>,
+        block: &'_ SealedBlock<OpBlock>,
     ) -> Result<OpBlockExecutionCtx, Self::Error> {
         let post_exec_mode = post_exec_mode_from_transactions(
             block.body().transactions(),
@@ -344,7 +291,7 @@ where
 
     fn context_for_next_block(
         &self,
-        parent: &SealedHeader<N::BlockHeader>,
+        parent: &SealedHeader,
         attributes: Self::NextBlockEnvCtx,
     ) -> Result<OpBlockExecutionCtx, Self::Error> {
         Ok(self.context_for_next_block_with_post_exec_mode(
@@ -355,31 +302,14 @@ where
     }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@rev:8d359d0 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
 /// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through
 /// an optional `SenderRecoveryCache`, which only memoizes `try_recover` and so returns the same
 /// signer.
 #[cfg(feature = "std")]
-impl<ChainSpec, N, R> ConfigureEngineEvm<OpExecutionData> for OpEvmConfig<ChainSpec, N, R>
-where
-    ChainSpec: EthChainSpec<Header = Header> + OpHardforks,
-    N: NodePrimitives<
-            Receipt = R::Receipt,
-            SignedTx = R::Transaction,
-            BlockHeader = Header,
-            BlockBody = alloy_consensus::BlockBody<R::Transaction>,
-            Block = alloy_consensus::Block<R::Transaction>,
-        >,
-    OpTx: FromRecoveredTx<N::SignedTx> + FromTxWithEncoded<N::SignedTx>,
-    N::SignedTx: Decodable2718 + OpConsensusTransaction,
-    R: OpReceiptBuilder<
-            Receipt: DepositReceipt,
-            Transaction: SignedTransaction + OpConsensusTransaction,
-        >,
-    Self: Send + Sync + Unpin + Clone + 'static,
-{
+impl ConfigureEngineEvm<OpExecutionData> for OpEvmConfig {
     fn evm_env_for_payload(
         &self,
         payload: &OpExecutionData,

@@ -66,10 +66,18 @@ contract ExecuteNUTBundle is Script {
             string.concat("ExecuteNUTBundle: wrapper gasLimit < intrinsicGas for ", _w.intent)
         );
 
+        uint64 bodyGas = _w.gasLimit - intrinsicGas;
+        // CALL with value adds a 2,300 gas stipend that a deposit's top frame doesn't get.
+        if (_w.value > 0) {
+            require(
+                bodyGas >= 2300, string.concat("ExecuteNUTBundle: value wrapper body gas < stipend for ", _w.intent)
+            );
+            bodyGas -= 2300;
+        }
+
         vm.deal(_w.from, _w.from.balance + _w.mint);
         vm.prank(_w.from);
-        (bool success, bytes memory returnData) =
-            _w.to.call{ gas: _w.gasLimit - intrinsicGas, value: _w.value }(_w.data);
+        (bool success, bytes memory returnData) = _w.to.call{ gas: bodyGas, value: _w.value }(_w.data);
 
         if (!success) {
             string memory reason = UpgradeUtils.getRevertReason(returnData);
@@ -79,12 +87,12 @@ contract ExecuteNUTBundle is Script {
 
     /// @notice Executes a single NUT bundle transaction with deposit-faithful body gas semantics.
     /// @dev Intrinsic gas is deducted from the forwarded amount before the call so the body runs
-    ///      with the same budget op-geth gives it in production (gasLimit - intrinsic). Body gas
-    ///      is measured via vm.lastFrameGas() (callee frame only, net of refunds), excluding CALL
-    ///      opcode overhead. This is not the same as op-geth's receipt.gasUsed: op-geth applies
-    ///      the EIP-7623 floor post-execution (receipt.gasUsed = max(intrinsic+body, floor)),
-    ///      so for txs where execution lands below the floor, receipt.gasUsed will exceed
-    ///      intrinsic + bodyGasUsed_.
+    ///      with the same budget the execution client gives it in production (gasLimit -
+    ///      intrinsic). Body gas is measured via vm.lastFrameGas() (callee frame only, net of
+    ///      refunds), excluding CALL opcode overhead. This is not the same as the execution
+    ///      client's receipt.gasUsed: it applies the EIP-7623 floor post-execution
+    ///      (receipt.gasUsed = max(intrinsic+body, floor)), so for txs where execution lands
+    ///      below the floor, receipt.gasUsed will exceed intrinsic + bodyGasUsed_.
     /// @param _txn The Network Upgrade Transaction to execute.
     /// @return success_ Whether the call succeeded.
     /// @return returnData_ The return data from the call.

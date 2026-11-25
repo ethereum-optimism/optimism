@@ -115,43 +115,9 @@ func NewTwoL2SupernodeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiCha
 	return runtime
 }
 
-// startSupernodeEL starts an L2 EL node for the supernode runtime,
-// respecting DEVSTACK_L2EL_KIND (defaults to op-reth when unset).
-func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) L2ELNode {
-	return startL2ELForKey(t, l2Net, jwtPath, jwtSecret, "sequencer", NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
-}
-
-// startSupernodeELWithInteropURL starts an L2 EL node with --rollup.interop-http
-// pointing at the given URL. Used by supernode interop presets to connect ELs
-// to the interop filter for tx pool validation.
-func startSupernodeELWithInteropURL(
-	t devtest.T,
-	l2Net *L2Network,
-	key string,
-	jwtPath string,
-	jwtSecret [32]byte,
-	interopURL string,
-) L2ELNode {
-	switch devstackL2ELKind() {
-	case MixedL2ELOpGeth:
-		cfg := DefaultL2ELConfig()
-		l2EL := &OpGeth{
-			name:          key,
-			p:             t,
-			logger:        t.Logger().New("component", "l2el-"+key),
-			l2Net:         l2Net,
-			jwtPath:       jwtPath,
-			jwtSecret:     jwtSecret,
-			supervisorRPC: interopURL,
-			cfg:           cfg,
-		}
-		l2EL.Start()
-		t.Cleanup(l2EL.Stop)
-		return l2EL
-	default: // op-reth
-		return startMixedOpRethNodeWithInteropURL(
-			t, l2Net, key, jwtPath, jwtSecret, nil, interopURL, ResolveMixedL2ELOpts(t)...)
-	}
+// startSupernodeEL starts the sequencer op-reth node of a supernode runtime chain.
+func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [32]byte) *OpReth {
+	return startSequencerEL(t, l2Net, jwtPath, jwtSecret, ResolveMixedL2ELOpts(t)...)
 }
 
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
@@ -169,7 +135,7 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	}
 	var l1EL *L1Geth
 	var l1CL *L1CLNode
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
+	migration, l1Net, l2Net, depSet := buildSingleChainWorld(t, keys, lagoonAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
 		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
 			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 			return l1EL, l1CL
@@ -177,17 +143,10 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 	l2EL := startSupernodeEL(t, l2Net, jwtPath, jwtSecret)
 
-	var depSetStatic *depset.StaticConfigDependencySet
-	if depSet != nil {
-		cast, ok := depSet.(*depset.StaticConfigDependencySet)
-		require.True(ok, "expected static dependency set")
-		depSetStatic = cast
-	}
-
-	if cfg.MessageExpiryWindow != nil && depSetStatic != nil {
+	if cfg.MessageExpiryWindow != nil {
 		var overrideErr error
-		depSetStatic, overrideErr = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
-			depSetStatic.Dependencies(), *cfg.MessageExpiryWindow)
+		depSet, overrideErr = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
+			depSet.Dependencies(), *cfg.MessageExpiryWindow)
 		require.NoError(overrideErr, "failed to override message expiry window")
 	}
 
@@ -196,21 +155,13 @@ func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool,
 		ts := l2Net.rollupCfg.Genesis.L2Time
 		interopActivationTimestamp = &ts
 	}
-	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSetStatic, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
+	supernode, l2CL := startSingleChainSharedSupernode(t, l1Net, l1EL, l1CL, l2Net, l2EL, depSet, jwtSecret, interopActivationTimestamp, true, nodeSync.CLSync)
 	l2Batcher := startMinimalBatcher(t, keys, l2Net, l1EL, l2CL, l2EL, cfg.BatcherOptions...)
-
-	// Use the potentially-overridden depSetStatic if available.
-	var runtimeDepSet depset.DependencySet
-	if depSetStatic != nil {
-		runtimeDepSet = depSetStatic
-	} else {
-		runtimeDepSet = depSet
-	}
 
 	return &MultiChainRuntime{
 		Keys:          keys,
 		Migration:     migration,
-		DependencySet: runtimeDepSet,
+		DependencySet: depSet,
 		L1Network:     l1Net,
 		L1EL:          l1EL,
 		L1CL:          l1CL,
@@ -303,7 +254,8 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		rollupConfigs := make(map[eth.ChainID]*rollup.Config, len(l2Nets))
 		l2RPCs := make([]string, len(l2Nets))
 		for i, l2Net := range l2Nets {
-			l2ELs[i] = startSupernodeELWithInteropURL(t, l2Net, "sequencer", jwtPath, jwtSecret, filterRPC)
+			l2ELs[i] = startMixedOpRethNodeWithInteropURL(
+				t, l2Net, "sequencer", jwtPath, jwtSecret, nil, filterRPC, ResolveMixedL2ELOpts(t)...)
 			rollupConfigs[l2Net.ChainID()] = l2Net.RollupConfig()
 			l2RPCs[i] = l2ELs[i].UserRPC()
 		}
@@ -322,12 +274,7 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		interopActivationTimestamp = &activationTime
 	}
 
-	var depSet *depset.StaticConfigDependencySet
-	if wb.outFullCfgSet.DependencySet != nil {
-		cast, ok := wb.outFullCfgSet.DependencySet.(*depset.StaticConfigDependencySet)
-		require.True(ok, "expected static dependency set")
-		depSet = cast
-	}
+	depSet := wb.output.InteropDepSet
 	if cfg.MessageExpiryWindow != nil && depSet != nil {
 		depSet, err = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
 			depSet.Dependencies(), *cfg.MessageExpiryWindow)
@@ -337,8 +284,6 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 	var runtimeDepSet depset.DependencySet
 	if depSet != nil {
 		runtimeDepSet = depSet
-	} else {
-		runtimeDepSet = wb.outFullCfgSet.DependencySet
 	}
 
 	supernode, supernodeCLs := startSharedSupernode(
@@ -368,7 +313,7 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 		sequencerELOpts := ResolveMixedL2ELOpts(t)
 		lightSeqStopped := cfg.SupernodeVNSequencerForBootstrap
 		for i, l2Net := range l2Nets {
-			sequencerELs[i] = startSequencerEL(t, l2Net, jwtPath, jwtSecret, NewELNodeIdentity(0), sequencerELOpts...)
+			sequencerELs[i] = startSequencerEL(t, l2Net, jwtPath, jwtSecret, sequencerELOpts...)
 			l2CLs[i] = startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, sequencerELs[i], jwtSecret, l2CLNodeStartConfig{
 				Key:              "sequencer",
 				IsSequencer:      true,
@@ -507,7 +452,7 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 
 	jwtPath := chain.EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
-	l2EL := startL2ELForKey(t, chain.Network, jwtPath, jwtSecret, name, NewELNodeIdentity(0))
+	l2EL := startMixedOpRethNode(t, chain.Network, name, jwtPath, jwtSecret, nil)
 	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 		Key:            name,
 		IsSequencer:    false,
@@ -590,7 +535,7 @@ func startSharedSupernode(
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
 			RuntimeConfigReloadInterval:     0,
-			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync},
+			Sync:                            nodeSync.Config{SyncMode: nodeSync.CLSync, SupportsPostFinalizationELSync: l2EngineKind.SupportsPostFinalizationELSync()},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -700,7 +645,7 @@ func startSingleChainSharedSupernode(
 			RPC:                             oprpc.CLIConfig{ListenAddr: "127.0.0.1", ListenPort: 0, EnableAdmin: true},
 			P2P:                             p2pConfig,
 			L1EpochPollInterval:             2 * time.Second,
-			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode},
+			Sync:                            nodeSync.Config{SyncMode: verifierSyncMode, SupportsPostFinalizationELSync: l2EngineKind.SupportsPostFinalizationELSync()},
 			ConfigPersistence:               opnodeconfig.DisabledConfigPersistence{},
 			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
@@ -857,7 +802,7 @@ func startTestSequencerForL2Chains(
 					Beacon:            l1CL.beacon,
 					FinalizedDistance: 20,
 					SafeDistance:      10,
-					BlockTime:         6,
+					BlockTime:         l1Net.blockTime,
 				},
 			},
 		},

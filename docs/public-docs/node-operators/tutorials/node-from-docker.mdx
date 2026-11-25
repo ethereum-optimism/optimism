@@ -25,7 +25,7 @@ This tutorial runs an OP Stack node using the **official op-reth and op-node Doc
 </Info>
 
 <Warning>
-  **OP Mainnet requires a one-time pre-Bedrock state import.** OP Sepolia does not. If you point this tutorial at OP Mainnet on a fresh datadir, op-reth will fail at startup with `Op-mainnet has been launched without importing the pre-Bedrock state`. Before running OP Mainnet, follow the [op-reth sync-op-mainnet guide](https://reth.rs/run/sync-op-mainnet.html) to either restore from a [pre-synced snapshot](https://datadirs.optimism.io/) or run the minimal-bootstrap import. OP Sepolia bootstraps via snap sync with no extra steps — start there if you're just testing the setup.
+  **OP Mainnet requires a one-time pre-Bedrock state import.** OP Sepolia does not. If you point this tutorial at OP Mainnet on a fresh datadir, op-reth will fail at startup with `Op-mainnet has been launched without importing the pre-Bedrock state`. Before running OP Mainnet, follow the [op-reth sync-op-mainnet guide](https://reth.rs/run/sync-op-mainnet.html) to either restore from a [pre-synced snapshot](/op-mainnet/network-information/snapshots) or run the minimal-bootstrap import. OP Sepolia bootstraps via snap sync with no extra steps — start there if you're just testing the setup.
 </Warning>
 
 ## Dependencies
@@ -193,7 +193,7 @@ docker compose logs op-node | grep -E "Sync progress|Finished EL sync"
 
 ## Bootstrap from a snapshot
 
-Syncing from scratch is fine for OP Sepolia (~30–50 GB, hours) but slow for OP Mainnet (~700 GB, days). For Mainnet — or anytime you'd rather skip the initial sync — bootstrap op-reth from a pre-synced snapshot.
+Syncing from scratch is fine for OP Sepolia (hours) but slow for OP Mainnet (days). For Mainnet — or anytime you'd rather skip the initial sync — bootstrap op-reth from a pre-synced snapshot. Optimism publishes `op-reth` snapshots in two sync types: full (pruned to the last 30 days) and archive (complete history). Current zstd-compressed download sizes are about 1.3 TB (full) and 1.7 TB (archive) for OP Mainnet, and about 265 GB (full) and 262 GB (archive) for OP Sepolia. The extracted data directory is larger than the download, and you need room for both during the restore, so check the current size on the snapshot site before downloading.
 
 <Info>
   For OP Mainnet, a snapshot also handles the pre-Bedrock state requirement (see the warning at the top of this page) in one step.
@@ -208,14 +208,13 @@ Syncing from scratch is fine for OP Sepolia (~30–50 GB, hours) but slow for OP
   </Step>
 
   <Step title="Download a snapshot">
-    Browse [datadirs.optimism.io](https://datadirs.optimism.io/) for the snapshot matching your network and pick a recent file. Then download and verify the SHA256:
+    Select your network and sync type on [snapshots.optimism.io](https://snapshots.optimism.io/) and pick a recent `op-reth` snapshot. Copy its download command from the site, download the matching `.sha256sum` file with **Download checksum**, and verify the archive:
 
     ```bash
-    curl -fLO https://datadirs.optimism.io/<snapshot-file>.tar.zst
+    curl -fL -o '<snapshot-file>.tar.zst' '<snapshot-url>'   # copied from the site
 
-    # Verify checksum against the value on the index page
-    sha256sum <snapshot-file>.tar.zst   # Linux
-    shasum -a 256 <snapshot-file>.tar.zst   # macOS
+    sha256sum -c '<snapshot-file>.tar.zst.sha256sum'          # Linux
+    shasum -a 256 -c '<snapshot-file>.tar.zst.sha256sum'      # macOS
     ```
   </Step>
 
@@ -224,10 +223,10 @@ Syncing from scratch is fine for OP Sepolia (~30–50 GB, hours) but slow for OP
 
     ```bash
     mkdir -p reth-data
-    tar -I zstd -xvf <snapshot-file>.tar.zst -C reth-data --strip-components=1
+    zstd -dc '<snapshot-file>.tar.zst' | tar -xvf - -C reth-data --strip-components=1
     ```
 
-    `--strip-components=1` removes the top-level wrapping directory inside the tarball. Run `tar -tf <snapshot-file>.tar.zst | head -3` first to confirm — if files are already at the archive root, omit `--strip-components`.
+    `--strip-components=1` removes the top-level wrapping directory inside the tarball. Run `zstd -dc '<snapshot-file>.tar.zst' | tar -tf - | head -3` first to confirm — if files are already at the archive root, omit `--strip-components`.
   </Step>
 
   <Step title="Start the node">

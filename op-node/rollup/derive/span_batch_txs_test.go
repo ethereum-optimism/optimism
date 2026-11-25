@@ -481,35 +481,6 @@ func TestSpanBatchTxsPostExecRoundTripFullTxs(t *testing.T) {
 	require.Equal(t, txs, txs2)
 }
 
-// TestSpanBatchTxsPostExecFieldsMatchGeth pins the span batch fields that AddTxs
-// derives from a post-exec tx's canonical encoding against op-geth's view of the
-// same transaction. It is op-geth-specific by construction: upstream go-ethereum
-// does not decode the 0x7D class at all, which is why the fields are derived from
-// the encoding instead of from a go-ethereum transaction.
-func TestSpanBatchTxsPostExecFieldsMatchGeth(t *testing.T) {
-	raw, err := testPostExecTx().MarshalBinary()
-	require.NoError(t, err)
-	sbt, err := newSpanBatchTxs([][]byte{raw}, big.NewInt(901))
-	require.NoError(t, err)
-
-	gethTx := testPostExecGethTx(t)
-	v, r, s := gethTx.RawSignatureValues()
-	require.Equal(t, []int{int(gethTx.Type())}, sbt.txTypes)
-	require.Equal(t, []uint64{gethTx.Nonce()}, sbt.txNonces)
-	require.Equal(t, []uint64{gethTx.Gas()}, sbt.txGases)
-	require.Zero(t, sbt.txSigs[0].v.Cmp(v))
-	require.Zero(t, sbt.txSigs[0].r.ToBig().Cmp(r))
-	require.Zero(t, sbt.txSigs[0].s.ToBig().Cmp(s))
-	require.Equal(t, uint(0), sbt.yParityBits.Bit(0))
-
-	require.Nil(t, gethTx.To())
-	require.Empty(t, sbt.txTos, "a tx without recipient stores no address")
-	require.Equal(t, uint(1), sbt.zeroToBits.Bit(0))
-
-	require.Equal(t, gethTx.Data(), testPostExecTx().Data, "op-geth carries the payload verbatim")
-	require.Equal(t, hexutil.Bytes(raw), sbt.txDatas[0])
-}
-
 // TestSpanBatchTxsAddTxsPostExec covers the span-position bookkeeping of post-exec
 // txs across multiple AddTxs calls: adding a trailing post-exec tx per block, block
 // by block, must yield the same fields as one call over all transactions, and
@@ -557,6 +528,27 @@ func TestSpanBatchTxsPostExecSkipsChainIDValidation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestSpanBatchTxsPostExecFields pins the span batch fields of a post-exec tx: type 0x7D,
+// nonce and gas 0, a zero signature, no recipient, and the canonical encoding as its data.
+// op-geth computes these fields, and kona computes the same.
+func TestSpanBatchTxsPostExecFields(t *testing.T) {
+	raw, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+	sbt, err := newSpanBatchTxs([][]byte{raw}, big.NewInt(901))
+	require.NoError(t, err)
+
+	require.Equal(t, []int{0x7d}, sbt.txTypes)
+	require.Equal(t, []uint64{0}, sbt.txNonces)
+	require.Equal(t, []uint64{0}, sbt.txGases)
+	require.Zero(t, sbt.txSigs[0].v.Sign())
+	require.True(t, sbt.txSigs[0].r.IsZero())
+	require.True(t, sbt.txSigs[0].s.IsZero())
+	require.Equal(t, uint(0), sbt.yParityBits.Bit(0))
+	require.Empty(t, sbt.txTos)
+	require.Equal(t, uint(1), sbt.zeroToBits.Bit(0))
+	require.Equal(t, hexutil.MustDecode("0x7dc6012ac3c20307"), []byte(sbt.txDatas[0]))
+}
+
 func TestSpanBatchTxsRejectsWrongChainIDForProtectedTx(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x901902))
 	chainID := big.NewInt(901)
@@ -567,6 +559,14 @@ func TestSpanBatchTxsRejectsWrongChainIDForProtectedTx(t *testing.T) {
 
 	_, err = newSpanBatchTxs([][]byte{rawTx}, chainID)
 	require.ErrorContains(t, err, "protected tx has chain ID 902, but expected chain ID 901")
+}
+
+func TestSpanBatchTxsRejectsDepositTx(t *testing.T) {
+	deposit, err := (&optypes.DepositTx{SourceHash: common.Hash{1}, Gas: 21_000}).MarshalBinary()
+	require.NoError(t, err)
+	_, err = newSpanBatchTxs([][]byte{deposit}, big.NewInt(1))
+	// go-ethereum does not decode a deposit.
+	require.ErrorContains(t, err, "failed to decode tx")
 }
 
 func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {

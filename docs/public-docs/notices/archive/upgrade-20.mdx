@@ -225,6 +225,7 @@ Permissionless chains need the Upgrade 20 `kona-client` Interop variant absolute
 
       <Tab title="Custom chain configuration">
         First, stage the chain data described in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate).
+        The directory must also contain `depsets.json` (see the `depsets.json` tab in [Generating a custom kona-client absolute prestate](/chain-operators/tutorials/kona-custom-prestate)). `kona-client/v1.7.0` does not check for it: a build without it succeeds, but onchain games cannot prove a step in the resulting prestate.
         Check out `kona-client/v1.7.0` and build the interop variant with the same custom configuration:
 
         ```bash

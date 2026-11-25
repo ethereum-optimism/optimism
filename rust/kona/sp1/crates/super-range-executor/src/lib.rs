@@ -1671,6 +1671,10 @@ mod tests {
     use kona_preimage::errors::PreimageOracleError;
     use serde_json::{Value, json};
 
+    /// A registry chain whose dependency set holds only itself, with 2-second blocks and L1 on
+    /// mainnet.
+    const REGISTRY_CHAIN: u64 = 7777777;
+
     #[test]
     fn replay_witness_over_the_limit_is_not_a_rejected_claim() {
         let too_large =
@@ -1746,22 +1750,23 @@ mod tests {
     fn deployment_configs_use_registry_defaults_and_file_overrides() {
         for case in ["registry", "rollup_override", "missing_custom_depset"] {
             let dir = tempfile::tempdir().unwrap();
-            let mut expected = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
+            let mut expected = ChainConfigs::from_registry(&[U256::from(REGISTRY_CHAIN)]).unwrap();
             let rollup_config_paths = match case {
                 "registry" => None,
                 "rollup_override" => {
-                    expected.rollup_configs.get_mut(&10).unwrap().l1_chain_id = 11155111;
+                    expected.rollup_configs.get_mut(&REGISTRY_CHAIN).unwrap().l1_chain_id =
+                        11155111;
                     expected.l1_config = kona_registry::L1_CONFIGS[&11155111].clone();
                     let path = dir.path().join("rollup.json");
                     std::fs::write(
                         &path,
-                        serde_json::to_vec(&expected.rollup_configs[&10]).unwrap(),
+                        serde_json::to_vec(&expected.rollup_configs[&REGISTRY_CHAIN]).unwrap(),
                     )
                     .unwrap();
                     Some(vec![path])
                 }
                 "missing_custom_depset" => {
-                    let mut rollup = expected.rollup_configs.remove(&10).unwrap();
+                    let mut rollup = expected.rollup_configs.remove(&REGISTRY_CHAIN).unwrap();
                     rollup.l2_chain_id = u64::MAX.into();
                     let path = dir.path().join("rollup.json");
                     std::fs::write(&path, serde_json::to_vec(&rollup).unwrap()).unwrap();
@@ -1803,12 +1808,12 @@ mod tests {
     #[tokio::test]
     async fn native_replay_uses_resolved_deployment_configs_without_elf_or_local_config_keys() {
         let dir = tempfile::tempdir().unwrap();
-        let mut configs = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
+        let mut configs = ChainConfigs::from_registry(&[U256::from(REGISTRY_CHAIN)]).unwrap();
         configs.l1_config = Default::default();
-        let mut rollup = configs.rollup_configs.remove(&10).unwrap();
+        let mut rollup = configs.rollup_configs.remove(&REGISTRY_CHAIN).unwrap();
         rollup.l2_chain_id = u64::MAX.into();
         configs.rollup_configs.insert(u64::MAX, rollup.clone());
-        let dependency = configs.dependency_set.dependencies.remove(&10).unwrap();
+        let dependency = configs.dependency_set.dependencies.remove(&REGISTRY_CHAIN).unwrap();
         configs.dependency_set.dependencies.insert(u64::MAX, dependency);
         configs.dependency_set.override_message_expiry_window = Some(123.try_into().unwrap());
         let rollup_path = dir.path().join("rollup.json");
@@ -1878,8 +1883,8 @@ mod tests {
     /// Pins kona-host's read of a replaced agreed output and replay of its canonical no-op.
     #[tokio::test(flavor = "multi_thread")]
     async fn replaced_two_second_head_replays_across_noop() {
-        let configs = ChainConfigs::from_registry(&[U256::from(10)]).unwrap();
-        let rollup = &configs.rollup_configs[&10];
+        let configs = ChainConfigs::from_registry(&[U256::from(REGISTRY_CHAIN)]).unwrap();
+        let rollup = &configs.rollup_configs[&REGISTRY_CHAIN];
         assert_eq!(rollup.block_time, 2);
         let timestamp = rollup.genesis.l2_time + 20;
         let server = mock_nodes().await;
@@ -1895,10 +1900,10 @@ mod tests {
         let original = Header { extra_data: Bytes::from_static(b"invalid"), ..replacement.clone() };
         let original_hash = original.hash_slow();
         let mut responses = [timestamp, timestamp + 1]
-            .map(|at| response_with_block_hash(at, &[10], 8, |_| replacement_hash));
+            .map(|at| response_with_block_hash(at, &[REGISTRY_CHAIN], 8, |_| replacement_hash));
         responses[0]
             .optimistic_at_timestamp
-            .insert(ChainId(U256::from(10)), output_entry(original_hash, 8));
+            .insert(ChainId(U256::from(REGISTRY_CHAIN)), output_entry(original_hash, 8));
         let mut synthesized = synthesize_execution(
             TimestampSpan::new(timestamp + 1, timestamp + 1).unwrap(),
             b256(0xaa),
@@ -2081,7 +2086,7 @@ mod tests {
     /// node's canonical block at its own timestamp, by number, and seeded as the root's preimage.
     #[tokio::test]
     async fn seeded_preimages_read_each_replaced_agreed_output_at_its_timestamp() {
-        let rollup = &kona_registry::ROLLUP_CONFIGS[&10];
+        let rollup = &kona_registry::ROLLUP_CONFIGS[&REGISTRY_CHAIN];
         let first = rollup.genesis.l2_time + 10 * rollup.block_time;
         let second = first + rollup.block_time;
         let server = mock_nodes().await;
@@ -2093,7 +2098,7 @@ mod tests {
         // or one host for both, would ask for a block the node does not serve.
         let mut responses: Vec<_> = (first - 1..=second + 1)
             .map(|at| {
-                response_with_block_hash(at, &[10], 8, |_| match at {
+                response_with_block_hash(at, &[REGISTRY_CHAIN], 8, |_| match at {
                     _ if at == first => first_hash,
                     _ if at == second => second_hash,
                     _ => b256(at as u8),
@@ -2103,7 +2108,7 @@ mod tests {
         for at in [first, second] {
             responses[(at - (first - 1)) as usize]
                 .optimistic_at_timestamp
-                .insert(ChainId(U256::from(10)), output_entry(b256(0xfe), 8));
+                .insert(ChainId(U256::from(REGISTRY_CHAIN)), output_entry(b256(0xfe), 8));
         }
         let synthesized = synthesize_execution(
             TimestampSpan::new(first, second + 1).unwrap(),
@@ -2140,14 +2145,15 @@ mod tests {
         }
     }
 
-    /// Serves the canonical block of chain 10 at `timestamp` only by number, the way kona-host's
-    /// `L2OutputRoot` hint reads it. Returns the block's hash and output preimage, and the mocks
-    /// of the two reads.
+    /// Serves the canonical block of `REGISTRY_CHAIN` at `timestamp` only by number, the way
+    /// kona-host's `L2OutputRoot` hint reads it. Returns the block's hash and output preimage, and
+    /// the mocks of the two reads.
     async fn mock_canonical_output(
         server: &MockServer,
         timestamp: u64,
     ) -> (B256, Vec<u8>, [httpmock::Mock<'_>; 2]) {
-        let number = kona_registry::ROLLUP_CONFIGS[&10].block_number_from_timestamp(timestamp);
+        let number =
+            kona_registry::ROLLUP_CONFIGS[&REGISTRY_CHAIN].block_number_from_timestamp(timestamp);
         let header = Header {
             number,
             timestamp,
@@ -2252,7 +2258,7 @@ mod tests {
         }
         let agreed = SuperRootProof::new(
             100,
-            vec![SuperOutputRoot { chain_id: 10, output_root: b256(0x44) }],
+            vec![SuperOutputRoot { chain_id: REGISTRY_CHAIN, output_root: b256(0x44) }],
         );
         let host = build_interop_host(
             &mock_host_inputs(&server),
@@ -2266,7 +2272,7 @@ mod tests {
         // kona-host retries a hint it cannot serve, so a wrong read would hang, not fail.
         let block = tokio::time::timeout(
             std::time::Duration::from_secs(30),
-            optimistic_block_receipts(host, 10, parent.hash_slow(), hash),
+            optimistic_block_receipts(host, REGISTRY_CHAIN, parent.hash_slow(), hash),
         )
         .await
         .expect("the host must serve the block")
@@ -2279,8 +2285,8 @@ mod tests {
         }
     }
 
-    /// A mock chain-10 L2 node, L1 node, and beacon node that answers what kona-host reads at
-    /// startup.
+    /// A mock `REGISTRY_CHAIN` L2 node, L1 node, and beacon node that answers what kona-host reads
+    /// at startup.
     async fn mock_nodes() -> MockServer {
         let server = MockServer::start_async().await;
         server
@@ -2299,7 +2305,7 @@ mod tests {
             .mock_async(|when, then| {
                 when.method(POST)
                     .json_body_includes(json!({ "method": "eth_chainId" }).to_string());
-                then.respond_with(rpc_result(json!("0xa")));
+                then.respond_with(rpc_result(json!(format!("{REGISTRY_CHAIN:#x}"))));
             })
             .await;
         server

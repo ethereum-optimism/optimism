@@ -45,7 +45,7 @@ func (l *lazyRPC) dial(ctx context.Context) error {
 	if l.closed {
 		return errors.New("cannot dial RPC, client was already closed")
 	}
-	underlying, err := rpc.DialOptions(ctx, l.endpoint, l.cfg.gethRPCOptions...)
+	underlying, err := dialRPCWithOptions(ctx, l.endpoint, l.cfg.gethRPCOptions...)
 	if err != nil {
 		return fmt.Errorf("failed to dial: %w", err)
 	}

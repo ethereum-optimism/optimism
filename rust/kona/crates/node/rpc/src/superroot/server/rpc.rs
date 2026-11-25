@@ -103,11 +103,20 @@ impl SuperRootRpc {
                 .output_at_ancestor(block_number, record.safe_head)
                 .await
                 .map_err(|error| {
-                    tracing::error!(block_number, ?error, "Failed to read output for super root");
+                    tracing::error!(
+                        block_number,
+                        recorded_head = ?record.safe_head,
+                        ?error,
+                        "Failed to read output for super root"
+                    );
                     ErrorObject::from(ErrorCode::InternalError)
                 })?;
             let current_sync = self.engine_state.borrow().sync_state;
             let history_unchanged = self.safe_head_record(block_number)? == record;
+            // An unchanged local-safe head also rules out, in practice, the EL switching away
+            // from the recorded head and back during the read: as long as this node alone drives
+            // the EL's forkchoice, restoring the same local-safe head takes rewinding and
+            // re-deriving every block up to it within that read.
             let safe_head_unchanged = current_sync.local_safe_head() == sync.local_safe_head();
             if let Some((block, output)) = output {
                 let within_safe_head = block.block_info.number <

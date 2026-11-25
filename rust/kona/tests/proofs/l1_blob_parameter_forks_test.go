@@ -41,7 +41,6 @@ func TestBlobParameterForks(gt *testing.T) {
 				dp.L1BPO4TimeOffset = ptr(hexutil.Uint64(72))
 				dp.L1BlobScheduleConfig = &params.BlobScheduleConfig{
 					Cancun: params.DefaultCancunBlobConfig,
-					Osaka:  params.DefaultOsakaBlobConfig,
 					Prague: params.DefaultPragueBlobConfig,
 					BPO1:   params.DefaultBPO1BlobConfig,
 					BPO2:   params.DefaultBPO2BlobConfig,

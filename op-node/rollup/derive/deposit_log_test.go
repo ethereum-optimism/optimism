@@ -1,7 +1,9 @@
 package derive
 
 import (
+	"encoding/binary"
 	"fmt"
+	"math/big"
 	"math/rand"
 	"testing"
 
@@ -11,6 +13,7 @@ import (
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -131,4 +134,43 @@ func TestDeriveUserDeposits(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestUnmarshalDepositLogEventMintAbove128Bits pins the deposit derived from a log whose mint
+// needs more than 128 bits. The spec types the mint as uint256, and op-node reads the whole word.
+// kona asserts the same log and the same encoded deposit in
+// `rust/kona/crates/protocol/protocol/src/deposits.rs` (`test_decode_deposit_mint_above_128_bits`),
+// so the two clients derive the same deposit from it.
+func TestUnmarshalDepositLogEventMintAbove128Bits(t *testing.T) {
+	from := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	to := common.HexToAddress("0x2222222222222222222222222222222222222222")
+	// 2^128 + 10: both halves of the word are non-zero.
+	mint := new(big.Int).Add(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(10))
+
+	data := make([]byte, 192)
+	data[31] = 32  // opaqueData offset
+	data[63] = 128 // opaqueData length
+	mint.FillBytes(data[64:96])
+	data[127] = 100                                 // value
+	binary.BigEndian.PutUint64(data[128:136], 1000) // gas limit
+	data[136] = 1                                   // isCreation
+	log := &types.Log{
+		Topics: []common.Hash{
+			DepositEventABIHash,
+			common.BytesToHash(from.Bytes()),
+			common.BytesToHash(to.Bytes()),
+			DepositEventVersion0,
+		},
+		Data: data,
+	}
+
+	dep, err := UnmarshalDepositLogEvent(log)
+	require.NoError(t, err)
+	require.Equal(t, mint, dep.Mint)
+	encoded, err := dep.MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t,
+		"0x7ef886a0ed428e1c45e1d9561b62834e1a2d3015a0caae3bfdc16b4da059ac885b01a1459411111111111111111111111111111111111111118091010000000000000000000000000000000a648203e880b700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+		hexutil.Encode(encoded),
+	)
 }

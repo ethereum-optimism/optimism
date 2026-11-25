@@ -12,7 +12,7 @@ audit-source:
 ---
 
 <Info>
-  이 페이지는 [op-supernode/v1.0.4](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.4) 릴리스를 기준으로 합니다.
+  이 페이지는 [op-supernode/v1.0.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) 릴리스를 기준으로 합니다.
   op-supernode가 무엇이며 왜 존재하는지에 대한 배경 정보는 [supernode 설명](/ko/op-stack/interop/supernode)을 참조하십시오.
 </Info>
 
@@ -21,9 +21,9 @@ op-supernode는 interop 의존성 집합(dependency set)의 모든 체인을 하
 supernode를 처음부터 구성하는 전체 절차(빌드, engine API 연결, 시작, 확인)는 [supernode 설정 가이드](/ko/node-operators/guides/configuration/supernode-setup)를 참조하십시오.
 플래그별 전체 목록은 [op-supernode 구성 레퍼런스](/ko/node-operators/reference/op-supernode-config)를 참조하십시오.
 
-## 권장 사항
+## 권장 사항 {#recommendations}
 
-### `--vn.all.l2.jwt-secret`으로 가상 node 간에 JWT secret 공유하기
+### `--vn.all.l2.jwt-secret`으로 가상 node 간에 JWT secret 공유하기 {#share-the-jwt-secret-across-virtual-nodes-with-vn-all-l2-jwt-secret}
 
 <Info>
   각 체인의 가상 node는 Engine API를 통해 실행 클라이언트에 인증하기 위해 JWT secret이 필요합니다.
@@ -34,7 +34,7 @@ supernode를 처음부터 구성하는 전체 절차(빌드, engine API 연결, 
 이렇게 하면 `--chains`의 모든 체인에 대해 체인별 `--vn.<chainID>.l2.jwt-secret` 줄을 반복하지 않아도 됩니다.
 체인별 형식은 특정 체인의 실행 클라이언트에 다른 secret이 필요한 경우에만 사용하십시오. [구성 레퍼런스](/ko/node-operators/reference/op-supernode-config)에 두 형식이 모두 설명되어 있습니다.
 
-### `--l1.beacon-fallbacks`로 beacon archiver 폴백 구성하기
+### `--l1.beacon-fallbacks`로 beacon archiver 폴백 구성하기 {#configure-a-beacon-archiver-fallback-with-l1-beacon-fallbacks}
 
 <Warning>
   Ethereum beacon node는 약 18일 후에 blob sidecar를 프루닝합니다.
@@ -47,7 +47,7 @@ supernode를 처음부터 구성하는 전체 절차(빌드, engine API 연결, 
 
 `--l1.beacon-fallbacks`가 가리킬 대상에 대한 옵션(프루닝하지 않는 자체 beacon 실행, `blob-archiver` 실행, 서드파티 서비스 사용)은 [blob archiver 가이드](/ko/node-operators/guides/management/blobs#configuring-a-blob-archiver)를 참조하십시오.
 
-### Configure EL retention for supernode backfill
+### Configure EL retention for supernode backfill {#configure-el-retention-for-supernode-backfill}
 
 <Info>
   supernode는 재시작이나 장시간 다운타임 이후 시작 메시지(initiating message) 로그를 backfill하기 위해 각 체인의 실행 클라이언트에서 과거 블록 및 receipt 데이터를 읽습니다.
@@ -59,7 +59,18 @@ supernode를 처음부터 구성하는 전체 절차(빌드, engine API 연결, 
 
 무허가형(permissionless) 결함 증명(fault proof)을 위해 op-challenger도 실행하는 경우, 동일한 EL에서 과거 증명도 활성화해야 합니다. [과거 증명과 함께 op-reth 실행하기](/ko/node-operators/tutorials/reth-historical-proofs)를 참조하십시오.
 
-### Pair op-supernode with a Light CL fleet
+7일 보존 기간은 supernode 자체에 필요한 기간입니다.
+EL이 그 외에 무엇을 보존해야 하는지는 해당 EL에서 무엇을 제공하는지에 따라 달라집니다.
+
+| node 용도 | 각 EL에 필요한 기록 |
+| ------------------------- | --------------------- |
+| 체인 추적(직접 제공하지 않는 체인을 포함한 모든 supernode EL) | 최소 7일간의 블록 및 receipt 기록. archive는 필요하지 않습니다. |
+| 최근 블록 및 트랜잭션에 대한 RPC 제공, 트랜잭션 브로드캐스트 | 위와 동일하며, RPC를 제공하는 EL에 적용됩니다. |
+| 과거 state 쿼리 제공 | 해당 쿼리를 제공하는 EL에 archive가 필요합니다. 직접 제공하지 않는 체인의 EL에는 archive가 필요하지 않습니다. |
+| L2에서 L1으로의 출금 증명(proving)을 위한 `eth_getProof` 제공 | 체인에 따라 증명 윈도우 또는 proofs-history 저장소가 필요합니다. [과거 증명과 함께 op-reth 실행하기](/ko/node-operators/tutorials/reth-historical-proofs)를 참조하십시오. |
+| op-challenger 실행 | 위에서 설명한 대로 supernode의 EL에 과거 증명이 필요합니다. |
+
+### Pair op-supernode with a Light CL fleet {#pair-op-supernode-with-a-light-cl-fleet}
 
 몇 개 이상의 node를 실행하는 운영자에게 적합한 배포 패턴은 비용이 많이 드는 멀티체인 도출 작업을 supernode에 집중시키고, 나머지 플릿은 Light CL 모드의 op-node 또는 kona-node 인스턴스로 실행하는 것입니다.
 각 supernode(또는 supernode의 HA 풀)는 Light CL 플릿의 safe 소스 역할을 합니다.
@@ -71,10 +82,11 @@ supernode를 처음부터 구성하는 전체 절차(빌드, engine API 연결, 
 플릿이 unsafe head P2P gossip을 자체적으로 처리하는 경우 supernode에 `--disable-p2p=true`를 설정하십시오.
 supernode가 토폴로지의 유일한 node인 경우에는 P2P를 활성화된 상태(기본값)로 두십시오.
 
-### Run an HA pool of supernodes behind a consensus-aware proxyd
+### Run an HA pool of supernodes behind a consensus-aware proxyd {#run-an-ha-pool-of-supernodes-behind-a-consensus-aware-proxyd}
 
-프로덕션 안정성을 위해 OP Labs는 **최소 3개의 op-supernode 인스턴스로 구성된 HA 풀**을 실행하고, `consensus_aware_consensus_layer` 라우팅 전략으로 구성된 [합의 인식 `proxyd`](/ko/chain-operators/tools/proxyd#consensus-awareness)를 그 앞에 두는 것을 권장합니다.
+프로덕션 안정성을 위해 OP Labs는 **최소 3개의 op-supernode 인스턴스로 구성된 HA 풀**을 실행하고, `consensus_aware_consensus_layer` 라우팅 전략으로 구성된 [합의 인식 `proxyd`](/ko/chain-operators/tools/proxyd#consensus-layer-routing-for-follow-sources)를 그 앞에 두는 것을 권장합니다.
 Light CL 플릿의 `--l2.follow.source`는 단일 supernode가 아닌 proxyd 엔드포인트를 가리키도록 하십시오.
+proxyd는 URL 경로가 아닌 RPC 메서드 기준으로 라우팅하므로, 체인당 하나의 proxyd 인스턴스를 실행하고 각 인스턴스의 백엔드로 supernode의 `/<chainID>` 경로를 지정하십시오. 구성 예시는 [proxyd 가이드](/ko/chain-operators/tools/proxyd#consensus-layer-routing-for-follow-sources)를 참조하십시오.
 이렇게 하면 개별 supernode의 장애나 reorg가 Light CL 플릿에 드러나지 않으며, supernode 계층을 다운타임 없이 릴리스 간에 순차적으로 교체할 수 있습니다.
 
 HA 풀 내의 개별 supernode가 다운되더라도 `proxyd`가 이를 가려 주므로 Light CL은 남아 있는 인스턴스를 계속 따릅니다.
@@ -82,7 +94,7 @@ supernode 계층 전체에 연결할 수 없게 되면, Light CL은 P2P gossip�
 
 단일 op-supernode는 평가 용도로는 허용되지만, 호스팅하는 모든 체인의 safe head 진행에 대한 단일 장애 지점(single point of failure)으로 간주하십시오.
 
-## Example configuration
+## Example configuration {#example-configuration}
 
 다음은 OP Mainnet과 Unichain 전반에서 검증자(verifier) 역할을 하는 op-supernode를 위한 최소 실행 가능 구성입니다.
 이 예시는 환경 변수를 사용합니다. 배포 환경에 더 적합하다면 대신 동등한 `--flag` 인수를 전달하십시오.
@@ -130,7 +142,7 @@ op-node의 내장 네트워크 레지스트리에 없는 체인의 경우 `--vn.
 
 예시의 모든 플래그와 바이너리가 허용하는 기타 모든 옵션(P2P, interop 검증, JSON-RPC, 로깅, 메트릭 옵션 포함)은 구문, 예시, 환경 변수 이름과 함께 [op-supernode 구성 레퍼런스](/ko/node-operators/reference/op-supernode-config)에 정리되어 있습니다.
 
-## 다음 단계
+## 다음 단계 {#where-to-go-next}
 
 * [supernode 설정 가이드](/ko/node-operators/guides/configuration/supernode-setup)를 따라 supernode를 처음부터 구성하십시오.
 * 전체 플래그 및 환경 변수 목록은 [op-supernode 구성 레퍼런스](/ko/node-operators/reference/op-supernode-config)를 읽어 보십시오.

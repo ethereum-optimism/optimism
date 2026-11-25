@@ -19,7 +19,7 @@ mod nodes;
 pub use nodes::{BootNodes, OP_RAW_BOOTNODES, OP_RAW_TESTNET_BOOTNODES};
 
 mod store;
-pub use store::{BootStore, BootStoreFile};
+pub use store::{BootStore, BootStoreEntry, BootStoreError, BootStoreFile};
 
 mod score;
 pub use score::PeerScoreLevel;
@@ -38,8 +38,8 @@ pub use record::{NodeRecord, NodeRecordParseError};
 
 mod utils;
 pub use utils::{
-    PeerIdConversionError, enr_to_multiaddr, local_id_to_p2p_id, peer_id_to_node_id,
-    peer_id_to_secp256k1_pubkey,
+    PeerIdConversionError, enr_tcp_socket, enr_to_multiaddr, local_id_to_p2p_id,
+    peer_id_to_node_id, peer_id_to_secp256k1_pubkey,
 };
 
 mod monitoring;

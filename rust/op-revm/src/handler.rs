@@ -80,7 +80,7 @@ where
     type Error = ERROR;
     type HaltReason = OpHaltReason;
 
-    /// UPSTREAM-MIRROR(override): revm-handler@43.0.2 `revm_handler::Handler::validate_env`
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::validate_env`
     ///
     /// Deposits return before `validation::validate_env`; non-deposits add the
     /// `enveloped_tx` requirement and then delegate. Re-check changes to the upstream
@@ -110,10 +110,10 @@ where
         self.mainnet.validate_env(evm)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@43.0.2
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3
     /// `revm_handler::Handler::validate_against_state_and_deduct_caller`
     ///
-    /// UPSTREAM-MIRROR(copy): revm-handler@43.0.2
+    /// UPSTREAM-MIRROR(copy): revm-handler@43.0.3
     /// `revm_handler::pre_execution::validate_against_state_and_deduct_caller`
     ///
     /// The non-deposit arm copies the upstream helper with the L1-fee deduction inserted
@@ -142,7 +142,7 @@ where
             // Mind value should be added first before subtracting the effective balance spending.
             let mut new_balance = caller
                 .balance()
-                .saturating_add(U256::from(tx.mint().unwrap_or_default()))
+                .saturating_add(tx.mint().unwrap_or_default())
                 .saturating_sub(effective_balance_spending);
 
             if cfg.is_balance_check_disabled() {
@@ -199,7 +199,7 @@ where
         Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@43.0.2 `revm_handler::Handler::tx_gas`
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::tx_gas`
     ///
     /// Deposits are force-included from L1 and are exempt from EIP-7825's per-transaction gas
     /// limit cap (<https://specs.optimism.io/protocol/karst/overview.html#execution-layer>), so
@@ -221,7 +221,7 @@ where
         GasTracker::new(tx_gas_limit, remaining, reservoir)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@43.0.2 `revm_handler::Handler::last_frame_result`
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::last_frame_result`
     ///
     /// Structure and comments are taken verbatim from the upstream default: the frame is
     /// settled into the transaction-level gas exactly as upstream does, and the
@@ -299,7 +299,7 @@ where
         Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@43.0.2 `revm_handler::Handler::reimburse_caller`
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::reimburse_caller`
     ///
     /// Delegates to upstream `post_execution::reimburse_caller`, adding the operator-fee
     /// refund for non-deposits. Re-check that the upstream helper's signature and semantics
@@ -321,7 +321,7 @@ where
         reimburse_caller(evm.ctx(), frame_result.gas(), additional_refund).map_err(From::from)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@43.0.2 `revm_handler::Handler::refund`
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::refund`
     ///
     /// Same as upstream except that pre-Regolith deposits get no refund at all.
     fn refund(
@@ -346,7 +346,7 @@ where
         Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@43.0.2 `revm_handler::Handler::reward_beneficiary`
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::reward_beneficiary`
     ///
     /// Returns early for deposits, otherwise calls the upstream implementation and then pays
     /// the three OP vaults. Re-check on any change to how upstream computes the beneficiary
@@ -400,7 +400,7 @@ where
         Ok(())
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@43.0.2 `revm_handler::Handler::execution_result`
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::execution_result`
     ///
     /// Reproduces the upstream teardown (`take_error`, `post_execution::output`, `commit_tx`,
     /// clearing local state and the frame stack) with the post-Regolith halted-deposit
@@ -433,7 +433,7 @@ where
         Ok(exec_result)
     }
 
-    /// UPSTREAM-MIRROR(override): revm-handler@43.0.2 `revm_handler::Handler::catch_error`
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::catch_error`
     ///
     /// Re-derive upstream error-path cleanup, currently `journal.discard_tx()`,
     /// when the default or journal semantics change.
@@ -524,10 +524,12 @@ where
         journal.checkpoint_revert(JournalCheckpoint::default());
 
         // Increment sender nonce and account balance for the mint amount. Deposits always persist
-        // the mint amount, even if the transaction fails.
+        // the mint amount, even if the transaction fails. The balance saturates at `U256::MAX`,
+        // as in `validate_against_state_and_deduct_caller`.
         let mut acc = journal.load_account_mut(caller)?;
         acc.bump_nonce();
-        acc.incr_balance(U256::from(mint.unwrap_or_default()));
+        let balance = acc.balance().saturating_add(mint.unwrap_or_default());
+        acc.set_balance(balance);
 
         drop(acc); // Drop acc to avoid borrow checker issues.
 
@@ -855,13 +857,16 @@ mod tests {
         assert_eq!(gas.refunded(), 0);
     }
 
-    #[test]
-    fn test_commit_mint_value() {
+    /// A mint that overflows the balance saturates at `U256::MAX`.
+    #[rstest]
+    #[case::no_overflow(U256::from(1000), U256::from(1010))]
+    #[case::overflow(U256::MAX - U256::from(1), U256::MAX)]
+    fn test_commit_mint_value(#[case] start_balance: U256, #[case] expected_balance: U256) {
         let caller = Address::ZERO;
         let mut db = InMemoryDB::default();
         db.insert_account_info(
             caller,
-            AccountInfo { balance: U256::from(1000), ..Default::default() },
+            AccountInfo { balance: start_balance, ..Default::default() },
         );
 
         let mut ctx = Context::op()
@@ -875,7 +880,7 @@ mod tests {
             .with_cfg(CfgEnv::new_with_spec(OpSpecId::REGOLITH));
         ctx.modify_tx(|tx| {
             tx.deposit.source_hash = B256::from([1u8; 32]);
-            tx.deposit.mint = Some(10);
+            tx.deposit.mint = Some(U256::from(10));
         });
 
         let mut evm = ctx.build_op();
@@ -888,7 +893,7 @@ mod tests {
 
         // Check the account balance is updated.
         let account = evm.ctx().journal_mut().load_account(caller).unwrap();
-        assert_eq!(account.info.balance, U256::from(1010));
+        assert_eq!(account.info.balance, expected_balance);
     }
 
     #[test]

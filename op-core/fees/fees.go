@@ -13,8 +13,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-
-	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 var (
@@ -64,13 +62,9 @@ func NewRollupCostData(data []byte) (out RollupCostData) {
 	return out
 }
 
-// TxRollupCostData computes the RollupCostData for a transaction. It replaces op-geth's
-// (*types.Transaction).RollupCostData() method: deposits incur no DA cost, and the cost
-// data is derived from the full binary-encoded transaction, not just its calldata.
+// TxRollupCostData computes the RollupCostData for a standard Ethereum transaction. The
+// cost data is derived from the full binary-encoded transaction, not just its calldata.
 func TxRollupCostData(tx *types.Transaction) RollupCostData {
-	if optypes.IsDepositTx(tx) {
-		return RollupCostData{}
-	}
 	data, err := tx.MarshalBinary()
 	if err != nil {
 		// A value that exists as a *types.Transaction was decoded or constructed

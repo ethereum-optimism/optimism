@@ -4,7 +4,7 @@ description: "아직 공개 Superchain Registry에 등록되지 않은 체인 �
 diataxis: how-to
 ---
 
-# 개요
+# 개요 {#overview}
 
 공개 [`superchain-registry`](https://github.com/ethereum-optimism/superchain-registry)에 포함된 체인의 경우, [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)에 게시된 표준 `kona-client` 절대 사전 상태(absolute prestate)에 이미 체인 구성이 포함되어 있습니다. 사용자 지정 빌드가 필요하지 않습니다.
 
@@ -14,7 +14,7 @@ diataxis: how-to
   대부분의 체인은 Superchain Registry에 포함되어 있으므로 표준 사전 상태를 사용해야 하며, 대신 [절대 사전 상태 및 프리이미지 파일 생성하기](/ko/chain-operators/tutorials/absolute-prestate)를 따르십시오. 체인이 레지스트리에 **아직** 없는 경우에만 이 튜토리얼을 따르십시오. 체인이 공개 레지스트리에 추가되면 이후 릴리스의 표준 사전 상태가 해당 체인을 지원하므로 사용자 지정 빌드를 더 이상 유지 관리하지 않아도 됩니다.
 </Info>
 
-## 사전 요구 사항
+## 사전 요구 사항 {#prerequisites}
 
 시작하기 전에 다음을 준비했는지 확인하십시오.
 
@@ -22,7 +22,7 @@ diataxis: how-to
 - 설치된 [`just`](https://github.com/casey/just)
 - 체인의 `rollup.json`, L2 genesis, 배포 아티팩트(일반적으로 `op-deployer`로 생성)
 
-## kona-client가 사용자 지정 체인 구성을 가져오는 방식
+## kona-client가 사용자 지정 체인 구성을 가져오는 방식 {#how-kona-client-picks-up-custom-chain-configurations}
 
 `kona-client`는 [`kona-registry` 크레이트](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry)에서 내장 체인 레지스트리를 읽습니다. 빌드 시 이 크레이트의 `build.rs`는 정식 Superchain Registry 스냅샷 위에 추가 체인을 병합할 수 있습니다. 병합은 두 개의 환경 변수로 제어됩니다.
 
@@ -31,20 +31,21 @@ KONA_CUSTOM_CONFIGS=true
 KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/your/configs
 ```
 
-이 변수가 설정되면 빌드 스크립트는 `KONA_CUSTOM_CONFIGS_DIR`에서 두 개의 파일을 읽습니다.
+이 변수가 설정되면 빌드 스크립트는 `KONA_CUSTOM_CONFIGS_DIR`에서 세 개의 파일을 읽습니다.
 
 - `chainList.json` — 사용자 지정 체인에 대한 경량 `Chain` 항목
 - `configs.json` — `Superchain` 버킷 아래에 그룹화된 전체 `ChainConfig` + `RollupConfig` 항목
+- `depsets.json` — 모든 사용자 지정 체인의 의존성 집합(dependency set)
 
 전체 스키마와 엔드 투 엔드 예제는 [`kona-registry` README](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/crates/protocol/registry#custom-chain-configurations)에 문서화되어 있습니다.
 
 컴파일된 `kona-client` 바이너리는 `include_str!()`을 통해 병합된 레지스트리를 포함하므로, 결과 절대 사전 상태 해시는 표준 해시와 다릅니다. 체인의 분쟁 게임(dispute game)에 참여하는 모든 정직한 challenger는 이와 동일한 바이너리를 실행해야 합니다.
 
-## 사용자 지정 사전 상태 생성하기
+## 사용자 지정 사전 상태 생성하기 {#generating-the-custom-prestate}
 
 <Steps>
   <Step title="kona-node 릴리스 태그 체크아웃">
-    체인의 node가 실행 중인 것과 동일한 `kona-node/v<VERSION>` 태그를 사용하십시오. 아래에 설명된 네이티브 `KONA_CUSTOM_CONFIGS_DIR` 지원에는 **`kona-node/v1.5.2` 이상**이 필요합니다. 이전 태그에서는 추가 justfile 패치가 필요합니다.
+    체인의 node가 실행 중인 것과 동일한 `kona-node/v<VERSION>` 태그를 사용하십시오. 아래에 설명된 네이티브 `KONA_CUSTOM_CONFIGS_DIR` 지원에는 **`kona-node/v1.5.2` 이상**이 필요합니다. 이전 태그에서는 추가 justfile 패치가 필요합니다. `depsets.json`이 필수가 되기 전의 릴리스 태그는 이 파일의 존재 여부를 확인하지 않습니다. 이 파일 없이도 빌드는 성공하지만, 그 결과로 생성된 사전 상태에서는 온체인 게임이 step을 증명할 수 없으므로 반드시 파일이 있는지 확인하십시오.
 
     ```bash
     git clone https://github.com/ethereum-optimism/optimism.git
@@ -60,9 +61,9 @@ KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/your/configs
     mkdir -p rust/kona/crates/protocol/registry/etc/custom-configs/<chain-name>
     ```
 
-    그 안에 `chainList.json`(경량 체인 항목)과 `configs.json`(전체 rollup 구성) 두 파일을 추가합니다. 모든 `<PLACEHOLDER>`를 체인의 값으로 바꾸십시오. 참고 사항:
+    그 안에 `chainList.json`(경량 체인 항목), `configs.json`(전체 rollup 구성), `depsets.json`(의존성 집합) 세 파일을 추가합니다. 모든 `<PLACEHOLDER>`를 체인의 값으로 바꾸십시오. 참고 사항:
 
-    - **`<CHAIN_GROUP>`**: L1이 Ethereum mainnet이면 `mainnet`, L1이 Sepolia이면 `sepolia`입니다. 버킷은 거버넌스가 아니라 L1 네트워크를 기준으로 체인을 그룹화합니다. 사용자 지정 체인 상태는 `governedByOptimism: false`와 `superchainLevel: 0`으로 표현됩니다.
+    - **`<CHAIN_GROUP>`**: L1이 Ethereum mainnet이면 `mainnet`, L1이 Sepolia이면 `sepolia`입니다. 버킷은 거버넌스가 아니라 L1 네트워크를 기준으로 체인을 그룹화합니다. 사용자 지정 체인 상태는 `governedByOptimism: false`와 `superchainLevel: 0`으로 표현됩니다. `kona-client`는 Ethereum mainnet, Sepolia, Holesky에 대한 L1 구성만 포함하므로, L1은 이 중 하나여야 합니다.
     - **`faultProofs.status`**: `cannon-kona` 게임 유형을 공개적으로 실행하는 체인은 `permissionless`, 허용 목록에 있는 challenger만 허용하는 체인은 `permissioned`입니다.
 
     <Tabs>
@@ -191,6 +192,18 @@ KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/your/configs
         }
         ```
       </Tab>
+      <Tab title="depsets.json">
+        ```json
+        [
+          {
+            "dependencies": { "<YOUR_L2_CHAIN_ID>": {} },
+            "overrideMessageExpiryWindow": null
+          }
+        ]
+        ```
+
+        이는 interop 클러스터에 속하지 않은 체인의 자기 자신만 포함하는 집합입니다. interop 클러스터에 속한 체인은 모든 멤버를 나열하는 하나의 항목을 사용합니다. 각 항목은 클러스터의 의존성 집합 파일에 있는 JSON 객체와 동일해야 합니다. 이 파일은 op-supernode의 `--dependency-set`이 설정된 경우 해당 값이고, 그렇지 않으면 op-node의 `--interop.dependency-set`입니다. 모든 체인에 대해 op-challenger의 depset 구성(`--depset-config`, 또는 `--super-cannon-kona-depset-config` / `--cannon-kona-depset-config`)도 동일한 객체를 담고 있어야 합니다.
+      </Tab>
     </Tabs>
 
     체인의 기존 아티팩트에서 값을 가져오십시오.
@@ -234,7 +247,7 @@ KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/your/configs
   </Step>
 </Steps>
 
-## 사용자 지정 사전 상태로 배포 및 구성하기
+## 사용자 지정 사전 상태로 배포 및 구성하기 {#deploying-and-configuring-with-the-custom-prestate}
 
 <Steps>
   <Step title="사전 상태 바이너리 호스팅">
@@ -279,7 +292,7 @@ KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/your/configs
   </Step>
 </Steps>
 
-## 다음 단계
+## 다음 단계 {#next-steps}
 
 - [Upgrade 19 공지](/ko/notices/archive/upgrade-19) — `cannon-kona` 게임 유형 승격과 표준 사전 상태를 위한 참조 빌드 명령.
 - [절대 사전 상태 및 프리이미지 파일 생성하기](/ko/chain-operators/tutorials/absolute-prestate): Superchain Registry에 포함된 체인을 위한 표준 `kona-client` 사전 상태 흐름.

@@ -49,7 +49,7 @@ func TestBatcherMultiTx(t *testing.T) {
 
 	for {
 		for i := startBlock; i <= headNum; i++ {
-			block, err := l1Client.BlockByNumber(ctx, big.NewInt(int64(i)))
+			block, err := l1Client.BlockByNumber(ctx, big.NewInt(int64(i))) //nolint:forbidigo // L1: counts the batcher's transactions
 			require.NoError(t, err)
 
 			batcherTxCount, err := transactions.TransactionsBySender(block, cfg.DeployConfig.BatchSenderAddress)

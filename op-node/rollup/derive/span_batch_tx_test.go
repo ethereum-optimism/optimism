@@ -8,6 +8,7 @@ import (
 	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,21 +95,17 @@ func TestSpanBatchTxRoundTrip(t *testing.T) {
 	}
 }
 
+// testPostExecTx returns the post-exec tx of TestPostExecTxHashGoldenVector in op-core/types.
 func testPostExecTx() *optypes.PostExecTx {
-	return &optypes.PostExecTx{Data: []byte{0xc2, 0x01, 0xc0}}
-}
-
-// testPostExecGethTx decodes the canonical post-exec encoding into a go-ethereum
-// transaction, to pin op-geth's view of a post-exec tx against the span batch
-// fields derived from the encoding itself. Only op-geth decodes the 0x7D class;
-// upstream go-ethereum rejects it, which is why nothing but this reference decodes
-// post-exec txs into go-ethereum transactions.
-func testPostExecGethTx(t *testing.T) *types.Transaction {
-	raw, err := testPostExecTx().MarshalBinary()
-	require.NoError(t, err)
-	tx := new(types.Transaction)
-	require.NoError(t, tx.UnmarshalBinary(raw))
-	return tx
+	data, err := rlp.EncodeToBytes(&optypes.PostExecPayload{
+		Version:          optypes.PostExecPayloadVersion,
+		BlockNumber:      42,
+		GasRefundEntries: []optypes.SDMGasEntry{{Index: 3, GasRefund: 7}},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return &optypes.PostExecTx{Data: data}
 }
 
 func TestSpanBatchTxPostExecConvert(t *testing.T) {
@@ -145,9 +142,8 @@ type spanBatchDummyTxData struct{}
 func (txData *spanBatchDummyTxData) txType() byte { return optypes.DepositTxType }
 
 func TestSpanBatchTxInvalidTxType(t *testing.T) {
-	// span batch never contain deposit tx
-	depositTx := testutils.TxFromDeposit(&optypes.DepositTx{})
-	_, err := newSpanBatchTx(depositTx)
+	// span batch never contain blob tx
+	_, err := newSpanBatchTx(types.NewTx(&types.BlobTx{}))
 	require.ErrorContains(t, err, "invalid tx type")
 
 	var sbtx spanBatchTx

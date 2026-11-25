@@ -66,13 +66,15 @@ uint64 constant L2_RELAY_RESERVED_GAS = 40_000;
 //                      Gas check buffer                      //
 ////////////////////////////////////////////////////////////////
 
-// Covers the work between the `hasMinGas` check and the CALL: setting `xDomainMsgSender` (a warm,
-// nonzero-to-nonzero write, so no state gas) and preparing the call's arguments. Too low, and the
-// target can receive less than `minGasLimit`.
-// To set: the cost of that window on the chain's EVM, rounded up generously.
+// Covers the work between the `hasMinGas` check and the CALL: reading `xDomainMsgSender` for the
+// reentrancy check (cold, since nothing earlier in `relayMessage` touches it), setting it (then
+// warm, and nonzero-to-nonzero, so no state gas) and preparing the call's arguments. Too low, and
+// the target can receive less than `minGasLimit`.
+// To set: measure the whole window on the chain's EVM and round up generously.
+// `test_relayMessage_gasCheckBufferCoversWindow_succeeds` measures it.
 
-/// @dev The `xDomainMsgSender` write alone costs 10,100 under Amsterdam.
+/// @dev Measured under Amsterdam: 12,438.
 uint64 constant L1_RELAY_GAS_CHECK_BUFFER = 15_000;
 
-/// @dev The `xDomainMsgSender` write alone costs 2,900 under Prague.
-uint64 constant L2_RELAY_GAS_CHECK_BUFFER = 5_000;
+/// @dev Measured under Prague: 5,238.
+uint64 constant L2_RELAY_GAS_CHECK_BUFFER = 7_500;

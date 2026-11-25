@@ -161,6 +161,10 @@ func (c *Intent) validateCustomConfig() error {
 		if err := chain.Check(); err != nil {
 			return err
 		}
+		// The OPCM migrator rejects hooked chains.
+		if c.UseInterop && chain.GetBridgeHook() != emptyAddress {
+			return fmt.Errorf("%w: bridgeHook is not supported with useInterop, chainId=%s", ErrIncompatibleValue, chain.ID)
+		}
 	}
 
 	return nil
@@ -210,6 +214,9 @@ func (c *Intent) validateStandardValues() error {
 		}
 		if chain.IsCustomGasTokenEnabled() {
 			return fmt.Errorf("%w: chainId=%s custom gas token must be disabled for standard chains", ErrNonStandardValue, chain.ID)
+		}
+		if chain.GetBridgeHook() != emptyAddress {
+			return fmt.Errorf("%w: chainId=%s bridgeHook must be unset for standard chains", ErrNonStandardValue, chain.ID)
 		}
 	}
 

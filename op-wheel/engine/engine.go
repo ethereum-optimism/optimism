@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -34,34 +35,17 @@ func GetChainConfig(ctx context.Context, open client.RPC) (cfg *opparams.ChainCo
 	return
 }
 
-type RPCBlock struct {
-	types.Header
-	Transactions []*types.Transaction `json:"transactions"`
-}
-
-func getBlock(ctx context.Context, client client.RPC, method string, tag string) (*types.Block, error) {
-	var raw json.RawMessage
-	err := client.CallContext(ctx, &raw, method, tag, true)
-	if err != nil {
+// getPayload fetches a block as an execution payload, which keeps the transactions in their
+// binary encoding: go-ethereum transaction types cannot represent all OP Stack transactions.
+func getPayload(ctx context.Context, client client.RPC, tag string) (*eth.ExecutionPayloadEnvelope, error) {
+	var block *sources.RPCBlock
+	if err := client.CallContext(ctx, &block, methodEthGetBlockByNumber, tag, true); err != nil {
 		return nil, err
 	}
-
-	var head *types.Header
-	if err := json.Unmarshal(raw, &head); err != nil {
-		return nil, err
+	if block == nil {
+		return nil, ethereum.NotFound
 	}
-
-	type rpcBlock struct {
-		Hash         common.Hash          `json:"hash"`
-		Transactions []*types.Transaction `json:"transactions"`
-	}
-
-	var body *rpcBlock
-	if err := json.Unmarshal(raw, &body); err != nil {
-		return nil, err
-	}
-
-	return types.NewBlockWithHeader(head).WithBody(types.Body{Transactions: body.Transactions}), nil
+	return block.ExecutionPayloadEnvelope(false)
 }
 
 func getHeader(ctx context.Context, client client.RPC, method string, tag string) (*types.Header, error) {
@@ -82,8 +66,8 @@ func headSafeFinalized(ctx context.Context, client client.RPC) (head, safe, fina
 	return head, safe, fin, err
 }
 
-func headBlockSafeFinalized(ctx context.Context, client client.RPC) (head *types.Block, safe, finalized *types.Header, err error) {
-	head, err = getBlock(ctx, client, methodEthGetBlockByNumber, "latest")
+func headPayloadSafeFinalized(ctx context.Context, client client.RPC) (head *eth.ExecutionPayloadEnvelope, safe, finalized *types.Header, err error) {
+	head, err = getPayload(ctx, client, "latest")
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to get latest: %w", err)
 	}
@@ -311,34 +295,32 @@ type StatusData struct {
 }
 
 func Status(ctx context.Context, client client.RPC) (*StatusData, error) {
-	head, safe, finalized, err := headBlockSafeFinalized(ctx, client)
+	headEnv, safe, finalized, err := headPayloadSafeFinalized(ctx, client)
 	if err != nil {
 		return nil, err
 	}
+	head := headEnv.ExecutionPayload
 	return &StatusData{
-		Head:      eth.L1BlockRef{Hash: head.Hash(), Number: head.NumberU64(), Time: head.Time(), ParentHash: head.ParentHash()},
+		Head:      eth.L1BlockRef{Hash: head.BlockHash, Number: uint64(head.BlockNumber), Time: uint64(head.Timestamp), ParentHash: head.ParentHash},
 		Safe:      eth.L1BlockRef{Hash: safe.Hash(), Number: bigs.Uint64Strict(safe.Number), Time: safe.Time, ParentHash: safe.ParentHash},
 		Finalized: eth.L1BlockRef{Hash: finalized.Hash(), Number: bigs.Uint64Strict(finalized.Number), Time: finalized.Time, ParentHash: finalized.ParentHash},
-		Txs:       uint64(len(head.Transactions())),
-		Gas:       head.GasUsed(),
-		StateRoot: head.Root(),
-		BaseFee:   head.BaseFee(),
+		Txs:       uint64(len(head.Transactions)),
+		Gas:       uint64(head.GasUsed),
+		StateRoot: common.Hash(head.StateRoot),
+		BaseFee:   (*uint256.Int)(&head.BaseFeePerGas).ToBig(),
 	}, nil
 }
 
 // Copy takes the forkchoice state of copyFrom, and applies it to copyTo, and inserts the head-block.
 // The destination engine should then start syncing to this new chain if it has peers to do so.
 func Copy(ctx context.Context, copyFrom client.RPC, copyTo *sources.EngineAPIClient) error {
-	copyHead, copySafe, copyFinalized, err := headBlockSafeFinalized(ctx, copyFrom)
+	payloadEnv, copySafe, copyFinalized, err := headPayloadSafeFinalized(ctx, copyFrom)
 	if err != nil {
 		return err
 	}
-	payloadEnv, err := blockAsPayloadEnv(copyHead, copyTo.EngineVersionProvider())
-	if err != nil {
-		return err
-	}
+	setWithdrawalsForEngine(payloadEnv.ExecutionPayload, copyTo.EngineVersionProvider())
 
-	if err := updateForkchoice(ctx, copyTo, copyHead.ParentHash(), copySafe.Hash(), copyFinalized.Hash()); err != nil {
+	if err := updateForkchoice(ctx, copyTo, payloadEnv.ExecutionPayload.ParentHash, copySafe.Hash(), copyFinalized.Hash()); err != nil {
 		return err
 	}
 	if err := insertBlock(ctx, copyTo, payloadEnv); err != nil {
@@ -353,27 +335,25 @@ func Copy(ctx context.Context, copyFrom client.RPC, copyTo *sources.EngineAPICli
 
 // CopyPayload takes the execution payload at number & applies it via NewPayload to copyTo
 func CopyPayload(ctx context.Context, number uint64, copyFrom client.RPC, copyTo *sources.EngineAPIClient) error {
-	copyHead, err := getBlock(ctx, copyFrom, methodEthGetBlockByNumber, hexutil.EncodeUint64(number))
+	payloadEnv, err := getPayload(ctx, copyFrom, hexutil.EncodeUint64(number))
 	if err != nil {
 		return err
 	}
-	payloadEnv, err := blockAsPayloadEnv(copyHead, copyTo.EngineVersionProvider())
-	if err != nil {
-		return err
-	}
+	setWithdrawalsForEngine(payloadEnv.ExecutionPayload, copyTo.EngineVersionProvider())
 	if err := insertBlock(ctx, copyTo, payloadEnv); err != nil {
 		return err
 	}
 	return nil
 }
 
-func blockAsPayloadEnv(block *types.Block, evp sources.EngineVersionProvider) (*eth.ExecutionPayloadEnvelope, error) {
-	var config opparams.ChainConfig
-	// hack: if we're calling at least FCUV2, get empty withdrawals by setting Canyon before the block time
-	if v := evp.ForkchoiceUpdatedVersion(&eth.PayloadAttributes{Timestamp: hexutil.Uint64(block.Time())}); v != eth.FCUV1 {
-		config.CanyonTime = new(uint64)
+// setWithdrawalsForEngine sets empty withdrawals if the destination engine is called with at
+// least FCUV2, and none otherwise, whatever the source block carries.
+func setWithdrawalsForEngine(payload *eth.ExecutionPayload, evp sources.EngineVersionProvider) {
+	if v := evp.ForkchoiceUpdatedVersion(&eth.PayloadAttributes{Timestamp: payload.Timestamp}); v != eth.FCUV1 {
+		payload.Withdrawals = &types.Withdrawals{}
+	} else {
+		payload.Withdrawals = nil
 	}
-	return eth.BlockAsPayloadEnv(block, &config)
 }
 
 func SetForkchoice(ctx context.Context, client *sources.EngineAPIClient, finalizedNum, safeNum, unsafeNum uint64) error {

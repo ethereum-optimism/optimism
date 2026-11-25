@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
 type Env struct {
@@ -94,6 +95,7 @@ func (env Env) L1UserEnv(t Testing) *BasicUserEnv[*L1Bindings] {
 	l1EthCl := env.Miner.EthClient()
 	return &BasicUserEnv[*L1Bindings]{
 		EthCl:          l1EthCl,
+		Receipts:       txplan.FromGethReceipts(l1EthCl),
 		Signer:         types.LatestSigner(env.SetupData.L1Cfg.Config),
 		AddressCorpora: env.AddressCorpora,
 		Bindings:       NewL1Bindings(t, l1EthCl, e2ecfg.DefaultAllocType),
@@ -104,6 +106,7 @@ func (env Env) L2UserEnv(t Testing) *BasicUserEnv[*L2Bindings] {
 	l2EthCl := env.SeqEngine.EthClient()
 	return &BasicUserEnv[*L2Bindings]{
 		EthCl:          l2EthCl,
+		Receipts:       env.SeqEngine.SourceClient(),
 		Signer:         types.LatestSignerForChainID(env.SetupData.L2Cfg.Config.ChainID),
 		AddressCorpora: env.AddressCorpora,
 		Bindings:       NewL2Bindings(t, l2EthCl, env.SeqEngine.GethClient()),

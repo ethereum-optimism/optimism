@@ -10,7 +10,7 @@ use jsonrpsee::{
     types::{ErrorCode, ErrorObject},
 };
 use kona_engine::{EngineQueryClient, EngineState};
-use kona_genesis::RollupConfig;
+use kona_genesis::{DependencySet, RollupConfig};
 use kona_protocol::SyncStatus;
 use kona_safedb::{SafeDb, SafeDbError};
 use std::sync::Arc;
@@ -18,7 +18,7 @@ use tokio::sync::{oneshot, watch};
 
 use crate::{
     L1WatcherQueries, OutputResponse, RollupNodeApiServer, SafeHeadResponse,
-    l1_watcher::L1WatcherQuerySender, safe_db_error::safe_db_error,
+    l1_watcher::L1WatcherQuerySender, plain_error::plain_error, safe_db_error::safe_db_error,
 };
 
 /// `RollupRpc`
@@ -30,6 +30,8 @@ pub struct RollupRpc {
     pub version: String,
     /// The rollup configuration.
     pub config: Arc<RollupConfig>,
+    /// The interop dependency set, if the node runs with one.
+    pub dependency_set: Option<Arc<DependencySet>>,
     /// The engine state published by the engine task queue.
     pub engine_state: watch::Receiver<EngineState>,
     /// The read-only L2 connection shared with the engine.
@@ -46,12 +48,13 @@ impl RollupRpc {
     pub const fn new(
         version: String,
         config: Arc<RollupConfig>,
+        dependency_set: Option<Arc<DependencySet>>,
         engine_state: watch::Receiver<EngineState>,
         l2: EngineQueryClient,
         l1_watcher_sender: L1WatcherQuerySender,
         safe_db: Option<Arc<dyn SafeDb>>,
     ) -> Self {
-        Self { version, config, engine_state, l2, l1_watcher_sender, safe_db }
+        Self { version, config, dependency_set, engine_state, l2, l1_watcher_sender, safe_db }
     }
 
     async fn sync_status(&self) -> Result<SyncStatus, oneshot::error::RecvError> {
@@ -120,6 +123,11 @@ impl RollupNodeApiServer for RollupRpc {
         Ok((*self.config).clone())
     }
 
+    async fn op_dependency_set(&self) -> RpcResult<DependencySet> {
+        // op-node answers ethereum.NotFound, which its server sends as a plain "not found" error.
+        self.dependency_set.as_deref().cloned().ok_or_else(|| plain_error("not found"))
+    }
+
     async fn op_version(&self) -> RpcResult<String> {
         Ok(self.version.clone())
     }
@@ -142,6 +150,7 @@ mod tests {
         let rpc = RollupRpc::new(
             "1.2.3-test".to_owned(),
             config.clone(),
+            None,
             state_rx,
             client.query_client(),
             l1_tx,
@@ -191,6 +200,7 @@ mod tests {
             let rpc = RollupRpc::new(
                 version.to_owned(),
                 config.clone(),
+                None,
                 state_rx.clone(),
                 client.query_client(),
                 l1_tx.clone(),
@@ -198,6 +208,48 @@ mod tests {
             );
             assert_eq!(rpc.op_version().await.unwrap(), version);
         }
+
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A node with a dependency set serves it in the JSON op-node's rollup client decodes, with
+    /// `null` for an unset expiry override; one without answers op-node's plain "not found".
+    #[rstest::rstest]
+    #[case::with_override(
+        r#"{"dependencies":{"901":{},"902":{}},"overrideMessageExpiryWindow":3600}"#
+    )]
+    #[case::without_override(r#"{"dependencies":{"901":{}},"overrideMessageExpiryWindow":null}"#)]
+    #[tokio::test]
+    async fn serves_the_dependency_set_or_not_found(#[case] json: &str) {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let (_, state_rx) = watch::channel(EngineState::default());
+        let (l1_tx, _) = mpsc::channel(1);
+        let dependency_set: DependencySet = serde_json::from_str(json).unwrap();
+        let rpc = |dependency_set| {
+            RollupRpc::new(
+                "1.2.3-test".to_owned(),
+                config.clone(),
+                dependency_set,
+                state_rx.clone(),
+                client.query_client(),
+                l1_tx.clone(),
+                None,
+            )
+        };
+
+        let served = rpc(Some(Arc::new(dependency_set))).op_dependency_set().await.unwrap();
+        assert_eq!(
+            serde_json::to_value(served).unwrap(),
+            serde_json::from_str::<serde_json::Value>(json).unwrap()
+        );
+
+        let error = rpc(None).op_dependency_set().await.unwrap_err();
+        assert_eq!(
+            (error.code(), error.message()),
+            (crate::plain_error::PLAIN_ERROR_CODE, "not found")
+        );
 
         l1.assert_finished();
         l2.assert_finished();

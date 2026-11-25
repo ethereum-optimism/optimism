@@ -23,6 +23,9 @@ pub enum Discv5BuilderError {
     /// which is not bound in advance.
     #[error("no discovery UDP port to advertise")]
     UdpPortZero,
+    /// The bootstore can't be opened.
+    #[error(transparent)]
+    Bootstore(#[from] kona_peers::BootStoreError),
 }
 
 /// An error that can occur when advertising the gossip TCP port in the ENR.

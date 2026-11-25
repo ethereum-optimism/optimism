@@ -102,7 +102,7 @@ func NewEVMEnv(t testing.TB, contracts *ContractMetadata) (*vm.EVM, *state.State
 	if err != nil {
 		t.Fatalf("failed to create memory state db: %v", err)
 	}
-	blockContext := core.NewEVMBlockContext(header, bc, nil, chainCfg, state)
+	blockContext := core.NewEVMBlockContext(header, bc, nil)
 	vmCfg := vm.Config{}
 
 	env := vm.NewEVM(blockContext, state, chainCfg, vmCfg)
@@ -123,9 +123,9 @@ func NewEVMEnv(t testing.TB, contracts *ContractMetadata) (*vm.EVM, *state.State
 	}
 	mipsDeploy := append(bytes.Clone(contracts.Artifacts.MIPS.Bytecode.Object), ctorArgs...)
 	startingGas := uint64(30_000_000)
-	retVal, deployedMipsAddr, leftOverGas, err := env.Create(contracts.Addresses.Sender, mipsDeploy, startingGas, common.U2560)
+	retVal, deployedMipsAddr, leftOver, err := env.Create(contracts.Addresses.Sender, mipsDeploy, vm.NewGasBudget(startingGas, 0), common.U2560)
 	if err != nil {
-		t.Fatalf("failed to deploy MIPS contract. error: '%v'. return value: 0x%x. took %d gas.", err, retVal, startingGas-leftOverGas)
+		t.Fatalf("failed to deploy MIPS contract. error: '%v'. return value: 0x%x. took %d gas.", err, retVal, startingGas-leftOver.ExecutionGas)
 	}
 	contracts.Addresses.MIPS = deployedMipsAddr
 

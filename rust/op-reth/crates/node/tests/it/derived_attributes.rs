@@ -4,19 +4,16 @@
 //! valid payload's executed block from `engine_getPayload`.
 
 use alloy_consensus::{Sealable, SignableTransaction, TxEip1559};
-use alloy_genesis::Genesis;
 use alloy_network::eip2718::Encodable2718;
-use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxKind};
+use alloy_primitives::{Address, B64, B256, Bytes, Signature, TxKind, U256};
 use alloy_rpc_types_engine::{ForkchoiceState, ForkchoiceUpdated, PayloadStatus};
 use jsonrpsee::{
     core::{ClientError, client::ClientT},
     rpc_params,
 };
-use op_alloy_consensus::{
-    OpTxEnvelope, SDMGasEntry, TxDeposit, build_post_exec_tx, encode_jovian_extra_data,
-};
+use op_alloy_consensus::{OpTxEnvelope, SDMGasEntry, TxDeposit, build_post_exec_tx};
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4};
-use reth_chainspec::{BaseFeeParams, EthChainSpec};
+use reth_chainspec::EthChainSpec;
 use reth_db_common::init::init_genesis;
 use reth_e2e_test_utils::{Adapter, TmpDB};
 use reth_node_api::NodeTypesWithDBAdapter;
@@ -25,8 +22,7 @@ use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 use reth_optimism_evm::OpEvmConfig;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_node::{OpNode, utils::optimism_payload_attributes};
-use reth_optimism_payload_builder::{OpPayloadAttrs, OpPayloadBuilder, OpPayloadBuilderAttributes};
-use reth_optimism_primitives::OpTransactionSigned;
+use reth_optimism_payload_builder::{OpPayloadAttrs, OpPayloadBuilder};
 use reth_optimism_txpool::OpPooledTransaction;
 use reth_provider::{
     HeaderProvider, providers::BlockchainProvider,
@@ -88,7 +84,7 @@ impl Txs {
             source_hash: B256::with_last_byte(source),
             from,
             to: TxKind::Call(Address::with_last_byte(1)),
-            mint: 1_000_000_000_000_000_000,
+            mint: U256::from(1_000_000_000_000_000_000u64),
             gas_limit: 21_000,
             ..Default::default()
         };
@@ -119,9 +115,7 @@ type TestNode = FullNode<
 >;
 
 async fn launch(chain_spec: Arc<OpChainSpec>) -> eyre::Result<TestNode> {
-    let mut config = NodeConfig::test().map_chain(chain_spec).with_unused_ports();
-    config.network.discovery.discv5_port = Some(0);
-    config.network.discovery.discv5_port_ipv6 = Some(0);
+    let config = NodeConfig::test().map_chain(chain_spec).with_unused_ports();
     let op_node = OpNode::default();
     Ok(NodeBuilder::new(config)
         .testing_node(Runtime::test())
@@ -233,12 +227,7 @@ async fn run(
 #[tokio::test(flavor = "multi_thread")]
 async fn invalid_derived_transactions_are_rejected_at_fcu() -> eyre::Result<()> {
     // A Jovian parent must carry Jovian extra data, or no child of it passes validation.
-    let mut genesis: Genesis = serde_json::from_str(include_str!("../assets/genesis.json"))?;
-    genesis.extra_data = encode_jovian_extra_data(B64::ZERO, BaseFeeParams::optimism(), 0)?;
-    genesis.base_fee_per_gas = Some(1_000_000_000);
-    let chain_spec = Arc::new(
-        OpChainSpecBuilder::optimism_sepolia().genesis(genesis).lagoon_activated().build(),
-    );
+    let chain_spec = crate::lagoon::chain_spec()?;
     let Txs { deposit, next_deposit, transfer, nonce_too_high } = Txs::new(chain_spec.chain_id())?;
     let invalid = vec![
         ("nonce too high", vec![deposit.clone(), nonce_too_high]),
@@ -312,12 +301,11 @@ fn witness_covers_a_derived_block_up_to_its_invalid_transaction() -> eyre::Resul
     let mut attrs = optimism_payload_attributes(parent.timestamp + 2);
     attrs.0.no_tx_pool = Some(true);
     attrs.0.transactions = Some(vec![deposit, nonce_too_high]);
-    let builder =
-        OpPayloadBuilder::<_, _, _, (), OpPayloadBuilderAttributes<OpTransactionSigned>>::new(
-            NoopTransactionPool::<OpPooledTransaction>::new(),
-            provider,
-            OpEvmConfig::optimism(chain_spec),
-        );
+    let builder = OpPayloadBuilder::new(
+        NoopTransactionPool::<OpPooledTransaction>::new(),
+        provider,
+        OpEvmConfig::optimism(chain_spec),
+    );
 
     let witness = builder.payload_witness(parent, attrs.0)?;
     assert!(!witness.state.is_empty(), "the deposit's state is in the witness");

@@ -85,7 +85,7 @@ func fetchBatchesPerBlock(ctx context.Context, client *ethclient.Client, beacon 
 	invalidBatchCount := uint64(0)
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	block, err := client.BlockByNumber(ctx, new(big.Int).SetUint64(number))
+	block, err := client.BlockByNumber(ctx, new(big.Int).SetUint64(number)) //nolint:forbidigo // L1: reads the batch transactions
 	if err != nil {
 		return 0, 0, err
 	}

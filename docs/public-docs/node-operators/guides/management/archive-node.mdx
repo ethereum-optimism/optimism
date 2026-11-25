@@ -25,7 +25,7 @@ Historical proofs are a lighter-weight alternative to a full archive node when y
 
 ## Requirements
 
-*   **OP Mainnet**: Requires the [bedrock datadir](/node-operators/guides/management/snapshots)
+*   **OP Mainnet**: Requires the Bedrock state. Restore the archive `op-reth` [OP Mainnet snapshot](/op-mainnet/network-information/snapshots#op-mainnet), which includes it, or [import it yourself](/node-operators/op-reth/run/faq/sync-op-mainnet)
 *   **Other OP Stack networks**: No datadir required
 *   **Storage**: Archive nodes require significantly more disk space than regular nodes (several terabytes for OP Mainnet)
 *   **Sync time**: Archive sync with execution-layer mode is faster than full block-by-block execution
@@ -139,5 +139,5 @@ Archive nodes require substantial storage:
 
 *   See the [sync modes reference](/node-operators/reference/consensus-layer-sync) for non-archive node sync configuration
 *   See the [Consensus Client Configuration](/node-operators/guides/configuration/consensus-clients) and [Execution Client Configuration](/node-operators/guides/configuration/execution-clients) guides for additional explanation or customization
-*   See the [Snapshots guide](/node-operators/guides/management/snapshots) for information about downloading the bedrock datadir
+*   See the [Snapshots reference page](/op-mainnet/network-information/snapshots) for the OP Mainnet archive snapshot and the [Restore a node from a snapshot guide](/node-operators/guides/management/restore-from-snapshot) for how to restore it
 *   If you experience difficulty at any stage of this process, please reach out to [developer support](https://github.com/ethereum-optimism/developers/discussions)

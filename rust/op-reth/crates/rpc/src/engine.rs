@@ -10,16 +10,16 @@ use derive_more::Constructor;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, server::RpcModule};
 use op_alloy_rpc_types_engine::OpExecutionPayloadV4;
-use reth_chainspec::EthereumHardforks;
 use reth_node_api::{EngineApiValidator, EngineTypes};
-use reth_optimism_payload_builder::OpExecData;
+use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_payload_builder::{OpEngineTypes, OpExecData, OpPayloadAttrs};
 use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::EngineApi;
 use reth_storage_api::{BalProvider, BlockReader, HeaderProvider, StateProviderFactory};
 use reth_transaction_pool::TransactionPool;
 use tracing::{debug, trace};
 
-/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_engine_api::capabilities::CAPABILITIES`
+/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-2 `reth_rpc_engine_api::capabilities::CAPABILITIES`
 ///
 /// Advertised capabilities must stay in step with the methods declared on [`OpEngineApi`].
 /// The list of all supported Engine capabilities available over the engine endpoint.
@@ -50,7 +50,7 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
 /// <https://specs.optimism.io/protocol/exec-engine.html#engine-api>
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "engine"), server_bounds(Engine::PayloadAttributes: jsonrpsee::core::DeserializeOwned))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "engine", client_bounds(Engine::PayloadAttributes: jsonrpsee::core::Serialize + Clone), server_bounds(Engine::PayloadAttributes: jsonrpsee::core::DeserializeOwned)))]
-/// UPSTREAM-MIRROR(set): reth@rev:8d359d0 `reth_rpc_api::EngineApi`
+/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-2 `reth_rpc_api::EngineApi`
 ///
 /// Re-declares the engine RPC surface rather than extending upstream's trait. A method added
 /// upstream produces no diff here, so compare the method sets on each bump and update
@@ -257,29 +257,23 @@ pub trait OpEngineApi<Engine: EngineTypes> {
 /// Rejecting invalid derived transactions at `engine_forkchoiceUpdated` depends on the node's
 /// payload service being wrapped in `reth_optimism_node::DerivedPayloadServiceBuilder`.
 #[derive(Debug, Constructor)]
-pub struct OpEngineApi<Provider, EngineT: EngineTypes, Pool, Validator, ChainSpec> {
-    inner: EngineApi<Provider, EngineT, Pool, Validator, ChainSpec>,
+pub struct OpEngineApi<Provider, Pool, Validator> {
+    inner: EngineApi<Provider, OpEngineTypes, Pool, Validator, OpChainSpec>,
 }
 
-impl<Provider, PayloadT, Pool, Validator, ChainSpec> Clone
-    for OpEngineApi<Provider, PayloadT, Pool, Validator, ChainSpec>
-where
-    PayloadT: EngineTypes,
-{
+impl<Provider, Pool, Validator> Clone for OpEngineApi<Provider, Pool, Validator> {
     fn clone(&self) -> Self {
         Self { inner: self.inner.clone() }
     }
 }
 
 #[async_trait::async_trait]
-impl<Provider, EngineT, Pool, Validator, ChainSpec> OpEngineApiServer<EngineT>
-    for OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
+impl<Provider, Pool, Validator> OpEngineApiServer<OpEngineTypes>
+    for OpEngineApi<Provider, Pool, Validator>
 where
     Provider: HeaderProvider + BlockReader + StateProviderFactory + BalProvider + 'static,
-    EngineT: EngineTypes<ExecutionData = OpExecData>,
     Pool: TransactionPool + 'static,
-    Validator: EngineApiValidator<EngineT>,
-    ChainSpec: EthereumHardforks + Send + Sync + 'static,
+    Validator: EngineApiValidator<OpEngineTypes>,
 {
     async fn new_payload_v2(&self, payload: ExecutionPayloadInputV2) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV2");
@@ -324,7 +318,7 @@ where
     async fn fork_choice_updated_v1(
         &self,
         fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<EngineT::PayloadAttributes>,
+        payload_attributes: Option<OpPayloadAttrs>,
     ) -> RpcResult<ForkchoiceUpdated> {
         Ok(self.inner.fork_choice_updated_v1_metered(fork_choice_state, payload_attributes).await?)
     }
@@ -332,7 +326,7 @@ where
     async fn fork_choice_updated_v2(
         &self,
         fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<EngineT::PayloadAttributes>,
+        payload_attributes: Option<OpPayloadAttrs>,
     ) -> RpcResult<ForkchoiceUpdated> {
         trace!(target: "rpc::engine", "Serving engine_forkchoiceUpdatedV2");
         Ok(self.inner.fork_choice_updated_v2_metered(fork_choice_state, payload_attributes).await?)
@@ -341,7 +335,7 @@ where
     async fn fork_choice_updated_v3(
         &self,
         fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<EngineT::PayloadAttributes>,
+        payload_attributes: Option<OpPayloadAttrs>,
     ) -> RpcResult<ForkchoiceUpdated> {
         trace!(target: "rpc::engine", "Serving engine_forkchoiceUpdatedV3");
         Ok(self.inner.fork_choice_updated_v3_metered(fork_choice_state, payload_attributes).await?)
@@ -350,7 +344,7 @@ where
     async fn get_payload_v2(
         &self,
         payload_id: PayloadId,
-    ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV2> {
+    ) -> RpcResult<<OpEngineTypes as EngineTypes>::ExecutionPayloadEnvelopeV2> {
         debug!(target: "rpc::engine", id = %payload_id, "Serving engine_getPayloadV2");
         Ok(self.inner.get_payload_v2_metered(payload_id).await?)
     }
@@ -358,7 +352,7 @@ where
     async fn get_payload_v3(
         &self,
         payload_id: PayloadId,
-    ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV3> {
+    ) -> RpcResult<<OpEngineTypes as EngineTypes>::ExecutionPayloadEnvelopeV3> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV3");
         Ok(self.inner.get_payload_v3_metered(payload_id).await?)
     }
@@ -366,7 +360,7 @@ where
     async fn get_payload_v4(
         &self,
         payload_id: PayloadId,
-    ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV4> {
+    ) -> RpcResult<<OpEngineTypes as EngineTypes>::ExecutionPayloadEnvelopeV4> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV4");
         Ok(self.inner.get_payload_v4_metered(payload_id).await?)
     }
@@ -374,7 +368,7 @@ where
     async fn get_payload_v5(
         &self,
         payload_id: PayloadId,
-    ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV5> {
+    ) -> RpcResult<<OpEngineTypes as EngineTypes>::ExecutionPayloadEnvelopeV5> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV5");
         Ok(self.inner.get_payload_v5_metered(payload_id).await?)
     }
@@ -409,11 +403,9 @@ where
     }
 }
 
-impl<Provider, EngineT, Pool, Validator, ChainSpec> IntoEngineApiRpcModule
-    for OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
+impl<Provider, Pool, Validator> IntoEngineApiRpcModule for OpEngineApi<Provider, Pool, Validator>
 where
-    EngineT: EngineTypes,
-    Self: OpEngineApiServer<EngineT>,
+    Self: OpEngineApiServer<OpEngineTypes>,
 {
     fn into_rpc_module(self) -> RpcModule<()> {
         self.into_rpc().remove_context()

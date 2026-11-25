@@ -39,6 +39,7 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { IStandardValidatorUtils } from "interfaces/L1/opcm/IStandardValidatorUtils.sol";
@@ -101,8 +102,10 @@ contract DeployImplementations is Script {
     // -------- Core Deployment Methods --------
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployState.load();
         Input memory input = abi.decode(_input, (Input));
         Output memory output = run(input);
+        DeployState.dump(msg.sender);
         return abi.encode(output);
     }
 
@@ -199,15 +202,15 @@ contract DeployImplementations is Script {
         IOPContractsManagerContainer.Blueprints memory blueprints;
         vm.startBroadcast(msg.sender);
         address checkAddress;
-        (blueprints.addressManager, checkAddress) = DeployUtils.createDeterministicBlueprint(DeployUtils.getCode("AddressManager"), _salt);
+        (blueprints.addressManager, checkAddress) = DeployUtils.createDeterministicBlueprint("AddressManager", DeployUtils.getCode("AddressManager"), _salt);
         require(checkAddress == address(0), "OPCM-10");
-        (blueprints.proxy, checkAddress) = DeployUtils.createDeterministicBlueprint(DeployUtils.getCode("Proxy"), _salt);
+        (blueprints.proxy, checkAddress) = DeployUtils.createDeterministicBlueprint("Proxy", DeployUtils.getCode("Proxy"), _salt);
         require(checkAddress == address(0), "OPCM-20");
-        (blueprints.proxyAdmin, checkAddress) = DeployUtils.createDeterministicBlueprint(DeployUtils.getCode("ProxyAdmin"), _salt);
+        (blueprints.proxyAdmin, checkAddress) = DeployUtils.createDeterministicBlueprint("ProxyAdmin", DeployUtils.getCode("ProxyAdmin"), _salt);
         require(checkAddress == address(0), "OPCM-30");
-        (blueprints.l1ChugSplashProxy, checkAddress) = DeployUtils.createDeterministicBlueprint(DeployUtils.getCode("L1ChugSplashProxy"), _salt);
+        (blueprints.l1ChugSplashProxy, checkAddress) = DeployUtils.createDeterministicBlueprint("L1ChugSplashProxy", DeployUtils.getCode("L1ChugSplashProxy"), _salt);
         require(checkAddress == address(0), "OPCM-40");
-        (blueprints.resolvedDelegateProxy, checkAddress) = DeployUtils.createDeterministicBlueprint(DeployUtils.getCode("ResolvedDelegateProxy"), _salt);
+        (blueprints.resolvedDelegateProxy, checkAddress) = DeployUtils.createDeterministicBlueprint("ResolvedDelegateProxy", DeployUtils.getCode("ResolvedDelegateProxy"), _salt);
         require(checkAddress == address(0), "OPCM-50");
         // forgefmt: disable-end
         vm.stopBroadcast();
@@ -834,7 +837,8 @@ contract DeployImplementations is Script {
             _opChainProxyAdminOwner: address(0),
             _isProxy: false,
             _minProofMaturityDelaySeconds: _input.minProofMaturityDelaySeconds,
-            _maxProofMaturityDelaySeconds: _input.maxProofMaturityDelaySeconds
+            _maxProofMaturityDelaySeconds: _input.maxProofMaturityDelaySeconds,
+            _bridgeHook: address(0)
         });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         ChainAssertions.checkSystemConfigImpls(impls);

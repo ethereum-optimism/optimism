@@ -44,7 +44,7 @@ func (h *Helper) SendLargeInvalidBatch(ctx context.Context) {
 		Nonce:     nonce,
 		GasTipCap: big.NewInt(1 * params.GWei),
 		GasFeeCap: big.NewInt(10 * params.GWei),
-		Gas:       5_000_000,
+		Gas:       6_000_000, // above the EIP-7623 calldata floor of about 5.25M gas for this data
 		To:        &h.rollupCfg.BatchInboxAddress,
 		Value:     big.NewInt(0),
 		Data:      data,

@@ -5,6 +5,10 @@ diataxis: reference
 
 The `admin` api provides methods for controlling and monitoring Kona's consensus node operations.
 
+<Warning>
+The `admin` API is always served on the RPC port, without authentication. The RPC binds `127.0.0.1` by default; if you bind another address with `--rpc.addr`, firewall the port so that only trusted callers reach it. `admin_postUnsafePayload` checks only the block hash, not a signature.
+</Warning>
+
 ## `admin_postUnsafePayload`
 
 Posts an unsafe payload to the network.

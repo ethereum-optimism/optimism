@@ -4,8 +4,8 @@ import (
 	"math/big"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,7 @@ func TestWithdrawalProvenDisputeGameIndexReturnsCopy(t *testing.T) {
 	withdrawal := &Withdrawal{
 		commonImpl:   commonFromT(dt),
 		proveParams:  ProvenWithdrawalParameters{DisputeGameIndex: stored},
-		proveReceipt: &types.Receipt{},
+		proveReceipt: &optypes.Receipt{},
 	}
 
 	actual := withdrawal.ProvenDisputeGameIndex()

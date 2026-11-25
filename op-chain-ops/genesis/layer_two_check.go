@@ -19,7 +19,7 @@ type CheckL2AllocsOpts struct {
 	// FundDevAccounts allows the DevAccounts to hold balances.
 	FundDevAccounts bool
 	// AllowedEOAs lists accounts allowed to hold a balance or nonce but never code,
-	// e.g. interopgen prefunds or the proxy admin owner (nonce-bumped by older artifacts).
+	// e.g. the proxy admin owner (nonce-bumped by older artifacts).
 	AllowedEOAs []common.Address
 }
 

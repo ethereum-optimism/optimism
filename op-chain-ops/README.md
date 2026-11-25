@@ -15,10 +15,8 @@ Packages:
 - `foundry`: utils to read foundry artifacts.
 - `genesis`: OP Stack genesis-configs generation, pre OPCM.
 - `interopbridge`: shared cross-chain ETH bridge used by the Interop test tools (check-lagoon, interop-smoke).
-- `interopgen`: interop test-chain genesis config generation.
 - `interopsmoke`: interop smoke tests against live chain RPCs (bridging, executing-message validation).
 - `pkg/sdm`: shared SDM workload, PostExec validation, receipt, replay, and verifier-conformance helpers.
-- `script`: foundry-like solidity scripting environment in Go.
 - `solc`: utils to read solidity compiler artifacts data.
 - `srcmap`: utils for solidity source-maps loaded from foundry-artifacts.
 
@@ -34,6 +32,7 @@ cmd/
 ├── check-lagoon                  - Lagoon conformance checks for Interop messaging/filter failsafe and SDM PostExec behavior.
 ├── check-prestate                - Checks a fault proof absolute prestate's chain compatibility. e.g: go run cmd/check-prestate --prestate-hash <HASH>
 ├── deposit-hash                  - Determine the L2 deposit tx hash, based on log event(s) emitted by an L1 tx.
+├── eth-liquidity-pause           - Read, sync (L1 -> L2) and, on devnets, drive the ETHLiquidity pause that stops SuperchainETHBridge.
 ├── interop-smoke                 - Interop smoke tests against two live chain RPCs: ETH bridging, valid/invalid executing messages.
 └── unclaimed-credits             - Utility to inspect credits of resolved fault-proof games.
 ```
@@ -49,13 +48,6 @@ This includes `op-deployer`, OP-Contracts-Manager (OPCM), upgrade-check scripts,
 
 - Upgrade checking scripts should become more extensible, and maybe be bundled in a single check-script CLI tool.
 - Serve chain inspection/processing building-blocks for test setups and tooling like op-deployer.
-- `interopgen` is meant to be temporary, and consolidate with `op-deployer`.
-  This change depends largely on the future of `op-e2e`,
-  where system tests may be replaced in favor of tests set up by `op-e2e`.
-- `script` is a Go version of `forge` script, with hooks and customization options,
-  for better integration into tooling such as `op-deployer`.
-  This package should evolve to serve testing and `op-deployer` as best as possible,
-  it is not a full `forge` replacement.
 - `genesis` will shrink over time, as more of the genesis responsibilities are automated away into
   the protocol through system-transactions, and tooling such as `op-deployer` and OPCM.
 

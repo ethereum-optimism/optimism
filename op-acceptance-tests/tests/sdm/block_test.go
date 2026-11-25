@@ -188,7 +188,7 @@ func TestSDMFixtureExcessiveRefundDoesNotHaltSequencer(gt *testing.T) {
 // submitFixtureProbe sends one StateBloat call and returns its block. A plain transfer would not do:
 // it spends exactly its EIP-7623 floor, so the producer clips any refund on it to its zero net
 // saving and the fixture's one-gas refund never appears.
-func submitFixtureProbe(t devtest.T, sys *sdmtest.RethSystem) (*sdmpkg.RPCBlock, *types.Receipt) {
+func submitFixtureProbe(t devtest.T, sys *sdmtest.RethSystem) (*sdmpkg.RPCBlock, *optypes.Receipt) {
 	alice := sys.FunderL2.NewFundedEOA(eth.OneEther)
 	stateBloatAddr := sdmtest.DeployContract(t, alice, sdmpkg.StateBloatBin)
 	probe := txplan.NewPlannedTx(

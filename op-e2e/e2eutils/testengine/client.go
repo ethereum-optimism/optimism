@@ -21,7 +21,7 @@ type Client struct {
 	rpc  *rpc.Client
 }
 
-// Spawn starts the engine binary at binPath over the op-geth-style genesis JSON at genesisPath and
+// Spawn starts the engine binary at binPath over the L2 genesis JSON at genesisPath and
 // dials its socket. The engine's stderr is forwarded to logw. The returned Client owns the process
 // and must be closed.
 func Spawn(binPath, genesisPath string, logw io.Writer) (*Client, error) {

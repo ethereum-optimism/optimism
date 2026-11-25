@@ -2,42 +2,27 @@
 
 use backon::{ExponentialBuilder, RetryableWithContext};
 use derive_more::Debug;
-use discv5::{Config, Discv5, Enr};
+use discv5::{Config, Discv5, Enr, NodeContact, kbucket::NodeStatus};
 use enr::NodeId;
 use kona_peers::{
-    BootNode, BootNodes, BootStore, BootStoreFile, EnrValidation, peer_id_to_node_id,
+    BootNode, BootNodes, BootStore, BootStoreEntry, BootStoreError, EnrValidation,
+    peer_id_to_node_id,
 };
 use libp2p::{Multiaddr, multiaddr::Protocol};
-use std::pin::Pin;
+use rand::seq::SliceRandom;
+use std::{
+    net::{IpAddr, SocketAddr},
+    pin::Pin,
+    time::SystemTime,
+};
 use tokio::{
-    sync::mpsc::channel,
+    sync::mpsc::{self, channel, error::TrySendError},
     task::JoinHandle,
     time::{Duration, sleep},
 };
 use tracing::Instrument;
 
 use crate::{AdvertiseTcpPortError, Discv5Builder, Discv5Handler, HandlerRequest, LocalNode};
-
-/// Spawns `future` on Tokio in the current span, so that its logs carry the span discovery was
-/// started in, such as the one each test node runs in.
-fn spawn_in_current_span<F>(future: F) -> JoinHandle<F::Output>
-where
-    F: Future + Send + 'static,
-    F::Output: Send + 'static,
-{
-    tokio::spawn(future.in_current_span())
-}
-
-/// Spawns discv5's own tasks like [`spawn_in_current_span`]. discv5's default executor spawns them
-/// outside any span.
-#[derive(Clone, Debug)]
-pub(crate) struct CurrentSpanExecutor;
-
-impl discv5::Executor for CurrentSpanExecutor {
-    fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send>>) {
-        spawn_in_current_span(future);
-    }
-}
 
 /// The number of times to retry starting the [`Discv5`] service, with exponential backoff.
 const START_MAX_RETRIES: usize = 3;
@@ -47,6 +32,54 @@ const EVENT_STREAM_MAX_ATTEMPTS: u32 = 10;
 
 /// The delay between attempts to start the [`Discv5`] event stream.
 const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
+
+/// The number of records the channel to gossip holds.
+const ENR_CHANNEL_CAPACITY: usize = 1024;
+
+/// How often the driver saves the bootstore, refreshes the sessions it holds and hands gossip
+/// the peers it lost, by default, see [`Discv5Driver::store_interval`].
+const STORE_INTERVAL: Duration = Duration::from_secs(60);
+
+/// The most saved records that seed the discovery table at a time, see [`reseed`]: as many as
+/// geth seeds from its node database (`seedCount`). Also how many peers discovery must hold
+/// connected for the driver to stop seeding.
+const SEED_COUNT: usize = 30;
+
+/// How long ago gossip may have last reached a saved record for discovery to hand it over again
+/// every store interval, see [`forward_saved`]: as long as op-node keeps a discovered address
+/// (`discoveredAddrTTL`).
+const REDIAL_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// How long a session keeps its saved record without evidence, see
+/// [`BootStore::session_started`]: long enough for the session to last the five minutes that
+/// confirm its record, or for gossip's dial to reach the node, and a store interval for the result
+/// to be noted.
+const SESSION_GRACE: Duration = Duration::from_secs(60 * 60);
+
+/// How long the evidence for a saved record's address counts, see [`BootStore::expire`]: a week,
+/// as long as op-node keeps the addresses of its static peers. Until then a peer gossip reached
+/// ranks above the candidates: it is evicted last, and seeds first. geth seeds the nodes that
+/// answered within five days, and a week lets a node stopped for a few days do the same.
+const EVIDENCE_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+
+// The redials go by the evidence that expiry keeps.
+const _: () = assert!(REDIAL_MAX_AGE.as_secs() < EVIDENCE_TTL.as_secs());
+
+/// How often the driver expires the bootstore's evidence, see [`Discv5Driver::expiry_interval`]:
+/// as often as geth (`dbCleanupCycle`).
+const EXPIRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
+
+/// A record our own gossip should dial, see [`Discv5Driver::record_to_dial`].
+#[derive(Debug, PartialEq, Eq)]
+struct RecordToDial {
+    /// The name of the discovery event that brought it, for metrics and logs.
+    event: &'static str,
+    /// The record.
+    enr: Enr,
+    /// The socket the session's packets came from. The bootstore checks it against the record's
+    /// UDP address, which discv5 doesn't always do.
+    socket: SocketAddr,
+}
 
 /// The [`Discv5Driver`] drives the discovery service.
 ///
@@ -65,24 +98,34 @@ const EVENT_STREAM_RETRY_DELAY: Duration = Duration::from_secs(2);
 #[derive(Debug)]
 pub struct Discv5Driver {
     /// The [`Discv5`] discovery service.
+    ///
+    /// discv5 has one event stream, which the driver takes when it starts: a stream taken from
+    /// here before then closes at that point.
     #[debug(skip)]
     pub disc: Discv5,
-    /// The optional [`BootStoreFile`] to use for the bootstore.
-    pub bootstore: Option<BootStoreFile>,
+    /// The bootstore, which saves the bootnodes and the records a session confirmed, so that
+    /// the node can dial them again after a restart.
+    pub bootstore: BootStore,
     /// Bootnodes used to bootstrap the discovery service.
     pub bootnodes: BootNodes,
     /// The chain ID of the network.
     pub chain_id: u64,
+    /// discv5's table filter, which saved records must pass too before they are dialed. Not
+    /// public, as it must stay the one discv5 was built with.
+    pub(crate) table_filter: fn(&Enr) -> bool,
     /// The interval to discovery random nodes.
     pub interval: Duration,
-    /// Whether to forward ENRs to the enr receiver on startup.
+    /// Whether to hand the saved records of the peers gossip reached lately to the enr receiver,
+    /// at startup and then every `store_interval`, so that gossip redials the peers it lost.
     pub forward: bool,
-    /// The interval at which to store the ENRs in the bootstore.
-    /// This is set to 60 seconds by default.
+    /// The interval at which to store the ENRs in the bootstore, a minute by default.
     pub store_interval: Duration,
     /// The frequency at which to remove random nodes from the discovery table.
     /// This is not enabled (`None`) by default.
     pub remove_interval: Option<Duration>,
+    /// How long after a session the driver expires the bootstore's old evidence,
+    /// [`EXPIRY_INTERVAL`] by default.
+    pub(crate) expiry_interval: Duration,
 }
 
 impl Discv5Driver {
@@ -95,22 +138,28 @@ impl Discv5Driver {
         Discv5Builder::new(local_node, chain_id, discovery_config)
     }
 
-    /// Instantiates a new [`Discv5Driver`].
+    /// Instantiates a new [`Discv5Driver`]. `table_filter` must be the one `disc` was built with,
+    /// as the driver also drops the saved records it rejects. `disc` should be built with
+    /// `report_discovered_peers` off, as [`Discv5Builder`] does: the driver doesn't use those
+    /// reports, and they can push the events it does use out of discv5's event channel.
     pub const fn new(
         disc: Discv5,
+        table_filter: fn(&Enr) -> bool,
         interval: Duration,
         chain_id: u64,
-        bootstore: Option<BootStoreFile>,
+        bootstore: BootStore,
         bootnodes: BootNodes,
     ) -> Result<Self, std::io::Error> {
         Ok(Self {
             disc,
             chain_id,
+            table_filter,
             bootnodes,
             interval,
             forward: true,
             remove_interval: None,
-            store_interval: Duration::from_secs(60),
+            store_interval: STORE_INTERVAL,
+            expiry_interval: EXPIRY_INTERVAL,
             bootstore,
         })
     }
@@ -132,23 +181,107 @@ impl Discv5Driver {
         res.map(|_| s)
     }
 
-    /// Bootstraps the [`Discv5`] table with bootnodes.
+    /// Returns the peer a discovery event brings, if our own gossip should dial it: only a peer
+    /// discovery has had a session with, and only if the address gossip dials from its record has
+    /// the IP the session's packets came from, as only that address has shown that the node runs
+    /// discovery. The driver then hands it to gossip, and saves its record in the bootstore, which
+    /// dials the same address after a restart. Only a record valid for `chain_id` is dialed.
+    ///
+    /// A record that `table_filter` rejects, such as a private one on a node that uses only public
+    /// addresses, is neither dialed nor saved. Our lookups and bootnodes go through the filter, so
+    /// such a session is one the other node started. Refusing the dial doesn't keep the two apart:
+    /// that node can dial us, and gossip accepts it. It leaves the dial to the node that saves the
+    /// record. A node that dialed a record it doesn't save could never redial it, and its dial can
+    /// come first, so that the other node holds only a connection it didn't dial, which doesn't
+    /// confirm our record. Then neither node would redial once the connection drops.
+    ///
+    /// The record comes from these events:
+    ///
+    /// - `SessionEstablished`: a session with the node started, in either direction. Our lookups
+    ///   start one with each node they contact. discv5 only checked the record's UDP address of the
+    ///   family the packets came in on, if it has one, not the TCP address gossip dials.
+    ///
+    ///   discv5 also adds such a node to its table without the table filter, and relays its record
+    ///   to the nodes that look it up, who may not be able to reach it. discv5 has no hook to check
+    ///   a record against the node asking for it, as geth does, so it is left to that node to
+    ///   reject it.
+    /// - `UnverifiableEnr`: a node started a session with us, but the record it presented doesn't
+    ///   match the session: its UDP address isn't the one the packets came from, or it is another
+    ///   node's record. discv5 keeps the session but leaves the node out of its table. The record
+    ///   is dialed only if it is the session's node's, and its IP is the session's, as when a NAT
+    ///   rewrites only the port the packets come from. Another node's record isn't: no session has
+    ///   confirmed that node.
+    ///
+    /// A `Discovered` record, from another node's answer to one of our lookups, isn't dialed:
+    /// discv5 sends it before any check, and nothing shows that the node is at the address in it.
+    /// The lookup that found it contacts it, if the table filter lets it, and a session follows.
+    /// [`Discv5Builder`] turns these reports off, so the driver warns if they arrive.
+    fn record_to_dial(
+        event: discv5::Event,
+        chain_id: u64,
+        table_filter: fn(&Enr) -> bool,
+    ) -> Option<RecordToDial> {
+        let (kind, enr, socket) = match event {
+            discv5::Event::Discovered(_) => {
+                static WARNED: std::sync::Once = std::sync::Once::new();
+                WARNED.call_once(|| {
+                    warn!(target: "discovery", "discv5 reports discovered records, which the driver expects to be off: they can fill discv5's event channel and push out the session events that bring the peers to dial; turn off report_discovered_peers, as Discv5Builder does");
+                });
+                return None;
+            }
+            discv5::Event::SessionEstablished(enr, socket) => ("session_established", enr, socket),
+            discv5::Event::UnverifiableEnr { enr, socket, node_id } => {
+                if enr.node_id() != node_id {
+                    debug!(target: "discovery", %socket, ?enr, "Ignoring another node's record, presented in a session");
+                    return None;
+                }
+                ("unverifiable_enr", enr, socket)
+            }
+            _ => return None,
+        };
+        if EnrValidation::validate(&enr, chain_id).is_invalid() {
+            return None;
+        }
+        if !holds_session_ip(&enr, socket.ip()) {
+            debug!(target: "discovery", event = kind, %socket, "Ignoring a record without a TCP address at the IP its session came from");
+            return None;
+        }
+        if !table_filter(&enr) {
+            debug!(target: "discovery", event = kind, %socket, "Leaving the dial to a session whose record the table filter rejects");
+            return None;
+        }
+        Some(RecordToDial { event: kind, enr, socket })
+    }
+
+    /// Bootstraps the [`Discv5`] table with bootnodes, and adds those of our chain to `store`.
+    /// Returns the records of those of our chain, for gossip to dial.
     async fn bootstrap_peers(
-        bootstore: Option<BootStoreFile>,
+        store: &mut BootStore,
         bootnodes: BootNodes,
         chain_id: u64,
+        table_filter: fn(&Enr) -> bool,
         disc: &Discv5,
-    ) -> BootStore {
-        // Note: if the bootstore file cannot be created, we use a default bootstore.
-        let mut store = bootstore
-            .map_or_else(BootStore::default, |bootstore| bootstore.try_into().unwrap_or_default());
-
+    ) -> Vec<Enr> {
         let initial_store_length = store.len();
+        let mut ours = Vec::new();
 
         for bn in bootnodes.0.into_iter().chain(BootNodes::from_chain_id(chain_id).0) {
             let res = match bn {
-                BootNode::Enr(enr) => Ok(enr.clone()),
-                BootNode::Enode(enode) => disc.request_enr(enode.clone()).await,
+                BootNode::Enr(enr) => Ok(enr),
+                BootNode::Enode(enode) => {
+                    match accepts_enode(table_filter, &enode) {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            warn!(target: "discovery::bootstrap", %enode, "Ignoring a boot node that the table filter rejects");
+                            continue;
+                        }
+                        Err(err) => {
+                            warn!(target: "discovery::bootstrap", %enode, err, "Ignoring a boot node discovery can't contact");
+                            continue;
+                        }
+                    }
+                    disc.request_enr(enode).await
+                }
             };
 
             let Ok(enr) = res else {
@@ -156,18 +289,33 @@ impl Discv5Driver {
                 continue;
             };
 
+            // A bootnode given by enode URL may be in the table already, from the session that
+            // fetched its record, which skips the table filter: remove the ones not kept.
+            if !table_filter(&enr) {
+                warn!(target: "discovery::bootstrap", ?enr, "Ignoring a boot node that the table filter rejects");
+                disc.remove_node(&enr.node_id());
+                continue;
+            }
+
+            // Every bootnode is an entry point for lookups, which find the nodes of every chain, so
+            // it goes into the table whatever its chain. One given by enode URL is there already,
+            // from the session that fetched its record.
+            if let Err(e) = disc.add_enr(enr.clone()) {
+                debug!(target: "discovery::bootstrap", ?enr, "Failed to add boot node: {e}");
+                continue;
+            }
+
+            // But only a peer of our chain is saved, and so dialed by gossip. OP Mainnet's built-in
+            // enode bootnodes, for one, have no `opstack` key, and its built-in ENRs are of other
+            // chains.
             let validation = EnrValidation::validate(&enr, chain_id);
             if validation.is_invalid() {
-                trace!(target: "discovery::bootstrap", "Ignoring Invalid Bootnode ENR: {:?}. {:?}", enr, validation);
+                trace!(target: "discovery::bootstrap", ?enr, %validation, "Not saving a boot node that isn't a peer of this chain");
                 continue;
             }
 
-            if let Err(e) = disc.add_enr(enr.clone()) {
-                debug!(target: "discovery::bootstrap", "Failed to add enr: {:?}", e);
-                continue;
-            }
-
-            store.add_enr(enr);
+            store.add_enr(enr.clone());
+            ours.push(enr);
         }
 
         let new_store_len = store.len();
@@ -177,14 +325,16 @@ impl Discv5Driver {
             total=%new_store_len,
             "Added new ENRs to discv5 bootstore"
         );
-
-        store
+        ours
     }
 
     /// Spawns a new [`Discv5`] discovery service in a new tokio task.
     ///
     /// Returns a [`Discv5Handler`] to communicate with the spawned task, and a receiver of the
-    /// valid ENRs it discovers.
+    /// records for gossip to dial: those of the peers discovery has a session with, at the address
+    /// the session came from, the bootnodes of our chain, once at startup, and the saved records
+    /// of the peers gossip reached lately, at startup and again every store interval, so that
+    /// gossip redials the peers it lost. It doesn't yield the results of lookups.
     ///
     /// The task is detached and stops when:
     /// - startup fails: [`Discv5`] does not start after `START_MAX_RETRIES` retries with
@@ -251,14 +401,20 @@ impl Discv5Driver {
     /// Same as [`Discv5Driver::start`], but also returns the [`JoinHandle`] of the task.
     fn spawn(mut self) -> (Discv5Handler, tokio::sync::mpsc::Receiver<Enr>, JoinHandle<()>) {
         let chain_id = self.chain_id;
+        let table_filter = self.table_filter;
         let (req_sender, mut req_recv) = channel::<HandlerRequest>(1024);
-        let (enr_sender, enr_recv) = channel::<Enr>(1024);
+        let (enr_sender, enr_recv) = channel::<Enr>(ENR_CHANNEL_CAPACITY);
 
         let task = spawn_in_current_span(async move {
+            // Gossip redials only the peers it reached since, see `forward_saved`.
+            let started_at = SystemTime::now();
             let remove = self.remove_interval.is_some();
             let remove_dur = self.remove_interval.unwrap_or(std::time::Duration::from_secs(600));
             let mut removal_interval = tokio::time::interval(remove_dur);
             let mut interval = tokio::time::interval(self.interval);
+            // Its first tick is due at once, which the loop gets on its first poll, after startup:
+            // it then seeds the table, saves the bootstore and hands gossip the peers it lost,
+            // and does so again every store interval.
             let mut store_interval = tokio::time::interval(self.store_interval);
 
             // Step 1: Start the discovery service.
@@ -269,23 +425,8 @@ impl Discv5Driver {
             self = s;
             trace!(target: "discovery", "Discv5 Initialized");
 
-            // Step 2: Bootstrap the discovery table with bootnodes.
-            let mut store =
-                Self::bootstrap_peers(self.bootstore, self.bootnodes, chain_id, &self.disc).await;
-
-            let enrs = self.disc.table_entries_enr();
-            info!(target: "discovery", "Discv5 Started with {} ENRs", enrs.len());
-
-            // Step 3: Forward ENRs in the bootstore to the enr receiver.
-            if self.forward {
-                for enr in store.valid_peers_with_chain_id(self.chain_id) {
-                    if let Err(e) = enr_sender.send(enr.clone()).await {
-                        debug!(target: "discovery", "Failed to forward enr: {:?}", e);
-                    }
-                }
-            }
-
-            // Attempt to start the event stream, giving up after the last attempt fails.
+            // Step 2: Start the event stream before any session starts: discv5 drops the events
+            // it has no stream for, and a session is reported only when it starts.
             let mut attempt = 1;
             let mut event_stream = loop {
                 match self.disc.event_stream().await {
@@ -305,8 +446,52 @@ impl Discv5Driver {
                 }
             };
 
-            // Step 4: Run the core driver loop.
+            // Step 3: Bootstrap the discovery table with bootnodes.
+            let mut store = self.bootstore;
+            // Evidence from before the restart, dated after it by a clock that ran ahead, would
+            // count as reached since, see `forward_saved`.
+            store.cap_evidence(started_at);
+            let bootnodes = Self::bootstrap_peers(
+                &mut store,
+                self.bootnodes,
+                chain_id,
+                table_filter,
+                &self.disc,
+            )
+            .await;
+
+            // Step 4: Remove the saved records the table filter rejects: the bootstore may hold
+            // records saved by an earlier version, which didn't check them, or while the filter
+            // allowed more. The file changes at the next sync, once the driver has started.
+            let removed = store.retain(table_filter);
+            if removed > 0 {
+                debug!(target: "discovery", removed, "Removed saved records at addresses discovery doesn't use");
+            }
+
+            // The saved records seed the table at the first store interval, right after.
+            let enrs = self.disc.table_entries_enr();
+            info!(target: "discovery", "Discv5 started with {} ENRs from its bootnodes", enrs.len());
+
+            // Step 5: Hand gossip the bootnodes of our chain, once. Gossip redials one only once
+            // it has reached it, and one that doesn't answer discovery, as a bootnode that runs
+            // gossip only, gets no session that would hand it over.
+            if self.forward {
+                forward_bootnodes(bootnodes, &enr_sender);
+            }
+
+            // Step 6: Run the core driver loop.
             let mut handlers_dropped = false;
+            // The node IDs of the saved records the driver seeded the table with last, see
+            // `reseed`.
+            let mut seeds = Vec::new();
+            // When the bootstore's old evidence expires next: an interval after a session, and
+            // only after a session since the last pass, so that expiry runs only while discovery
+            // hears from the network. A node without network access, at startup or later, would
+            // otherwise drop the records it can't refresh, and after a week all of them. The
+            // interval gives the nodes that answer the time to refresh theirs, as after a restart
+            // all the evidence may be older than it counts. geth starts expiring at the first
+            // session, but then keeps going.
+            let mut expire_at: Option<SystemTime> = None;
             loop {
                 tokio::select! {
                     msg = req_recv.recv(), if !handlers_dropped => {
@@ -368,6 +553,9 @@ impl Discv5Driver {
                                     self.disc.ban_node(&node_id, Some(ban_duration));
                                 }
                             },
+                            HandlerRequest::TcpVerified { node_id, addr } => {
+                                store.set_tcp_verified(node_id, addr, SystemTime::now());
+                            }
                         }
                     }
                     // Nobody is left to send requests or to receive ENRs.
@@ -380,41 +568,21 @@ impl Discv5Driver {
                             error!(target: "discovery", "Discv5 event stream ended, stopping discovery");
                             return;
                         };
-                        match event {
-                            discv5::Event::Discovered(enr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
-                                debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
-                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "discovered").increment(1);
-                                store.add_enr(enr.clone());
-                                let sender = enr_sender.clone();
-                                spawn_in_current_span(async move {
-                                    if let Err(e) = sender.send(enr).await {
-                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                    }
-                                });
-                            }
-                            discv5::Event::SessionEstablished(enr, addr) if EnrValidation::validate(&enr, chain_id).is_valid() => {
-                                debug!(target: "discovery", "Session established with valid ENR, forwarding to swarm. Address: {:?}, ENR: {:?}", addr, enr);
-                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "session_established").increment(1);
-                                store.add_enr(enr.clone());
-                                let sender = enr_sender.clone();
-                                spawn_in_current_span(async move {
-                                    if let Err(e) = sender.send(enr).await {
-                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                    }
-                                });
-                            }
-                            discv5::Event::UnverifiableEnr { enr, .. } if EnrValidation::validate(&enr, chain_id).is_valid() => {
-                                debug!(target: "discovery", "Valid ENR discovered, forwarding to swarm: {:?}", enr);
-                                metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => "unverifiable_enr").increment(1);
-                                store.add_enr(enr.clone());
-                                let sender = enr_sender.clone();
-                                spawn_in_current_span(async move {
-                                    if let Err(e) = sender.send(enr).await {
-                                        debug!(target: "discovery", "Failed to send enr: {:?}", e);
-                                    }
-                                });
-                            }
-                            _ => {}
+                        let session = matches!(
+                            event,
+                            discv5::Event::SessionEstablished(..) | discv5::Event::UnverifiableEnr { .. }
+                        );
+                        if session && expire_at.is_none() {
+                            expire_at = SystemTime::now().checked_add(self.expiry_interval);
+                        }
+                        if let Some(RecordToDial { event: kind, enr, socket }) =
+                            Self::record_to_dial(event, chain_id, table_filter)
+                        {
+                            debug!(target: "discovery", event = kind, ?enr, "Valid ENR, passing it to gossip to dial");
+                            metrics::gauge!(crate::Metrics::DISCOVERY_EVENT, "type" => kind).increment(1);
+                            store.add_enr(enr.clone());
+                            store.session_started(enr.node_id(), socket, SystemTime::now(), SESSION_GRACE);
+                            forward_session(enr, &enr_sender);
                         }
                     }
                     _ = interval.tick() => {
@@ -422,33 +590,44 @@ impl Discv5Driver {
                         trace!(target: "discovery", "Finding random node: {}", id);
                         metrics::gauge!(crate::Metrics::FIND_NODE_REQUEST, "find_node" => "find_node").increment(1);
                         let fut = self.disc.find_node(id);
-                        let enr_sender = enr_sender.clone();
+                        // Its results aren't dialed: the lookup contacts them, and gossip dials
+                        // those discovery gets a session with.
                         spawn_in_current_span(async move {
-                            match fut.await {
-                                Ok(nodes) => {
-                                    let enrs = nodes.into_iter().filter(|node| EnrValidation::validate(node, chain_id).is_valid());
-                                    for enr in enrs {
-                                        _ = enr_sender.send(enr).await;
-                                    }
-                                }
-                                Err(err) => {
-                                    info!(target: "discovery", "Failed to find node: {:?}", err);
-                                }
+                            if let Err(err) = fut.await {
+                                info!(target: "discovery", "Failed to find node: {:?}", err);
                             }
                         });
                     }
                     _ = store_interval.tick() => {
                         let start = std::time::Instant::now();
-                        let enrs = self.disc.table_entries_enr();
-                        store.merge(enrs);
-
-                        if let Err(e) = store.sync() {
-                            warn!(target: "discovery", "Failed to sync bootstore: {:?}", e);
+                        let now = SystemTime::now();
+                        let table = self.disc.table_entries();
+                        refresh_connected(&mut store, &table, now);
+                        if expire_at.take_if(|at| *at <= now).is_some() {
+                            let dropped = store.expire(now, EVIDENCE_TTL);
+                            debug!(target: "discovery", dropped, "Expired the bootstore's old evidence");
                         }
-
-                        let elapsed = start.elapsed();
-                        debug!(target: "discovery", "Bootstore ENRs stored in {:?}", elapsed);
-                        metrics::histogram!(crate::Metrics::ENR_STORE_TIME, "store_time" => "store_time").record(elapsed.as_secs_f64());
+                        reseed(&store, chain_id, &self.disc, &table, &mut seeds);
+                        // Only what the driver added: the bootnodes, and the records a session
+                        // confirmed. discv5's table also holds records from other nodes' answers
+                        // to our lookups, which nothing confirmed, and the bootstore would dial
+                        // them at the address in them after a restart.
+                        let Some(saved) = sync_on_blocking_thread(&mut store).await else {
+                            debug!(target: "discovery", "The runtime is shutting down, stopping discovery");
+                            return;
+                        };
+                        match saved {
+                            Ok(true) => {
+                                let elapsed = start.elapsed();
+                                debug!(target: "discovery", "Bootstore ENRs stored in {:?}", elapsed);
+                                metrics::histogram!(crate::Metrics::ENR_STORE_TIME, "store_time" => "store_time").record(elapsed.as_secs_f64());
+                            }
+                            Ok(false) => {}
+                            Err(e) => warn!(target: "discovery", "Failed to sync bootstore: {:?}", e),
+                        }
+                        if self.forward {
+                            forward_saved(&store, chain_id, &enr_sender, now, started_at);
+                        }
                         metrics::gauge!(crate::Metrics::DISCOVERY_PEER_COUNT).set(self.disc.connected_peers() as f64);
                     }
                     // Only enabled when a removal interval is configured.
@@ -470,381 +649,270 @@ impl Discv5Driver {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::LocalNode;
-    use discv5::{ConfigBuilder, ListenConfig, NodeContact};
-    use enr::{CombinedKey, CombinedPublicKey};
-    use kona_genesis::{OP_MAINNET_CHAIN_ID, OP_SEPOLIA_CHAIN_ID};
-    use rstest::rstest;
-    use tempfile::tempdir;
+/// Spawns `future` on Tokio in the current span, so that its logs carry the span discovery was
+/// started in, such as the one each test node runs in.
+fn spawn_in_current_span<F>(future: F) -> JoinHandle<F::Output>
+where
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    tokio::spawn(future.in_current_span())
+}
 
-    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+/// Spawns discv5's own tasks like [`spawn_in_current_span`]. discv5's default executor spawns them
+/// outside any span.
+#[derive(Clone, Debug)]
+pub(crate) struct CurrentSpanExecutor;
 
-    #[tokio::test]
-    async fn test_online_discv5_driver() {
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-
-        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
-        let discovery = Discv5Driver::builder(
-            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0, 0),
-            OP_SEPOLIA_CHAIN_ID,
-            ConfigBuilder::new(socket.into()).build(),
-        )
-        .build()
-        .expect("Failed to build discovery service");
-        let (handle, _) = discovery.start();
-        assert_eq!(handle.chain_id, OP_SEPOLIA_CHAIN_ID);
+impl discv5::Executor for CurrentSpanExecutor {
+    fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send>>) {
+        spawn_in_current_span(future);
     }
+}
 
-    /// Builds a driver listening on localhost that does not contact any remote peer.
-    fn offline_driver() -> Discv5Driver {
-        // A chain ID that is not in the superchain registry has no default bootnodes.
-        const UNKNOWN_CHAIN_ID: u64 = 0xdead_beef;
+/// Returns whether the TCP address gossip dials from `enr`, see [`kona_peers::enr_tcp_socket`], has
+/// `session_ip`, the IP that a session with the node came from. Then the session has confirmed the
+/// address gossip dials, which is also the one it dials after a restart, once the bootstore has
+/// saved the record.
+fn holds_session_ip(enr: &Enr, session_ip: IpAddr) -> bool {
+    kona_peers::enr_tcp_socket(enr)
+        .is_some_and(|socket| socket.ip().to_canonical() == session_ip.to_canonical())
+}
 
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
-        Discv5Driver::builder(
-            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::LOCALHOST), 0, 0),
-            UNKNOWN_CHAIN_ID,
-            ConfigBuilder::new(socket.into()).build(),
-        )
-        .build()
-        .expect("Failed to build discovery service")
-    }
+/// Returns whether `table_filter` accepts the address of `enode`, a bootnode's enode URL, so that
+/// discovery may contact it: it judges a record at that address, signed with a throwaway key.
+///
+/// Discovery asks an enode bootnode for its record, which starts a session, and discv5 keeps a
+/// node it has a session with whatever its address, so the address is checked before contact. It
+/// reads the address with the parse `Discv5::request_enr` does, so it judges the one discovery
+/// would contact, and fails with that parse's error for an enode URL discovery can't contact, such
+/// as one with a DNS name or without a UDP port.
+fn accepts_enode(table_filter: fn(&Enr) -> bool, enode: &Multiaddr) -> Result<bool, &'static str> {
+    let contact = NodeContact::try_from_multiaddr(enode.clone())?;
+    let mut record = Enr::builder();
+    match contact.socket_addr().ip() {
+        IpAddr::V4(ip) => record.ip4(ip),
+        IpAddr::V6(ip) => record.ip6(ip),
+    };
+    Ok(record
+        .build(&enr::CombinedKey::generate_secp256k1())
+        .is_ok_and(|record| table_filter(&record)))
+}
 
-    /// Only an unset TCP port of 0 is set to the gossip TCP port, and only once: another port is
-    /// kept, and so is the first gossip port. It fails if the gossip address has no TCP port to set
-    /// it to, as with the memory transport. An IPv6 node's port is `tcp6`.
-    #[rstest]
-    #[case::unset(Ipv4Addr::LOCALHOST.into(), 0, "/ip4/127.0.0.1/tcp/9222", Some(9222))]
-    #[case::unset_ipv6(Ipv6Addr::LOCALHOST.into(), 0, "/ip6/::1/tcp/9222", Some(9222))]
-    #[case::set(Ipv4Addr::LOCALHOST.into(), 30303, "/ip4/127.0.0.1/tcp/9222", Some(30303))]
-    #[case::set_without_gossip_port(Ipv4Addr::LOCALHOST.into(), 30303, "/memory/0", Some(30303))]
-    #[case::unset_without_gossip_port(Ipv4Addr::LOCALHOST.into(), 0, "/memory/0", None)]
-    #[tokio::test]
-    async fn test_advertise_gossip_tcp_port(
-        #[case] ip: IpAddr,
-        #[case] tcp_port: u16,
-        #[case] gossip_addr: Multiaddr,
-        #[case] advertised: Option<u16>,
-    ) {
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-        // A fixed listen port, so that building binds no socket, which IPv6 would need the host to
-        // support.
-        let driver = Discv5Driver::builder(
-            LocalNode::new(secret_key, ip, tcp_port, 0),
-            0xdead_beef,
-            ConfigBuilder::new(ListenConfig::from_ip(ip, 30303)).build(),
-        )
-        .build()
-        .unwrap();
-        let enr_tcp_port = || {
-            let enr = driver.disc.local_enr();
-            if ip.is_ipv4() { enr.tcp4() } else { enr.tcp6() }
-        };
-
-        let result = driver.advertise_gossip_tcp_port(&gossip_addr);
-
-        match advertised {
-            Some(port) => {
-                result.unwrap();
-                assert_eq!(enr_tcp_port(), Some(port));
-                // A second address changes nothing.
-                driver.advertise_gossip_tcp_port(&"/ip4/127.0.0.1/tcp/1".parse().unwrap()).unwrap();
-                assert_eq!(enr_tcp_port(), Some(port));
-            }
-            None => {
-                assert!(matches!(result, Err(AdvertiseTcpPortError::NoGossipTcpPort(_))));
-            }
+/// Saves `store` on a blocking thread, and returns what [`BootStore::sync`] returned, or `None` if
+/// the runtime is shutting down.
+///
+/// A save writes a file and syncs it to disk, which can take a while on a slow disk, so it runs
+/// off the runtime's thread, which runs discv5's and gossip's tasks too. The caller waits for it,
+/// so nothing changes the store meanwhile.
+async fn sync_on_blocking_thread(store: &mut BootStore) -> Option<Result<bool, BootStoreError>> {
+    let mut saving = std::mem::replace(store, BootStore::in_memory());
+    let saved = tokio::task::spawn_blocking(move || {
+        let result = saving.sync();
+        (saving, result)
+    })
+    .await;
+    match saved {
+        Ok((saved, result)) => {
+            *store = saved;
+            Some(result)
         }
+        Err(err) if err.is_panic() => std::panic::resume_unwind(err.into_panic()),
+        Err(_) => None,
     }
+}
 
-    /// Waits until the driver has finished startup and runs its main loop.
-    async fn wait_until_started(handler: &Discv5Handler) {
-        // Requests are only answered by the main loop.
-        tokio::time::timeout(Duration::from_secs(5), handler.peer_count())
-            .await
-            .expect("driver should finish startup")
-            .expect("driver should not stop during startup");
-    }
+/// Returns how many saved records [`forward_saved`] may hand over now: the room left in the
+/// channel to gossip beyond half of its capacity. That half stays free for the records of the
+/// sessions that start before gossip catches up, which are handed over only once.
+fn room_for_saved(sender: &mpsc::Sender<Enr>) -> usize {
+    sender.capacity().saturating_sub(sender.max_capacity() / 2)
+}
 
-    /// `BanPeers` bans a peer by its libp2p peer ID, which discovery turns into the node ID of the
-    /// same key: banning a node also removes it from the table.
-    #[tokio::test]
-    async fn test_ban_peers_bans_by_peer_id() {
-        let key = CombinedKey::generate_secp256k1();
-        let mut builder = Enr::builder();
-        builder.ip4(Ipv4Addr::LOCALHOST).udp4(30303).tcp4(9222);
-        let enr = builder.build(&key).unwrap();
-        // The libp2p peer ID of the same key, at the end of its gossip address.
-        let peer_id = match kona_peers::enr_to_multiaddr(&enr).unwrap().pop() {
-            Some(libp2p::multiaddr::Protocol::P2p(peer_id)) => peer_id,
-            other => panic!("address doesn't end in a peer ID: {other:?}"),
-        };
-
-        let driver = offline_driver();
-        driver.disc.add_enr(enr.clone()).unwrap();
-        let (handler, _enr_recv, _task) = driver.spawn();
-        wait_until_started(&handler).await;
-        async fn table(handler: &Discv5Handler) -> Vec<Enr> {
-            tokio::time::timeout(Duration::from_secs(5), handler.table_enrs())
-                .await
-                .unwrap()
-                .unwrap()
+/// Notes in `store` that discovery's sessions with the nodes `table` holds as connected still
+/// work: discv5 pings each of them at the UDP address in its record every five minutes, and holds
+/// it as disconnected once a request to it fails. A session confirms its record's UDP address only
+/// once it has lasted, see [`BootStore::set_udp_verified`], and this is how the store learns that
+/// it has, and later that it still does: the session lasts as long as the pings answer, for days.
+///
+/// The evidence is for the UDP address in the table's record, which discv5 pings, so a stored
+/// record gets it only if it holds that address. A node may have replaced its record since its
+/// session started, and discv5 then holds the new one. Saving that would need the checks
+/// [`Discv5Driver::record_to_dial`] makes of a session's record, against the address the session
+/// came from, which the table doesn't have: the node's next session brings it. But if the new
+/// record keeps the UDP address, the stored one's still works.
+///
+/// The table doesn't say either which address a session pings, so a record with both is checked
+/// at its IPv4 address, and at its IPv6 address only if it has no IPv4 one. A session over IPv6
+/// with a dual-stack node then confirms the IPv4 address in its record, which the node signed.
+fn refresh_connected(store: &mut BootStore, table: &[(NodeId, Enr, NodeStatus)], at: SystemTime) {
+    for (node_id, enr, status) in table {
+        if !status.is_connected() {
+            continue;
         }
-        assert!(table(&handler).await.iter().any(|e| e.node_id() == enr.node_id()));
-
-        handler
-            .sender
-            .send(HandlerRequest::BanPeers {
-                peer_ids: [peer_id].into(),
-                ban_duration: Duration::from_secs(60),
-            })
-            .await
-            .unwrap();
-
-        assert!(!table(&handler).await.iter().any(|e| e.node_id() == enr.node_id()));
-    }
-
-    /// [`Discv5Driver::start`]: the task stops when every [`Discv5Handler`] clone and the ENR
-    /// receiver are dropped, without waiting for the next discovery tick.
-    #[tokio::test]
-    async fn test_discv5_driver_stops_when_handler_and_receiver_dropped() {
-        let (handler, enr_recv, task) = offline_driver().spawn();
-
-        wait_until_started(&handler).await;
-        // Let the intervals fire their immediate first ticks, so the loop is idle.
-        sleep(Duration::from_millis(100)).await;
-
-        // Drop the handler first, like the network actor does, while the loop is waiting.
-        drop(handler);
-        sleep(Duration::from_millis(10)).await;
-        drop(enr_recv);
-
-        // Well within the discovery interval, so the driver must not wait for the next tick.
-        tokio::time::timeout(Duration::from_secs(1), task)
-            .await
-            .expect("driver task should stop once nobody is listening")
-            .expect("driver task should not panic");
-    }
-
-    /// [`Discv5Driver::start`]: dropping only the handler keeps the task running for the ENR
-    /// receiver.
-    #[tokio::test]
-    async fn test_discv5_driver_keeps_running_for_enr_receiver() {
-        let (handler, _enr_recv, task) = offline_driver().spawn();
-
-        wait_until_started(&handler).await;
-        drop(handler);
-
-        sleep(Duration::from_millis(500)).await;
-        assert!(!task.is_finished(), "driver task should keep running for the ENR receiver");
-    }
-
-    /// Once every handler was dropped, `recv` returned `None` on every iteration, so the loop kept
-    /// a core busy for as long as the ENR receiver kept the task running.
-    #[tokio::test]
-    async fn regression_discv5_driver_idles_for_enr_receiver() {
-        let (handler, _enr_recv, task) = offline_driver().spawn();
-
-        wait_until_started(&handler).await;
-        drop(handler);
-        // Let the intervals fire their immediate first ticks, so the loop is idle.
-        sleep(Duration::from_millis(100)).await;
-
-        // The test runtime is single-threaded, so its only worker also runs the driver.
-        let metrics = tokio::runtime::Handle::current().metrics();
-        let before = metrics.worker_total_busy_duration(0);
-        sleep(Duration::from_millis(500)).await;
-        let busy = metrics.worker_total_busy_duration(0) - before;
-
-        assert!(!task.is_finished(), "driver task should keep running for the ENR receiver");
-        assert!(busy < Duration::from_millis(10), "driver should idle, but was busy for {busy:?}");
-    }
-
-    /// [`Discv5Driver::start`]: dropping only the ENR receiver keeps the task running for the
-    /// handler, which still gets answers.
-    #[tokio::test]
-    async fn test_discv5_driver_keeps_running_for_handler() {
-        let (handler, enr_recv, task) = offline_driver().spawn();
-
-        wait_until_started(&handler).await;
-        drop(enr_recv);
-
-        sleep(Duration::from_millis(500)).await;
-        assert!(!task.is_finished(), "driver task should keep running for the handler");
-        tokio::time::timeout(Duration::from_secs(5), handler.peer_count())
-            .await
-            .expect("driver should answer requests")
-            .expect("driver should not stop while the handler is alive");
-    }
-
-    /// [`Discv5Driver::start`]: requests sent before the handler is dropped are answered, and
-    /// those sent during startup once it completes. Here the request is sent during startup and
-    /// both ends are dropped before it completes.
-    #[tokio::test]
-    async fn test_discv5_driver_answers_requests_sent_before_handler_dropped() {
-        // `select!` picks a random branch among those ready, so a race between handling the
-        // request and stopping would only fail some of the time.
-        for _ in 0..20 {
-            let (handler, enr_recv, _task) = offline_driver().spawn();
-            // Send through the channel, since a handler's request is only sent once awaited.
-            let (tx, reply) = tokio::sync::oneshot::channel();
-            handler.sender.send(HandlerRequest::PeerCount(tx)).await.unwrap();
-            drop(handler);
-            drop(enr_recv);
-
-            tokio::time::timeout(Duration::from_secs(5), reply)
-                .await
-                .expect("driver should answer requests")
-                .expect("driver should not drop requests sent before the handler was dropped");
-        }
-    }
-
-    #[tokio::test]
-    async fn test_online_discv5_driver_bootstrap_testnet() {
-        // Use a test file to make sure bootstore
-        // doesn't conflict with a local bootstore.
-        let file = tempdir().unwrap();
-        let file = file.path().join("bootstore.json");
-
-        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-        let mut discovery = Discv5Driver::builder(
-            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0, 0),
-            OP_SEPOLIA_CHAIN_ID,
-            ConfigBuilder::new(socket.into()).build(),
-        )
-        .build()
-        .expect("Failed to build discovery service");
-        discovery.bootstore = Some(BootStoreFile::Custom(file));
-
-        discovery = discovery.init().await.expect("Failed to initialize discovery service");
-
-        // There are no ENRs for `OP_SEPOLIA_CHAIN_ID` in the bootstore.
-        // If an ENR is added, this check will fail.
-        Discv5Driver::bootstrap_peers(
-            discovery.bootstore,
-            discovery.bootnodes,
-            OP_SEPOLIA_CHAIN_ID,
-            &discovery.disc,
-        )
-        .await;
-        assert!(
-            discovery.disc.table_entries_enr().len() >= 5,
-            "Discovery table should have at least 5 ENRs"
-        );
-
-        // It should have the same number of entries as the testnet table.
-        let testnet = BootNodes::testnet();
-
-        // Filter out testnet ENRs that are not valid.
-        let testnet: Vec<CombinedPublicKey> = testnet
-            .iter()
-            .filter_map(|node| {
-                if let BootNode::Enr(enr) = node {
-                    // Check that the ENR is valid for the testnet.
-                    if EnrValidation::validate(enr, OP_SEPOLIA_CHAIN_ID).is_invalid() {
-                        return None;
-                    }
-                }
-                let node_contact =
-                    NodeContact::try_from_multiaddr(node.to_multiaddr().unwrap()).unwrap();
-
-                Some(node_contact.public_key())
-            })
-            .collect();
-
-        // There should be 8 valid ENRs for the testnet.
-        assert_eq!(testnet.len(), 8);
-
-        // Those 8 ENRs should be in the discovery table.
-        let disc_enrs = discovery.disc.table_entries_enr();
-        for public_key in testnet {
-            assert!(
-                disc_enrs.iter().any(|enr| enr.public_key() == public_key),
-                "Discovery table does not contain testnet ENR: {public_key:?}"
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_online_discv5_driver_bootstrap_mainnet() {
-        kona_cli::init_test_tracing();
-
-        // Use a test file to make sure bootstore
-        // doesn't conflict with a local bootstore.
-        let file = tempdir().unwrap();
-        let file = file.path().join("bootstore.json");
-
-        // Filter out ENRs that are not valid.
-        let mainnet = BootNodes::mainnet();
-        let mainnet: Vec<CombinedPublicKey> = mainnet
-            .iter()
-            .filter_map(|node| {
-                if let BootNode::Enr(enr) = node &&
-                    EnrValidation::validate(enr, OP_MAINNET_CHAIN_ID).is_invalid()
-                {
-                    return None;
-                }
-                let node_contact =
-                    NodeContact::try_from_multiaddr(node.to_multiaddr().unwrap()).unwrap();
-
-                Some(node_contact.public_key())
-            })
-            .collect();
-
-        // There should be 16 valid ENRs for the mainnet.
-        assert_eq!(mainnet.len(), 16);
-
-        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
-
-        let CombinedKey::Secp256k1(secret_key) = CombinedKey::generate_secp256k1() else {
-            unreachable!()
-        };
-
-        let mut discovery = Discv5Driver::builder(
-            LocalNode::new(secret_key, IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0, 0),
-            OP_MAINNET_CHAIN_ID,
-            ConfigBuilder::new(socket.into()).build(),
-        )
-        .build()
-        .expect("Failed to build discovery service");
-        discovery.bootstore = Some(BootStoreFile::Custom(file));
-
-        discovery = discovery.init().await.expect("Failed to initialize discovery service");
-
-        // There are no ENRs for op mainnet in the bootstore.
-        // If an ENR is added, this check will fail.
-        Discv5Driver::bootstrap_peers(
-            discovery.bootstore,
-            discovery.bootnodes,
-            OP_MAINNET_CHAIN_ID,
-            &discovery.disc,
-        )
-        .await;
-        assert!(
-            discovery.disc.table_entries_enr().len() >= 10,
-            "Discovery table should have at least 10 ENRs"
-        );
-
-        // Those ENRs should be in the mainnet bootnodes.
-        let disc_enrs = discovery.disc.table_entries_enr();
-        for enr in disc_enrs {
-            assert!(
-                mainnet.iter().any(|pub_key| pub_key == &enr.public_key()),
-                "Discovery table does not contain mainnet ENR: {enr:?}"
-            );
+        let socket =
+            enr.udp4_socket().map(SocketAddr::V4).or_else(|| enr.udp6_socket().map(SocketAddr::V6));
+        if let Some(socket) = socket {
+            store.set_udp_verified(*node_id, socket, at);
         }
     }
 }
+
+/// Seeds `disc`'s table with saved records while discovery holds fewer than [`SEED_COUNT`] peers
+/// connected in `table`, its entries: at startup, and then at each store interval, so that a node
+/// whose seeds and bootnodes don't answer goes on to the other saved records, rather than finding
+/// no peers although its bootstore names others that may answer. Once enough are connected, the
+/// lookups find the rest.
+///
+/// A store interval is a dozen lookups, which contact each seed several times, so a seed that is
+/// still disconnected then won't answer. Those of `seeds`, the node IDs of the last seeds, are
+/// removed first, to make room for the next: discv5 adds a seed as disconnected, which it refuses
+/// into a full bucket, and the farthest holds half of the node IDs. Only the driver's own seeds
+/// are removed, not the bootnodes, the records lookups found, or the seeds that answered.
+fn reseed(
+    store: &BootStore,
+    chain_id: u64,
+    disc: &Discv5,
+    table: &[(NodeId, Enr, NodeStatus)],
+    seeds: &mut Vec<NodeId>,
+) {
+    let connected = table.iter().filter(|(_, _, status)| status.is_connected()).count();
+    if connected >= SEED_COUNT {
+        return;
+    }
+    for (node_id, _, status) in table {
+        if !status.is_connected() && seeds.contains(node_id) {
+            disc.remove_node(node_id);
+        }
+    }
+    *seeds = seed_table(store, chain_id, disc);
+}
+
+/// Adds up to [`SEED_COUNT`] of the saved records of peers of the chain `chain_id` to `disc`'s
+/// table, in [`seed_order`], and returns their node IDs. Discovery's lookups then contact them,
+/// and the sessions that start hand them to gossip.
+///
+/// Skips the records already in the table, the bootnodes, and those without a UDP address that
+/// discovery can contact, which discv5 refuses with a WARN. Counts only the records the table
+/// takes: a full bucket refuses the rest.
+fn seed_table(store: &BootStore, chain_id: u64, disc: &Discv5) -> Vec<NodeId> {
+    let ip_mode = disc.ip_mode();
+    let mut seeded = Vec::new();
+    for enr in seed_order(store, chain_id) {
+        if seeded.len() == SEED_COUNT {
+            break;
+        }
+        if ip_mode.get_contactable_addr(enr).is_none() || disc.find_enr(&enr.node_id()).is_some() {
+            continue;
+        }
+        match disc.add_enr(enr.clone()) {
+            Ok(()) => seeded.push(enr.node_id()),
+            Err(err) => {
+                trace!(target: "discovery", %enr, err, "The table didn't take a saved record")
+            }
+        }
+    }
+    debug!(target: "discovery", seeded = seeded.len(), "Seeded the discovery table with saved records");
+    seeded
+}
+
+/// Returns the saved records of peers of the chain `chain_id` in the order they seed the table:
+/// those gossip reached first, and then the candidates, which only sessions confirmed. Anyone can
+/// start sessions, under fresh keys, so these alone shouldn't take the seeds of the peers gossip
+/// reached. Expiry keeps the first tier to the peers it reached within [`EVIDENCE_TTL`].
+///
+/// Each tier is in a random order, drawn afresh each time, not the most recently confirmed first,
+/// as geth seeds random nodes from its node database. A connection keeps its record's evidence
+/// fresh, so the most recent records are the peers the node was connected to when it stopped: if
+/// those were all an attacker's, seeding them first would eclipse the node again.
+fn seed_order(store: &BootStore, chain_id: u64) -> Vec<&Enr> {
+    let mut entries: Vec<_> = store.valid_peers_with_chain_id(chain_id).collect();
+    entries.shuffle(&mut rand::rng());
+    // A stable sort, so each tier keeps the shuffled order.
+    entries.sort_by_key(|entry| entry.tcp_verified_at().is_none());
+    entries.into_iter().map(|entry| entry.enr()).collect()
+}
+
+/// Hands gossip the saved records of the peers it reached since the driver started at
+/// `started_at`, and within [`REDIAL_MAX_AGE`] of `now`, so that it redials the peers it lost.
+/// Gossip dials those it isn't connected to. It redials a peer only when discovery hands it over
+/// again, and discovery reports a session only when it starts, which discv5 keeps going for as
+/// long as it pings the node.
+///
+/// Not the candidates, which only sessions confirmed: anyone can start sessions under fresh keys,
+/// and gossip would redial a flood's candidates at every store interval. A candidate is dialed
+/// when its session starts. Nor the peers gossip lost longer ago: a connection keeps its record's
+/// evidence fresh, so a lost peer's evidence dates from about when gossip lost it, and redialing
+/// it every minute after that long only fails. Nor the peers it reached before the driver
+/// started: those are the peers the node was connected to when it stopped, and if they were all
+/// an attacker's, redialing them would eclipse it again. After a restart, the saved records seed
+/// the table instead, at random, see [`seed_order`]. Evidence from before the restart that a
+/// clock which ran ahead dated after it is dated `started_at` when the driver starts, so that it
+/// doesn't count, see [`BootStore::cap_evidence`].
+///
+/// Every record gossip reached has a TCP address, the one it reached: the store confirms only a
+/// record's own address, and a newer record keeps that evidence only if its TCP address is the
+/// same.
+///
+/// Doesn't wait for room in the channel, which would pile up tasks waiting to send: it hands over
+/// only as many as [`room_for_saved`] allows, and the rest at a later store interval. They are
+/// handed over in a random order, so that each interval gets a different part of them through.
+fn forward_saved(
+    store: &BootStore,
+    chain_id: u64,
+    sender: &mpsc::Sender<Enr>,
+    now: SystemTime,
+    started_at: SystemTime,
+) {
+    let cutoff =
+        now.checked_sub(REDIAL_MAX_AGE).map_or(started_at, |cutoff| cutoff.max(started_at));
+    let mut enrs: Vec<_> = store
+        .valid_peers_with_chain_id(chain_id)
+        .filter(|entry| entry.tcp_verified_at().is_some_and(|at| at > cutoff))
+        .map(BootStoreEntry::enr)
+        .collect();
+    enrs.shuffle(&mut rand::rng());
+    let room = room_for_saved(sender);
+    if enrs.len() > room {
+        debug!(target: "discovery", saved = enrs.len(), room, "Handing over part of the saved records, keeping room in the channel to gossip for session records");
+        enrs.truncate(room);
+    }
+    for enr in enrs {
+        // Nothing else sends meanwhile, so they all fit, and only a closed channel refuses them.
+        if sender.try_send(enr.clone()).is_err() {
+            return;
+        }
+    }
+}
+
+/// Hands gossip the records of the bootnodes, those with a TCP address, which gossip dials. The
+/// channel is empty at startup, so only a closed one refuses them.
+fn forward_bootnodes(bootnodes: Vec<Enr>, sender: &mpsc::Sender<Enr>) {
+    for enr in bootnodes.into_iter().filter(|enr| kona_peers::enr_tcp_socket(enr).is_some()) {
+        if sender.try_send(enr).is_err() {
+            return;
+        }
+    }
+}
+
+/// Hands gossip the record of a node that discovery has just had a session with, for gossip to
+/// dial.
+///
+/// Doesn't wait for room in the channel: nodes that start sessions with us decide how many arrive,
+/// and tasks waiting to send them would pile up. A dropped record is handed over again when the
+/// node's session starts again, or with the saved records if the bootstore saved it.
+fn forward_session(enr: Enr, sender: &mpsc::Sender<Enr>) {
+    match sender.try_send(enr) {
+        Ok(()) => {}
+        Err(TrySendError::Full(_)) => {
+            debug!(target: "discovery", "The channel to gossip is full, dropping a session's record");
+            metrics::counter!(crate::Metrics::DROPPED_ENRS).increment(1);
+        }
+        Err(TrySendError::Closed(_)) => {
+            debug!(target: "discovery", "The channel to gossip is closed, dropping a session's record");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

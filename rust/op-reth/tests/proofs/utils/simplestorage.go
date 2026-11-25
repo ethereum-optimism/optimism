@@ -3,6 +3,7 @@ package utils
 import (
 	"math/big"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -17,7 +18,7 @@ type SimpleStorage struct {
 	t devtest.T
 }
 
-func (c *SimpleStorage) SetValue(user *dsl.EOA, value *big.Int) *types.Receipt {
+func (c *SimpleStorage) SetValue(user *dsl.EOA, value *big.Int) *optypes.Receipt {
 	ctx := c.t.Ctx()
 	callData, err := c.parsedABI.Pack("setValue", value)
 	if err != nil {
@@ -46,7 +47,7 @@ func (c *SimpleStorage) PlanSetValue(user *dsl.EOA, value *big.Int) *txplan.Plan
 	return callTx
 }
 
-func DeploySimpleStorage(t devtest.T, user *dsl.EOA) (*SimpleStorage, *types.Receipt) {
+func DeploySimpleStorage(t devtest.T, user *dsl.EOA) (*SimpleStorage, *optypes.Receipt) {
 	parsedABI, bin := LoadArtifact(t, SimpleStorageArtifact)
 	contractAddress, receipt := DeployContract(t, user, bin)
 	contract := NewContract(contractAddress, parsedABI)

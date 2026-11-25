@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -130,10 +131,10 @@ func l1InfoDepositTx(t *testing.T, l1BlockNum uint64) hexutil.Bytes {
 	}
 	infoData, err := l1Info.marshalBinaryBedrock()
 	require.NoError(t, err)
-	depositTx := &types.DepositTx{
+	depositTx := &optypes.DepositTx{
 		Data: infoData,
 	}
-	txData, err := types.NewTx(depositTx).MarshalBinary()
+	txData, err := depositTx.MarshalBinary()
 	require.NoError(t, err)
 	return txData
 }

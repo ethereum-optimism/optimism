@@ -4,6 +4,8 @@ description: "Understand how the kona-node sequencer actor builds L2 blocks, and
 diataxis: explanation
 ---
 
+import { Unreleased } from "/snippets/unreleased.mdx"
+
 The Kona node can operate in **sequencer mode** to build and produce new L2 blocks. In this mode, the node acts as the sequencer for an OP Stack rollup, building L2 blocks on top of the current unsafe head and extending the L2 chain.
 
 This page explains the design of sequencer mode and how to configure it programmatically through the Node SDK. To run `kona-node` as a sequencer from the command line, follow the [run a sequencer node](/node-operators/kona-node/run/sequencer) guide.
@@ -50,8 +52,8 @@ Sequencer behavior is configured through the `SequencerConfig` struct:
 
 ```rust
 pub struct SequencerConfig {
-    /// Whether or not the sequencer is enabled at startup.
-    pub sequencer_stopped: bool,
+    /// Whether to boot the sequencer active. Ignored when a conductor is configured.
+    pub sequencer_start: bool,
     /// Whether or not the sequencer is in recovery mode.
     pub sequencer_recovery_mode: bool,
     /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
@@ -61,9 +63,13 @@ pub struct SequencerConfig {
 }
 ```
 
+Unless `sequencer_start` is set, the sequencer boots stopped. Start it with `admin_startSequencer`, which op-conductor calls on the leader. With a conductor, the sequencer always boots stopped, whatever `sequencer_start` says. See [starting the sequencer](/node-operators/kona-node/run/sequencer#starting-the-sequencer).
+
 ## Programmatic Configuration
 
 ### Using the RollupNodeBuilder
+
+<Unreleased component="kona-node" />
 
 To configure a Kona node programmatically for sequencer mode, set `NodeMode::Sequencer` on the `EngineConfig` and pass a `SequencerConfig` to the `RollupNodeBuilder`:
 
@@ -72,7 +78,7 @@ use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
 
 // Configure sequencer settings
 let sequencer_config = SequencerConfig {
-    sequencer_stopped: false,           // Start sequencer immediately
+    sequencer_start: false,             // Boot stopped; the conductor starts the leader
     sequencer_recovery_mode: false,     // Normal operation mode
     conductor_rpc_url: Some(            // Optional conductor integration
         Url::parse("http://conductor:8080").unwrap()
@@ -80,13 +86,15 @@ let sequencer_config = SequencerConfig {
     l1_conf_delay: 4,                   // L1 origin confirmation delay
 };
 
-// engine_config carries `mode: NodeMode::Sequencer` along with the
-// L2 engine URL, JWT secret, and L1 RPC URL. A sequencer needs a block
+// engine_config carries `mode: NodeMode::Sequencer` along with the node's
+// authenticated L2 engine connection, built once with `kona_sources::rpc::engine`.
+// The L1 client travels in l1_config_builder. A sequencer needs a block
 // signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
+// `version` is the string the node reports as its version over RPC.
 RollupNodeBuilder::new(
+    version,
     rollup_config,
     l1_config_builder,
-    l2_trust_rpc,
     engine_config,
     p2p_config,
     rpc_config,
@@ -101,7 +109,7 @@ RollupNodeBuilder::new(
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `sequencer_stopped` | Start sequencer in stopped state | `false` |
+| `sequencer_start` | Boot the sequencer active, for a single sequencer with no standby. Ignored with a conductor | `false` |
 | `sequencer_recovery_mode` | Enable recovery mode for catch-up | `false` |
 | `conductor_rpc_url` | Conductor service endpoint for leader election | `None` |
 | `l1_conf_delay` | Confirmation delay for L1 origin selection | `0` |

@@ -29,10 +29,9 @@ use op_alloy_rpc_types_engine::{
     OpPayloadAttributes,
 };
 use reth_network_api::noop::NoopNetwork;
-use reth_optimism_evm::{OpEvmConfig, OpRethReceiptBuilder, tx::OpTxEnvConverter};
+use reth_optimism_evm::{OpEvmConfig, tx::OpTxEnvConverter};
 use reth_optimism_node::engine::validate_op_version_specific_fields;
-use reth_optimism_payload_builder::{OpExecData, OpPayloadBuilder, OpPayloadBuilderAttributes};
-use reth_optimism_primitives::OpTransactionSigned;
+use reth_optimism_payload_builder::{OpExecData, OpPayloadBuilder};
 use reth_optimism_rpc::{
     OpEthApi,
     eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
@@ -193,7 +192,7 @@ type EthApi = OpEthApi<EthNodeCore, EthConverter>;
 /// handle, so the noop network carries the chain's id.
 fn op_eth_api(chain: &EphemeralChain, runtime: Runtime) -> EthApi {
     let provider = chain.provider().clone();
-    let evm_config = OpEvmConfig::new(chain.chain_spec(), OpRethReceiptBuilder::default());
+    let evm_config = OpEvmConfig::optimism(chain.chain_spec());
     let converter = RpcConverter::new(OpReceiptConverter::new(provider.clone()))
         .with_mapper(OpTxInfoMapper::new(provider.clone()))
         .with_tx_env_converter(OpTxEnvConverter);
@@ -219,16 +218,13 @@ fn debug_api(chain: &EphemeralChain, eth_api: EthApi, runtime: Runtime) -> jsonr
         DebugApi::new(eth_api, runtime.blocking_guard(), &runtime, futures::stream::empty());
 
     let provider = chain.provider().clone();
-    let evm_config = OpEvmConfig::new(chain.chain_spec(), OpRethReceiptBuilder::default());
+    let evm_config = OpEvmConfig::optimism(chain.chain_spec());
     let builder = OpPayloadBuilder::new(
         NoopTransactionPool::<OpPooledTransaction>::new(),
         provider.clone(),
         evm_config.clone(),
     );
-    let witness =
-        OpDebugWitnessApi::<_, _, _, OpPayloadBuilderAttributes<OpTransactionSigned>>::new(
-            provider, runtime, builder, evm_config,
-        );
+    let witness = OpDebugWitnessApi::new(provider, runtime, builder, evm_config);
 
     let mut methods = DebugApiServer::into_rpc(debug);
     methods

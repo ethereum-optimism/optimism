@@ -8,15 +8,15 @@ use crate::flags::{GlobalArgs, SignerArgs};
 use alloy_primitives::B256;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::Result;
+use backon::{ConstantBuilder, Retryable};
 use clap::Parser;
 use enr::k256;
-use kona_derive::ChainProvider;
 use kona_disc::LocalNode;
 use kona_genesis::RollupConfig;
 use kona_gossip::{GaterConfig, PeerAddr};
 use kona_node_service::{IpVotes, NetworkConfig};
 use kona_peers::{BootNode, BootNodes, BootStoreFile, PeerMonitoring, PeerScoreLevel};
-use kona_providers_alloy::AlloyChainProvider;
+use kona_providers_alloy::{AlloyChainProvider, AlloyChainProviderError, BlockLabel};
 use libp2p::{identity::Keypair, multiaddr::Protocol};
 use std::{
     net::{IpAddr, SocketAddr, ToSocketAddrs},
@@ -25,7 +25,6 @@ use std::{
     str::FromStr,
 };
 use tokio::time::Duration;
-use url::Url;
 
 /// Resolves a hostname or IP address string to an [`IpAddr`].
 ///
@@ -246,10 +245,20 @@ pub struct P2PArgs {
         env = "KONA_NODE_P2P_DISCOVERY_IP_VOTES"
     )]
     pub discovery_ip_votes: IpVotes,
-    /// The directory to store the bootstore.
+    /// Lets discovery use non-public addresses, such as loopback and LAN ones, in other nodes'
+    /// records, as on a devnet.
+    ///
+    /// Without it, discovery uses only public addresses, and skips bootnodes at other addresses. A
+    /// node on a public network can't reach other hosts' private addresses, so leave it off there.
+    #[arg(long = "p2p.discovery.private", env = "KONA_NODE_P2P_DISCOVERY_PRIVATE")]
+    pub discovery_private: bool,
+    /// The bootstore file, which saves peers' records so that the node can dial them again after
+    /// a restart. If it is missing, the node creates it, and its directory, and doesn't start if
+    /// it can't. Nor does it start if the file can't be read, isn't a bootstore, or is in a format
+    /// a newer version wrote. Defaults to `~/.kona/<chain_id>/bootstore.json`.
     #[arg(long = "p2p.bootstore", env = "KONA_NODE_P2P_BOOTSTORE")]
     pub bootstore: Option<PathBuf>,
-    /// Disables the bootstore.
+    /// Disables the bootstore: the node neither saves peers' records nor reads saved ones.
     #[arg(long = "p2p.no-bootstore", env = "KONA_NODE_P2P_NO_BOOTSTORE")]
     pub disable_bootstore: bool,
     /// Peer Redialing threshold is the maximum amount of times to attempt to redial a peer that
@@ -342,6 +351,12 @@ impl Default for P2PArgs {
 }
 
 impl P2PArgs {
+    /// How many times startup tries to read the unsafe block signer from L1, as op-node does.
+    const SIGNER_READ_ATTEMPTS: usize = 5;
+
+    /// How long startup waits between attempts to read the unsafe block signer, as op-node does.
+    const SIGNER_READ_RETRY_DELAY: Duration = Duration::from_secs(10);
+
     /// Checks if the listen ports are available on the system.
     ///
     /// A port of `0` is not checked, and neither is the UDP port if discovery is disabled, since
@@ -445,16 +460,12 @@ impl P2PArgs {
         &self,
         args: &GlobalArgs,
         rollup_config: &RollupConfig,
-        l1_eth_rpc: Option<Url>,
+        l1_provider: Option<&AlloyChainProvider>,
     ) -> anyhow::Result<alloy_primitives::Address> {
-        if let Some(l1_eth_rpc) = l1_eth_rpc {
-            let mut provider = AlloyChainProvider::new_http(l1_eth_rpc, 1024);
-            let latest_block_num = provider.latest_block_number().await?;
-            let block_info = provider.block_info_by_number(latest_block_num).await?;
-            return Ok(kona_providers_alloy::unsafe_block_signer(
-                &provider.inner,
+        if let Some(provider) = l1_provider {
+            return Ok(Self::unsafe_block_signer_at_l1_head(
+                provider,
                 rollup_config.l1_system_config_address,
-                block_info.hash,
             )
             .await?);
         }
@@ -464,6 +475,37 @@ impl P2PArgs {
             self.unsafe_block_signer
                 .ok_or_else(|| anyhow::anyhow!("Unsafe block signer not provided"))
         })
+    }
+
+    /// Reads the unsafe block signer from `system_config` at the L1 head, making up to
+    /// [`Self::SIGNER_READ_ATTEMPTS`] attempts [`Self::SIGNER_READ_RETRY_DELAY`] apart, as op-node
+    /// does.
+    ///
+    /// Each attempt reads the head again. An RPC may serve proofs only for blocks near its head
+    /// (Reth's default `--rpc.eth-proof-window` is 0, the head alone), so a retry at a head the
+    /// RPC has moved past would keep failing.
+    async fn unsafe_block_signer_at_l1_head(
+        provider: &AlloyChainProvider,
+        system_config: alloy_primitives::Address,
+    ) -> Result<alloy_primitives::Address, AlloyChainProviderError> {
+        let read = || async {
+            let head = provider.block_info_by_label(BlockLabel::Latest).await?;
+            provider.unsafe_block_signer(system_config, head.hash).await
+        };
+        read.retry(
+            ConstantBuilder::default()
+                .with_delay(Self::SIGNER_READ_RETRY_DELAY)
+                .with_max_times(Self::SIGNER_READ_ATTEMPTS - 1),
+        )
+        .notify(|error, delay| {
+            tracing::warn!(
+                target: "p2p::flags",
+                %error,
+                ?delay,
+                "Failed to read the unsafe block signer from L1; retrying at the current L1 head"
+            );
+        })
+        .await
     }
 
     /// Constructs kona's P2P network [`NetworkConfig`] from CLI arguments.
@@ -477,7 +519,7 @@ impl P2PArgs {
         self,
         config: &RollupConfig,
         args: &GlobalArgs,
-        l1_rpc: Option<Url>,
+        l1_provider: Option<&AlloyChainProvider>,
     ) -> anyhow::Result<NetworkConfig> {
         for warning in self.peering_warnings(config.l2_chain_id.id()) {
             tracing::warn!(target: "p2p::flags", "{warning}");
@@ -530,13 +572,16 @@ impl P2PArgs {
         });
 
         let discovery_listening_address = SocketAddr::new(self.listen_ip, self.listen_udp_port);
-        let discovery_config =
+        let mut discovery_config =
             NetworkConfig::discv5_config(discovery_listening_address.into(), ip_votes);
+        if !self.discovery_private {
+            discovery_config.table_filter = kona_disc::public_only;
+        }
 
         let mut gossip_address = libp2p::Multiaddr::from(self.listen_ip);
         gossip_address.push(libp2p::multiaddr::Protocol::Tcp(self.listen_tcp_port));
 
-        let unsafe_block_signer = self.unsafe_block_signer(args, config, l1_rpc).await?;
+        let unsafe_block_signer = self.unsafe_block_signer(args, config, l1_provider).await?;
 
         let bootstore = if self.disable_bootstore {
             None
@@ -605,13 +650,19 @@ impl P2PArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::b256;
+    use alloy_consensus::{Header, TxEnvelope};
+    use alloy_primitives::{Address, B256, b256};
+    use alloy_provider::RootProvider;
+    use alloy_rpc_client::RpcClient;
+    use alloy_rpc_types_eth::{Block as RpcBlock, BlockTransactions, Header as RpcHeader};
+    use alloy_transport::mock::Asserter;
     use clap::Parser;
     use kona_genesis::OP_MAINNET_CHAIN_ID;
     use kona_node_service::NetworkBuilder;
     use kona_peers::NodeRecord;
     use libp2p::PeerId;
     use rstest::rstest;
+    use std::num::NonZeroUsize;
 
     /// A chain ID in no registry, so it has no built-in bootnodes, as on a devnet.
     const DEVNET_CHAIN_ID: u64 = 0;
@@ -623,6 +674,73 @@ mod tests {
         /// P2P CLI Flags
         #[clap(flatten)]
         pub p2p: P2PArgs,
+    }
+
+    /// Creates an untrusted L1 provider backed by a FIFO mock RPC transport.
+    fn mocked_l1(asserter: &Asserter) -> AlloyChainProvider {
+        AlloyChainProvider::new(
+            RootProvider::new(RpcClient::mocked(asserter.clone())),
+            NonZeroUsize::new(8).unwrap(),
+            false,
+        )
+    }
+
+    /// An L1 block with an empty state.
+    fn l1_block(number: u64) -> RpcBlock<TxEnvelope> {
+        RpcBlock::new(
+            RpcHeader::new(Header { number, ..Default::default() }),
+            BlockTransactions::Hashes(Vec::new()),
+        )
+    }
+
+    /// An `eth_getProof` response proving that `address` is absent from an empty state, so its
+    /// unsafe block signer slot reads as zero.
+    fn absent_account_proof(address: Address) -> serde_json::Value {
+        // bytes32(uint256(keccak256("systemconfig.unsafeblocksigner")) - 1)
+        let slot = b256!("65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08");
+        serde_json::json!({
+            "address": address,
+            "balance": "0x0",
+            "codeHash": B256::ZERO,
+            "nonce": "0x0",
+            "storageHash": B256::ZERO,
+            "accountProof": [],
+            "storageProof": [{ "key": slot, "value": "0x0", "proof": [] }],
+        })
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn startup_signer_read_retries_at_the_new_l1_head() {
+        let system_config = Address::repeat_byte(0x01);
+        let asserter = Asserter::new();
+        asserter.push_success(&l1_block(1));
+        // The RPC has moved past block 1 and no longer serves proofs for it.
+        asserter.push_failure_msg("distance to target block exceeds maximum proof window");
+        asserter.push_success(&l1_block(2));
+        asserter.push_success(&absent_account_proof(system_config));
+
+        let read =
+            P2PArgs::unsafe_block_signer_at_l1_head(&mocked_l1(&asserter), system_config).await;
+
+        assert_eq!(read.unwrap(), Address::ZERO);
+        assert!(asserter.read_q().is_empty(), "each attempt must read the head again");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn startup_signer_read_gives_up_after_the_last_attempt() {
+        let asserter = Asserter::new();
+        for _ in 0..=P2PArgs::SIGNER_READ_ATTEMPTS {
+            asserter.push_failure_msg("unavailable");
+        }
+        let start = tokio::time::Instant::now();
+
+        let read =
+            P2PArgs::unsafe_block_signer_at_l1_head(&mocked_l1(&asserter), Address::ZERO).await;
+
+        assert!(matches!(read, Err(AlloyChainProviderError::Transport(_))), "{read:?}");
+        assert_eq!(asserter.read_q().len(), 1, "every attempt but no more must be made");
+        let retries = u32::try_from(P2PArgs::SIGNER_READ_ATTEMPTS - 1).unwrap();
+        assert_eq!(start.elapsed(), P2PArgs::SIGNER_READ_RETRY_DELAY * retries);
     }
 
     #[test]
@@ -726,6 +844,22 @@ mod tests {
             network_config(&["--p2p.discovery.ip-votes", "3", "--p2p.advertise.ip", "127.0.0.1"])
                 .await;
         assert!(!config.discovery_config.enr_update);
+    }
+
+    /// Discovery's table filter accepts only public records, unless `--p2p.discovery.private`
+    /// allows private ones.
+    #[tokio::test]
+    async fn test_discovery_private_reaches_discovery() {
+        let loopback = discv5::Enr::builder()
+            .ip4(std::net::Ipv4Addr::LOCALHOST)
+            .build(&enr::CombinedKey::generate_secp256k1())
+            .expect("the record builds");
+
+        let config = network_config(&[]).await;
+        assert!(!(config.discovery_config.table_filter)(&loopback));
+
+        let config = network_config(&["--p2p.discovery.private"]).await;
+        assert!((config.discovery_config.table_filter)(&loopback));
     }
 
     #[test]

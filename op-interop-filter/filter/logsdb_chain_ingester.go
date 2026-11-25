@@ -58,6 +58,7 @@ type blockFetch struct {
 // It uses an RPC client to fetch blocks and a logsdb database for storage.
 type LogsDBChainIngester struct {
 	log     log.Logger
+	clock   clock.Clock
 	metrics metrics.Metricer
 	chainID eth.ChainID
 
@@ -99,6 +100,7 @@ type LogsDBChainIngester struct {
 func NewLogsDBChainIngester(
 	parentCtx context.Context,
 	logger log.Logger,
+	clk clock.Clock,
 	m metrics.Metricer,
 	chainID eth.ChainID,
 	rpcClient client.RPC,
@@ -138,6 +140,7 @@ func NewLogsDBChainIngester(
 
 	return &LogsDBChainIngester{
 		log:              logger,
+		clock:            clk,
 		metrics:          m,
 		chainID:          chainID,
 		rpcClient:        rpcClient,
@@ -447,10 +450,10 @@ func (c *LogsDBChainIngester) runIngestion(nextBlock uint64) {
 	defer c.wg.Done()
 
 	// Track progress for logging
-	lastLogTime := clock.SystemClock.Now()
+	lastLogTime := c.clock.Now()
 
 	// Use ticker for polling interval
-	ticker := time.NewTicker(c.pollInterval)
+	ticker := c.clock.NewTicker(c.pollInterval)
 	defer ticker.Stop()
 
 	// Unified ingestion loop - no concept of "backfill" vs "live"
@@ -458,10 +461,17 @@ func (c *LogsDBChainIngester) runIngestion(nextBlock uint64) {
 		select {
 		case <-c.ctx.Done():
 			return
-		case <-ticker.C:
+		case <-ticker.Ch():
 		}
 
 		nextBlock = c.applyPendingRewind(nextBlock)
+
+		// Recorded before the error-state skip and the head fetch so that the lag
+		// grows while ingestion is halted or the EL is unavailable.
+		chainIDUint64, _ := c.chainID.Uint64()
+		if ts, ok := c.LatestTimestamp(); ok {
+			c.metrics.RecordIngestionLagSeconds(chainIDUint64, c.clock.Since(time.Unix(int64(ts), 0)).Seconds())
+		}
 
 		// Skip if in error state
 		if c.Error() != nil {
@@ -478,8 +488,6 @@ func (c *LogsDBChainIngester) runIngestion(nextBlock uint64) {
 			continue
 		}
 
-		// Record chain tip and lag metrics
-		chainIDUint64, _ := c.chainID.Uint64()
 		c.metrics.RecordChainTip(chainIDUint64, head.NumberU64())
 		if nextBlock > 0 {
 			ingestedHead := nextBlock - 1
@@ -487,9 +495,6 @@ func (c *LogsDBChainIngester) runIngestion(nextBlock uint64) {
 				c.metrics.RecordTipLagBlocks(chainIDUint64, head.NumberU64()-ingestedHead)
 			} else {
 				c.metrics.RecordTipLagBlocks(chainIDUint64, 0)
-			}
-			if ts, ok := c.LatestTimestamp(); ok {
-				c.metrics.RecordIngestionLagSeconds(chainIDUint64, clock.SystemClock.Since(time.Unix(int64(ts), 0)).Seconds())
 			}
 		}
 
@@ -654,7 +659,7 @@ func (c *LogsDBChainIngester) RewindToFinalized(ctx context.Context) (eth.BlockI
 }
 
 func (c *LogsDBChainIngester) ingestBlock(blockNum uint64) error {
-	_, _, err := c.ingestBlockRange(blockNum, blockNum, clock.SystemClock.Now())
+	_, _, err := c.ingestBlockRange(blockNum, blockNum, c.clock.Now())
 	return err
 }
 
@@ -735,9 +740,9 @@ func (c *LogsDBChainIngester) ingestBlockRange(startBlock, endBlock uint64, last
 		if c.Error() != nil {
 			return blockNum + 1, lastLogTime, nil
 		}
-		if clock.SystemClock.Since(lastLogTime) > progressLogInterval {
+		if c.clock.Since(lastLogTime) > progressLogInterval {
 			c.recordIngestionProgress(blockNum, endBlock)
-			lastLogTime = clock.SystemClock.Now()
+			lastLogTime = c.clock.Now()
 		}
 	}
 
@@ -800,7 +805,7 @@ func (c *LogsDBChainIngester) writeFetchedBlock(fetched blockFetch) error {
 		"block", blockNum,
 		"hash", blockID.Hash,
 		"timestamp", blockInfo.Time(),
-		"ingested_at", time.Now().UTC(),
+		"ingested_at", c.clock.Now().UTC(),
 		"logs", logCount)
 
 	// Set earliest block on first successful ingestion (fresh start case).

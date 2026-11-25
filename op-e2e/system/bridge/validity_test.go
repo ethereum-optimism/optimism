@@ -32,10 +32,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/require"
 )
@@ -198,7 +196,7 @@ func TestMixedDepositValidity(t *testing.T) {
 		} else {
 			transferValue = new(big.Int).Mul(common.Big2, transactor.ExpectedL2Balance) // trigger a revert by trying to transfer our current balance * 2
 		}
-		helpers.SendDepositTx(t, cfg, l1Client, l2Verif, transactor.Account.L1Opts, func(l2Opts *helpers.DepositTxOpts) {
+		helpers.SendDepositTx(t, cfg, l1Client, sys.NodeSourceClient("verifier"), transactor.Account.L1Opts, func(l2Opts *helpers.DepositTxOpts) {
 			l2Opts.GasLimit = 100_000
 			l2Opts.IsCreation = false
 			l2Opts.Data = nil
@@ -394,37 +392,33 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			receiptSeq, err := wait.ForReceiptOK(ctx, l2Seq, tx.Hash())
 			require.Nil(t, err, "withdrawal initiated on L2 sequencer")
 
-			verifierTip, err := l2Verif.BlockByNumber(context.Background(), nil)
+			verifierTip, err := l2Verif.HeaderByNumber(context.Background(), nil)
 			require.Nil(t, err)
 
-			t.Logf("Waiting for tx %s to be in verifier. Verifier tip is %s:%d. Included in sequencer in block %s:%d", tx.Hash().Hex(), verifierTip.Hash().Hex(), verifierTip.NumberU64(), receiptSeq.BlockHash.Hex(), receiptSeq.BlockNumber)
-			receipt, err := wait.ForReceiptOK(ctx, l2Verif, tx.Hash())
+			t.Logf("Waiting for tx %s to be in verifier. Verifier tip is %s:%d. Included in sequencer in block %s:%d", tx.Hash().Hex(), verifierTip.Hash().Hex(), verifierTip.Number, receiptSeq.BlockHash.Hex(), receiptSeq.BlockNumber)
+			opReceipt, err := wait.ForOPReceiptOK(ctx, sys.NodeSourceClient("verifier"), tx.Hash())
 			require.Nilf(t, err, "withdrawal tx %s not found in verifier. included in block %s:%d", tx.Hash().Hex(), receiptSeq.BlockHash.Hex(), receiptSeq.BlockNumber)
 
 			// Obtain the header for the block containing the transaction (used to calculate gas fees)
 			txCtx, txCancel = context.WithTimeout(context.Background(), txTimeoutDuration)
-			header, err := l2Verif.HeaderByNumber(txCtx, receipt.BlockNumber)
+			header, err := l2Verif.HeaderByNumber(txCtx, opReceipt.BlockNumber)
 			txCancel()
 			require.Nil(t, err)
 
 			// Calculate gas fees for the withdrawal in L2 to later adjust our balance.
-			withdrawalL2GasFee := helpers.CalcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+			withdrawalL2GasFee := helpers.CalcGasFees(opReceipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
 
 			// Adjust our expected L2 balance (should've decreased by withdraw amount + fees)
 			transactor.ExpectedL2Balance = new(big.Int).Sub(transactor.ExpectedL2Balance, withdrawAmount)
 			transactor.ExpectedL2Balance = new(big.Int).Sub(transactor.ExpectedL2Balance, withdrawalL2GasFee)
-			transactor.ExpectedL2Balance = new(big.Int).Sub(transactor.ExpectedL2Balance, receipt.L1Fee)
+			transactor.ExpectedL2Balance = new(big.Int).Sub(transactor.ExpectedL2Balance, opReceipt.L1Fee)
 			transactor.ExpectedL2Nonce = transactor.ExpectedL2Nonce + 1
 
 			// Wait for the finalization period, then we can finalize this withdrawal.
-			_, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, receipt.BlockNumber, header.Time)
+			_, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, opReceipt.BlockNumber, header.Time)
 			require.Nil(t, err)
 
-			rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].UserRPC().RPC())
-			require.Nil(t, err)
-			proofCl := gethclient.New(rpcClient)
-			receiptCl := ethclient.NewClient(rpcClient)
-			blockCl := ethclient.NewClient(rpcClient)
+			proofCl := gethclient.New(l2Verif.Client())
 
 			// Mine an empty block so that the timestamp is updated. Otherwise,
 			// proveWithdrawalTransaction gas estimation may fail because the current timestamp is
@@ -433,7 +427,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			require.NoError(t, err)
 
 			// Now create the withdrawal
-			params, err := helpers.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, tx.Hash(), disputeGameFactory, optimismPortal2)
+			params, err := helpers.ProveWithdrawalParameters(context.Background(), proofCl, l2Verif, l2Verif, tx.Hash(), disputeGameFactory, optimismPortal2)
 			require.Nil(t, err)
 
 			// Obtain our withdrawal parameters
@@ -527,7 +521,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 				factoryHelper.StartChallenger(ctx, "Challenger",
 					challenger.WithFastGames(),
 					challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
-				receipt, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
+				receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 				require.NoError(t, err, "finalize withdrawal")
 
 				// Verify balance after withdrawal
@@ -542,7 +536,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 				transactor.ExpectedL1Nonce++
 
 				// Ensure that our withdrawal was proved successfully
-				_, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
+				_, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 				require.NoError(t, err, "prove withdrawal")
 
 				// Wait for finalization and then create the Finalized Withdrawal Transaction
@@ -556,7 +550,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 				transactor.Account.L1Opts.Value = depositAmount
 				tx, err := depositContract.DepositTransaction(transactor.Account.L1Opts, fromAddr, depositAmount, 120_000, false, nil)
 				require.NoError(t, err)
-				receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
+				receipt, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 				require.NoError(t, err)
 				require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
 

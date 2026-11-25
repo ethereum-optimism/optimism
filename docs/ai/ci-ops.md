@@ -24,7 +24,8 @@ Notes that matter in practice:
 
 - **Wait for the gates the ruleset requires,** not the individual jobs: the four
   CircleCI fan-in gates (`ci-gate`, `required-contracts-ci`, `required-rust-ci`,
-  `required-rust-e2e`) plus the `dependency-review` GitHub Actions check. A gate reports
+  `required-rust-e2e`) plus the `dependency-review` GitHub Actions check; on a
+  `proposal/**` branch, `ci-gate-proposals` and `required-contracts-ci`. A gate reports
   last, so it can still be pending while every job you were watching is green. On skip
   paths the gate is produced by an `always-succeed` companion, so a gate that never
   reports at all is a config bug (see [ci-config-review.md](ci-config-review.md) item 2),
@@ -62,6 +63,15 @@ Worked example (#21356): `go-tests-short` failed on `op-deployer` integration te
 branch that only added a new `op-core/types` package. The diff touched nothing in
 `op-deployer`; the failures were a data-dependent flake already fixed on `develop` by
 #21396. Rebasing made CI green with no change to the branch's own work.
+
+## Go module cache on Circle
+
+A successful "Restore Go module cache" step does not prove that Go reads the restored
+modules. Machine images default `GOPATH` to `~/.go_workspace`, so the shared
+`restore-go-mod-cache` helper sets `GOMODCACHE=$HOME/go/pkg/mod` through `BASH_ENV`. If a
+job downloads modules after a cache hit, compare `go env GOMODCACHE` with the cached path.
+The key includes `go.mod`, so a toolchain-directive bump saves a new snapshot that holds the
+downloaded toolchain. `.circleci/scripts/test-go-mod-cache.py` checks both properties.
 
 ## Missing `op-core/superchain/bundle` bundle (`superchain-configs.zip`)
 

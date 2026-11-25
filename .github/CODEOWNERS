@@ -11,10 +11,7 @@
 /op-conductor   @ethereum-optimism/infra-reviewers @ethereum-optimism/monorepo-reviewers
 
 # Contracts
-# We require a minimum of 2 reviewers for all changes to the contracts-bedrock
-# directory unless only markdown files are being changed.
-/packages/contracts-bedrock/**           @ethereum-optimism/contract-reviewers #[min:2]
-/packages/contracts-bedrock/**/*.md      @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock/**           @ethereum-optimism/contract-reviewers
 /.cursor/rules/solidity-styles.mdc       @ethereum-optimism/contract-reviewers
 
 # Security docs
@@ -33,3 +30,9 @@
 # Must come last to avoid being overridden
 /.github/CODEOWNERS  @ethereum-optimism/cloud-security
 /.github/dependency-review-config.yml @ethereum-optimism/cloud-security
+
+# GitHub Actions inputs
+/.github/workflows/ @ethereum-optimism/cloud-security
+/.github/actions/   @ethereum-optimism/cloud-security
+/.github/scripts/   @ethereum-optimism/cloud-security
+/.github/CODEOWNERS @ethereum-optimism/cloud-security

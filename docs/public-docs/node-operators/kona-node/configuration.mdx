@@ -25,34 +25,31 @@ For more details on each flag, see the inline help (`kona-node node --help`) or 
 | `--l1-eth-rpc <URL>` | `KONA_NODE_L1_ETH_RPC` | URL of the L1 execution client RPC API | Yes | - |
 | `--l1-trust-rpc=<true/false>` | `KONA_NODE_L1_TRUST_RPC` | Whether to trust the L1 RPC without verification | No | `false` |
 | `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | URL of the L1 beacon API | Yes | - |
+| `--l1-epoch-poll-interval <SECONDS>` | `KONA_NODE_L1_EPOCH_POLL_INTERVAL` | Interval in seconds between polls of the L1 finalized block. The L2 finalized head can trail L1 finality by up to this interval. Alias: `--l1.epoch-poll-interval` | No | `384` |
 | `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | URL of the engine API endpoint of an L2 execution client | Yes | - |
-| `--l2-trust-rpc=<true/false>` | `KONA_NODE_L2_TRUST_RPC` | Whether to trust the L2 RPC without verification | No | `true` |
 | `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | Path to file containing the hex-encoded JWT secret for the execution client | No | - |
 | `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | Path to a custom L2 rollup configuration file | No | - |
-| `--l1-runtime-config-reload-interval <SECONDS>` | `KONA_NODE_L1_RUNTIME_CONFIG_RELOAD_INTERVAL` | Poll interval for reloading runtime config | No | `600` |
 
 ## Global Arguments
 
 | Flag | Env | Description | Required | Default |
 |------|-----|-------------|----------|---------|
-| `--l2-chain-id <ID/NAME>` or `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 chain ID (numeric) or chain name (string) | No | `10` (Optimism) |
+| `--chain <ID/NAME>` or `-c <ID/NAME>` | `KONA_NODE_L2_CHAIN_ID` | L2 chain ID (numeric) or chain name (string). Alias: `--l2-chain-id` | No | `10` (Optimism) |
 
 ### Chain ID Support
 
-The `--l2-chain-id` flag supports flexible chain identification using the `alloy_chains` crate:
+The `--chain` flag supports flexible chain identification using the `alloy_chains` crate:
 
 **Numeric Chain IDs:**
 ```bash
-kona-node --l2-chain-id 10 node [args...]      # Optimism mainnet
-kona-node --l2-chain-id 8453 node [args...]    # Base mainnet
-kona-node --l2-chain-id 1 node [args...]       # Ethereum mainnet
+kona-node --chain 10 node [args...]        # Optimism mainnet
+kona-node --chain 11155420 node [args...]  # OP Sepolia
 ```
 
 **String Chain Names:**
 ```bash
-kona-node --l2-chain-id optimism node [args...]
-kona-node --l2-chain-id base node [args...]
-kona-node --l2-chain-id mainnet node [args...]
+kona-node --chain optimism node [args...]
+kona-node --chain optimism-sepolia node [args...]
 ```
 
 **Short Flag and Environment Variable:**
@@ -61,7 +58,7 @@ kona-node -c optimism node [args...]
 export KONA_NODE_L2_CHAIN_ID=optimism && kona-node node [args...]
 ```
 
-Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `base`, `mainnet`). Unknown numeric chain IDs are accepted for custom networks.
+Supported chain names include all those recognized by `alloy_chains` (e.g., `optimism`, `optimism-sepolia`). Unknown numeric chain IDs are accepted for custom networks.
 
 ## P2P Arguments
 
@@ -90,10 +87,12 @@ Supported chain names include all those recognized by `alloy_chains` (e.g., `opt
 | `--p2p.ban.duration <MINUTES>` | `KONA_NODE_P2P_BAN_DURATION` | Ban duration: a banned peer is disconnected, and its connections are refused in both directions until the ban expires or [`opp2p_unblockPeer`](/node-operators/kona-node/rpc/p2p#opp2p_unblockpeer) lifts it. Bans don't survive a restart | `60` |
 | `--p2p.discovery.interval <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_INTERVAL` | Peer discovery interval | `5` |
 | `--p2p.discovery.ip-votes <N>` | `KONA_NODE_P2P_DISCOVERY_IP_VOTES` | How many peers must report the same external address before the node advertises it, at least `2`. Ignored with `--p2p.advertise.ip`. Fewer votes let fewer peers decide the address, so keep the default on public networks. op-node has no such flag: its threshold is fixed at `10`. See [advertised address](#advertised-address) | `10` |
-| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | Directory to store the bootstore | - |
+| `--p2p.discovery.private` | `KONA_NODE_P2P_DISCOVERY_PRIVATE` | Let discovery use non-public addresses, such as loopback and LAN ones, in other nodes' records and bootnodes, as on a devnet. See [discovered addresses](#discovered-addresses) | `false` |
+| `--p2p.bootstore <PATH>` | `KONA_NODE_P2P_BOOTSTORE` | The bootstore file, which saves peers' records so that the node can find them again after a restart. It forgets a peer whose address it hasn't confirmed for a week, and a new one whose address it can't confirm within an hour or two, counting only while the node hears from the network. The records that kona-node v1.11.0 or earlier saved count as new: those it doesn't confirm in that time are forgotten, whether it tried them or not, which in a full bootstore is most of them. If it is missing, the node creates it, and its directory, and doesn't start if it can't. Nor does it start if the file can't be read, isn't a bootstore, or is in a format a newer version wrote: fix the file, upgrade, or delete it | `~/.kona/<chain_id>/bootstore.json` |
+| `--p2p.no-bootstore` | `KONA_NODE_P2P_NO_BOOTSTORE` | Disable the bootstore: the node neither saves peers' records nor reads saved ones | `false` |
 | `--p2p.redial <N>` | `KONA_NODE_P2P_REDIAL` | Peer redialing threshold | `500` |
 | `--p2p.redial.period <MINUTES>` | `KONA_NODE_P2P_REDIAL_PERIOD` | Peer dial period | `60` |
-| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs | - |
+| `--p2p.bootnodes <ENR,...>` | `KONA_NODE_P2P_BOOTNODES` | List of bootnode ENRs or enode URLs. A bootnode at a non-public address needs `--p2p.discovery.private`, see [discovered addresses](#discovered-addresses) | - |
 | `--p2p.static-peers <MULTIADDR,...>` | `KONA_NODE_P2P_STATIC_PEERS` | Peers to dial at startup and keep connected, see [static peers](#static-peers). Alias: `--p2p.static` | - |
 | `--p2p.topic-scoring` | `KONA_NODE_P2P_TOPIC_SCORING` | Enable topic scoring | `false` |
 | `--p2p.discovery.randomize <SECONDS>` | `KONA_NODE_P2P_DISCOVERY_RANDOMIZE` | Remove random peers from discovery | - |
@@ -131,13 +130,36 @@ op-node never advertises its listen IP: without `--p2p.advertise.ip`, it learns 
 
 </Info>
 
+### Discovered addresses
+
+<Unreleased component="kona-node" />
+
+Other nodes hand the node records that can name an address it can't reach, such as another host's `127.0.0.1`, or a host that isn't a node at all. So the node follows two rules:
+
+- **Apart from its bootnodes, which it dials once at startup, it dials only nodes discovery has had a session with, and only if the TCP address in their record has the IP the session came from.** It saves such records and the bootnodes of its chain in its bootstore, apart from private ones, see below. The saved records seed discovery: 30 at random at startup, the peers it dialed in the last week first, and 30 others every minute while discovery has fewer than 30 peers. A peer it dialed since startup and lost is dialed again every minute for a day. A bootnode that runs gossip without discovery is better listed in `--p2p.static-peers`. A record that names another host is dropped. Static peers and [`opp2p_connectPeer`](/node-operators/kona-node/rpc/p2p#opp2p_connectpeer) are dialed as given.
+- **Discovery uses only public addresses, unless `--p2p.discovery.private` is set.** A record with a "this network" (`0.0.0.0/8`), loopback, private, link-local, shared (`100.64.0.0/10`), IETF protocol assignment (`192.0.0.0/24`), benchmarking (`198.18.0.0/15`), reserved (`240.0.0.0/4`), multicast, broadcast or documentation address isn't contacted, kept in the discovery table, or saved, unless it starts a session with the node, see below, and the bootstore drops it at startup. Some clouds and labs use the benchmarking and reserved ranges for internal addresses. This applies to bootnodes, given as ENRs or enode URLs, so a devnet that uses loopback or LAN bootnodes needs the flag. The other special-purpose ranges, such as anycast and NAT64 addresses, count as public.
+
+Behind a Kubernetes Service with `externalTrafficPolicy: Cluster`, the default, packets from other nodes reach the node from a cluster node's IP rather than their own. A node that starts a session with it then doesn't match its record, so it isn't dialed, and the node finds fewer peers than op-node does. Sessions the node starts itself are unaffected. Set `externalTrafficPolicy: Local` to keep the senders' IPs.
+
+Without `--p2p.discovery.private`, the node never reaches out to a private address first. A node at a private address that starts a session with it is neither dialed back nor saved: it can dial this node over gossip, which accepts it, and if it keeps the peers it found, as kona-node does in its bootstore, it can redial this node. To peer with private nodes, such as neighbours in a VPC, set the flag, or list them in `--p2p.static-peers`. Discovery also keeps a node it has a session with in its table, and passes its record on to nodes that look it up, as it can't check a record against the node asking for it. Nodes that follow these rules don't contact a private record they get this way.
+
+<Info>
+
+To keep a node, such as a sequencer, behind public sentry nodes, run it with `--p2p.no-discovery`, list the sentries in its `--p2p.static-peers`, and list it in theirs, see [static peers](#static-peers) and [running without discovery](#running-without-discovery). Static peers are dialed directly, redialed every minute, and never passed on through discovery.
+
+A node that ran discovery against its sentry instead would leak, and wouldn't stay behind it: the sentry keeps it in its table, and passes its record, with its node ID and LAN address, on to every node that looks it up. The node also finds the sentry's other peers through it, and connects to them directly.
+
+</Info>
+
+Like Lighthouse, kona-node uses a fixed rule. op-node instead checks each record against the node that returned it, so it accepts a LAN record from a LAN neighbour without a flag.
+
 ### Static peers
 
 `--p2p.static-peers` lists peers that the node connects to directly and keeps connected, whatever discovery finds. Use it to make sure that a node, such as a sequencer, stays connected to the nodes it trusts.
 
 <Warning>
 
-Static peers don't turn discovery off. On a chain in the superchain registry, discovery starts from the chain's built-in bootnodes, even with no `--p2p.bootnodes`, and the node dials the peers saved in its bootstore. So the node still finds other nodes and connects to them, and they can find it. To connect only to static peers, also set `--p2p.no-discovery`, see [running without discovery](#running-without-discovery).
+Static peers don't turn discovery off. On a chain in the superchain registry, discovery starts from the chain's built-in bootnodes, even with no `--p2p.bootnodes`, and from the peers saved in its bootstore. So the node still finds other nodes and connects to them, and they can find it. To connect only to static peers, also set `--p2p.no-discovery`, see [running without discovery](#running-without-discovery).
 
 </Warning>
 
@@ -188,9 +210,9 @@ The node finds its peers as follows:
 
 | Discovery | Bootnodes | Static peers | Behavior |
 |-----------|-----------|--------------|----------|
-| On | None, chain in the registry | Any | Connects to the peers it finds from the chain's built-in bootnodes, to the peers saved in its bootstore, and to its static peers. |
-| On | None, chain not in the registry | Any | Connects to the peers saved in its bootstore, if any, and to its static peers. Otherwise it finds nobody until other nodes bootstrap from it, as the first bootnode of a new network does. |
-| On | Set | Any | Connects to the peers it finds from the bootnodes given and the built-in ones, to the peers saved in its bootstore, and to its static peers. |
+| On | None, chain in the registry | Any | Connects to the peers it finds from the chain's built-in bootnodes, to the peers it finds from its bootstore, and to its static peers. |
+| On | None, chain not in the registry | Any | Connects to the peers it finds from its bootstore, if any, and to its static peers. Otherwise it finds nobody until other nodes bootstrap from it, as the first bootnode of a new network does. |
+| On | Set | Any | Connects to the peers it finds from the bootnodes given and the built-in ones, to the peers it finds from its bootstore, and to its static peers. |
 | Off | Ignored | Set | Connects only to its static peers and the peers that dial it. A static peer that's down is dialed again once a minute, so a node can start before its peers. |
 | Off | Ignored | None | Connects only to peers that dial it, or that are added with `opp2p_connectPeer`, as the hub of a group does. |
 
@@ -203,34 +225,38 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
 | `--rpc.disabled` | `KONA_NODE_RPC_DISABLED` | Disable the RPC server | `false` |
-| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `0.0.0.0` |
+| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `127.0.0.1` |
 | `--port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
-| `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | Enable the admin API | `false` |
-| `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | File path for admin state persistence | - |
+
+The [admin API](/node-operators/kona-node/rpc/admin) is always served on the RPC port, without authentication. It can start and stop the sequencer and inject unsafe blocks: `admin_postUnsafePayload` checks only the block hash, not a signature. Binding a non-loopback address, such as `--rpc.addr 0.0.0.0` to publish the port from a Docker container, exposes the admin API, so firewall the port so that only trusted callers reach it.
 
 ## Sequencer Arguments
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | Start sequencer in stopped state | `false` |
+| `--sequencer.start` | `KONA_NODE_SEQUENCER_START` | Boot the sequencer active. Only for a single sequencer with no standby. Can't be combined with `--conductor.rpc`. | `false` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | Strictly prepare next L1 origin and create empty L2 blocks | `false` |
 | `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode; it has no effect in validator mode. | - |
 | `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Conductor service RPC timeout | `1` |
 
+Unless `--sequencer.start` is set, the sequencer boots stopped, after every restart. Start it with [`admin_startSequencer`](/node-operators/kona-node/rpc/admin#admin_startsequencer); with a conductor, op-conductor starts the leader. See [starting the sequencer](/node-operators/kona-node/run/sequencer#starting-the-sequencer).
+
 ## Interop Arguments
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. Required when the rollup config schedules the Lagoon hardfork. | - |
+| `--interop.dependency-set <PATH>` | `KONA_NODE_INTEROP_DEPENDENCY_SET` | Path to the JSON file describing the interop dependency set for this chain. When unset, the node uses the chain's dependency set from the superchain-registry. Required when the rollup config schedules the Lagoon hardfork for a chain the registry does not include. | - |
 | `--safedb.path <PATH>` | `KONA_NODE_SAFEDB_PATH` | Directory of the safe head database, which records the L2 safe head reached as of each L1 block and backs `optimism_safeHeadAtL1Block` and `superroot_atTimestamp`. Needed by op-challenger, op-proposer and op-dispute-mon. Nothing is recorded when unset. | - |
 
 `kona-node` does not run a supervisor RPC server, so there is no `--supervisor.*`
 flag group. `--interop.dependency-set` is the node's only interop flag.
 
-## RPC Trust Flags
+## RPC Trust Flag
 
-The `--l1-trust-rpc` and `--l2-trust-rpc` flags control whether Kona verifies the block hashes of RPC responses. For guidance on when to disable trust and worked examples for trusted, untrusted, and mixed provider setups, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).
+<Unreleased component="kona-node" />
+
+The `--l1-trust-rpc` flag controls whether Kona verifies L1 RPC responses. Without L1 trust, Kona checks L1 headers against their block hashes, and L1 transactions and receipts against the header's roots, and proves the unsafe block signer with `eth_getProof`, which the L1 RPC must therefore serve. The L2 engine is the node's own execution client and is always trusted. For guidance on when to disable L1 trust and worked examples, see [configure RPC trust](/node-operators/kona-node/run/rpc-trust).
 
 ## Default Behavior
 
@@ -239,8 +265,8 @@ Unless overridden by the flags above, a `kona-node node` run has the following d
 - The P2P stack is spun up. The libp2p swarm listens on TCP `9222`
   to receive block gossip. The `discv5` discovery service runs on
   UDP port `9223`. Peer scoring is enabled.
-- An RPC server is exposed at `0.0.0.0:9545`. Websocket connections
-  are disabled by default.
+- An RPC server, including the admin API, is exposed at `127.0.0.1:9545`.
+  It accepts both HTTP and WebSocket connections.
 - Prometheus metrics are disabled. Enable them with the
   `--metrics.enabled` flag; metrics are then served on `0.0.0.0:9090`,
   configurable via the `--metrics.port` and `--metrics.addr` flags.

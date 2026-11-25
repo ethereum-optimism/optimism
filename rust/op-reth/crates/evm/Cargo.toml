@@ -52,6 +52,7 @@ tracing.workspace = true
 [dev-dependencies]
 reth-evm = { workspace = true, features = ["test-utils"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
+reth-storage-api.workspace = true
 alloy-genesis.workspace = true
 metrics-exporter-prometheus.workspace = true
 metrics-util.workspace = true

@@ -10,14 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
 	nodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
 
 func TestNewL1ChainConfig_KnownChains(t *testing.T) {
@@ -80,13 +76,11 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 	}
 	encode(embeddedPath, wrapper{Config: custom})
 
-	// An L3's L1 is an OP Stack chain, given as its genesis file, which holds its fork times, or
-	// as its bare chain config.
+	// An OP Stack chain is not supported as L1, whether it is given as its genesis file or as its
+	// bare chain config.
 	opGenesisPath := filepath.Join(dir, "op_genesis.json")
-	require.NoError(t, os.WriteFile(opGenesisPath, []byte(`{"config": {"chainId": 424242,
-		"londonBlock": 0, "shanghaiTime": 0, "cancunTime": 1000, "pragueTime": 2000,
-		"bedrockBlock": 0, "regolithTime": 0, "canyonTime": 0, "ecotoneTime": 1000, "isthmusTime": 2000,
-		"optimism": {"eip1559Elasticity": 6, "eip1559Denominator": 50}}}`), 0o644))
+	require.NoError(t, os.WriteFile(opGenesisPath,
+		[]byte(`{"config": {"chainId": 424242, "optimism": {"eip1559Elasticity": 6, "eip1559Denominator": 50}}}`), 0o644))
 	opChainConfigPath := filepath.Join(dir, "op_chain_config.json")
 	require.NoError(t, os.WriteFile(opChainConfigPath,
 		[]byte(`{"chainId": 424242, "optimism": {"eip1559Elasticity": 6, "eip1559Denominator": 50}}`), 0o644))
@@ -120,6 +114,24 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		require.Equal(t, custom.ChainID, cfg.ChainID)
 	})
 
+	// A key that go-ethereum's chain config does not have fails the decode, and the error names
+	// it for either file shape.
+	t.Run("unknown-key-direct", func(t *testing.T) {
+		path := filepath.Join(dir, "chainconfig_unknown_key.json")
+		require.NoError(t, os.WriteFile(path,
+			[]byte(`{"chainId": 424242, "blobSchedule": {"osaka": {"target": 6, "max": 9, "baseFeeUpdateFraction": 5007716}}}`), 0o644))
+		_, err := runWithPath(path)
+		require.ErrorContains(t, err, `unknown field "osaka"`)
+	})
+
+	t.Run("unknown-key-embedded", func(t *testing.T) {
+		path := filepath.Join(dir, "genesis_unknown_key.json")
+		require.NoError(t, os.WriteFile(path,
+			[]byte(`{"config": {"chainId": 424242, "blobSchedule": {"osaka": {"target": 6, "max": 9, "baseFeeUpdateFraction": 5007716}}}}`), 0o644))
+		_, err := runWithPath(path)
+		require.ErrorContains(t, err, `unknown field "osaka"`)
+	})
+
 	t.Run("nil-chainid-panics", func(t *testing.T) {
 		app := cli.NewApp()
 		ctx := cli.NewContext(app, nil, nil)
@@ -138,17 +150,10 @@ func TestNewL1ChainConfig_CustomDirectAndEmbeddedAndNil(t *testing.T) {
 		{"op-genesis", opGenesisPath},
 		{"op-chain-config", opChainConfigPath},
 	} {
-		t.Run(tc.name+"-prices-blobs-at-minimum", func(t *testing.T) {
+		t.Run(tc.name+"-is-rejected", func(t *testing.T) {
 			cfg, err := runWithPath(tc.path)
-			require.NoError(t, err)
-			require.Equal(t, testChainID, cfg.ChainID)
-			require.NotNil(t, cfg.BlobScheduleConfig, "upstream go-ethereum needs one to price blobs")
-			// Time 0 is before the genesis file's Cancun (Ecotone) time: a config that honoured the
-			// file's fork times would have no blob config there and panic.
-			for _, l1Time := range []uint64{0, 1 << 40} {
-				header := &types.Header{Number: big.NewInt(1), Time: l1Time, ExcessBlobGas: ptr.New(uint64(0))}
-				require.Equal(t, uint64(1), bigs.Uint64Strict(eth.HeaderBlockInfo(header).BlobBaseFee(cfg)))
-			}
+			require.Nil(t, cfg)
+			require.ErrorContains(t, err, "OP Stack chain")
 		})
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -119,8 +120,8 @@ func TestAltDAConfigMaxInputSize(t *testing.T) {
 }
 
 // TestConfigChainOpConfigJSONWireFormat pins the on-the-wire serialization of the
-// ChainOpConfig field. Its type moved from op-geth's params.OptimismConfig to
-// op-core/params.OptimismConfig; the JSON must remain byte-for-byte identical.
+// ChainOpConfig field. Rollup-config readers in other implementations parse these field
+// names, so the JSON must not change.
 func TestConfigChainOpConfigJSONWireFormat(t *testing.T) {
 	config := randConfig()
 	config.ChainOpConfig = &opparams.OptimismConfig{
@@ -1293,5 +1294,127 @@ func TestConfig_ActivateAtGenesis(t *testing.T) {
 			require.Nil(t, cfg.ActivationTime(f))
 		}
 		require.Zero(t, cfg)
+	})
+}
+
+// konaRollupConfigFixture is kona's serialization of a rollup config with every field set, pinned on
+// the kona side by test_cross_language_rollup_config_golden
+// (rust/kona/crates/protocol/genesis/src/rollup.rs). Its values are distinct and non-zero, so a
+// field that either side drops or names differently changes what decodes here. The check runs one
+// way only: a new op-node field must also be added to kona's serializer and to the fixture.
+const konaRollupConfigFixture = "../../rust/kona/crates/protocol/genesis/tests/fixtures/rollup_config_cross_language.json"
+
+// konaRollupConfigGaps lists, as JSON paths, the keys that kona writes and op-node does not read.
+// Go clients of kona-node's optimism_rollupConfig silently drop these values.
+var konaRollupConfigGaps = [][]string{
+	// op-node has no field for these.
+	{"granite_channel_timeout"},
+	{"superchain_config_address"},
+	{"blobs_data"},
+	{"da_challenge_address"},
+	// op-node reads da_challenge_contract_address.
+	{"alt_da", "da_challenge_address"},
+	// op-node reads these packed into scalar.
+	{"genesis", "system_config", "baseFeeScalar"},
+	{"genesis", "system_config", "blobBaseFeeScalar"},
+	// op-node reads these packed into eip1559Params and operatorFeeParams.
+	{"genesis", "system_config", "eip1559Denominator"},
+	{"genesis", "system_config", "eip1559Elasticity"},
+	{"genesis", "system_config", "operatorFeeScalar"},
+	{"genesis", "system_config", "operatorFeeConstant"},
+}
+
+// TestDecodeKonaRollupConfig decodes kona-node's optimism_rollupConfig serialization, as
+// RollupClient.RollupConfig does, and checks it the way op-batcher does at startup. The fixture's
+// L2 chain ID is OP Mainnet's, which alloy names "optimism"; L2ChainID accepts only the number.
+func TestDecodeKonaRollupConfig(t *testing.T) {
+	data, err := os.ReadFile(konaRollupConfigFixture)
+	require.NoError(t, err)
+
+	var cfg Config
+	require.NoError(t, json.Unmarshal(data, &cfg))
+	require.NoError(t, cfg.Check())
+
+	want := Config{
+		Genesis: Genesis{
+			L1:     eth.BlockID{Hash: common.HexToHash("0x438335a20d98863a4c0c97999eb2481921ccd28553eac6f913af7c12aec04108"), Number: 17_422_590},
+			L2:     eth.BlockID{Hash: common.HexToHash("0xdbf6a80fef073de06add9b0d14026d6e5a86c85f6d102c36d3d8e9cf89c2afd3"), Number: 105_235_063},
+			L2Time: 1_686_068_903,
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: common.HexToAddress("0x6887246668a3b87f54deb3b94ba47a6f63f32985"),
+				Overhead:    eth.Bytes32(common.HexToHash("0xbc")),
+				Scalar:      eth.Bytes32(common.HexToHash("0xa6fe0")),
+				GasLimit:    30_000_000,
+				// EIP1559Params and OperatorFeeParams decode to zero: kona writes their parts as
+				// separate keys (see konaRollupConfigGaps).
+				MinBaseFee:           23,
+				DAFootprintGasScalar: 29,
+			},
+		},
+		BlockTime:              2,
+		MaxSequencerDrift:      600,
+		SeqWindowSize:          3600,
+		ChannelTimeoutBedrock:  300,
+		L1ChainID:              big.NewInt(1),
+		L2ChainID:              big.NewInt(10),
+		RegolithTime:           ptr.New(uint64(1_686_068_904)),
+		CanyonTime:             ptr.New(uint64(1_704_992_401)),
+		DeltaTime:              ptr.New(uint64(1_708_560_001)),
+		EcotoneTime:            ptr.New(uint64(1_710_374_401)),
+		FjordTime:              ptr.New(uint64(1_720_627_201)),
+		GraniteTime:            ptr.New(uint64(1_726_070_401)),
+		HoloceneTime:           ptr.New(uint64(1_736_445_601)),
+		IsthmusTime:            ptr.New(uint64(1_746_806_401)),
+		JovianTime:             ptr.New(uint64(1_764_691_201)),
+		KarstTime:              ptr.New(uint64(1_780_000_001)),
+		KeepKarstUpgradeGas:    true,
+		LagoonTime:             ptr.New(uint64(1_790_000_001)),
+		BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000010"),
+		DepositContractAddress: common.HexToAddress("0xbeb5fc579115071764c7423a4f12edde41f106ed"),
+		L1SystemConfigAddress:  common.HexToAddress("0x229047fed2591dbec1ef1118d64f7af3db9eb290"),
+		ChainOpConfig: &opparams.OptimismConfig{
+			EIP1559Elasticity:        8,
+			EIP1559Denominator:       60,
+			EIP1559DenominatorCanyon: ptr.New(uint64(260)),
+		},
+		AltDAConfig: &AltDAConfig{
+			// DAChallengeAddress decodes to zero: kona writes it under another key (see
+			// konaRollupConfigGaps). A generic commitment keeps Check() passing despite that, and
+			// requires MaxInputSize to be unset.
+			CommitmentType:    altda.GenericCommitmentString,
+			DAChallengeWindow: 160,
+			DAResolveWindow:   161,
+		},
+		PectraBlobScheduleTime: ptr.New(uint64(1_742_486_401)),
+		SettlementChainID:      424,
+	}
+	require.Equal(t, want, cfg)
+
+	t.Run("NoUnknownGaps", func(t *testing.T) {
+		// Remove the known gaps, then decode strictly: any other key that kona writes must be one
+		// that op-node reads.
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.UseNumber()
+		var raw map[string]any
+		require.NoError(t, dec.Decode(&raw))
+		for _, path := range konaRollupConfigGaps {
+			obj := raw
+			for _, key := range path[:len(path)-1] {
+				next, ok := obj[key].(map[string]any)
+				require.True(t, ok, "fixture has no object at %v", path)
+				obj = next
+			}
+			key := path[len(path)-1]
+			require.Contains(t, obj, key, "known gap %v is gone from the fixture; remove it from konaRollupConfigGaps", path)
+			delete(obj, key)
+		}
+		stripped, err := json.Marshal(raw)
+		require.NoError(t, err)
+
+		dec = json.NewDecoder(bytes.NewReader(stripped))
+		dec.DisallowUnknownFields()
+		var strict Config
+		require.NoError(t, dec.Decode(&strict), "kona writes a key that op-node does not read")
+		require.Equal(t, cfg, strict)
 	})
 }

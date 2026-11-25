@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -20,20 +19,13 @@ import (
 )
 
 func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
-	testTarGzPath := filepath.Join("testdata", "test.tar.gz")
-	f, err := os.Open(testTarGzPath)
-	require.NoError(t, err)
-	defer f.Close()
+	data := archiveProject(t, writeProject(t), "gzip")
 
 	var callCount int32
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, err := io.Copy(w, f)
-		require.NoError(t, err)
-		// Seek to beginning of file for next request
-		_, err = f.Seek(0, 0)
-		require.NoError(t, err)
+		_, _ = w.Write(data)
 		atomic.AddInt32(&callCount, 1)
 	}))
 	defer ts.Close()
@@ -52,7 +44,7 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, fs)
 
-		info, err := fs.Stat("WETH98.sol/WETH98.json")
+		info, err := fs.Stat("A.sol/A.json")
 		require.NoError(t, err)
 		require.Greater(t, info.Size(), int64(0))
 	})
@@ -66,7 +58,7 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 	})
 
 	correctIntegrity := &hashIntegrityChecker{
-		hash: common.HexToHash("0x8171bd7ea902495701fecf396cdc9906273c8230205645a1293d5e27aea7ac9f"),
+		hash: common.Hash(sha256.Sum256(data)),
 	}
 
 	t.Run("ok integrity", func(t *testing.T) {
@@ -116,10 +108,10 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 func TestDownloadBundle(t *testing.T) {
 	ctx := context.Background()
 	cacheDir := t.TempDir()
-	l1Dir := t.TempDir()
-	l2Dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(l1Dir, "l1.json"), []byte("l1"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(l2Dir, "l2.json"), []byte("l2"), 0o600))
+	l1Dir := writeProject(t)
+	l2Dir := writeProject(t)
+	writeFiles(t, l1Dir, map[string]string{"forge-artifacts/l1.json": `{}`})
+	writeFiles(t, l2Dir, map[string]string{"forge-artifacts/l2.json": `{}`})
 
 	bundle, err := DownloadBundle(
 		ctx,
@@ -136,17 +128,10 @@ func TestDownloadBundle(t *testing.T) {
 }
 
 func TestDownloadBundleSkipsRedundantDownloadForEqualLocators(t *testing.T) {
-	testTarGzPath := filepath.Join("testdata", "test.tar.gz")
-	f, err := os.Open(testTarGzPath)
-	require.NoError(t, err)
-	defer f.Close()
-
+	data := archiveProject(t, writeProject(t), "gzip")
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, err := io.Copy(w, f)
-		require.NoError(t, err)
-		_, err = f.Seek(0, 0)
-		require.NoError(t, err)
+		_, _ = w.Write(data)
 	}))
 	defer ts.Close()
 
@@ -168,7 +153,7 @@ func TestDownloadBundleSkipsRedundantDownloadForEqualLocators(t *testing.T) {
 
 func TestDownloadBundleLabelsFailures(t *testing.T) {
 	ctx := context.Background()
-	valid := MustNewFileLocator(t.TempDir())
+	valid := MustNewFileLocator(writeProject(t))
 	unsupported := MustNewLocatorFromURL("ftp://example.invalid/artifacts")
 
 	_, err := DownloadBundle(ctx, unsupported, valid, nil, t.TempDir())

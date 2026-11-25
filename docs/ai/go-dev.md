@@ -78,7 +78,17 @@ these Go-specific conventions:
   domain meaning; supply required dependencies at construction.
 - **Let packages provide naming context.** Prefer `derivation.Trusted` over
   `derivation.TrustedDerivation`.
-- **OP type encodings**: a change to an OP type's wire format, hash rule, or codec accept-set has to agree with `rust/op-alloy` (the types op-reth and kona consume), not just op-geth — see [Cross-implementation parity](opgeth-decoupling.md#cross-implementation-parity).
+- **OP type encodings**: a change to an OP type's wire format, hash rule, or codec accept-set has to agree with `rust/op-alloy` (the types op-reth and kona consume) — see [Cross-implementation parity](opgeth-decoupling.md#cross-implementation-parity).
+- **L2 blocks are payloads, transactions are bytes**: handle an L2 block as an execution payload
+  and its transactions as their binary encodings (`hexutil.Bytes`). Hash, measure, compare and
+  forward the bytes, and classify a transaction by its type byte (`optypes.IsDepositTxBytes`,
+  `optypes.IsPostExecTxBytes`). Decode a transaction only where a field of it is needed, and then
+  into the type of its class: `optypes.UnmarshalDepositTx` for a deposit,
+  `optypes.UnmarshalPostExecTx` for a post-exec transaction, a go-ethereum `types.Transaction`
+  for a user transaction. The transaction hash, the transactions root and the DA size are
+  functions of the encoding, and go-ethereum cannot decode the OP Stack transaction types — see
+  [Reading L2 data](opgeth-decoupling.md#reading-l2-data-op-servicesources) for the
+  `op-service/sources` accessors that follow this rule.
 - **Pointers to values**: use `ptr.New(v)` from `github.com/ethereum-optimism/optimism/op-service/ptr` to take the address of a literal or expression — common for optional `*uint64` config fields like fork-activation times (`cfg.SomeTime = ptr.New(uint64(123))`). Don't define a local `ptr`/`ptrTo` helper; the shared one avoids per-package duplicates, and a local `func ptr` collides with importing the `ptr` package in the same package.
 
 ## Linting
@@ -107,11 +117,4 @@ Run these checks before committing Go changes. Fix all issues — CI enforces ze
 2. **Test** — run tests for changed packages:
    ```bash
    cd <service> && just test
-   ```
-
-3. **op-geth ratchet** — if the change uses a go-ethereum API it didn't use before, check that
-   the API exists upstream, not only in op-geth (see
-   [opgeth-decoupling.md §19](opgeth-decoupling.md#19-ci-ratchet--continuously-rehearsing-the-cutover)):
-   ```bash
-   just opgeth-ratchet
    ```

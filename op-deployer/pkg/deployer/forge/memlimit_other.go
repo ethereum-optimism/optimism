@@ -2,7 +2,7 @@
 
 package forge
 
-// memoryLimit returns 0: only Linux containers limit the memory of op-deployer.
+// memoryLimit returns 0: it knows the memory of the process only on Linux.
 func memoryLimit() uint64 {
 	return 0
 }

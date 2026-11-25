@@ -1,11 +1,9 @@
 package params
 
 import (
-	"bytes"
 	"encoding/json"
 	"math/big"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 
@@ -16,7 +14,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	forkstest "github.com/ethereum-optimism/optimism/op-core/forks/test"
-	"github.com/ethereum-optimism/optimism/op-core/params/opgethtest"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 )
 
@@ -38,15 +35,6 @@ func jsonTestConfig(t *testing.T, s forkstest.Schedule) *ChainConfig {
 	return cfg
 }
 
-var jsonTestCases = []struct {
-	name     string
-	schedule forkstest.Schedule
-}{
-	{name: "pre-Karst", schedule: forkstest.AtGenesisThrough(forks.Jovian)},
-	{name: "Karst", schedule: forkstest.Override(forkstest.AtGenesisThrough(forks.Jovian), forks.Karst, ptr.New[uint64](9000))},
-	{name: "staggered", schedule: forkstest.Staggered()},
-}
-
 func requireConfigEqual(t *testing.T, want, got *ChainConfig) {
 	t.Helper()
 	bigEq := cmp.Comparer(func(a, b *big.Int) bool {
@@ -65,117 +53,23 @@ func parseJSONObject(t *testing.T, data []byte) map[string]any {
 	return obj
 }
 
-// objectKeys returns the keys of the JSON object data in encoding order.
-func objectKeys(t *testing.T, data []byte) []string {
-	t.Helper()
-	dec := json.NewDecoder(bytes.NewReader(data))
-	tok, err := dec.Token()
-	require.NoError(t, err)
-	require.Equal(t, json.Delim('{'), tok)
-	var keys []string
-	for dec.More() {
-		tok, err := dec.Token()
-		require.NoError(t, err)
-		keys = append(keys, tok.(string))
-		var value json.RawMessage
-		require.NoError(t, dec.Decode(&value))
+// TestChainConfigJSONKeysDisjoint checks that go-ethereum's chain config declares none of
+// the ChainConfig JSON keys but chainId: encoding/json drops a key that both embedded
+// configs of chainConfigJSON declare.
+func TestChainConfigJSONKeysDisjoint(t *testing.T) {
+	gethKeys := map[string]bool{}
+	gethType := reflect.TypeFor[gethparams.ChainConfig]()
+	for i := range gethType.NumField() {
+		name, _, _ := strings.Cut(gethType.Field(i).Tag.Get("json"), ",")
+		gethKeys[name] = true
 	}
-	return keys
-}
-
-// TestChainConfigJSONFields checks that chainConfigJSON declares every ChainConfig field
-// directly, with the same type and JSON tag. A field missing from the direct list would
-// otherwise be encoded from go-ethereum's config, or dropped.
-func TestChainConfigJSONFields(t *testing.T) {
-	cfgType := reflect.TypeFor[ChainConfig]()
-	jsonType := reflect.TypeFor[chainConfigJSON]()
-	for i := range cfgType.NumField() {
-		f := cfgType.Field(i)
-		if !f.IsExported() {
-			continue
-		}
-		jf, ok := jsonType.FieldByName(f.Name)
-		require.True(t, ok, "chainConfigJSON lacks %s", f.Name)
-		require.Len(t, jf.Index, 1, "chainConfigJSON must declare %s directly", f.Name)
-		require.Equal(t, f.Type, jf.Type, f.Name)
-		require.Equal(t, f.Tag.Get("json"), jf.Tag.Get("json"), f.Name)
-	}
-	for i := range jsonType.NumField() {
-		jf := jsonType.Field(i)
-		if jf.Anonymous {
-			continue
-		}
-		_, ok := cfgType.FieldByName(jf.Name)
-		require.True(t, ok, "chainConfigJSON field %s is not a ChainConfig field", jf.Name)
-	}
-}
-
-// TestChainConfigJSONDirectFieldsDominate checks that the direct fields of
-// chainConfigJSON hide the same-named fields of the embedded go-ethereum config, even
-// where a direct field is omitted.
-func TestChainConfigJSONDirectFieldsDominate(t *testing.T) {
-	geth := jsonTestConfig(t, forkstest.Staggered()).GethChainConfig()
-	geth.ChainID = big.NewInt(1)
-	geth.CanyonTime = ptr.New[uint64](999)
-	geth.LagoonTime = ptr.New[uint64](999)
-	geth.Optimism = &gethparams.OptimismConfig{EIP1559Elasticity: 1, EIP1559Denominator: 1}
-
-	data, err := json.Marshal(chainConfigJSON{
-		ChainID:     big.NewInt(901),
-		ChainConfig: geth,
-		CanyonTime:  ptr.New[uint64](2000),
-		Optimism:    &OptimismConfig{EIP1559Elasticity: 6, EIP1559Denominator: 50},
-	})
-	require.NoError(t, err)
-	obj := parseJSONObject(t, data)
-	require.Equal(t, float64(901), obj["chainId"])
-	require.Equal(t, float64(2000), obj["canyonTime"])
-	require.NotContains(t, obj, "lagoonTime")
-	require.Equal(t, map[string]any{"eip1559Elasticity": float64(6), "eip1559Denominator": float64(50)}, obj["optimism"])
-	require.Equal(t, float64(0), obj["homesteadBlock"], "go-ethereum-only keys are kept")
-}
-
-// TestChainConfigJSONMatchesOpGeth pins the encoding to op-geth's encoding of the
-// equivalent op-geth chain config.
-func TestChainConfigJSONMatchesOpGeth(t *testing.T) {
-	for _, tc := range jsonTestCases {
-		t.Run(tc.name, func(t *testing.T) {
-			want, err := json.Marshal(opgethtest.ChainConfig(t, 901, tc.schedule))
-			require.NoError(t, err)
-			got, err := json.Marshal(jsonTestConfig(t, tc.schedule))
-			require.NoError(t, err)
-			require.Equal(t, parseJSONObject(t, want), parseJSONObject(t, got))
-		})
-	}
-}
-
-// TestChainConfigJSONKeyOrder checks that keys are encoded in op-geth's order, except
-// that the OP Stack keys follow all Ethereum keys: op-geth declares some Ethereum fields
-// (terminalTotalDifficulty, depositContractAddress, ...) after its OP fork fields.
-func TestChainConfigJSONKeyOrder(t *testing.T) {
-	opKeys := map[string]bool{}
 	cfgType := reflect.TypeFor[ChainConfig]()
 	for i := range cfgType.NumField() {
-		if name, _, _ := strings.Cut(cfgType.Field(i).Tag.Get("json"), ","); name != "chainId" {
-			opKeys[name] = true
+		name, _, _ := strings.Cut(cfgType.Field(i).Tag.Get("json"), ",")
+		if name == "chainId" {
+			continue
 		}
-	}
-	for _, tc := range jsonTestCases {
-		t.Run(tc.name, func(t *testing.T) {
-			opGethJSON, err := json.Marshal(opgethtest.ChainConfig(t, 901, tc.schedule))
-			require.NoError(t, err)
-			opGethKeys := objectKeys(t, opGethJSON)
-			isOP := func(k string) bool { return opKeys[k] }
-			want := slices.Concat(
-				slices.DeleteFunc(slices.Clone(opGethKeys), isOP),
-				slices.DeleteFunc(slices.Clone(opGethKeys), func(k string) bool { return !isOP(k) }),
-			)
-
-			got, err := json.Marshal(jsonTestConfig(t, tc.schedule))
-			require.NoError(t, err)
-			require.Equal(t, want, objectKeys(t, got))
-			require.Equal(t, "chainId", want[0])
-		})
+		require.Falsef(t, gethKeys[name], "go-ethereum's chain config declares %q", name)
 	}
 }
 
@@ -206,23 +100,6 @@ func TestChainConfigJSONRoundTrip(t *testing.T) {
 	}
 }
 
-// TestChainConfigJSONUnmarshalOpGeth decodes op-geth's encoding of the equivalent op-geth
-// chain config, and the same with osakaTime absent, as op-chain-ops writes it for Karst.
-func TestChainConfigJSONUnmarshalOpGeth(t *testing.T) {
-	s := forkstest.Staggered()
-	opGeth := opgethtest.ChainConfig(t, 901, s)
-	for name, osaka := range map[string]*uint64{"with osakaTime": s(forks.Karst), "without osakaTime": nil} {
-		t.Run(name, func(t *testing.T) {
-			opGeth.OsakaTime = osaka
-			data, err := json.Marshal(opGeth)
-			require.NoError(t, err)
-			var got ChainConfig
-			require.NoError(t, json.Unmarshal(data, &got))
-			requireConfigEqual(t, jsonTestConfig(t, s), &got)
-		})
-	}
-}
-
 // TestChainConfigJSONUnmarshalEthereumKeys checks that a decoded Ethereum fork key must
 // agree with the schedule derived from the OP fields, while absent and unknown keys are
 // accepted.
@@ -249,6 +126,15 @@ func TestChainConfigJSONUnmarshalEthereumKeys(t *testing.T) {
 	for key, value := range map[string]any{
 		"shanghaiTime":            1,
 		"osakaTime":               9000,
+		"bpo1Time":                0,
+		"bpo2Time":                0,
+		"bpo3Time":                0,
+		"bpo4Time":                0,
+		"bpo5Time":                0,
+		"amsterdamTime":           0,
+		"bogotaTime":              0,
+		"ubtTime":                 0,
+		"enableUBTAtGenesis":      true,
 		"londonBlock":             5,
 		"daoForkBlock":            0,
 		"terminalTotalDifficulty": 1,

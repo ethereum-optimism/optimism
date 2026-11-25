@@ -52,14 +52,14 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	}
 	var l1EL *L1Geth
 	var l1CL *L1CLNode
-	migration, l1Net, l2Net, depSet, _ := buildSingleChainWorld(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
+	migration, l1Net, l2Net, depSet := buildSingleChainWorld(t, keys, interopAtGenesis, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg),
 		func(l1Net *L1Network) (*L1Geth, *L1CLNode) {
 			l1EL, l1CL = startInProcessL1WithClockConfig(t, l1Net, jwtPath, l1Clock, cfg)
 			return l1EL, l1CL
 		}, deployerOpts...)
 	validateSimpleInteropPresetConfig(t, cfg, l2Net)
 
-	l2EL := startSequencerEL(t, l2Net, jwtPath, jwtSecret, NewELNodeIdentity(0), ResolveMixedL2ELOpts(t)...)
+	l2EL := startSequencerEL(t, l2Net, jwtPath, jwtSecret, ResolveMixedL2ELOpts(t)...)
 	l2CL := startL2CLNode(t, keys, l1Net, l2Net, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
 		Key:           "sequencer",
 		IsSequencer:   true,
@@ -89,16 +89,10 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 		syncTesterELCfg,
 	)
 
-	var depSetStatic *depset.StaticConfigDependencySet
-	if depSet != nil {
-		cast, ok := depSet.(*depset.StaticConfigDependencySet)
-		require.True(ok, "expected static dependency set")
-		depSetStatic = cast
-	}
-	if cfg.MessageExpiryWindow != nil && depSetStatic != nil {
+	if cfg.MessageExpiryWindow != nil {
 		var overrideErr error
-		depSetStatic, overrideErr = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
-			depSetStatic.Dependencies(), *cfg.MessageExpiryWindow)
+		depSet, overrideErr = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
+			depSet.Dependencies(), *cfg.MessageExpiryWindow)
 		require.NoError(overrideErr, "failed to override message expiry window")
 	}
 
@@ -108,23 +102,16 @@ func NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t devtest.T, cfg PresetCo
 	}
 	activationTimestamp := l2Net.rollupCfg.Genesis.L2Time + delaySeconds
 	supernode, supernodeProxy := startSingleChainSharedSupernode(
-		t, l1Net, l1EL, l1CL, l2Net, syncTesterEL, depSetStatic, jwtSecret, &activationTimestamp, false, verifierSyncMode,
+		t, l1Net, l1EL, l1CL, l2Net, syncTesterEL, depSet, jwtSecret, &activationTimestamp, false, verifierSyncMode,
 	)
 	// Peer the VN with the sequencer so unsafe payloads flow via P2P
 	// (the two-L2 supernode runtime does the same for verifier-mode VNs).
 	connectL2CLPeers(t, t.Logger(), l2CL, supernodeProxy)
 
-	var runtimeDepSet depset.DependencySet
-	if depSetStatic != nil {
-		runtimeDepSet = depSetStatic
-	} else {
-		runtimeDepSet = depSet
-	}
-
 	return &MultiChainRuntime{
 		Keys:          keys,
 		Migration:     migration,
-		DependencySet: runtimeDepSet,
+		DependencySet: depSet,
 		L1Network:     l1Net,
 		L1EL:          l1EL,
 		L1CL:          l1CL,

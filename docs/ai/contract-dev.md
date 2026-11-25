@@ -183,7 +183,7 @@ This is done atomically via `ProxyAdmin.upgradeAndCall()`.
 - Message versioning embedded in nonce (upper 16 bits = version, lower 240 = nonce).
 - V1 encoding: `abi.encode(nonce, sender, target, value, gasLimit, data)`.
 - V1 hash: `keccak256(abi.encode(nonce, sender, target, value, gasLimit, data))`.
-- Gas overhead constants defined in CrossDomainMessenger (200k relay constant, 5k check buffer).
+- Relay gas budgets, per chain, live in `src/libraries/GasConstants.sol`.
 - 63/64 gas forwarding rule (EIP-150) handled by the SafeCall library.
 
 ## Contract Organization
@@ -229,7 +229,8 @@ contract ContractName is Initializable, ProxyAdminOwnedBase, ReinitializableBase
   go-ffi, profiles, and the script cache for you.
 - `just build` builds the contracts; `just build-dev` is the faster variant
   (`FOUNDRY_PROFILE=lite`) for local iteration. Builds must produce zero warnings
-  (`deny = "warnings"` in `foundry.toml`).
+  (`--deny warnings` in the dev phase of `checks.yaml`, which `just check-fast` runs). Other
+  builds and tests only print warnings, as forge skips its compile cache when denying them.
 - `just test` runs the suite; `just test-dev` is the faster `lite`-profile variant for local
   iteration. Default 64 fuzz runs; CI uses 128.
 - `just lint` formats and checks (`forge fmt` under the hood: 120-char line length, bracket

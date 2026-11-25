@@ -1,0 +1,19 @@
+name: agent-approval-check
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  pull_request_review:
+    types: [submitted, dismissed]
+  issue_comment:
+    types: [created]
+  merge_group:
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
+jobs:
+  agent-approval-check:
+    uses: ethereum-optimism/factory/.github/workflows/agent-approval-check.yaml@cbc049cd7e7fdd7f25524fa681e47aab7f98c2a5

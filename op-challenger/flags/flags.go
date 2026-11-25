@@ -160,7 +160,7 @@ var (
 	L2GenesisFlag = NewVMFlag("l2-genesis", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, gameTypeInfo string) cli.Flag {
 		return &cli.StringSliceFlag{
 			Name:    name,
-			Usage:   "Paths to the op-geth genesis file " + gameTypeInfo,
+			Usage:   "Paths to the L2 genesis file " + gameTypeInfo,
 			EnvVars: envVars,
 		}
 	})

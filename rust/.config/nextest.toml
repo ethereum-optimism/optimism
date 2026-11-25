@@ -54,5 +54,5 @@ slow-timeout = { period = "2m", terminate-after = 3 }
 # bare `test(...)` is a substring match, so a sibling like `peers_negotiate_eth_69_disconnect`
 # would silently inherit the retry.
 [[profile.default.overrides]]
-filter = 'test(=p2p_version::peers_negotiate_eth_69)'
+filter = 'test(=p2p_version::peers_negotiate_eth_71)'
 retries = 2

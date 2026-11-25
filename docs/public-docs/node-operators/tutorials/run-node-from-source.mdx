@@ -294,7 +294,7 @@ The execution client logs its own header- and state-download progress in paralle
 
 ### Full sync
 
-Full sync rebuilds the chain from genesis and can take days to weeks on mature networks. Most operators should use snap sync (above) or [bootstrap from a pre-synced snapshot](https://datadirs.optimism.io/). Full-sync configuration is client-specific:
+Full sync rebuilds the chain from genesis and can take days to weeks on mature networks. Most operators should use snap sync (above) or [bootstrap from a pre-synced snapshot](/op-mainnet/network-information/snapshots). Full-sync configuration is client-specific:
 
 <Tabs items={['op-reth', 'Nethermind']}>
   <Tab title="op-reth">
@@ -338,7 +338,7 @@ For op-reth, historical state for withdrawal proving is configured via either `-
 
 - [Running op-reth with Historical Proofs](/node-operators/tutorials/reth-historical-proofs) — full setup for `--proofs-history` (v2) on op-reth v2.2.3+.
 - [Archive node guide](/node-operators/guides/management/archive-node) — flag overview for both paths.
-- [OP Mainnet snapshots](https://datadirs.optimism.io/) — pre-synced op-reth datadirs to bootstrap from.
+- [OP Mainnet snapshots](/op-mainnet/network-information/snapshots) — full and archive op-reth (storage v2) snapshots from [snapshots.optimism.io](https://snapshots.optimism.io/) to bootstrap from.
 
 ### Legacy Geth (pre-Bedrock, optional)
 
@@ -354,7 +354,7 @@ Blocks and transactions included in OP Mainnet before the Bedrock Upgrade cannot
   </Step>
 
   <Step title="Download the legacy Geth data directory">
-    Download the snapshot from [Legacy Geth Data Directory (2.9TB)](/node-operators/guides/management/snapshots#op-mainnet-legacy) and verify:
+    Download the snapshot from [Legacy Geth Data Directory (2.9TB)](/op-mainnet/network-information/snapshots#legacy-geth-data-directory) and verify:
 
     ```bash
     sha256sum mainnet-legacy-archival.tar.zst

@@ -1,6 +1,6 @@
 //! [`OpProofsProviderRw`] implementation for [`MdbxProofsProvider`].
 
-use super::{MdbxProofsProvider, write::HistoryCollector};
+use super::{MdbxProofsProvider, phase, write::HistoryCollector};
 use crate::{
     BlockStateDiff, OpProofsStorageError, OpProofsStorageResult,
     api::{OpProofsProviderRw, WriteCounts},
@@ -9,6 +9,7 @@ use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
 use alloy_primitives::{B256, BlockNumber};
 use reth_db::transaction::{DbTx, DbTxMut};
 use std::fmt::Debug;
+use tracing::debug;
 
 impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsProviderRw
     for MdbxProofsProvider<TX>
@@ -48,6 +49,8 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsProviderRw
         let proof_window = self.get_proof_window_inner()?;
         let mut last_hash = proof_window.latest.hash;
         let mut last_written: Option<(BlockNumber, B256)> = None;
+        let blocks = updates.len();
+        let state = phase::Stopwatch::start();
 
         for (block_ref, block_state_diff) in updates {
             let block_number = block_ref.block.number;
@@ -68,15 +71,35 @@ impl<TX: DbTxMut + DbTx + Send + Sync + Debug + 'static> OpProofsProviderRw
             total_counts += counts;
         }
 
+        // Includes the in-memory history collection for each block.
+        let state = state.stop();
+        phase::record_write_state(state);
+
         // Flush all history bitmap entries in one pass — each unique key is
         // seeked, decoded, and re-encoded exactly once regardless of how many
         // blocks in the batch touched it.
-        self.flush_collected_history(collector)?;
+        let history = self.flush_collected_history(collector)?;
 
         // Write V2ProofWindow once at the end instead of per-block.
         if let Some((number, hash)) = last_written {
             self.set_latest_block_number_inner(number, hash)?;
         }
+
+        history.record_cost("write", "history");
+        history.record_unique_keys("write");
+        debug!(
+            target: "trie::db",
+            blocks,
+            state_ms = state.duration.as_millis(),
+            state_major_faults = state.major_faults,
+            history_ms = history.total().as_millis(),
+            history_major_faults = history.major_faults(),
+            account_trie_keys = history.account_trie.keys,
+            storage_trie_keys = history.storage_trie.keys,
+            hashed_account_keys = history.hashed_accounts.keys,
+            hashed_storage_keys = history.hashed_storages.keys,
+            "Write phase breakdown"
+        );
 
         Ok(total_counts)
     }

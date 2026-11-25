@@ -40,7 +40,7 @@ func TestIntegration_Backend_ManualFailsafe_RejectsAll(t *testing.T) {
 	t.Parallel()
 
 	bk := twoChainBackend(t, 1)
-	bk.SetFailsafeEnabled(true)
+	require.NoError(t, bk.SetFailsafeEnabled(true))
 	bk.requireRejection(executingChain(), inclusionTs, "failsafe", bk.sourceAccess(100, 0))
 }
 
@@ -63,7 +63,7 @@ func TestIntegration_Backend_MultipleFailsafeReasons_Reflected(t *testing.T) {
 
 	// Three concurrent reasons: manual override + two chains erroring with
 	// different reasons.
-	bk.SetFailsafeEnabled(true)
+	require.NoError(t, bk.SetFailsafeEnabled(true))
 	bk.ingesters[eth.ChainIDFromUInt64(901)].SetError(ErrorReorg, "forced")
 	bk.ingesters[eth.ChainIDFromUInt64(902)].SetError(ErrorConflict, "forced")
 
@@ -83,7 +83,7 @@ func TestIntegration_Backend_MultipleFailsafeReasons_Reflected(t *testing.T) {
 
 	// Clearing the last chain error and the manual override drops everything.
 	bk.ingesters[eth.ChainIDFromUInt64(902)].ClearError()
-	bk.SetFailsafeEnabled(false)
+	require.NoError(t, bk.SetFailsafeEnabled(false))
 	require.False(t, bk.metrics.failsafeMetric())
 	require.False(t, bk.metrics.failsafeReasonActive(failsafeReasonManual))
 	require.False(t, bk.metrics.failsafeReasonActive(ErrorConflict.String()))

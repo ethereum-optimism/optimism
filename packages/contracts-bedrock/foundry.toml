@@ -80,7 +80,8 @@ ignored_error_codes = ["transient-storage", "code-size", "init-code-size", "too-
 # 6335 = future `at` keyword collision (solc 0.8.35, triggered by solady)
 # 9207 = send deprecation (solc 0.8.31, triggered by safe-contracts)
 ignored_warnings_from = ["lib/solady", "lib/safe-contracts"]
-deny = "warnings"
+# Forge skips its compile cache when denying warnings, so check-fast's dev build is the warning gate.
+deny = "never"
 ffi = true
 
 # Run each top-level call as a separate transaction to include intrinsic gas.

@@ -51,7 +51,7 @@ before making a PR.
 |---------|-----------------------------|
 | `9223`  | `kona-node` discovery       |
 | `9002`  | `kona-node` metrics         |
-| `5060`  | `kona-node` RPC             |
+| `5060`  | `kona-node` RPC (host loopback only: it serves the admin API) |
 | `30303` | `op-reth` discovery         |
 | `9001`  | `op-reth` metrics           |
 | `8545`  | `op-reth` RPC               |

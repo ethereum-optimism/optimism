@@ -2,7 +2,8 @@
 pragma solidity ^0.8.0;
 
 /// @title BridgeHookTypes
-/// @notice Contains the types shared by the OptimismPortal and its bridge hook.
+/// @notice Contains the types shared by the OptimismPortal, its bridge hook and the
+///         L1StandardBridge.
 library BridgeHookTypes {
     /// @notice Deposit from L1 to L2, or withdrawal from L2 to L1.
     enum Direction {
@@ -14,6 +15,16 @@ library BridgeHookTypes {
     enum Asset {
         ETH,
         ERC20
+    }
+
+    /// @notice How the L1StandardBridge handles a held token transfer's L1 token. It escrows an
+    ///         Escrowed token. A Mintable token reports the OptimismMintableERC20 or legacy
+    ///         mintable interface through ERC-165, so the bridge mints and burns it. None means no
+    ///         hold is recorded.
+    enum TokenKind {
+        None,
+        Escrowed,
+        Mintable
     }
 
     /// @notice A deposit or withdrawal with the sender, target, values and data recorded by the

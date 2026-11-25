@@ -20,28 +20,20 @@ pub use transaction::{OpPooledTransaction, OpPooledTx};
 mod error;
 pub mod interop;
 pub mod maintain;
-pub use error::InvalidCrossTx;
+pub use error::{DaFootprintExceedsGasLimit, InvalidCrossTx};
 pub mod estimated_da_size;
 
-use reth_transaction_pool::{CoinbaseTipOrdering, Pool, TransactionValidationTaskExecutor};
+use reth_transaction_pool::{
+    Pool, TransactionValidationTaskExecutor, blobstore::DiskFileBlobStore,
+};
 
 /// Optimism transaction pool generic over its validator `V` and ordering `O`.
 ///
 /// This is the single definition of the optimism pool's type structure: the [`OpPool`] wrapper
-/// around a [`Pool`] with a [`TransactionValidationTaskExecutor`]-wrapped validator. Both the
-/// standard pool ([`OpTransactionPool`]) and any downstream-customized pool are expressed in terms
-/// of this alias, so the pool's shape is defined in exactly one place and the two cannot diverge.
+/// around a [`Pool`] with a [`TransactionValidationTaskExecutor`]-wrapped validator and a
+/// [`DiskFileBlobStore`].
 ///
 /// Downstream builders use this directly when they substitute a custom ordering or a validator
 /// wrapper (e.g. admission control) without forking pool construction.
-pub type OpCustomTransactionPool<S, V, O> =
-    OpPool<Pool<TransactionValidationTaskExecutor<V>, O, S>>;
-
-/// Type alias for the standard optimism transaction pool.
-///
-/// This is [`OpCustomTransactionPool`] specialized to the standard validator
-/// ([`OpTransactionValidator`]) and ordering ([`CoinbaseTipOrdering`]) — the configuration used by
-/// the default node. Because it is defined in terms of [`OpCustomTransactionPool`], it stays in
-/// lockstep with the general alias automatically.
-pub type OpTransactionPool<Client, S, Evm, T = OpPooledTransaction> =
-    OpCustomTransactionPool<S, OpTransactionValidator<Client, T, Evm>, CoinbaseTipOrdering<T>>;
+pub type OpCustomTransactionPool<V, O> =
+    OpPool<Pool<TransactionValidationTaskExecutor<V>, O, DiskFileBlobStore>>;

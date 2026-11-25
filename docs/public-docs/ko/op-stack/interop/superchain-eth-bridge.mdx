@@ -21,14 +21,14 @@ InteroperableETH는 Superchain 블록체인 간의 원활한 ETH 전송을 가�
 Superchain ETH Bridge는 소스 체인의 `ETHLiquidity` 컨트랙트에 ETH를 예치하고, 목적지 체인에서 동일한 양을 인출합니다.
 이 메커니즘은 자본 효율성을 개선하고, 자산 래핑이나 유동성 풀 의존으로 인해 발생하는 유동성 파편화와 열악한 사용자 경험을 없애 줍니다.
 
-## 기능 및 이점
+## 기능 및 이점 {#features-and-benefits}
 
 *   OP Stack 체인 간의 원활한 ETH 전송을 가능하게 합니다
 *   OP Stack 체인 전반에서 ETH의 대체 가능성(fungibility)을 유지합니다
 *   크로스체인 트랜잭션을 위한 유동성을 제공합니다
 *   복잡한 브리징 프로세스를 추상화하여 사용자 경험을 개선합니다
 
-## 작동 방식
+## 작동 방식 {#how-it-works}
 
 ```mermaid
 
@@ -68,7 +68,7 @@ sequenceDiagram
   end
 ```
 
-#### 시작 메시지
+#### 시작 메시지 {#initiating-message}
 
 1.  사용자(또는 사용자를 대신하여 동작하는 컨트랙트)가 목적지 주소와 chainId를 지정하여 `SuperchainETHBridge.sendETH`를 호출합니다.
     이 호출에는 전송할 금액만큼의 ETH가 첨부되어야 합니다.
@@ -77,7 +77,7 @@ sequenceDiagram
 
 3.  소스 체인의 `SuperchainETHBridge`는 [`L2ToL2CrossDomainMessenger`](/ko/app-developers/guides/interoperability/message-passing)를 사용하여 목적지 체인의 `SuperchainETHBridge`에 [`relayETH`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol) 메시지를 보냅니다.
 
-#### 실행 메시지
+#### 실행 메시지 {#executing-message}
 
 4.  오프체인 주체가 메시지를 실행하기 위한 트랜잭션을 제출합니다.
     어떤 주소든 이 트랜잭션을 제출할 수 있지만, 목적지 체인에 ETH를 보유하고 있어야 합니다.
@@ -101,13 +101,20 @@ sequenceDiagram
     이를 통해 목적지가 스마트 컨트랙트인 경우에도 해당 컨트랙트의 커스텀 로직이 실행되지 않도록 보장합니다.
 이 동작은 스마트 컨트랙트가 ETH를 수신할 때 커스텀 로직을 트리거할 수 있는 [표준 ETH 전송](https://docs.base.org/learn/address-and-payable/address-and-payable#receiving-ether-with-payable-addresses)과 다릅니다.
 
-#### 환불
+#### 환불 {#refunds}
 
 목적지에서 메시지를 끝내 중계하지 않으면 메시지는 [만료](/ko/app-developers/guides/interoperability/message-expiration)됩니다. 소스 체인의 `L2ToL2CrossDomainMessenger`가 `expiredMessages`에 해당 메시지를 보고하면, 발신자는 전송 시의 목적지 체인 ID, 메시지 nonce, 수신자, 금액을 지정하여 `SuperchainETHBridge.refundETH`를 호출할 수 있으며, ETH는 다시 `SafeSend`를 통해 한 번만 발신자에게 반환됩니다.
 
 `sendETH`를 호출한 주소만 환불을 청구할 수 있습니다. 사용자를 대신하여 전송하는 컨트랙트는 직접 `refundETH`를 호출한 다음 ETH를 사용자에게 전달해야 합니다. 중계된 interop 메시지는 `sendETH`를 호출할 수 없으며, 이 경우 중계가 revert됩니다. L1에서 온 메시지는 호출할 수 있지만, 이때 전송의 발신자는 환불을 사용할 수 없는 `L2CrossDomainMessenger`가 되므로 전송이 만료되면 해당 ETH는 손실됩니다. L1에서 환불 가능한 방식으로 ETH를 보내려면, portal을 통해 자신의 주소로 입금(디파짓)한 다음 그 주소에서 `sendETH`를 호출하십시오.
 
-## L1 Treasury
+<Warning>
+  `sendETH`는 대상 체인이 소스 체인과 같은 interop cluster에 속하는지 확인하지 않습니다.
+  interop cluster 외부 체인으로 보낸 ETH는 중계하거나 환불할 수 없으며, 손실됩니다.
+</Warning>
+
+환불이 소유자에게 도달할 수 없는 모든 사례는 [만료의 알려진 제한 사항](/ko/app-developers/guides/interoperability/message-expiration#known-limitations)을 참조하십시오.
+
+## L1 Treasury {#l1-treasury}
 
 OP Stack 체인에서 유통되는 모든 ETH(`ETHLiquidity`가 보유한 ETH 제외)는 L1의 ETH로 뒷받침되어야 합니다.
 
@@ -144,6 +151,6 @@ OP Stack 체인에서 유통되는 모든 ETH(`ETHLiquidity`가 보유한 ETH �
 6.  일주일 동안의 [챌린지 기간](/ko/op-stack/reference/glossary#challenge-period)이 지나면, 사용자는 L1에서 출금을 최종 확정합니다.
     lockbox가 1 ETH를 해제하고, 이 ETH는 사용자에게 전송됩니다.
 
-## 다음 단계
+## 다음 단계 {#next-steps}
 
 *   [OP Stack interop을 사용하여 체인 간에 ETH를 전송하는 방법](/ko/app-developers/tutorials/bridging/bridge-crosschain-eth)을 실습해 보십시오.

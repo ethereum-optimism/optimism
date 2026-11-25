@@ -2,6 +2,7 @@ package sdmtest
 
 import (
 	sdmpkg "github.com/ethereum-optimism/optimism/op-chain-ops/pkg/sdm"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -52,7 +53,7 @@ func MustFindRepeatedSlotBlock(
 	sys *RethSystem,
 	minUserTxs int,
 	maxAttempts int,
-) (*sdmpkg.RPCBlock, []*types.Receipt, uint64) {
+) (*sdmpkg.RPCBlock, []*optypes.Receipt, uint64) {
 	l := t.Logger()
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -84,7 +85,7 @@ func MustFindRepeatedSlotBlock(
 			))
 		}
 
-		blockTxs := make(map[uint64][]*types.Receipt)
+		blockTxs := make(map[uint64][]*optypes.Receipt)
 		for i, ptx := range plannedTxs {
 			receipt, err := ptx.Included.Eval(t.Ctx())
 			t.Require().NoError(err, "attempt %d tx %d: failed to get receipt", attempt, i)
@@ -96,7 +97,7 @@ func MustFindRepeatedSlotBlock(
 		}
 
 		var targetBlockNum uint64
-		var targetIncluded []*types.Receipt
+		var targetIncluded []*optypes.Receipt
 		for blockNum, txs := range blockTxs {
 			if len(txs) > len(targetIncluded) {
 				targetBlockNum = blockNum
@@ -114,7 +115,7 @@ func MustFindRepeatedSlotBlock(
 
 		block := GetBlockWithTxs(t, sys.L2EL, targetBlockNum)
 		t.Require().Greater(len(block.Transactions), 0, "block must have at least one transaction")
-		t.Require().Equal(uint64(types.DepositTxType), uint64(block.Transactions[0].Type),
+		t.Require().Equal(uint64(optypes.DepositTxType), uint64(block.Transactions[0].Type),
 			"position 0 must be a deposit tx (L1 info)")
 		return block, targetIncluded, targetBlockNum
 	}

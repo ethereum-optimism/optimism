@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
@@ -37,8 +38,10 @@ contract DeployAlphabetVM is Script {
     }
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployState.load();
         Input memory input = abi.decode(_input, (Input));
         Output memory output = run(input);
+        DeployState.dump(msg.sender);
         return abi.encode(output);
     }
 

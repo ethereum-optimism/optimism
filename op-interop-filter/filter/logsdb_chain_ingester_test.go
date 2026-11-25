@@ -50,6 +50,7 @@ func newTestLogsDBChainIngester(t *testing.T, cfg testIngesterConfig) *LogsDBCha
 
 	ingester := &LogsDBChainIngester{
 		log:              logger,
+		clock:            clock.SystemClock,
 		metrics:          metrics.NoopMetrics,
 		chainID:          cfg.chainID,
 		ethClient:        cfg.ethClient,
@@ -550,6 +551,63 @@ func TestLogsDBChainIngester_Start_RetriesUntilRPCAvailable(t *testing.T) {
 
 	require.NoError(t, ingester.Start())
 	require.Eventually(t, ingester.Ready, 5*time.Second, 10*time.Millisecond)
+}
+
+type ingestionLagMetrics struct {
+	metrics.Metricer
+
+	mu   sync.Mutex
+	lags []float64
+}
+
+func (m *ingestionLagMetrics) RecordIngestionLagSeconds(_ uint64, lagSeconds float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lags = append(m.lags, lagSeconds)
+}
+
+func (m *ingestionLagMetrics) recorded() []float64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]float64(nil), m.lags...)
+}
+
+// The ingestion lag alert must fire when the EL dies after start-up.
+func TestLogsDBChainIngester_IngestionLagGrowsWhileHeadUnavailable(t *testing.T) {
+	mockClient := NewMockEthClient()
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	mockClient.AddBlock(parentBlock, nil)
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+	mockClient.SetHeadBlock(block100)
+
+	m := &ingestionLagMetrics{Metricer: metrics.NoopMetrics}
+	clk := clock.NewDeterministicClock(time.Unix(1210, 0))
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   eth.ChainIDFromUInt64(901),
+		dataDir:   t.TempDir(),
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	ingester.metrics = m
+	ingester.clock = clk
+	ingester.startTimestamp = 1200
+	ingester.pollInterval = time.Second
+	t.Cleanup(func() { _ = ingester.Stop() })
+
+	require.NoError(t, ingester.Start())
+	require.Eventually(t, func() bool {
+		clk.AdvanceTime(time.Second)
+		return ingester.Ready()
+	}, 5*time.Second, 10*time.Millisecond)
+
+	mockClient.SetInfoByLabelErr(context.DeadlineExceeded)
+	clk.AdvanceTime(time.Hour)
+	expectedLag := clk.Now().Sub(time.Unix(1200, 0)).Seconds()
+	require.Eventually(t, func() bool {
+		lags := m.recorded()
+		return len(lags) > 0 && lags[len(lags)-1] == expectedLag
+	}, 5*time.Second, 10*time.Millisecond, "ingestion lag must keep updating while the head is unavailable")
 }
 
 // =============================================================================
