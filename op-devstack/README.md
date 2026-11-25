@@ -113,7 +113,9 @@ and returns a typed output that the test then may use.
 - `DEVSTACK_MONOREPO_ROOT`: Absolute path to a monorepo checkout. Used by out-of-tree acceptance suites (which depend on this module by git rev) so contract-artifact resolution can find `packages/contracts-bedrock` outside the cwd-relative walk. In-tree runs don't need it.
 
 ### Rust stack env vars:
-- `DEVSTACK_L2CL_KIND` accepts `op-node` (default), `kona-node` (standalone), or `op-reth` (runs Kona in the op-reth L2 EL with `op-reth node --rollup.consensus.enabled`). The supernode presets start only op-node and op-supernode CLs and skip when the selected CL runs Kona.
+- `DEVSTACK_L2CL_KIND` accepts `op-node` (default), `kona-node` (standalone), or `op-reth` (runs Kona in the op-reth L2 EL with `op-reth node --rollup.consensus.enabled`). With the default `DEVSTACK_SUPERNODE_KIND`, the supernode presets start only op-node and op-supernode CLs and skip when the selected CL runs Kona.
+- `DEVSTACK_SUPERNODE_KIND` selects the interop verifier of the supernode presets: `op-supernode` (default), or `lokahi`, which runs a kona-node per chain that follows one lokahi process, and skips under op-node.
+- `RUST_BINARY_PATH_LOKAHI` to select the lokahi executable to run (skips the build; the path must exist)
 - `RUST_BINARY_PATH_KONA_NODE=/home/USERHERE/projects/kona/target/debug/kona-node` to select the kona-node executable to run (skips the build; the path must exist)
 - `RUST_BINARY_PATH_OP_RETH=/home/USERHERE/projects/reth/target/release/op-reth` to select the op-reth executable to run (skips the build; the path must exist)
 

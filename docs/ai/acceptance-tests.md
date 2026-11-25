@@ -48,16 +48,21 @@ cd op-acceptance-tests && DEVSTACK_L2CL_KIND=kona-node RUST_JIT_BUILD=1 mise exe
 ```
 
 CI runs two variants of the `op-acceptance-tests` job: `memory-all-opn-op-reth-<l1_fork>`
-(op-node + op-reth) and `memory-all-kona-op-reth-<l1_fork>` (kona-node + op-reth).
+(op-node + op-reth, supernode presets on op-supernode) and `memory-all-kona-op-reth-<l1_fork>`
+(kona-node + op-reth, supernode presets on lokahi).
 
 A test that cannot run under kona-node skips itself in code with `sysgo.SkipOnKonaNode` rather
 than being left out of a list. A test that stops or starts the EL and CL independently uses
 `sysgo.SkipOnOpRethCL` because the op-reth CL shares the EL's process. Skip only for a real
 client gap.
 
-The supernode presets (`NewSimpleInterop`, `NewTwoL2SupernodeInterop`, ...) start only op-node
-and op-supernode CLs regardless of `DEVSTACK_L2CL_KIND`. Each calls
-`skipOpNodeOnlyPresetOnKonaNode` first, which skips the test when the selected CL runs Kona.
+The supernode presets (`NewSimpleInterop`, `NewTwoL2SupernodeInterop`, ...) run their interop
+verifier as `DEVSTACK_SUPERNODE_KIND` selects. With `op-supernode`, the default, they start only
+op-node and op-supernode CLs regardless of `DEVSTACK_L2CL_KIND`, and skip when the selected CL
+runs Kona. With `lokahi`, each chain runs a kona-node that follows one lokahi process, so they
+skip under op-node, and the presets the lokahi backend cannot serve skip with the reason. Each
+preset decides through `selectInteropVerifier`; `TestSupernodePresetsSelectTheirVerifier` pins
+the outcome per preset.
 The interop presets without a supernode (`NewSingleChainInteropNoSupernode`, ...) start the
 CL kind `DEVSTACK_L2CL_KIND` selects and run in both jobs. A test that starts both CLs itself,
 through `sysgo.NewMixedSingleChainRuntime` with explicit CL kinds, still runs in both jobs.
