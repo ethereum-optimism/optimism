@@ -212,6 +212,13 @@ function build_kona_sp1() {
       return 1
     fi
   fi
+  # Tags from before the verify-elfs recipe skip the pin check.
+  if (cd rust/kona/sp1 && mise exec -- just --show verify-elfs) > /dev/null 2>&1; then
+    if ! (cd rust/kona/sp1 && mise exec -- just verify-elfs) 2>&1 | tee -a "$log_file"; then
+      fail_kona_sp1 "$version" "guest ELFs do not pin each other's vkeys"
+      return 1
+    fi
+  fi
   VERSIONS_JSON=$(printf '%s\n' "$VERSIONS_JSON" | jq --arg version "$version" --arg hash "$hash" '. + [{version: $version, hash: $hash, type: "kona-sp1"}]')
   echo "Kona SP1 version ${version}: rebuilt super-aggregation vkey ${hash}"
 }
