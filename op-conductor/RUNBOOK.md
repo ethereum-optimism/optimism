@@ -35,8 +35,8 @@ OP_CONDUCTOR_RAFT_BOOTSTRAP=true/false # set to true if you want to bootstrap th
 
 The legacy `--network`, `--rollup.config`, and `--override.*` flags and their
 environment variables are deprecated. Conductor logs a warning when they are set
-and ignores their values. Configure the chain and fork activations on the paired
-op-node.
+and ignores their values. These settings will be removed in a release after
+March 1, 2027. Configure the chain and fork activations on the paired op-node.
 
 ### How to bootstrap a sequencer cluster from scratch
 

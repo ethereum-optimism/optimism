@@ -70,7 +70,7 @@ func testConductorCLIConfig(t *testing.T, extraArgs []string, cacheSize int, dep
 		"--healthcheck.min-peer-count", "1",
 	}
 	require.NoError(t, app.Run(append(args, extraArgs...)))
-	warnings := captured.FindLogs(testlog.NewMessageFilter("Ignoring deprecated op-conductor flag"))
+	warnings := captured.FindLogs(testlog.NewMessageFilter("Ignoring deprecated op-conductor flag. It will be removed in an upcoming release after 2027-03-01. Configure the paired op-node instead."))
 	require.Len(t, warnings, len(deprecated))
 	for _, name := range deprecated {
 		require.NotNil(t, captured.FindLog(testlog.NewAttributesFilter("flag", name)))
