@@ -45,9 +45,6 @@ The [fork amendments](https://specs.optimism.io/protocol/deposits.html#fork-amen
 Check every row that applies to the change.
 The table can lag a new fork, so also search every applicable `specs/protocol/<fork>/` directory for touched concepts.
 
-Isthmus also excludes EIP-6110 deposit requests from the requests of a block: [Isthmus execution engine](https://specs.optimism.io/protocol/isthmus/exec-engine.html#deposit-requests).
-These are EIP-7685 requests, not deposited transactions, so the table does not list them.
-
 Each fork that adds a network upgrade transaction adds deposit rules.
 Read the full upgrade-transaction section of that fork, including every field value and the intent string.
 
