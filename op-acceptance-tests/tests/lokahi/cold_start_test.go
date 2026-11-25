@@ -39,6 +39,10 @@ func TestLokahiColdStart(gt *testing.T) {
 	}
 	dsl.CheckAll(t, checks...)
 	target := verifiedHeads(t, sys.Lokahi, nodes)[nodes[0]]
+	safeBefore := make(map[*dsl.L2CLNode]uint64, len(nodes))
+	for _, node := range nodes {
+		safeBefore[node] = node.HeadBlockRef(safety.CrossSafe).Number
+	}
 
 	// While lokahi verifies again it answers no heads, so the safe heads hold but for the drop to
 	// finality on the new epoch.
@@ -63,9 +67,10 @@ func TestLokahiColdStart(gt *testing.T) {
 	logRate(t, "whole cold start, with the restart", activation, target.Timestamp, endAt.Sub(start), rollupCfg.BlockTime, len(nodes))
 	t.Require().NoError(watch.stop(), "no safe head may move back while lokahi catches up")
 
+	// The safe heads catch up past where they were before the cold start.
 	checks = nil
 	for _, node := range nodes {
-		checks = append(checks, node.AdvancedFn(safety.CrossSafe, 5, 60))
+		checks = append(checks, node.ReachedFn(safety.CrossSafe, safeBefore[node]+1, 120))
 	}
 	dsl.CheckAll(t, checks...)
 	logHeads(t, "after the cold start", nodes)
