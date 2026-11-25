@@ -165,6 +165,6 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 	matrix := helpers.NewMatrix[testCase]()
 	matrix.
 		AddDefaultTestCasesWithName(dynamiceFeeCase.name, dynamiceFeeCase, helpers.NewForkMatrix(helpers.Holocene, helpers.Karst, helpers.LatestFork), runL1PragueTest).
-		AddDefaultTestCasesWithName(setCodeCase.name, setCodeCase, helpers.NewForkMatrix(helpers.Karst, helpers.LatestFork), runL1PragueTest)
+		AddDefaultTestCasesWithName(setCodeCase.name, setCodeCase, helpers.LatestTwoForks, runL1PragueTest)
 	matrix.Run(gt)
 }

@@ -137,11 +137,12 @@ var (
 )
 
 var (
-	Hardforks = ForkMatrix{Bedrock, Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, Karst, Lagoon}
-	// LatestFork activates interop, so derivation tests also list Karst to keep covering chains
-	// that have not activated it.
+	Hardforks      = ForkMatrix{Bedrock, Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, Karst, Lagoon}
 	LatestFork     = Hardforks[len(Hardforks)-1]
 	LatestForkOnly = ForkMatrix{LatestFork}
+	// LatestTwoForks is the fork before LatestFork and LatestFork. Derivation tests run on both, so
+	// they keep covering chains that have not activated the latest fork.
+	LatestTwoForks = ForkMatrix{Hardforks[len(Hardforks)-2], LatestFork}
 )
 
 func NewForkMatrix(forks ...*Hardfork) ForkMatrix {
