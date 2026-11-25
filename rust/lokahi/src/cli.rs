@@ -1,13 +1,17 @@
 //! The `lokahi` CLI.
 
 use crate::{
-    config::Config, rpc::AuthorityRpc, source::ChainSource, state::Verified, store::Store,
-    verifier::Verifier, version,
+    config::Config,
+    rpc::Rpc,
+    source::{self, ChainSource},
+    state::Verified,
+    store::Store,
+    verifier::Verifier,
+    version,
 };
 use clap::Parser;
 use eyre::Result;
 use jsonrpsee::server::Server;
-use kona_rpc::InteropAuthorityApiServer;
 use std::{
     path::PathBuf,
     sync::{Arc, RwLock},
@@ -33,6 +37,10 @@ pub(crate) struct Cli {
     /// it.
     #[arg(long, env = "LOKAHI_DATADIR")]
     datadir: PathBuf,
+    /// Serves the `lokahitest` RPC namespace, which pauses and resumes verification. For tests
+    /// only: anyone who reaches the RPC can then hold verification back.
+    #[arg(long, env = "LOKAHI_TEST_CONTROL")]
+    test_control: bool,
 }
 
 impl Cli {
@@ -63,12 +71,14 @@ impl Cli {
                 ChainSource::connect(chain.rollup_config, &chain.cl_rpc, &chain.el_rpc).await?,
             );
         }
-        let chain_ids: Vec<_> = sources.iter().map(ChainSource::chain_id).collect();
+        let sources = Arc::new(source::by_chain(sources));
+        let chain_ids: Vec<_> = sources.keys().copied().collect();
 
         let server = Server::builder().build(config.rpc_addr).await?;
         let addr = server.local_addr()?;
-        let handle = server.start(AuthorityRpc { state: state.clone() }.into_rpc());
-        info!(addr = %addr, ?chain_ids, activation = config.activation_timestamp, "RPC server bound to address");
+        let rpc = Rpc { state: state.clone(), sources: sources.clone() };
+        let handle = server.start(rpc.into_module(self.test_control)?);
+        info!(addr = %addr, ?chain_ids, activation = config.activation_timestamp, test_control = self.test_control, "RPC server bound to address");
 
         let verifier = Verifier::new(
             sources,

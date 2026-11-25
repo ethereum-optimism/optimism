@@ -1,8 +1,8 @@
 //! The verification loop: one global timestamp cursor over every chain.
 
 use crate::{
-    source::{ChainSource, LocalSafeAt, SourceError, SourceProvider},
-    state::{DeniedRecord, Verified, VerifiedResult},
+    source::{LocalSafeAt, SourceError, SourceProvider, Sources},
+    state::{ChainResult, DeniedRecord, Verified, VerifiedResult},
     store::StoreError,
 };
 use alloy_eips::{BlockNumHash, BlockNumberOrTag};
@@ -10,6 +10,7 @@ use alloy_primitives::map::HashMap;
 use alloy_provider::{Provider, RootProvider};
 use kona_genesis::RollupConfig;
 use kona_interop::{BlocksWithReceipts, DependencySet, MessageGraph, MessageGraphError};
+use kona_protocol::OutputRoot;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
@@ -26,9 +27,13 @@ const ROUND_TIMEOUT: Duration = Duration::from_secs(10);
 /// Why a round did not advance the cursor.
 #[derive(Debug, Error)]
 pub(crate) enum Wait {
-    /// A chain has not derived its block at the timestamp yet.
+    /// A chain has not derived its block at the timestamp yet. `current_l1` is the lowest L1
+    /// block the sources read up to that chain are at.
     #[error("chain {chain_id} has no local-safe block at {timestamp} yet")]
-    NotLocalSafe { chain_id: u64, timestamp: u64 },
+    NotLocalSafe { chain_id: u64, timestamp: u64, current_l1: BlockNumHash },
+    /// A test paused verification at or before the timestamp.
+    #[error("verification is paused at {timestamp}")]
+    Paused { timestamp: u64 },
     /// An L1 block a chain derived from is not canonical on the verifier's L1.
     #[error("L1 inclusion {l1:?} of chain {chain_id} is not on the canonical L1 chain")]
     L1Inconsistent { chain_id: u64, l1: BlockNumHash },
@@ -80,7 +85,7 @@ impl Wait {
 /// The verifier.
 #[derive(Debug)]
 pub(crate) struct Verifier {
-    sources: BTreeMap<u64, ChainSource>,
+    sources: Arc<Sources>,
     rollup_configs: HashMap<u64, RollupConfig>,
     dependency_set: DependencySet,
     l1: RootProvider,
@@ -89,16 +94,15 @@ pub(crate) struct Verifier {
 
 impl Verifier {
     pub(crate) fn new(
-        sources: Vec<ChainSource>,
+        sources: Arc<Sources>,
         dependency_set: DependencySet,
         l1: RootProvider,
         state: Arc<RwLock<Verified>>,
     ) -> Self {
         let rollup_configs = sources
             .iter()
-            .map(|source| (source.chain_id(), source.rollup_config.clone()))
+            .map(|(&chain_id, source)| (chain_id, source.rollup_config.clone()))
             .collect();
-        let sources = sources.into_iter().map(|source| (source.chain_id(), source)).collect();
         Self { sources, rollup_configs, dependency_set, l1, state }
     }
 
@@ -124,7 +128,9 @@ impl Verifier {
                     let reason = wait.to_string();
                     let changed = last_wait.as_deref() != Some(reason.as_str());
                     match &wait {
-                        Wait::NotLocalSafe { .. } => debug!(%reason, "Waiting"),
+                        Wait::NotLocalSafe { .. } | Wait::Paused { .. } => {
+                            debug!(%reason, "Waiting")
+                        }
                         Wait::Denied { .. } => {
                             warn!(%reason, "Denied blocks with invalid executing messages")
                         }
@@ -155,18 +161,31 @@ impl Verifier {
     /// The committed results are checked against L1 after the frontier is read and before it is
     /// used, so a frontier read after an L1 reorg is never committed on top of results from the
     /// old L1 chain.
-    async fn round(&self) -> Result<(), Wait> {
+    ///
+    /// The round also moves the L1 block verification is at: on a commit to the lower of the
+    /// result's L1 inclusion and the sources' current L1 blocks, and while a chain has not derived
+    /// the timestamp to the sources' current L1 blocks, since the timestamp then needs L1 data at
+    /// or above them.
+    pub(crate) async fn round(&self) -> Result<(), Wait> {
         self.refresh_finalized().await?;
-        let timestamp = self.state.read().expect("state lock").next_timestamp();
+        let (timestamp, pause_at) = {
+            let state = self.state.read().expect("state lock");
+            (state.next_timestamp(), state.pause_at())
+        };
+        if pause_at.is_some_and(|pause_at| timestamp >= pause_at) {
+            return Err(Wait::Paused { timestamp });
+        }
 
         let frontier = self.read_frontier(timestamp).await;
         // A rewind takes priority over any wait: an L1 reorg often makes the frontier
         // unavailable by moving the sources' local-safe heads back.
         self.rewind_reorged_results().await?;
-        if let Err(Wait::NotLocalSafe { .. }) = &frontier {
-            self.state.write().expect("state lock").set_caught_up();
+        if let Err(Wait::NotLocalSafe { current_l1, .. }) = &frontier {
+            let mut state = self.state.write().expect("state lock");
+            state.set_caught_up();
+            state.set_current_l1(*current_l1);
         }
-        let frontier = frontier?;
+        let (frontier, sources_l1) = frontier?;
         for (&chain_id, at) in &frontier {
             self.check_l1_inclusion(chain_id, at.l1_inclusion).await?;
         }
@@ -176,13 +195,50 @@ impl Verifier {
             return Err(self.deny(timestamp, &frontier, invalid)?);
         }
 
-        let result = VerifiedResult {
-            l1_inclusion: frontier_l1_inclusion(&frontier),
-            heads: frontier.iter().map(|(&chain_id, at)| (chain_id, at.block)).collect(),
-        };
-        info!(timestamp, heads = ?result.heads, l1_inclusion = result.l1_inclusion.number, "Verified timestamp");
-        self.state.write().expect("state lock").commit(timestamp, result)?;
+        let mut chains = BTreeMap::new();
+        for (&chain_id, at) in &frontier {
+            let replaced = if self.sources[&chain_id].has_block_at(timestamp) {
+                self.replaced_output(chain_id, at.block).await?
+            } else {
+                None
+            };
+            let chain = ChainResult {
+                block: at.block,
+                output: at.output,
+                required_l1: at.l1_inclusion,
+                replaced,
+            };
+            chains.insert(chain_id, chain);
+        }
+        let result = VerifiedResult { l1_inclusion: frontier_l1_inclusion(&frontier), chains };
+        info!(timestamp, chains = ?result.chains, l1_inclusion = result.l1_inclusion.number, "Verified timestamp");
+        let mut state = self.state.write().expect("state lock");
+        state.commit(timestamp, result)?;
+        let included = state.latest().expect("just committed").1.l1_inclusion;
+        state.set_current_l1(lowest([included, sources_l1]));
         Ok(())
+    }
+
+    /// The output of the block `block` of `chain_id` replaced: the denied block at its height
+    /// whose denial holds on the canonical L1 chain. Its chain derived that block first and
+    /// replaced it because of the denial. A denial decided on L1 blocks a reorg removed is of a
+    /// block the chain no longer derives, so `block` did not replace it.
+    async fn replaced_output(
+        &self,
+        chain_id: u64,
+        block: BlockNumHash,
+    ) -> Result<Option<OutputRoot>, Wait> {
+        let denials = self.state.read().expect("state lock").denials_at(chain_id, block.number)?;
+        let mut replaced: Option<DeniedRecord> = None;
+        for denial in denials {
+            if denial.block != block &&
+                replaced.is_none_or(|replaced| replaced.l1.number < denial.l1.number) &&
+                self.is_canonical(denial.l1).await?
+            {
+                replaced = Some(denial);
+            }
+        }
+        Ok(replaced.map(|denial| denial.output))
     }
 
     /// Every chain's local-safe block at `timestamp`, unless one has not derived it yet or its
@@ -191,11 +247,23 @@ impl Verifier {
     /// A denial holds only on the L1 chain it was decided on, and the nodes apply it only while
     /// its L1 block is canonical. One whose L1 block was reorged out is deleted instead of waited
     /// on, and the block is verified again.
-    async fn read_frontier(&self, timestamp: u64) -> Result<BTreeMap<u64, LocalSafeAt>, Wait> {
+    ///
+    /// Also returns the lowest L1 block the sources are at.
+    async fn read_frontier(
+        &self,
+        timestamp: u64,
+    ) -> Result<(BTreeMap<u64, LocalSafeAt>, BlockNumHash), Wait> {
         let mut frontier = BTreeMap::new();
-        for (&chain_id, source) in &self.sources {
+        let mut current_l1 = None;
+        for (&chain_id, source) in self.sources.iter() {
             let progress = source.progress_at(timestamp).await?;
-            let at = progress.at_timestamp.ok_or(Wait::NotLocalSafe { chain_id, timestamp })?;
+            let lowest_l1 = lowest(current_l1.into_iter().chain([progress.current_l1]));
+            current_l1 = Some(lowest_l1);
+            let at = progress.at_timestamp.ok_or(Wait::NotLocalSafe {
+                chain_id,
+                timestamp,
+                current_l1: lowest_l1,
+            })?;
             let denial = self.state.read().expect("state lock").denial(chain_id, at.block)?;
             if let Some(denial) = denial {
                 if self.is_canonical(denial.l1).await? {
@@ -206,7 +274,7 @@ impl Verifier {
             }
             frontier.insert(chain_id, at);
         }
-        Ok(frontier)
+        Ok((frontier, current_l1.expect("at least one chain")))
     }
 
     /// Moves the finalized head to the latest result whose L1 inclusion is on the finalized L1
@@ -347,11 +415,11 @@ impl Verifier {
         let mut reasons = Vec::with_capacity(invalid.len());
         for (chain_id, reason) in invalid {
             let at = frontier[&chain_id];
-            warn!(chain_id, timestamp, block = ?at.block, output_root = %at.output_root, ?l1, %reason, "Denying a block with an invalid executing message");
+            warn!(chain_id, timestamp, block = ?at.block, output_root = %at.output.hash(), ?l1, %reason, "Denying a block with an invalid executing message");
             state.deny(&DeniedRecord {
                 chain_id,
                 block: at.block,
-                output_root: at.output_root,
+                output: at.output,
                 timestamp,
                 l1,
             })?;
@@ -400,6 +468,11 @@ impl Verifier {
     }
 }
 
+/// The lowest of `blocks` by number.
+pub(crate) fn lowest(blocks: impl IntoIterator<Item = BlockNumHash>) -> BlockNumHash {
+    blocks.into_iter().min_by_key(|block| block.number).unwrap_or_default()
+}
+
 /// The latest L1 block any chain in `frontier` derived its block from.
 fn frontier_l1_inclusion(frontier: &BTreeMap<u64, LocalSafeAt>) -> BlockNumHash {
     frontier
@@ -441,8 +514,12 @@ fn invalid_chains(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+    use crate::{
+        source::{ChainSource, by_chain},
+        state::tests::chain_result,
+    };
     use alloy_consensus::{Header, Receipt, ReceiptWithBloom};
     use alloy_primitives::{Address, B256};
     use alloy_rpc_types_eth::{Block, BlockTransactions, Header as RpcHeader};
@@ -463,9 +540,9 @@ mod tests {
     use std::sync::Mutex;
     use url::Url;
 
-    const CHAIN_A: u64 = 901;
-    const CHAIN_B: u64 = 902;
-    const GENESIS_TIME: u64 = 1000;
+    pub(crate) const CHAIN_A: u64 = 901;
+    pub(crate) const CHAIN_B: u64 = 902;
+    pub(crate) const GENESIS_TIME: u64 = 1000;
 
     /// The L1 block every stubbed chain derived from.
     fn l1_block() -> Header {
@@ -478,17 +555,17 @@ mod tests {
         Header { number, extra_data, ..Default::default() }
     }
 
-    fn l1_id(number: u64, fork: u8) -> BlockNumHash {
+    pub(crate) fn l1_id(number: u64, fork: u8) -> BlockNumHash {
         BlockNumHash { number, hash: l1_header(number, fork).hash_slow() }
     }
 
     /// An L1 chain a test can reorg: its canonical block at a height is of fork 1 from the
     /// reorg's fork point on and of fork 0 below it.
     #[derive(Debug, Clone)]
-    struct L1Chain(Arc<Mutex<L1ChainState>>);
+    pub(crate) struct L1Chain(Arc<Mutex<L1ChainState>>);
 
     #[derive(Debug)]
-    struct L1ChainState {
+    pub(crate) struct L1ChainState {
         /// The first height of fork 1, once L1 reorged.
         reorged_from: Option<u64>,
         /// The height of the finalized block.
@@ -500,11 +577,11 @@ mod tests {
             Self(Arc::new(Mutex::new(L1ChainState { reorged_from: None, finalized })))
         }
 
-        fn reorg_from(&self, number: u64) {
+        pub(crate) fn reorg_from(&self, number: u64) {
             self.0.lock().unwrap().reorged_from = Some(number);
         }
 
-        fn finalize(&self, number: u64) {
+        pub(crate) fn finalize(&self, number: u64) {
             self.0.lock().unwrap().finalized = number;
         }
 
@@ -536,7 +613,7 @@ mod tests {
         }
     }
 
-    fn l1_inclusion() -> BlockNumHash {
+    pub(crate) fn l1_inclusion() -> BlockNumHash {
         BlockNumHash { number: 5, hash: l1_block().hash_slow() }
     }
 
@@ -549,24 +626,24 @@ mod tests {
     }
 
     /// The genesis block of a stubbed L2 chain.
-    fn l2_genesis(chain_id: u64) -> Header {
+    pub(crate) fn l2_genesis(chain_id: u64) -> Header {
         l2_genesis_tagged(chain_id, b"")
     }
 
     /// Chain B's block at genesis that has an invalid executing message.
-    fn invalid_block() -> Header {
+    pub(crate) fn invalid_block() -> Header {
         l2_genesis_tagged(CHAIN_B, b"invalid")
     }
 
     /// Chain B's deposits-only replacement of [`invalid_block`].
-    fn replacement_block() -> Header {
+    pub(crate) fn replacement_block() -> Header {
         l2_genesis_tagged(CHAIN_B, b"replacement")
     }
 
     /// A chain's local-safe block at genesis, by hash, and the L1 block that made it safe.
-    type AtGenesis = Option<(B256, BlockNumHash)>;
+    pub(crate) type AtGenesis = Option<(B256, BlockNumHash)>;
 
-    fn at_genesis(header: &Header) -> AtGenesis {
+    pub(crate) fn at_genesis(header: &Header) -> AtGenesis {
         Some((header.hash_slow(), l1_inclusion()))
     }
 
@@ -594,18 +671,14 @@ mod tests {
                 optimistic_at_timestamp.insert(
                     DecimalChainId(self.chain_id),
                     OutputWithRequiredL1 {
-                        output: OutputV0Response {
-                            state_root: B256::ZERO,
-                            message_passer_storage_root: B256::ZERO,
-                            block_hash: hash,
-                        },
-                        output_root: output_root(hash),
+                        output: OutputV0Response::from(&output(hash)),
+                        output_root: output(hash).hash(),
                         required_l1,
                     },
                 );
             }
             Ok(SuperRootAtTimestampResponse {
-                current_l1: BlockNumHash::default(),
+                current_l1: source_l1(),
                 current_safe_timestamp: 0,
                 current_local_safe_timestamp: GENESIS_TIME,
                 current_finalized_timestamp: 0,
@@ -616,12 +689,19 @@ mod tests {
         }
     }
 
-    /// The output root the stubbed sources report for the block `hash`.
-    fn output_root(hash: B256) -> B256 {
-        B256::from(alloy_primitives::U256::from_be_bytes(hash.0) ^ alloy_primitives::U256::MAX)
+    /// The output the stubbed sources report for the block `hash`.
+    pub(crate) fn output(hash: B256) -> OutputRoot {
+        OutputRoot::from_parts(B256::repeat_byte(0x5a), hash, hash)
     }
 
-    async fn serve<C: Send + Sync + 'static>(module: RpcModule<C>) -> (Url, ServerHandle) {
+    /// The L1 block every stubbed source's derivation is at.
+    pub(crate) fn source_l1() -> BlockNumHash {
+        l1_id(6, 0)
+    }
+
+    pub(crate) async fn serve<C: Send + Sync + 'static>(
+        module: RpcModule<C>,
+    ) -> (Url, ServerHandle) {
         let server = Server::builder().build("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", server.local_addr().unwrap()).parse().unwrap();
         (url, server.start(module))
@@ -711,7 +791,7 @@ mod tests {
         serde_json::to_value(vec![receipt]).unwrap()
     }
 
-    fn rollup_config(chain_id: u64) -> RollupConfig {
+    pub(crate) fn rollup_config(chain_id: u64) -> RollupConfig {
         let mut config = RollupConfig {
             l2_chain_id: chain_id.into(),
             block_time: 2,
@@ -723,26 +803,35 @@ mod tests {
     }
 
     /// A verifier over two chains and its stubs.
-    struct Fixture {
-        verifier: Verifier,
-        state: Arc<RwLock<Verified>>,
-        l1: L1Chain,
+    pub(crate) struct Fixture {
+        pub verifier: Verifier,
+        pub state: Arc<RwLock<Verified>>,
+        pub sources: Arc<Sources>,
+        pub l1: L1Chain,
         /// What each chain's source answers at genesis, by chain.
         answers: BTreeMap<u64, Arc<Mutex<Vec<AtGenesis>>>>,
         _servers: Vec<ServerHandle>,
-        _store_dir: tempfile::TempDir,
+        pub store_dir: tempfile::TempDir,
     }
 
     impl Fixture {
         /// Makes chain `chain_id`'s source answer `answer` from now on.
-        fn answer(&self, chain_id: u64, answer: AtGenesis) {
+        pub(crate) fn answer(&self, chain_id: u64, answer: AtGenesis) {
             *self.answers[&chain_id].lock().unwrap() = vec![answer];
         }
     }
 
     /// A verifier over two chains whose source CLs answer `answers` at genesis, with every block
     /// on L1 and with chain B's [`invalid_block`] having an invalid executing message.
-    async fn fixture(answers: [Vec<AtGenesis>; 2]) -> Fixture {
+    pub(crate) async fn fixture(answers: [Vec<AtGenesis>; 2]) -> Fixture {
+        fixture_activating_at(answers, GENESIS_TIME).await
+    }
+
+    /// [`fixture`] with interop activating at `activation`.
+    pub(crate) async fn fixture_activating_at(
+        answers: [Vec<AtGenesis>; 2],
+        activation: u64,
+    ) -> Fixture {
         let invalid = invalid_block().hash_slow();
         let (execution, execution_handle) =
             serve_execution(HashMap::from_iter([(invalid, invalid_executing_receipts(invalid))]))
@@ -759,35 +848,42 @@ mod tests {
                 ChainSource::connect(rollup_config(chain_id), &cl, &execution).await.unwrap(),
             );
         }
+        let sources = Arc::new(by_chain(sources));
         let dependency_set = DependencySet {
             dependencies: [(CHAIN_A, ChainDependency {}), (CHAIN_B, ChainDependency {})].into(),
             override_message_expiry_window: None,
         };
         let store_dir = tempfile::tempdir().unwrap();
-        let state = Arc::new(RwLock::new(crate::state::tests::open_state(
-            store_dir.path(),
-            GENESIS_TIME,
-            [(CHAIN_A, GENESIS_TIME), (CHAIN_B, GENESIS_TIME)].into(),
-        )));
+        let state = Arc::new(RwLock::new(open_state(store_dir.path(), activation)));
         let l1_chain = L1Chain::new(l1_block().number);
         let (l1, l1_handle) = l1_chain.serve().await;
         servers.push(l1_handle);
         Fixture {
             verifier: Verifier::new(
-                sources,
+                sources.clone(),
                 dependency_set,
                 kona_sources::rpc::l1(l1),
                 state.clone(),
             ),
             state,
+            sources,
             l1: l1_chain,
             answers: chain_answers,
             _servers: servers,
-            _store_dir: store_dir,
+            store_dir,
         }
     }
 
-    fn chain_a_at_genesis() -> Vec<AtGenesis> {
+    /// The state of the two chains in the store at `dir`.
+    pub(crate) fn open_state(dir: &std::path::Path, activation: u64) -> Verified {
+        crate::state::tests::open_state(
+            dir,
+            activation,
+            [(CHAIN_A, GENESIS_TIME), (CHAIN_B, GENESIS_TIME)].into(),
+        )
+    }
+
+    pub(crate) fn chain_a_at_genesis() -> Vec<AtGenesis> {
         vec![at_genesis(&l2_genesis(CHAIN_A))]
     }
 
@@ -867,7 +963,7 @@ mod tests {
                 vec![DeniedRecord {
                     chain_id: CHAIN_B,
                     block: denied,
-                    output_root: output_root(denied.hash),
+                    output: output(denied.hash),
                     timestamp: GENESIS_TIME,
                     l1: l1_inclusion(),
                 }]
@@ -896,6 +992,68 @@ mod tests {
             })
         );
         assert_eq!(state.denied_blocks(CHAIN_B, 0).unwrap().len(), 1);
+        let result = state.result_at(GENESIS_TIME).unwrap().unwrap();
+        assert_eq!(result.chains[&CHAIN_B].replaced, Some(output(denied.hash)));
+        assert_eq!(result.chains[&CHAIN_B].output, output(replacement.hash));
+        assert_eq!(result.chains[&CHAIN_A].replaced, None);
+    }
+
+    /// A block at the height of a denial decided on L1 blocks a reorg removed did not replace
+    /// the denied block: the chain no longer derives it.
+    #[tokio::test]
+    async fn a_block_after_a_reorg_of_a_denial_replaced_nothing() {
+        let invalid = invalid_block().hash_slow();
+        let fixture = fixture([chain_a_at_genesis(), vec![Some((invalid, l1_id(6, 0)))]]).await;
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::Denied { .. }), "got {wait:?}");
+
+        fixture.l1.reorg_from(6);
+        fixture.answer(CHAIN_B, at_genesis(&replacement_block()));
+        fixture.verifier.round().await.unwrap();
+
+        let result = fixture.state.read().unwrap().result_at(GENESIS_TIME).unwrap().unwrap();
+        assert_eq!(result.chains[&CHAIN_B].replaced, None);
+    }
+
+    /// A paused verifier verifies nothing from the pause timestamp on, also once every chain
+    /// derived it, and goes on once resumed.
+    #[tokio::test]
+    async fn a_paused_round_verifies_nothing_until_resumed() {
+        let fixture = fixture([chain_a_at_genesis(), vec![at_genesis(&l2_genesis(CHAIN_B))]]).await;
+        fixture.state.write().unwrap().set_pause_at(Some(GENESIS_TIME));
+
+        let wait = fixture.verifier.round().await.unwrap_err();
+
+        assert!(matches!(wait, Wait::Paused { timestamp: GENESIS_TIME }), "got {wait:?}");
+        assert_eq!(fixture.state.read().unwrap().next_timestamp(), GENESIS_TIME);
+        assert_eq!(fixture.state.read().unwrap().current_l1(), BlockNumHash::default());
+        fixture.state.write().unwrap().set_pause_at(None);
+        fixture.verifier.round().await.unwrap();
+        assert_eq!(fixture.state.read().unwrap().next_timestamp(), GENESIS_TIME + 1);
+    }
+
+    /// Verification is at no L1 block until a round decides it. A commit moves it to the lower of
+    /// the result's L1 inclusion and the sources' L1 blocks, a chain that has not derived the next
+    /// timestamp to the sources' L1 blocks, and a rewind back to none.
+    #[tokio::test]
+    async fn rounds_move_the_l1_block_verification_is_at() {
+        let fixture = fixture([chain_a_at_genesis(), vec![at_genesis(&l2_genesis(CHAIN_B))]]).await;
+        fixture.l1.finalize(0);
+        let current_l1 = || fixture.state.read().unwrap().current_l1();
+        assert_eq!(current_l1(), BlockNumHash::default());
+
+        fixture.verifier.round().await.unwrap();
+        assert_eq!(current_l1(), l1_inclusion(), "the inclusion, below the sources' L1 block");
+
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(
+            matches!(wait, Wait::NotLocalSafe { timestamp, .. } if timestamp == GENESIS_TIME + 1),
+            "got {wait:?}"
+        );
+        assert_eq!(current_l1(), source_l1());
+
+        fixture.state.write().unwrap().rewind(GENESIS_TIME).unwrap();
+        assert_eq!(current_l1(), BlockNumHash::default());
     }
 
     /// A source that answers another block at the timestamp while its messages are checked, as a
@@ -932,7 +1090,7 @@ mod tests {
             LocalSafeAt {
                 block: BlockNumHash { number: 0, hash: invalid },
                 l1_inclusion: off_l1,
-                output_root: output_root(invalid),
+                output: output(invalid),
             },
         )]);
 
@@ -977,7 +1135,7 @@ mod tests {
                 let block = BlockNumHash { number: i as u64, hash: B256::with_last_byte(i as u8) };
                 let result = VerifiedResult {
                     l1_inclusion: l1_id(l1, 0),
-                    heads: [(CHAIN_A, block), (CHAIN_B, block)].into(),
+                    chains: [(CHAIN_A, chain_result(block)), (CHAIN_B, chain_result(block))].into(),
                 };
                 state.commit(GENESIS_TIME + i as u64, result).unwrap();
             }
@@ -992,7 +1150,7 @@ mod tests {
         DeniedRecord {
             chain_id: CHAIN_B,
             block: BlockNumHash { number: timestamp - GENESIS_TIME, hash: B256::repeat_byte(0xdd) },
-            output_root: B256::repeat_byte(0xdd),
+            output: output(B256::repeat_byte(0xdd)),
             timestamp,
             l1: l1_id(4, 0),
         }

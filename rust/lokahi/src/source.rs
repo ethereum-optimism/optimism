@@ -6,9 +6,14 @@ use alloy_eips::{BlockId, BlockNumHash};
 use alloy_primitives::{B256, Log, U64, map::HashMap};
 use alloy_provider::{Provider, RootProvider};
 use async_trait::async_trait;
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use jsonrpsee::{
+    core::client::ClientT,
+    http_client::{HttpClient, HttpClientBuilder},
+    rpc_params,
+};
 use kona_genesis::RollupConfig;
 use kona_interop::{BlockWithReceipts, InitiatingLogs, InteropProvider};
+use kona_protocol::{OutputRoot, SyncStatus};
 use kona_rpc::{DecimalChainId, SuperRootApiClient};
 use op_alloy_consensus::OpReceiptEnvelope;
 use op_alloy_network::Optimism;
@@ -64,6 +69,17 @@ pub(crate) enum SourceError {
     /// The verifier's store failed.
     #[error(transparent)]
     Store(#[from] StoreError),
+    /// The consensus RPC answered a sync status that does not decode.
+    #[error("sync status: {0}")]
+    SyncStatus(#[from] serde_json::Error),
+}
+
+/// The source of each chain, by chain ID.
+pub(crate) type Sources = BTreeMap<u64, ChainSource>;
+
+/// The sources of `sources` by chain ID.
+pub(crate) fn by_chain(sources: Vec<ChainSource>) -> Sources {
+    sources.into_iter().map(|source| (source.chain_id(), source)).collect()
 }
 
 /// A chain's local-safe block at a timestamp.
@@ -73,8 +89,8 @@ pub(crate) struct LocalSafeAt {
     pub block: BlockNumHash,
     /// The L1 block that made it local-safe, from the source's safe head database.
     pub l1_inclusion: BlockNumHash,
-    /// The block's output root.
-    pub output_root: B256,
+    /// The block's output root preimage.
+    pub output: OutputRoot,
 }
 
 /// What a source reports for a timestamp.
@@ -82,8 +98,14 @@ pub(crate) struct LocalSafeAt {
 pub(crate) struct SourceProgress {
     /// The block at the timestamp, once it is local-safe.
     pub at_timestamp: Option<LocalSafeAt>,
+    /// The L1 block the source's derivation is at: it derived every L1 block strictly below it.
+    pub current_l1: BlockNumHash,
+    /// The timestamp of the source's safe head.
+    pub safe_timestamp: u64,
     /// The timestamp of the source's local-safe head.
     pub local_safe_timestamp: u64,
+    /// The timestamp of the source's finalized head.
+    pub finalized_timestamp: u64,
 }
 
 /// The source node of one chain.
@@ -141,12 +163,26 @@ impl ChainSource {
                     hash: output.output.block_hash,
                 },
                 l1_inclusion: output.required_l1,
-                output_root: output.output_root,
+                output: OutputRoot::from_parts(
+                    output.output.state_root,
+                    output.output.message_passer_storage_root,
+                    output.output.block_hash,
+                ),
             });
         Ok(SourceProgress {
             at_timestamp,
+            current_l1: response.current_l1,
+            safe_timestamp: response.current_safe_timestamp,
             local_safe_timestamp: response.current_local_safe_timestamp,
+            finalized_timestamp: response.current_finalized_timestamp,
         })
+    }
+
+    /// The source's `optimism_syncStatus`, as it answered it and decoded.
+    pub(crate) async fn sync_status(&self) -> Result<(serde_json::Value, SyncStatus), SourceError> {
+        let raw: serde_json::Value = self.cl.request("optimism_syncStatus", rpc_params![]).await?;
+        let status = serde_json::from_value(raw.clone())?;
+        Ok((raw, status))
     }
 
     /// The block with hash `hash` and its receipts.
@@ -213,7 +249,7 @@ impl ChainSource {
 /// timestamp of, is the source's canonical block at its number.
 #[derive(Debug)]
 pub(crate) struct SourceProvider<'a> {
-    pub sources: &'a BTreeMap<u64, ChainSource>,
+    pub sources: &'a Sources,
     /// Each chain's block at the timestamp being verified.
     pub frontier: &'a HashMap<u64, BlockNumHash>,
     /// The verifier's state, with the blocks verified below the frontier.
@@ -236,7 +272,7 @@ impl SourceProvider<'_> {
         }
         let block = verified
             .result_at(timestamp)?
-            .and_then(|result| result.heads.get(&chain_id).copied())
+            .and_then(|result| result.chains.get(&chain_id).map(|chain| chain.block))
             .filter(|block| block.number == number)
             .ok_or(SourceError::Unverified { chain_id, number })?;
         Ok(Some(block.hash))
@@ -275,7 +311,10 @@ impl InteropProvider for SourceProvider<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::{VerifiedResult, tests::open_state};
+    use crate::state::{
+        VerifiedResult,
+        tests::{chain_result, open_state},
+    };
     use alloy_rpc_types_eth::{Block, BlockTransactions, Header as RpcHeader};
     use jsonrpsee::{
         RpcModule,
@@ -359,7 +398,7 @@ mod tests {
             let hash = if number == 3 { verified().hash_slow() } else { B256::with_last_byte(1) };
             let result = VerifiedResult {
                 l1_inclusion: BlockNumHash::default(),
-                heads: BTreeMap::from([(CHAIN, BlockNumHash { number, hash })]),
+                chains: BTreeMap::from([(CHAIN, chain_result(BlockNumHash { number, hash }))]),
             };
             state.commit(timestamp, result).unwrap();
         }

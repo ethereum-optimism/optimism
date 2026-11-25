@@ -8912,6 +8912,7 @@ dependencies = [
  "kona-engine",
  "kona-genesis",
  "kona-interop",
+ "kona-protocol",
  "kona-rpc",
  "kona-sources",
  "op-alloy-consensus",

@@ -22,13 +22,14 @@ op-version.workspace = true
 kona-engine.workspace = true
 kona-genesis = { workspace = true, features = ["serde", "std"] }
 kona-interop = { workspace = true, features = ["serde", "std"] }
+kona-protocol = { workspace = true, features = ["serde", "std"] }
 kona-rpc = { workspace = true, features = ["client"] }
 kona-sources.workspace = true
 
 # alloy
 alloy-consensus.workspace = true
 alloy-eips = { workspace = true, features = ["serde"] }
-alloy-primitives = { workspace = true, features = ["map", "serde"] }
+alloy-primitives = { workspace = true, features = ["getrandom", "map", "serde"] }
 alloy-provider = { workspace = true, features = ["reqwest"] }
 alloy-rpc-types-eth.workspace = true
 

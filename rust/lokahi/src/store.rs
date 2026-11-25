@@ -3,9 +3,10 @@
 //! Every write is one atomic batch, synced to the write-ahead log before it returns. After a
 //! crash the store holds a prefix of the writes made: a torn last batch is dropped whole.
 
-use crate::state::{DeniedRecord, VerifiedResult};
+use crate::state::{ChainResult, DeniedRecord, VerifiedResult};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::B256;
+use kona_protocol::OutputRoot;
 use rocksdb::{DB, DBRecoveryMode, Direction, IteratorMode, Options, WriteBatch, WriteOptions};
 use std::{collections::BTreeMap, path::Path};
 use thiserror::Error;
@@ -17,11 +18,12 @@ const DENIED: u8 = b'd';
 
 const RESULT_KEY_LEN: usize = 1 + 8;
 const DENIED_KEY_LEN: usize = 1 + 8 + 8 + 32;
-/// A result value: the L1 inclusion, then one head per chain.
-const L1_INCLUSION_LEN: usize = 8 + 32;
-const HEAD_LEN: usize = 8 + 8 + 32;
-/// A denied value: the output root, the deciding timestamp and the L1 block it was decided on.
-const DENIED_VALUE_LEN: usize = 32 + 8 + L1_INCLUSION_LEN;
+/// A block number and hash.
+const BLOCK_LEN: usize = 8 + 32;
+/// The state root and message passer storage root of an output; the block hash is stored apart.
+const OUTPUT_ROOTS_LEN: usize = 32 + 32;
+/// A denied value: the output roots, the deciding timestamp and the L1 block it was decided on.
+const DENIED_VALUE_LEN: usize = OUTPUT_ROOTS_LEN + 8 + BLOCK_LEN;
 
 /// A failed store operation.
 #[derive(Debug, Error)]
@@ -121,7 +123,7 @@ impl Store {
     /// Writes a denied block. Writing the same block again only replaces its record.
     pub(crate) fn put_denied(&self, record: &DeniedRecord) -> Result<(), StoreError> {
         let mut value = Vec::with_capacity(DENIED_VALUE_LEN);
-        value.extend_from_slice(record.output_root.as_slice());
+        push_output_roots(&mut value, &record.output);
         value.extend_from_slice(&record.timestamp.to_be_bytes());
         push_block(&mut value, record.l1);
         let mut batch = WriteBatch::default();
@@ -211,52 +213,105 @@ fn denied_key(chain_id: u64, number: u64, hash: B256) -> [u8; DENIED_KEY_LEN] {
     key
 }
 
+/// A result value: the L1 inclusion, then per chain its ID, block, output roots, required L1
+/// block, and a flag followed, if set, by the block hash and output roots of the block it replaced.
 fn encode_result(result: &VerifiedResult) -> Vec<u8> {
-    let mut value = Vec::with_capacity(L1_INCLUSION_LEN + HEAD_LEN * result.heads.len());
+    let mut value = Vec::new();
     push_block(&mut value, result.l1_inclusion);
-    for (chain_id, head) in &result.heads {
+    for (chain_id, chain) in &result.chains {
         value.extend_from_slice(&chain_id.to_be_bytes());
-        push_block(&mut value, *head);
+        push_block(&mut value, chain.block);
+        push_output_roots(&mut value, &chain.output);
+        push_block(&mut value, chain.required_l1);
+        match &chain.replaced {
+            None => value.push(0),
+            Some(replaced) => {
+                value.push(1);
+                value.extend_from_slice(replaced.block_hash.as_slice());
+                push_output_roots(&mut value, replaced);
+            }
+        }
     }
     value
 }
 
 fn decode_result(key: &[u8], value: &[u8]) -> Result<VerifiedResult, StoreError> {
-    if value.len() < L1_INCLUSION_LEN || !(value.len() - L1_INCLUSION_LEN).is_multiple_of(HEAD_LEN)
-    {
-        return Err(corrupt("result", key));
+    let corrupt = || corrupt("result", key);
+    let mut reader = Reader(value);
+    let l1_inclusion = reader.block().ok_or_else(corrupt)?;
+    let mut chains = BTreeMap::new();
+    while !reader.0.is_empty() {
+        let chain_id = reader.u64().ok_or_else(corrupt)?;
+        let block = reader.block().ok_or_else(corrupt)?;
+        let output = reader.output(block.hash).ok_or_else(corrupt)?;
+        let required_l1 = reader.block().ok_or_else(corrupt)?;
+        let replaced = match reader.take(1).ok_or_else(corrupt)? {
+            [0] => None,
+            [1] => {
+                let hash = reader.hash().ok_or_else(corrupt)?;
+                Some(reader.output(hash).ok_or_else(corrupt)?)
+            }
+            _ => return Err(corrupt()),
+        };
+        chains.insert(chain_id, ChainResult { block, output, required_l1, replaced });
     }
-    let (l1_inclusion, heads) = value.split_at(L1_INCLUSION_LEN);
-    let heads = heads
-        .as_chunks::<HEAD_LEN>()
-        .0
-        .iter()
-        .map(|head| (be_u64(&head[..8]), read_block(&head[8..])))
-        .collect::<BTreeMap<_, _>>();
-    Ok(VerifiedResult { l1_inclusion: read_block(l1_inclusion), heads })
+    Ok(VerifiedResult { l1_inclusion, chains })
 }
 
 fn decode_denied(key: &[u8], value: &[u8]) -> Result<DeniedRecord, StoreError> {
     if key.len() != DENIED_KEY_LEN || value.len() != DENIED_VALUE_LEN {
         return Err(corrupt("denied", key));
     }
-    Ok(DeniedRecord {
-        chain_id: be_u64(&key[1..9]),
-        block: BlockNumHash { number: be_u64(&key[9..17]), hash: B256::from_slice(&key[17..]) },
-        output_root: B256::from_slice(&value[..32]),
-        timestamp: be_u64(&value[32..40]),
-        l1: read_block(&value[40..]),
-    })
+    let block = BlockNumHash { number: be_u64(&key[9..17]), hash: B256::from_slice(&key[17..]) };
+    let mut reader = Reader(value);
+    let decoded = (|| {
+        Some(DeniedRecord {
+            chain_id: be_u64(&key[1..9]),
+            block,
+            output: reader.output(block.hash)?,
+            timestamp: reader.u64()?,
+            l1: reader.block()?,
+        })
+    })();
+    decoded.ok_or_else(|| corrupt("denied", key))
+}
+
+/// Reads a value front to back.
+struct Reader<'a>(&'a [u8]);
+
+impl<'a> Reader<'a> {
+    fn take(&mut self, len: usize) -> Option<&'a [u8]> {
+        let (head, rest) = self.0.split_at_checked(len)?;
+        self.0 = rest;
+        Some(head)
+    }
+
+    fn u64(&mut self) -> Option<u64> {
+        self.take(8).map(be_u64)
+    }
+
+    fn hash(&mut self) -> Option<B256> {
+        self.take(32).map(B256::from_slice)
+    }
+
+    fn block(&mut self) -> Option<BlockNumHash> {
+        Some(BlockNumHash { number: self.u64()?, hash: self.hash()? })
+    }
+
+    /// The output of the block with hash `block_hash`.
+    fn output(&mut self, block_hash: B256) -> Option<OutputRoot> {
+        Some(OutputRoot::from_parts(self.hash()?, self.hash()?, block_hash))
+    }
+}
+
+fn push_output_roots(value: &mut Vec<u8>, output: &OutputRoot) {
+    value.extend_from_slice(output.state_root.as_slice());
+    value.extend_from_slice(output.bridge_storage_root.as_slice());
 }
 
 fn push_block(value: &mut Vec<u8>, block: BlockNumHash) {
     value.extend_from_slice(&block.number.to_be_bytes());
     value.extend_from_slice(block.hash.as_slice());
-}
-
-/// Reads a block from 40 bytes: number, then hash.
-fn read_block(bytes: &[u8]) -> BlockNumHash {
-    BlockNumHash { number: be_u64(&bytes[..8]), hash: B256::from_slice(&bytes[8..40]) }
 }
 
 /// Reads a big-endian `u64` from exactly 8 bytes.
@@ -277,10 +332,25 @@ mod tests {
         BlockNumHash { number, hash: B256::with_last_byte(number as u8) }
     }
 
+    fn output(block: BlockNumHash, tag: u8) -> OutputRoot {
+        OutputRoot::from_parts(B256::repeat_byte(tag), B256::repeat_byte(tag + 1), block.hash)
+    }
+
+    /// A result of two chains, the second of whose blocks replaced a denied one.
     fn result(n: u64) -> VerifiedResult {
+        let chain = |number: u64, replaced| ChainResult {
+            block: block(number),
+            output: output(block(number), 0xa0),
+            required_l1: block(50 + n),
+            replaced,
+        };
+        let denied = BlockNumHash { number: 2 * n, hash: B256::repeat_byte(0xdd) };
         VerifiedResult {
             l1_inclusion: block(100 + n),
-            heads: BTreeMap::from([(901, block(n)), (902, block(2 * n))]),
+            chains: BTreeMap::from([
+                (901, chain(n, None)),
+                (902, chain(2 * n, Some(output(denied, 0xb0)))),
+            ]),
         }
     }
 
@@ -288,7 +358,7 @@ mod tests {
         DeniedRecord {
             chain_id,
             block: block(number),
-            output_root: B256::repeat_byte(0xee),
+            output: output(block(number), 0xe0),
             timestamp: 1000 + number,
             l1: block(200 + number),
         }
@@ -382,7 +452,7 @@ mod tests {
         let [wal] = wals.as_slice() else { panic!("one write-ahead log, got {wals:?}") };
         let len = fs::metadata(wal).unwrap().len();
         // Cut into the last record, which is larger than its encoded value alone.
-        let cut = len - (L1_INCLUSION_LEN as u64);
+        let cut = len - (BLOCK_LEN as u64);
         fs::OpenOptions::new().write(true).open(wal).unwrap().set_len(cut).unwrap();
 
         let store = Store::open(dir.path()).unwrap();
@@ -400,5 +470,16 @@ mod tests {
         value.pop();
 
         assert!(matches!(decode_result(&key, &value), Err(StoreError::Corrupt { .. })));
+    }
+
+    #[test]
+    fn a_result_and_a_denial_decode_to_what_was_encoded() {
+        let key = result_key(3);
+        assert_eq!(decode_result(&key, &encode_result(&result(3))).unwrap(), result(3));
+
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        store.put_denied(&denied(901, 4)).unwrap();
+        assert_eq!(store.denied(901, 4).unwrap(), vec![denied(901, 4)]);
     }
 }

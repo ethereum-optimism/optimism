@@ -6,8 +6,8 @@
 
 use crate::store::{Store, StoreError};
 use alloy_eips::BlockNumHash;
-use alloy_primitives::B256;
 use kona_engine::VerifierHead;
+use kona_protocol::OutputRoot;
 use std::collections::BTreeMap;
 
 /// The verified result of one timestamp: every chain's local-safe block at it, all of whose
@@ -18,7 +18,29 @@ pub(crate) struct VerifiedResult {
     /// timestamp: the result holds on an L1 chain that includes it.
     pub l1_inclusion: BlockNumHash,
     /// Each chain's block at the timestamp, by chain ID.
-    pub heads: BTreeMap<u64, BlockNumHash>,
+    pub chains: BTreeMap<u64, ChainResult>,
+}
+
+/// One chain's block in a [`VerifiedResult`], with what `superroot_atTimestamp` answers for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ChainResult {
+    /// The block.
+    pub block: BlockNumHash,
+    /// The block's output root preimage.
+    pub output: OutputRoot,
+    /// The L1 block the chain's source reported the block safe at.
+    pub required_l1: BlockNumHash,
+    /// The output root preimage of the denied block this one replaced, where the chain produced
+    /// the block at exactly the timestamp as the replacement of a block verification denied.
+    pub replaced: Option<OutputRoot>,
+}
+
+impl ChainResult {
+    /// The output the chain would have at the timestamp had verification denied nothing: the
+    /// denied block where this one replaced it.
+    pub(crate) fn optimistic(&self) -> &OutputRoot {
+        self.replaced.as_ref().unwrap_or(&self.output)
+    }
 }
 
 /// A block the verifier denied: its chain must replace it.
@@ -28,8 +50,8 @@ pub(crate) struct DeniedRecord {
     pub chain_id: u64,
     /// The denied block.
     pub block: BlockNumHash,
-    /// The output root of the denied block.
-    pub output_root: B256,
+    /// The output root preimage of the denied block.
+    pub output: OutputRoot,
     /// The timestamp whose verification denied the block.
     pub timestamp: u64,
     /// The latest L1 block the decision depended on: the denial holds on an L1 chain that
@@ -58,6 +80,14 @@ pub(crate) struct Verified {
     /// started. Until it has, the store may be far behind what the nodes were told before, so
     /// the authority answers no heads.
     caught_up: bool,
+    /// The next timestamp when the state was opened: where this run started verifying.
+    start_timestamp: u64,
+    /// The L1 block verification is at: every L1 block strictly below it has been fully
+    /// considered, so a timestamp that is not verified needs L1 data at or above it. Zero until
+    /// the first round since the start decides it.
+    current_l1: BlockNumHash,
+    /// The timestamp from which on verification pauses, for tests.
+    pause_at: Option<u64>,
 }
 
 impl Verified {
@@ -71,15 +101,16 @@ impl Verified {
         let latest = store.last_result()?;
         if let Some((_, result)) = &latest {
             let first = store.first_result()?.map_or(activation_timestamp, |(ts, _)| ts);
-            if first != activation_timestamp || !result.heads.keys().eq(genesis_times.keys()) {
+            if first != activation_timestamp || !result.chains.keys().eq(genesis_times.keys()) {
                 return Err(StoreError::OtherConfig {
                     first,
-                    chains: result.heads.keys().copied().collect(),
+                    chains: result.chains.keys().copied().collect(),
                     activation: activation_timestamp,
                     expected: genesis_times.keys().copied().collect(),
                 });
             }
         }
+        let start_timestamp = latest.as_ref().map_or(activation_timestamp, |(ts, _)| ts + 1);
         Ok(Self {
             activation_timestamp,
             genesis_times,
@@ -87,7 +118,42 @@ impl Verified {
             latest,
             finalized: None,
             caught_up: false,
+            start_timestamp,
+            current_l1: BlockNumHash::default(),
+            pause_at: None,
         })
+    }
+
+    /// Where this run started verifying: the activation timestamp on an empty store, the one
+    /// after the last stored result on a resume.
+    pub(crate) const fn start_timestamp(&self) -> u64 {
+        self.start_timestamp
+    }
+
+    /// The L1 block verification is at: a timestamp that is not verified needs L1 data at or
+    /// above it.
+    pub(crate) const fn current_l1(&self) -> BlockNumHash {
+        self.current_l1
+    }
+
+    /// Records the L1 block verification is at.
+    pub(crate) const fn set_current_l1(&mut self, current_l1: BlockNumHash) {
+        self.current_l1 = current_l1;
+    }
+
+    /// The timestamp from which on verification pauses, if set.
+    pub(crate) const fn pause_at(&self) -> Option<u64> {
+        self.pause_at
+    }
+
+    /// Pauses verification before `timestamp` and every later one, or resumes it with `None`.
+    pub(crate) const fn set_pause_at(&mut self, timestamp: Option<u64>) {
+        self.pause_at = timestamp;
+    }
+
+    /// Whether `timestamp` is verified: before activation every timestamp is.
+    pub(crate) fn is_verified_at(&self, timestamp: u64) -> bool {
+        timestamp < self.activation_timestamp || timestamp < self.next_timestamp()
     }
 
     /// The first timestamp the verifier covers.
@@ -137,7 +203,8 @@ impl Verified {
     }
 
     /// Deletes the results from `timestamp` on, with the denials decided at or after it, which
-    /// were decided on them, durably before the authority answers the rewound heads.
+    /// were decided on them, durably before the authority answers the rewound heads. Verification
+    /// is then at no known L1 block until a round decides it again.
     ///
     /// `timestamp` must be above the finalized result: finality never moves back.
     pub(crate) fn rewind(&mut self, timestamp: u64) -> Result<(usize, usize), StoreError> {
@@ -146,6 +213,7 @@ impl Verified {
             "rewind to {timestamp} below the finalized result {:?}",
             self.finalized.as_ref().map(|(ts, _)| ts)
         );
+        self.current_l1 = BlockNumHash::default();
         let deleted = self.store.rewind(timestamp)?;
         self.latest = self.store.last_result()?;
         Ok(deleted)
@@ -206,11 +274,21 @@ impl Verified {
         chain_id: u64,
         block: BlockNumHash,
     ) -> Result<Option<DeniedRecord>, StoreError> {
-        let denied = self.store.denied(chain_id, block.number)?;
-        Ok(denied
+        Ok(self
+            .denials_at(chain_id, block.number)?
             .into_iter()
-            .take_while(|record| record.block.number == block.number)
             .find(|record| record.block == block))
+    }
+
+    /// The denied blocks of `chain_id` at height `number`.
+    pub(crate) fn denials_at(
+        &self,
+        chain_id: u64,
+        number: u64,
+    ) -> Result<Vec<DeniedRecord>, StoreError> {
+        let mut denied = self.store.denied(chain_id, number)?;
+        denied.retain(|record| record.block.number == number);
+        Ok(denied)
     }
 
     /// Deletes a denial, durably, before the authority stops answering it.
@@ -268,9 +346,10 @@ impl Verified {
     fn head_in(&self, chain_id: u64, verified: Option<&AtTimestamp>) -> Option<VerifierHead> {
         let genesis_time = *self.genesis_times.get(&chain_id)?;
         Some(match verified {
-            Some((timestamp, result)) => {
-                VerifierHead::Verified { block: result.heads[&chain_id], timestamp: *timestamp }
-            }
+            Some((timestamp, result)) => VerifierHead::Verified {
+                block: result.chains[&chain_id].block,
+                timestamp: *timestamp,
+            },
             // Clamped to genesis so the node can resolve it.
             None => VerifierHead::Anchor {
                 timestamp: self.activation_timestamp.saturating_sub(1).max(genesis_time),
@@ -282,6 +361,7 @@ impl Verified {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use alloy_primitives::B256;
     use std::path::Path;
 
     const CHAIN: u64 = 10;
@@ -292,7 +372,25 @@ pub(crate) mod tests {
     }
 
     fn result(l2: u64, l1: u64) -> VerifiedResult {
-        VerifiedResult { l1_inclusion: block(l1), heads: BTreeMap::from([(CHAIN, block(l2))]) }
+        VerifiedResult {
+            l1_inclusion: block(l1),
+            chains: BTreeMap::from([(CHAIN, chain_result(block(l2)))]),
+        }
+    }
+
+    /// The output of `block` in tests: its state roots are fixed.
+    pub(crate) fn output_of(block: BlockNumHash) -> OutputRoot {
+        OutputRoot::from_parts(B256::repeat_byte(0x51), B256::repeat_byte(0x52), block.hash)
+    }
+
+    /// `block` as a chain's block in a verified result, safe at L1 block 1, replacing nothing.
+    pub(crate) fn chain_result(block: BlockNumHash) -> ChainResult {
+        ChainResult {
+            block,
+            output: output_of(block),
+            required_l1: BlockNumHash { number: 1, hash: B256::repeat_byte(1) },
+            replaced: None,
+        }
     }
 
     /// The state in the store at `dir`.
@@ -382,7 +480,7 @@ pub(crate) mod tests {
         let denial = |number: u64, timestamp: u64| DeniedRecord {
             chain_id: CHAIN,
             block: block(number),
-            output_root: B256::repeat_byte(1),
+            output: output_of(block(number)),
             timestamp,
             l1: block(7),
         };
@@ -427,7 +525,7 @@ pub(crate) mod tests {
                 .deny(&DeniedRecord {
                     chain_id: CHAIN,
                     block: block(9),
-                    output_root: B256::repeat_byte(1),
+                    output: output_of(block(9)),
                     timestamp: ACTIVATION + 7,
                     l1: block(12),
                 })
@@ -479,7 +577,7 @@ pub(crate) mod tests {
         let denied = DeniedRecord {
             chain_id: CHAIN,
             block: block(3),
-            output_root: B256::repeat_byte(3),
+            output: output_of(block(3)),
             timestamp: ACTIVATION + 2,
             l1: block(6),
         };
