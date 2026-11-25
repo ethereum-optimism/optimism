@@ -43,7 +43,6 @@ func simpleInteropFromRuntimeComponents(
 	t.Require().NotNil(l2A, "missing l2a preset components")
 	t.Require().NotNil(l2B, "missing l2b preset components")
 
-	supernodeFrontend := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC(), runtime.Supernode)
 	testSequencer := newTestSequencerFrontend(
 		t,
 		runtime.TestSequencer.Name,
@@ -57,7 +56,7 @@ func simpleInteropFromRuntimeComponents(
 			Log:              t.Logger(),
 			T:                t,
 			timeTravel:       runtime.TimeTravel,
-			SuperRoots:       dsl.NewSupernodeWithTestControl(supernodeFrontend, runtime.Supernode),
+			SuperRoots:       newSupernodeDSL(t, "supernode-two-l2-system", runtime),
 			TestSequencer:    dsl.NewTestSequencer(testSequencer),
 			L1Network:        components.l1Network,
 			L1EL:             components.l1EL,
@@ -148,7 +147,6 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 		l2Chain.AddL2Challenger(newPresetL2Challenger(t, "main", l2ChainID, challengerCfg))
 	}
 
-	supernodeFrontend := newSupernodeFrontend(t, "supernode-single-system-proofs", runtime.Supernode.UserRPC(), runtime.Supernode)
 	testSequencer := newTestSequencerFrontend(
 		t,
 		runtime.TestSequencer.Name,
@@ -165,7 +163,7 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 		Log:              t.Logger(),
 		T:                t,
 		timeTravel:       runtime.TimeTravel,
-		SuperRoots:       dsl.NewSupernodeWithTestControl(supernodeFrontend, runtime.Supernode),
+		SuperRoots:       newSupernodeDSL(t, "supernode-single-system-proofs", runtime),
 		TestSequencer:    dsl.NewTestSequencer(testSequencer),
 		L1Network:        dsl.NewL1Network(l1Network, l1ELDSL, l1CLDSL),
 		L1EL:             l1ELDSL,

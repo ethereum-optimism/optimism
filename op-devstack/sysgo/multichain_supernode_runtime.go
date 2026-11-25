@@ -121,6 +121,9 @@ func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [
 }
 
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+	if cfg.InteropVerifier == SupernodeLokahi {
+		return newSingleChainLokahiRuntime(t, lagoonAtGenesis, cfg)
+	}
 	require := t.Require()
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
@@ -212,6 +215,17 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 ) (*MultiChainRuntime, uint64) {
 	require := t.Require()
 	require.NotEmpty(chainSpecs, "multi-chain runtime needs at least one L2 chain")
+	if cfg.InteropVerifier == SupernodeLokahi {
+		require.True(supernodeSequencerEnabled && !cfg.SupernodeVNSequencerForBootstrap,
+			"the lokahi backend has no light sequencers")
+		require.Zero(cfg.InteropLogBackfillDepth, "the log backfill depth configures op-supernode")
+		var activationTime uint64
+		runtime := newMultiL2LokahiRuntime(t, enableInterop, delaySeconds, cfg, lokahiChainsConfig{perChainProposer: true}, chainSpecs)
+		if enableInterop {
+			activationTime = runtime.Chains[chainSpecs[0].Name].Network.rollupCfg.Genesis.L2Time + delaySeconds
+		}
+		return runtime, activationTime
+	}
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")

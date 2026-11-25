@@ -19,20 +19,28 @@ type presetCase struct {
 	newPreset func(devtest.T)
 }
 
-// opNodeOnlyPresets start only op-node and op-supernode CLs, so under kona-node each must skip
-// before it starts anything.
-var opNodeOnlyPresets = []presetCase{
-	{"NewSimpleInterop", func(t devtest.T) { NewSimpleInterop(t) }},
-	{"NewSimpleInteropIsthmusSuper", func(t devtest.T) { NewSimpleInteropIsthmusSuper(t) }},
-	{"NewThreeChainInterop", func(t devtest.T) { NewThreeChainInterop(t) }},
-	{"NewSingleChainInterop", func(t devtest.T) { NewSingleChainInterop(t) }},
-	{"NewSingleChainInteropIsthmusSuper", func(t devtest.T) { NewSingleChainInteropIsthmusSuper(t) }},
-	{"NewSingleChainInteropSuperRootAtGenesis", func(t devtest.T) { NewSingleChainInteropSuperRootAtGenesis(t) }},
-	{"NewTwoL2Supernode", func(t devtest.T) { NewTwoL2Supernode(t) }},
-	{"NewTwoL2SupernodeInterop", func(t devtest.T) { NewTwoL2SupernodeInterop(t, 0) }},
-	{"NewTwoL2SupernodeLightSequencerInterop", func(t devtest.T) { NewTwoL2SupernodeLightSequencerInterop(t, 0) }},
-	{"NewTwoL2SupernodeFollowL2", func(t devtest.T) { NewTwoL2SupernodeFollowL2(t, 0) }},
-	{"NewSingleSupernodeWithSyncTester", func(t devtest.T) { NewSingleSupernodeWithSyncTester(t) }},
+type supernodePresetCase struct {
+	presetCase
+	// onLokahi says whether the preset runs with DEVSTACK_SUPERNODE_KIND=lokahi, rather than
+	// skipping because the lokahi backend lacks what it needs.
+	onLokahi bool
+}
+
+// supernodePresets start op-node and op-supernode CLs by default, so under kona-node each must
+// skip before it starts anything. With DEVSTACK_SUPERNODE_KIND=lokahi they start a kona-node per
+// chain and lokahi instead, or skip where the lokahi backend lacks what they need.
+var supernodePresets = []supernodePresetCase{
+	{presetCase{"NewSimpleInterop", func(t devtest.T) { NewSimpleInterop(t) }}, true},
+	{presetCase{"NewSimpleInteropIsthmusSuper", func(t devtest.T) { NewSimpleInteropIsthmusSuper(t) }}, true},
+	{presetCase{"NewThreeChainInterop", func(t devtest.T) { NewThreeChainInterop(t) }}, true},
+	{presetCase{"NewSingleChainInterop", func(t devtest.T) { NewSingleChainInterop(t) }}, true},
+	{presetCase{"NewSingleChainInteropIsthmusSuper", func(t devtest.T) { NewSingleChainInteropIsthmusSuper(t) }}, true},
+	{presetCase{"NewSingleChainInteropSuperRootAtGenesis", func(t devtest.T) { NewSingleChainInteropSuperRootAtGenesis(t) }}, true},
+	{presetCase{"NewTwoL2Supernode", func(t devtest.T) { NewTwoL2Supernode(t) }}, false},
+	{presetCase{"NewTwoL2SupernodeInterop", func(t devtest.T) { NewTwoL2SupernodeInterop(t, 0) }}, true},
+	{presetCase{"NewTwoL2SupernodeLightSequencerInterop", func(t devtest.T) { NewTwoL2SupernodeLightSequencerInterop(t, 0) }}, false},
+	{presetCase{"NewTwoL2SupernodeFollowL2", func(t devtest.T) { NewTwoL2SupernodeFollowL2(t, 0) }}, false},
+	{presetCase{"NewSingleSupernodeWithSyncTester", func(t devtest.T) { NewSingleSupernodeWithSyncTester(t) }}, false},
 }
 
 // konaCapablePresets start the CL kind DEVSTACK_L2CL_KIND selects, so they must still run in the
@@ -67,10 +75,36 @@ var notPresets = []string{
 	"NewMixedSingleChainFrontends", // wraps a runtime the caller already started
 }
 
-func TestOpNodeOnlyPresetsSkipOnKonaNode(t *testing.T) {
+func TestSupernodePresetsSkipOnKonaNode(t *testing.T) {
 	t.Setenv("DEVSTACK_L2CL_KIND", string(sysgo.MixedL2CLKona))
-	for _, p := range opNodeOnlyPresets {
+	t.Setenv("DEVSTACK_SUPERNODE_KIND", "")
+	for _, p := range supernodePresets {
 		require.Truef(t, runSkipped(t, p.name, p.newPreset), "%s did not skip under kona-node", p.name)
+	}
+}
+
+func TestSupernodePresetsSelectTheirVerifier(t *testing.T) {
+	for _, tc := range []struct {
+		clKind        sysgo.MixedL2CLKind
+		supernodeKind sysgo.SupernodeKind
+		// wantSkip says which presets skip: none, all, or those that cannot run on lokahi.
+		wantSkip func(supernodePresetCase) bool
+	}{
+		{"", "", func(supernodePresetCase) bool { return false }},
+		{sysgo.MixedL2CLOpNode, sysgo.SupernodeOpSupernode, func(supernodePresetCase) bool { return false }},
+		{sysgo.MixedL2CLOpReth, sysgo.SupernodeOpSupernode, func(supernodePresetCase) bool { return true }},
+		{"", sysgo.SupernodeLokahi, func(supernodePresetCase) bool { return true }},
+		{sysgo.MixedL2CLOpNode, sysgo.SupernodeLokahi, func(supernodePresetCase) bool { return true }},
+		{sysgo.MixedL2CLKona, sysgo.SupernodeLokahi, func(p supernodePresetCase) bool { return !p.onLokahi }},
+		{sysgo.MixedL2CLOpReth, sysgo.SupernodeLokahi, func(p supernodePresetCase) bool { return !p.onLokahi }},
+	} {
+		t.Setenv("DEVSTACK_L2CL_KIND", string(tc.clKind))
+		t.Setenv("DEVSTACK_SUPERNODE_KIND", string(tc.supernodeKind))
+		for _, p := range supernodePresets {
+			name := p.name + "/cl=" + string(tc.clKind) + "/supernode=" + string(tc.supernodeKind)
+			require.Equalf(t, tc.wantSkip(p), runSkipped(t, name, p.newPreset),
+				"%s under DEVSTACK_L2CL_KIND=%q DEVSTACK_SUPERNODE_KIND=%q", p.name, tc.clKind, tc.supernodeKind)
+		}
 	}
 }
 
@@ -100,12 +134,15 @@ func TestKonaOnlyPresetsSkipOnOpNode(t *testing.T) {
 }
 
 // Every exported New* func whose first parameter is a devtest.T must be on exactly one of the
-// lists, so a new preset can't land without a CL kind decision. An unlisted op-node-only preset
+// lists, so a new preset can't land without a CL kind decision. An unlisted supernode preset
 // would repeat the op-node job under kona-node, and an unlisted kona-only one the kona-node job
 // under op-node.
 func TestEveryPresetIsClassified(t *testing.T) {
 	var listed []string
-	for _, p := range slices.Concat(opNodeOnlyPresets, konaCapablePresets, konaOnlyPresets) {
+	for _, p := range supernodePresets {
+		listed = append(listed, p.name)
+	}
+	for _, p := range slices.Concat(konaCapablePresets, konaOnlyPresets) {
 		listed = append(listed, p.name)
 	}
 	listed = append(listed, notPresets...)
@@ -132,7 +169,7 @@ func TestEveryPresetIsClassified(t *testing.T) {
 	}
 	require.NotEmpty(t, constructors)
 	require.ElementsMatch(t, constructors, listed,
-		"an extra in list A needs adding to one of opNodeOnlyPresets, konaCapablePresets, konaOnlyPresets and notPresets; "+
+		"an extra in list A needs adding to one of supernodePresets, konaCapablePresets, konaOnlyPresets and notPresets; "+
 			"an extra in list B is listed twice or is not an exported New* func taking a devtest.T")
 }
 
