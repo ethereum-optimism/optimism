@@ -21,9 +21,10 @@ type TwoL2Lokahi struct {
 }
 
 // NewTwoL2Lokahi starts a [TwoL2Lokahi] system for the current test. With
-// DEVSTACK_L2CL_KIND=op-reth each chain runs kona inside its op-reth process, otherwise as a
-// kona-node process.
+// DEVSTACK_L2CL_KIND=op-reth each chain runs kona inside its op-reth process, with kona-node as a
+// kona-node process. It skips the test under op-node.
 func NewTwoL2Lokahi(t devtest.T) *TwoL2Lokahi {
+	skipKonaOnlyPresetOnOpNode(t)
 	runtime := sysgo.NewTwoL2LokahiRuntime(t)
 	inOpReth := sysgo.ResolveMixedL2CLKind(t) == sysgo.MixedL2CLOpReth
 	for name, chain := range runtime.Chains {
@@ -46,5 +47,14 @@ func NewTwoL2Lokahi(t devtest.T) *TwoL2Lokahi {
 		L2ELA:  dsl.NewL2ELNode(components.l2AEL),
 		L2ELB:  dsl.NewL2ELNode(components.l2BEL),
 		Lokahi: runtime.Lokahi,
+	}
+}
+
+// skipKonaOnlyPresetOnOpNode skips unless the selected CL runs kona. The lokahi presets call it
+// because their chains always run kona, whose interop authority follower op-node lacks, so under
+// op-node the test would repeat the kona-node job.
+func skipKonaOnlyPresetOnOpNode(t devtest.T) {
+	if !sysgo.ResolveMixedL2CLKind(t).RunsKona() {
+		t.Skip("skipping on op-node: this preset starts only kona CLs whatever DEVSTACK_L2CL_KIND says")
 	}
 }

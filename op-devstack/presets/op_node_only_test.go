@@ -54,6 +54,12 @@ var konaCapablePresets = []presetCase{
 	{"NewSingleChainTwoVerifiersWithoutCheck", func(t devtest.T) { NewSingleChainTwoVerifiersWithoutCheck(t) }},
 }
 
+// konaOnlyPresets start only kona CLs, as kona-node or inside op-reth, so under op-node each must
+// skip before it starts anything.
+var konaOnlyPresets = []presetCase{
+	{"NewTwoL2Lokahi", func(t devtest.T) { NewTwoL2Lokahi(t) }},
+}
+
 // notPresets take a devtest.T but start nothing themselves.
 var notPresets = []string{
 	"NewMixedSingleChainFrontends", // wraps a runtime the caller already started
@@ -73,12 +79,31 @@ func TestKonaCapablePresetsRunOnKonaNode(t *testing.T) {
 	}
 }
 
-// Every exported New* func whose first parameter is a devtest.T must be on exactly one of the three
-// lists, so a new preset can't land without a kona-node decision. An unlisted op-node-only preset
-// would repeat the op-node job under kona-node.
+func TestKonaOnlyPresetsSkipOnOpNode(t *testing.T) {
+	for _, tc := range []struct {
+		kind     sysgo.MixedL2CLKind
+		wantSkip bool
+	}{
+		{"", true},
+		{sysgo.MixedL2CLOpNode, true},
+		{sysgo.MixedL2CLKona, false},
+		{sysgo.MixedL2CLOpReth, false},
+	} {
+		t.Setenv("DEVSTACK_L2CL_KIND", string(tc.kind))
+		for _, p := range konaOnlyPresets {
+			require.Equalf(t, tc.wantSkip, runSkipped(t, p.name+"/kind="+string(tc.kind), p.newPreset),
+				"%s under DEVSTACK_L2CL_KIND=%q", p.name, tc.kind)
+		}
+	}
+}
+
+// Every exported New* func whose first parameter is a devtest.T must be on exactly one of the
+// lists, so a new preset can't land without a CL kind decision. An unlisted op-node-only preset
+// would repeat the op-node job under kona-node, and an unlisted kona-only one the kona-node job
+// under op-node.
 func TestEveryPresetIsClassified(t *testing.T) {
 	var listed []string
-	for _, p := range slices.Concat(opNodeOnlyPresets, konaCapablePresets) {
+	for _, p := range slices.Concat(opNodeOnlyPresets, konaCapablePresets, konaOnlyPresets) {
 		listed = append(listed, p.name)
 	}
 	listed = append(listed, notPresets...)
@@ -105,7 +130,7 @@ func TestEveryPresetIsClassified(t *testing.T) {
 	}
 	require.NotEmpty(t, constructors)
 	require.ElementsMatch(t, constructors, listed,
-		"an extra in list A needs adding to one of opNodeOnlyPresets, konaCapablePresets and notPresets; "+
+		"an extra in list A needs adding to one of opNodeOnlyPresets, konaCapablePresets, konaOnlyPresets and notPresets; "+
 			"an extra in list B is listed twice or is not an exported New* func taking a devtest.T")
 }
 
