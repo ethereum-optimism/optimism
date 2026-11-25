@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -59,7 +60,7 @@ func TestCombineDeployConfig(t *testing.T) {
 		"l2GenesisLagoonTimeOffset":   "0x7",
 	}
 
-	out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+	out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 	require.NoError(t, err)
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisFjordTimeOffset, hexutil.Uint64(1))
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisGraniteTimeOffset, hexutil.Uint64(2))
@@ -73,7 +74,7 @@ func TestCombineDeployConfig(t *testing.T) {
 func TestCombineDeployConfig_SettlementChainID(t *testing.T) {
 	intent, chainIntent, state, chainState := newCombineFixture()
 	chainIntent.DeployOverrides = map[string]any{"settlementChainId": 1337}
-	out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+	out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 	require.NoError(t, err)
 	require.Equal(t, uint64(1337), out.SettlementChainID)
 }
@@ -81,7 +82,7 @@ func TestCombineDeployConfig_SettlementChainID(t *testing.T) {
 func TestCombineDeployConfig_ProofDelays(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()
-		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 		require.NoError(t, err)
 		require.Equal(t, standard.ProofMaturityDelaySeconds, out.ProofMaturityDelaySeconds)
 		require.Equal(t, standard.DisputeGameFinalityDelaySeconds, out.DisputeGameFinalityDelaySeconds)
@@ -91,7 +92,7 @@ func TestCombineDeployConfig_ProofDelays(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()
 		intent.GlobalDeployOverrides = map[string]any{"proofMaturityDelaySeconds": 12}
 		chainIntent.DeployOverrides = map[string]any{"disputeGameFinalityDelaySeconds": 6}
-		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 		require.NoError(t, err)
 		require.Equal(t, uint64(12), out.ProofMaturityDelaySeconds)
 		require.Equal(t, uint64(6), out.DisputeGameFinalityDelaySeconds)
@@ -101,7 +102,7 @@ func TestCombineDeployConfig_ProofDelays(t *testing.T) {
 func TestCombineDeployConfig_GenesisTime(t *testing.T) {
 	t.Run("unset leaves the deploy config timestamp nil", func(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()
-		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 		require.NoError(t, err)
 		require.Nil(t, out.L2GenesisBlockTimestamp)
 	})
@@ -110,7 +111,7 @@ func TestCombineDeployConfig_GenesisTime(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()
 		genesisTime := hexutil.Uint64(1_750_000_000)
 		chainState.GenesisTime = &genesisTime
-		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 		require.NoError(t, err)
 		require.NotNil(t, out.L2GenesisBlockTimestamp)
 		require.Equal(t, genesisTime, *out.L2GenesisBlockTimestamp)
@@ -124,7 +125,7 @@ func TestCombineDeployConfig_PinnedOverrides(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()
 		chainState.GenesisTime = &genesisTime
 		chainIntent.DeployOverrides = map[string]any{"l2GenesisBlockTimestamp": genesisTime}
-		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 		require.ErrorContains(t, err, `deployOverrides key "l2GenesisBlockTimestamp" conflicts with the anchor commitment`)
 	})
 
@@ -132,7 +133,7 @@ func TestCombineDeployConfig_PinnedOverrides(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()
 		chainState.GenesisTime = &genesisTime
 		intent.GlobalDeployOverrides = map[string]any{"l1StartingBlockTag": "0x1111111111111111111111111111111111111111111111111111111111111111"}
-		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 		require.ErrorContains(t, err, `globalDeployOverrides key "l1StartingBlockTag" conflicts with the anchor commitment`)
 	})
 
@@ -140,7 +141,7 @@ func TestCombineDeployConfig_PinnedOverrides(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()
 		chainState.GenesisTime = &genesisTime
 		chainIntent.DeployOverrides = map[string]any{"L2GenesisBlockTimestamp": hexutil.Uint64(1)}
-		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		_, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 		require.ErrorContains(t, err, `deployOverrides key "L2GenesisBlockTimestamp" conflicts with the anchor commitment`)
 	})
 
@@ -148,7 +149,7 @@ func TestCombineDeployConfig_PinnedOverrides(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()
 		override := hexutil.Uint64(1_760_000_000)
 		chainIntent.DeployOverrides = map[string]any{"l2GenesisBlockTimestamp": override}
-		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 		require.NoError(t, err)
 		require.NotNil(t, out.L2GenesisBlockTimestamp)
 		require.Equal(t, override, *out.L2GenesisBlockTimestamp)
@@ -158,7 +159,7 @@ func TestCombineDeployConfig_PinnedOverrides(t *testing.T) {
 		intent, chainIntent, state, chainState := newCombineFixture()
 		chainState.GenesisTime = &genesisTime
 		chainIntent.DeployOverrides = map[string]any{"l2BlockTime": 1}
-		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
+		out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState, registry.DefaultHardforkSchedule())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, out.L2BlockTime)
 		require.Equal(t, genesisTime, *out.L2GenesisBlockTimestamp)

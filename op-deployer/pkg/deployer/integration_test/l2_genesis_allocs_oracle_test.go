@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
@@ -168,7 +169,7 @@ func generateL2Genesis(t *testing.T, mode allocMode) generatedL2Genesis {
 	require.NoError(t, err)
 	require.NotNil(t, chainState.Allocs)
 
-	cfg, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
+	cfg, err := state.CombineDeployConfig(intent, chainIntent, st, chainState, registry.DefaultHardforkSchedule())
 	require.NoError(t, err)
 	_, rollupCfg, err := inspect.GenesisAndRollup(st, chainIntent.ID)
 	require.NoError(t, err)
