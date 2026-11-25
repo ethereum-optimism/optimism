@@ -1,11 +1,12 @@
 ---
 title: OP Contracts Manager
-description: Learn how OP Contracts Manager deploys the OP Stack with one transaction.
+description: Understand what OP Contracts Manager is, why it exists, and how it deploys and upgrades the L1 contracts for OP Stack chains in a single transaction.
+diataxis: explanation
 ---
 
 The OP Contracts Manager is a contract that deploys the L1 contracts for an OP Stack chain in a single transaction. It provides a minimal set of user-configurable parameters to ensure that the resulting chain meets the standard configuration requirements. Additionally, as of [Upgrade 13](https://gov.optimism.io/t/upgrade-proposal-13-opcm-and-incident-response-improvements/9739), instances of OPCM can upgrade existing OP Stack chains.
 
-The version deployed is always a governance-approved contract release. The set of governance approved contract releases can be found on the Optimism Monorepo releases page, and is the set of releases named `op-contracts/vX.Y.Z`. It deploys the [Fault Proof System](/op-stack/fault-proofs/explainer), using the [PermissionedDisputeGame](/op-stack/protocol/smart-contracts#permissioneddisputegame).
+The version deployed is always a governance-approved contract release. The set of governance approved contract releases can be found on the Optimism Monorepo releases page, and is the set of releases named `op-contracts/vX.Y.Z`. It deploys the [Fault Proof System](/op-stack/fault-proofs/explainer), using the [PermissionedDisputeGame](/op-stack/protocol/smart-contracts#proposals-and-fault-proofs).
 
 ## Purpose
 

@@ -1,0 +1,329 @@
+package metrics
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	clientmodel "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+)
+
+const (
+	defaultFetchTimeout = 10 * time.Second
+	defaultWaitTimeout  = 60 * time.Second
+)
+
+type MetricsClient struct {
+	client       client.HTTP
+	fetchTimeout time.Duration
+	waitTimeout  time.Duration
+}
+
+type Option func(*MetricsClient)
+
+func WithFetchTimeout(timeout time.Duration) Option {
+	return func(client *MetricsClient) {
+		client.fetchTimeout = timeout
+	}
+}
+
+func WithWaitTimeout(timeout time.Duration) Option {
+	return func(client *MetricsClient) {
+		client.waitTimeout = timeout
+	}
+}
+
+func NewMetricsClient(httpClient client.HTTP, options ...Option) *MetricsClient {
+	metricsClient := &MetricsClient{
+		client:       httpClient,
+		fetchTimeout: defaultFetchTimeout,
+		waitTimeout:  defaultWaitTimeout,
+	}
+	for _, option := range options {
+		if option != nil {
+			option(metricsClient)
+		}
+	}
+	return metricsClient
+}
+
+func (c *MetricsClient) validate() error {
+	if c.client == nil {
+		return fmt.Errorf("fetch metrics: HTTP client must not be nil")
+	}
+	if c.fetchTimeout <= 0 {
+		return fmt.Errorf("fetch metrics: fetch timeout must be positive")
+	}
+	return nil
+}
+
+func (c *MetricsClient) validateWait() error {
+	if err := c.validate(); err != nil {
+		return err
+	}
+	if c.waitTimeout <= 0 {
+		return fmt.Errorf("wait for metrics: wait timeout must be positive")
+	}
+	return nil
+}
+
+type Snapshot struct {
+	families map[string]*clientmodel.MetricFamily
+	payload  string
+}
+
+type SnapshotCheck func(*Snapshot) error
+
+func (s *Snapshot) Payload() string {
+	return s.payload
+}
+
+func (c *MetricsClient) Fetch(ctx context.Context) (*Snapshot, error) {
+	if err := c.validate(); err != nil {
+		return nil, err
+	}
+
+	fetchCtx, cancel := context.WithTimeout(ctx, c.fetchTimeout)
+	defer cancel()
+
+	response, err := c.client.Get(fetchCtx, "/metrics", nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch metrics: %w", err)
+	}
+	if response == nil {
+		return nil, fmt.Errorf("fetch metrics: HTTP client returned a nil response")
+	}
+	if response.Body == nil {
+		return nil, fmt.Errorf("fetch metrics: HTTP response has a nil body")
+	}
+	defer response.Body.Close()
+
+	payload, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read metrics response: %w", err)
+	}
+	payloadText := string(payload)
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("metrics endpoint returned HTTP %d (%s): %s", response.StatusCode, response.Status, payloadText)
+	}
+	return parseSnapshot(payloadText)
+}
+
+func parseSnapshot(payload string) (*Snapshot, error) {
+	parser := expfmt.TextParser{}
+	families, err := parser.TextToMetricFamilies(strings.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("parse metrics response: %w", err)
+	}
+	return &Snapshot{families: families, payload: payload}, nil
+}
+
+func (s *Snapshot) Gauge(name string, labels map[string]string) (float64, error) {
+	matches, err := s.matchingMetrics(name, labels, clientmodel.MetricType_GAUGE)
+	if err != nil {
+		return 0, err
+	}
+	if len(matches) > 1 {
+		return 0, fmt.Errorf("metric %s with labels %v matched multiple series", name, labels)
+	}
+	gauge := matches[0].GetGauge()
+	if gauge == nil {
+		return 0, fmt.Errorf("metric %s with labels %v has no gauge value", name, labels)
+	}
+	return gauge.GetValue(), nil
+}
+
+func (s *Snapshot) GaugeSum(name string, labels map[string]string) (float64, error) {
+	matches, err := s.matchingMetrics(name, labels, clientmodel.MetricType_GAUGE)
+	if err != nil {
+		return 0, err
+	}
+	var sum float64
+	for _, metric := range matches {
+		gauge := metric.GetGauge()
+		if gauge == nil {
+			return 0, fmt.Errorf("metric %s with labels %v has no gauge value", name, labels)
+		}
+		sum += gauge.GetValue()
+	}
+	return sum, nil
+}
+
+func (s *Snapshot) HistogramCount(name string, labels map[string]string) (uint64, error) {
+	matches, err := s.matchingMetrics(name, labels, clientmodel.MetricType_HISTOGRAM)
+	if err != nil {
+		return 0, err
+	}
+	if len(matches) > 1 {
+		return 0, fmt.Errorf("metric %s with labels %v matched multiple series", name, labels)
+	}
+	histogram := matches[0].GetHistogram()
+	if histogram == nil {
+		return 0, fmt.Errorf("metric %s with labels %v has no histogram value", name, labels)
+	}
+	return histogram.GetSampleCount(), nil
+}
+
+func GaugeEquals(name string, labels map[string]string, expected float64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		observed, err := snapshot.Gauge(name, labels)
+		if err != nil {
+			return err
+		}
+		if observed != expected {
+			return fmt.Errorf("metric %s with labels %v expected %v but observed %v", name, labels, expected, observed)
+		}
+		return nil
+	}
+}
+
+func GaugeAtLeast(name string, labels map[string]string, minimum float64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		if math.IsNaN(minimum) {
+			return fmt.Errorf("metric %s with labels %v minimum must not be NaN", name, labels)
+		}
+		observed, err := snapshot.Gauge(name, labels)
+		if err != nil {
+			return err
+		}
+		if math.IsNaN(observed) {
+			return fmt.Errorf("metric %s with labels %v observed NaN", name, labels)
+		}
+		if observed < minimum {
+			return fmt.Errorf("metric %s with labels %v expected at least %v but observed %v", name, labels, minimum, observed)
+		}
+		return nil
+	}
+}
+
+func GaugeSumEquals(name string, labels map[string]string, expected float64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		observed, err := snapshot.GaugeSum(name, labels)
+		if err != nil {
+			return err
+		}
+		if observed != expected {
+			return fmt.Errorf("metric %s sum with labels %v expected %v but observed %v", name, labels, expected, observed)
+		}
+		return nil
+	}
+}
+
+func HistogramCountAtLeast(name string, labels map[string]string, minimum uint64) SnapshotCheck {
+	return func(snapshot *Snapshot) error {
+		observed, err := snapshot.HistogramCount(name, labels)
+		if err != nil {
+			return err
+		}
+		if observed < minimum {
+			return fmt.Errorf("metric %s histogram count with labels %v expected at least %d but observed %d", name, labels, minimum, observed)
+		}
+		return nil
+	}
+}
+
+func (s *Snapshot) matchingMetrics(name string, labels map[string]string, expectedType clientmodel.MetricType) ([]*clientmodel.Metric, error) {
+	family, ok := s.families[name]
+	if !ok {
+		return nil, fmt.Errorf("metric family %s not found", name)
+	}
+	if family.GetType() != expectedType {
+		return nil, fmt.Errorf("metric %s is not a %s", name, strings.ToLower(expectedType.String()))
+	}
+
+	var matches []*clientmodel.Metric
+	for _, metric := range family.Metric {
+		if metricHasLabels(metric, labels) {
+			matches = append(matches, metric)
+		}
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("metric %s with labels %v not found", name, labels)
+	}
+	return matches, nil
+}
+
+func metricHasLabels(metric *clientmodel.Metric, expected map[string]string) bool {
+	for name, value := range expected {
+		matched := false
+		for _, label := range metric.Label {
+			if label.GetName() == name && label.GetValue() == value {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
+}
+
+type GaugeDefinition struct {
+	Name     string
+	Labels   map[string]string
+	Expected float64
+}
+
+func (c *MetricsClient) WaitForGauge(ctx context.Context, definition GaugeDefinition, pollInterval time.Duration) error {
+	_, err := c.WaitForSnapshot(
+		ctx,
+		pollInterval,
+		GaugeEquals(definition.Name, definition.Labels, definition.Expected),
+	)
+	return err
+}
+
+func (c *MetricsClient) WaitForSnapshot(
+	ctx context.Context,
+	pollInterval time.Duration,
+	check func(*Snapshot) error,
+) (*Snapshot, error) {
+	if err := c.validateWait(); err != nil {
+		return nil, err
+	}
+	if pollInterval <= 0 {
+		return nil, fmt.Errorf("poll interval must be positive")
+	}
+	if check == nil {
+		return nil, fmt.Errorf("snapshot check must not be nil")
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, c.waitTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	var lastErr error
+	for {
+		snapshot, err := c.Fetch(waitCtx)
+		if err != nil && lastErr != nil && waitCtx.Err() != nil && errors.Is(err, waitCtx.Err()) {
+			return nil, fmt.Errorf("metrics did not reach expected state: %w: %w", lastErr, waitCtx.Err())
+		}
+		if err == nil {
+			if checkErr := check(snapshot); checkErr == nil {
+				return snapshot, nil
+			} else {
+				err = fmt.Errorf("%w\nmetrics payload:\n%s", checkErr, snapshot.Payload())
+			}
+		}
+		lastErr = err
+
+		if waitCtx.Err() != nil {
+			return nil, fmt.Errorf("metrics did not reach expected state: %w: %w", lastErr, waitCtx.Err())
+		}
+		select {
+		case <-waitCtx.Done():
+			return nil, fmt.Errorf("metrics did not reach expected state: %w: %w", lastErr, waitCtx.Err())
+		case <-ticker.C:
+		}
+	}
+}

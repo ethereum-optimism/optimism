@@ -88,4 +88,4 @@ The tool uses the `op-e2e/bindings` package to interact with the L2 contracts an
 
 ## Pattern
 
-This tool follows the same pattern as `check-ecotone` and `check-fjord`, providing a systematic way to verify upgrade completion.
+This tool follows the same pattern as the earlier fork checkers (e.g. the removed `check-ecotone` and `check-fjord` CLIs), providing a systematic way to verify upgrade completion.

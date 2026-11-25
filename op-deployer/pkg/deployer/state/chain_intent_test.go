@@ -1,9 +1,17 @@
 package state
 
 import (
+	"math"
 	"math/big"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -32,13 +40,22 @@ func validBaseChainIntent() *ChainIntent {
 	}
 }
 
+func TestFaultGameAbsolutePrestateOverrideKeyMatchesJSONTag(t *testing.T) {
+	field, ok := reflect.TypeFor[ChainProofParams]().FieldByName("DisputeAbsolutePrestate")
+	require.True(t, ok)
+
+	jsonName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+	require.Equal(t, FaultGameAbsolutePrestateOverrideKey, jsonName)
+}
+
 func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
-	verifier := common.HexToAddress("0xabc")
 	prestate := common.HexToHash("0xdef")
 
+	altDA := genesis.AltDADeployConfig{UseAltDA: true, DACommitmentType: altda.GenericCommitmentString}
 	tests := []struct {
 		name      string
 		game      AdditionalDisputeGame
+		altDA     genesis.AltDADeployConfig
 		expectErr error
 	}{
 		{
@@ -46,7 +63,6 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     7200,
@@ -64,22 +80,10 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			expectErr: ErrZKDisputeGameMissingParams,
 		},
 		{
-			name: "zero Verifier address fails",
-			game: AdditionalDisputeGame{
-				VMType: VMTypeZK,
-				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:         common.Address{},
-					AbsolutePrestate: prestate,
-				},
-			},
-			expectErr: ErrZKDisputeGameMissingParams,
-		},
-		{
 			name: "zero AbsolutePrestate fails",
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:         verifier,
 					AbsolutePrestate: common.Hash{},
 				},
 			},
@@ -90,7 +94,6 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 0,
 					MaxProveDuration:     7200,
@@ -104,7 +107,6 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     0,
@@ -114,11 +116,91 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			expectErr: ErrZKDisputeGameMissingParams,
 		},
 		{
+			// A duration above uint32 max overflows the game's uint64 deadline cast on chain,
+			// putting the deadline in the past so the game is over the instant it is created.
+			name: "MaxChallengeDuration at the bound passes",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: math.MaxUint32,
+					MaxProveDuration:     math.MaxUint32,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: nil,
+		},
+		{
+			name: "MaxChallengeDuration above the bound fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: math.MaxUint32 + 1,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameParamOutOfRange,
+		},
+		{
+			name: "MaxChallengeDuration above the bound fails on alt-DA",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: math.MaxUint32 + 1,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			altDA:     altDA,
+			expectErr: ErrZKDisputeGameParamOutOfRange,
+		},
+		{
+			name: "MaxChallengeDuration at uint64 max fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: math.MaxUint64,
+					MaxProveDuration:     7200,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameParamOutOfRange,
+		},
+		{
+			name: "MaxProveDuration above the bound fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     math.MaxUint32 + 1,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameParamOutOfRange,
+		},
+		{
+			name: "MaxProveDuration at uint64 max fails",
+			game: AdditionalDisputeGame{
+				VMType: VMTypeZK,
+				ZKDisputeGame: &ZKDisputeGameParams{
+					AbsolutePrestate:     prestate,
+					MaxChallengeDuration: 3600,
+					MaxProveDuration:     math.MaxUint64,
+					ChallengerBond:       (*hexutil.Big)(big.NewInt(1e18)),
+				},
+			},
+			expectErr: ErrZKDisputeGameParamOutOfRange,
+		},
+		{
 			name: "nil ChallengerBond fails",
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     7200,
@@ -132,7 +214,6 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 			game: AdditionalDisputeGame{
 				VMType: VMTypeZK,
 				ZKDisputeGame: &ZKDisputeGameParams{
-					Verifier:             verifier,
 					AbsolutePrestate:     prestate,
 					MaxChallengeDuration: 3600,
 					MaxProveDuration:     7200,
@@ -146,13 +227,41 @@ func TestChainIntentCheck_ZKDisputeGame(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := validBaseChainIntent()
-			c.AdditionalDisputeGames = []AdditionalDisputeGame{tt.game}
+			c.DangerousAltDAConfig = tt.altDA
+			game := tt.game
+			game.DisputeGameType = 10 // ZK_DISPUTE_GAME
+			c.AdditionalDisputeGames = []AdditionalDisputeGame{game}
 			err := c.Check()
 			if tt.expectErr != nil {
 				require.ErrorIs(t, err, tt.expectErr)
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestChainIntentCheck_RejectsCannonAndPermissionedCannonAdditionalGames(t *testing.T) {
+	altDA := genesis.AltDADeployConfig{UseAltDA: true, DACommitmentType: altda.GenericCommitmentString}
+	tests := []struct {
+		name     string
+		gameType uint32
+		altDA    genesis.AltDADeployConfig
+	}{
+		{name: "cannon", gameType: 0},
+		{name: "permissioned cannon", gameType: 1},
+		{name: "cannon on alt-DA", gameType: 0, altDA: altDA},
+		{name: "permissioned cannon on alt-DA", gameType: 1, altDA: altDA},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validBaseChainIntent()
+			c.DangerousAltDAConfig = tt.altDA
+			c.AdditionalDisputeGames = []AdditionalDisputeGame{{
+				ChainProofParams: ChainProofParams{DisputeGameType: tt.gameType},
+				VMType:           VMTypeCannon,
+			}}
+			require.ErrorIs(t, c.Check(), ErrIncompatibleValue)
 		})
 	}
 }
@@ -301,6 +410,69 @@ func TestIsCustomGasTokenEnabled(t *testing.T) {
 			}
 			result := chainIntent.IsCustomGasTokenEnabled()
 			require.Equal(t, tt.expected, result, "IsCustomGasTokenEnabled() should return the expected value")
+		})
+	}
+}
+
+func TestChainIntentBridgeHookTOMLRoundTrip(t *testing.T) {
+	hook := common.HexToAddress("0x44")
+	tests := []struct {
+		name     string
+		hook     *common.Address
+		expected common.Address
+	}{
+		{name: "unset hook is omitted", hook: nil, expected: common.Address{}},
+		{name: "set hook survives", hook: &hook, expected: hook},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chain := validBaseChainIntent()
+			chain.BridgeHook = tt.hook
+			path := filepath.Join(t.TempDir(), "intent.toml")
+			require.NoError(t, (&Intent{Chains: []*ChainIntent{chain}}).WriteToFile(path))
+
+			data, err := os.ReadFile(path)
+			require.NoError(t, err)
+			require.Equal(t, tt.hook != nil, strings.Contains(string(data), "bridgeHook"))
+
+			got, err := jsonutil.LoadTOML[Intent](path)
+			require.NoError(t, err)
+			require.Equal(t, tt.hook, got.Chains[0].BridgeHook)
+			require.Equal(t, tt.expected, got.Chains[0].GetBridgeHook())
+		})
+	}
+}
+
+func TestChainIntentCheck_BridgeHookCustomGasToken(t *testing.T) {
+	hook := common.HexToAddress("0x44")
+	cgt := CustomGasToken{Name: "Custom Gas Token", Symbol: "CGT"}
+	altDA := genesis.AltDADeployConfig{UseAltDA: true, DACommitmentType: altda.GenericCommitmentString}
+	tests := []struct {
+		name  string
+		hook  *common.Address
+		cgt   CustomGasToken
+		altDA genesis.AltDADeployConfig
+		err   error
+	}{
+		{name: "hook without custom gas token", hook: &hook},
+		{name: "custom gas token without hook", cgt: cgt},
+		{name: "hook with custom gas token", hook: &hook, cgt: cgt, err: ErrIncompatibleValue},
+		{name: "hook with custom gas token on alt-DA", hook: &hook, cgt: cgt, altDA: altDA, err: ErrIncompatibleValue},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chain := validBaseChainIntent()
+			chain.BridgeHook = tt.hook
+			chain.CustomGasToken = tt.cgt
+			chain.DangerousAltDAConfig = tt.altDA
+
+			err := chain.Check()
+			if tt.err == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.err)
+			}
 		})
 	}
 }

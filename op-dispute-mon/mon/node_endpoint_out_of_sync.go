@@ -2,7 +2,7 @@ package mon
 
 import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type NodeEndpointOutOfSyncMetrics interface {
@@ -21,7 +21,7 @@ func NewNodeEndpointOutOfSyncMonitor(logger log.Logger, metrics NodeEndpointOutO
 	}
 }
 
-func (m *NodeEndpointOutOfSyncMonitor) CheckNodeEndpointOutOfSync(games []*types.EnrichedGameData) {
+func (m *NodeEndpointOutOfSyncMonitor) CheckNodeEndpointOutOfSync(games []*types.CommonGameData) {
 	totalOutOfSync := 0
 
 	for _, game := range games {

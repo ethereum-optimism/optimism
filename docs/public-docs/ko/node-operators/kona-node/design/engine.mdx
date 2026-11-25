@@ -1,0 +1,317 @@
+---
+title: "실행 엔진"
+diataxis: explanation
+---
+
+`kona-engine` crate는 OP Stack rollup node를 위한 모듈식 실행 엔진 구현을 제공합니다. 이 crate는 rollup 프로토콜과 실행 계층(EL) 사이의 다리 역할을 하며, 정교한 작업 큐(task queue) 시스템을 통해 Engine API 상호작용을 관리합니다.
+
+## 아키텍처 개요
+
+실행 엔진은 다음과 같은 주요 구성 요소를 중심으로 구축됩니다.
+
+- **Engine Task Queue**: Engine API 작업을 관리하는 우선순위 정렬 큐
+- **Trait 추상화**: 작업, 오류, 상태 관리를 위한 확장 가능한 인터페이스  
+- **Engine Client**: 실행 계층과 통신하는 HTTP 클라이언트
+- **Actor 통합**: `EngineActor`를 통한 서비스 계층 통합
+
+## 핵심 Trait 추상화
+
+### ExecutableEngineTask
+
+`ExecutableEngineTask` trait은 모든 엔진 작업의 인터페이스를 정의합니다.
+
+```rust
+#[async_trait]
+pub trait ExecutableEngineTask {
+    type Output;
+    type Error: EngineTaskError;
+
+    async fn execute(&self, state: &mut EngineState) -> Result<Self::Output, Self::Error>;
+}
+```
+
+이 trait은 다음을 가능하게 합니다.
+- `EngineState`에 대한 **원자적 작업**
+- 사용자 지정 작업을 위한 **확장 가능한 작업 구현**
+- 적절한 오류 처리를 갖춘 **비동기 실행**
+
+### EngineTaskError
+
+`EngineTaskError` trait은 심각도 수준을 갖춘 정교한 오류 처리를 제공합니다.
+
+```rust
+pub trait EngineTaskError {
+    fn severity(&self) -> EngineTaskErrorSeverity;
+}
+
+pub enum EngineTaskErrorSeverity {
+    Temporary,  // Retry the task
+    Critical,   // Propagate to engine actor
+    Reset,      // Request derivation reset
+    Flush,      // Request derivation flush
+}
+```
+
+이를 통해 작업은 오류 유형에 따라 서로 다른 복구 전략을 알릴 수 있습니다.
+
+## 작업 큐 시스템
+
+엔진은 우선순위 기반 작업 큐(`EngineTask`의 `Ord` 구현으로 정렬되는 이진 힙)를 사용하며, 작업은 OP Stack 동기화 요구 사항에 따라 정렬됩니다. 작업은 구체 타입인 `EngineClient`를 사용하며, 이 클라이언트의 Alloy provider들은 RPC 연결을 공유합니다. 테스트에서는 같은 클라이언트에 mock transport를 제공합니다.
+
+### 작업 우선순위(높은 순서부터)
+
+1. **Canonicalize** - conductor 커밋 이후 봉인된(sealed) 블록을 가져옵니다(sequencer 모드)
+2. **Seal** - 빌드가 끝난 블록을 봉인합니다(sequencer 모드)
+3. **Build** - 새 블록을 빌드합니다(sequencer 모드)
+4. **Insert** - gossip에서 받은 unsafe 블록을 삽입합니다
+5. **Consolidate** - derivation을 통해 safe 체인을 진행시킵니다
+6. **Finalize** - L2 블록을 최종 확정합니다
+
+작업은 큐만 실행합니다. 작업은 다른 작업을 실행하지 않습니다. 빌드 시작, 빌드된 payload 가져오기, payload 삽입, forkchoice 동기화처럼 여러 작업이 공유하는 단계는 작업이 호출하는 일반 함수입니다.
+
+Forkchoice 업데이트는 독립적인 큐 항목이 아닙니다. 작업이 unsafe, safe 또는 finalized head를 이동시킬 때마다 공유 synchronize 단계를 호출합니다. 이 단계는 payload attributes 없이 `engine_forkchoiceUpdated`를 보내고 실행 계층의 동기화 완료 여부를 추적합니다. 이 단계의 실패는 `SynchronizeTaskError`로 보고됩니다.
+
+### 작업 유형
+
+#### BuildTask
+
+sequencer 모드에서 새 블록 빌드를 시작하고 payload ID를 생성합니다.
+
+```rust
+pub struct BuildTask {
+    /// The engine API client.
+    pub engine: Arc<EngineClient>,
+    /// The RollupConfig.
+    pub cfg: Arc<RollupConfig>,
+    /// The OpAttributesWithParent to instruct the execution layer to build.
+    pub attributes: OpAttributesWithParent,
+    /// Reports the payload ID or build rejection to the sequencer.
+    pub payload_id_tx: mpsc::Sender<Result<PayloadId, BuildTaskError>>,
+}
+```
+
+`engine_forkchoiceUpdated`를 호출하기 전에, 부모가 더 이상 unsafe head와 일치하지 않는 sequencer 빌드를 거부합니다. 빌드 실패는 sequencer에 전달되어 새 attributes로 재시도할 수 있게 합니다. 유효하지 않은 forkchoice 오류는 엔진 복구도 트리거합니다. Derivation은 공유 빌드 헬퍼를 직접 호출하며, reorg 중에는 다른 부모 위에 빌드할 수 있습니다.
+
+#### SealTask
+
+sequencer 모드에서 `BuildTask`가 시작한 블록을 봉인합니다. 빌드의 부모가 여전히 unsafe head인지 확인하고, 버전별 `engine_getPayload` 호출로 payload를 가져옵니다. forkchoice는 변경하지 않습니다. `CanonicalizeTask`가 payload를 가져오기 전에 sequencer가 payload를 conductor에 커밋합니다.
+
+```rust
+pub struct SealTask {
+    /// The engine API client.
+    pub engine: Arc<EngineClient>,
+    /// The RollupConfig.
+    pub cfg: Arc<RollupConfig>,
+    /// The PayloadId being sealed.
+    pub payload_id: PayloadId,
+    /// The OpAttributesWithParent to instruct the execution layer to build.
+    pub attributes: OpAttributesWithParent,
+    /// An optional sender for the sealed OpExecutionPayloadEnvelope or the
+    /// SealTaskError that occurred during processing.
+    pub result_tx: Option<mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>>,
+}
+```
+
+#### CanonicalizeTask
+
+sequencer 모드에서 sequencer가 봉인된 블록을 conductor에 커밋하면 해당 블록을 가져와 새 unsafe head로 만듭니다. conductor 커밋은 엔진 큐 밖에서 이루어지므로, 작업은 먼저 블록의 부모가 여전히 unsafe head인지 확인합니다. 거부된 블록은 deposit 전용 블록으로 대체되지 않습니다. 대체 블록에는 별도의 conductor 커밋이 필요하기 때문입니다. 새 unsafe head는 결과가 sequencer에 반환되기 전에 게시되며, 그 후 sequencer가 블록을 gossip으로 전파합니다.
+
+#### InsertTask
+
+payload(예: gossip에서 받은 unsafe 블록)를 실행 엔진에 삽입합니다.
+
+```rust
+pub struct InsertTask {
+    /// The engine client.
+    client: Arc<EngineClient>,
+    /// The rollup config.
+    rollup_config: Arc<RollupConfig>,
+    /// The complete execution payload envelope.
+    payload: OpExecutionPayloadEnvelope,
+    /// If the payload is safe this is true.
+    is_payload_safe: bool,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    block_sink: Arc<dyn ImportedBlockSink>,
+}
+```
+
+#### ConsolidateTask
+
+derivation을 통해 safe 체인을 진행시킵니다.
+
+```rust
+pub struct ConsolidateTask {
+    /// The engine client.
+    pub client: Arc<EngineClient>,
+    /// The RollupConfig.
+    pub cfg: Arc<RollupConfig>,
+    /// The input for consolidation (either attributes or block info).
+    pub input: ConsolidateInput,
+    /// Where to hand the decoded block once the engine has canonicalized it.
+    pub block_sink: Arc<dyn ImportedBlockSink>,
+}
+```
+
+consolidation이 실패하면 작업은 attributes로 직접 블록을 빌드하고 봉인한 후 새 safe head로 가져옵니다. Holocene 이후에는 실행 계층이 해당 블록을 거부하면 deposit 전용 블록으로 대체되고 derivation 파이프라인의 현재 채널이 flush됩니다.
+
+#### FinalizeTask
+
+L2 블록을 최종 확정합니다.
+
+```rust
+pub struct FinalizeTask {
+    /// The engine client.
+    pub client: Arc<EngineClient>,
+    /// The rollup config.
+    pub cfg: Arc<RollupConfig>,
+    /// Identifier of the L2 block to finalize.
+    pub block_id: FinalizeBlockId,
+}
+```
+
+## 엔진 상태 관리
+
+`EngineState`는 실행 엔진의 현재 상태를 추적합니다.
+
+```rust
+pub struct EngineState {
+    /// The sync state of the engine.
+    pub sync_state: EngineSyncState,
+    /// Whether or not the EL has finished syncing.
+    pub el_sync_finished: bool,
+    /// Tracks when the rollup node changes the forkchoice to restore a
+    /// previously known unsafe chain (e.g. an unsafe reorg caused by an
+    /// invalid span batch).
+    pub need_fcu_call_backup_unsafe_reorg: bool,
+}
+```
+
+unsafe, safe, finalized head는 중첩된 `EngineSyncState`에 저장됩니다. 상태 업데이트는 watch 채널을 통해 전달되므로 시스템 전반에서 반응형 프로그래밍 패턴을 사용할 수 있습니다.
+
+## kona-node와의 통합
+
+`kona-node` 서비스 계층은 `EngineActor`를 통해 엔진을 통합합니다.
+
+### Actor 패턴
+
+`EngineActor`는 `NodeActor` trait을 구현합니다.
+
+```rust
+#[async_trait]
+pub trait NodeActor: Send + 'static {
+    /// The error type for the actor.
+    type Error: std::fmt::Debug;
+
+    /// Handle the next inbound request, event, or scheduled tick.
+    async fn step(&mut self) -> Result<(), Self::Error>;
+}
+```
+
+### 통신 채널
+
+`EngineActor`는 상태를 변경하는 모든 입력을 `EngineActorRequest` 메시지의 단일 인바운드 요청 채널을 통해 받습니다. 여기에는 derivation에서 오는 payload attributes, gossip에서 오는 unsafe 블록, 리셋 요청, 최종 확정 요청, 블록 빌드 요청(sequencer 모드 전용)이 포함됩니다. `RollupRpc` 모듈은 읽기 전용 RPC 요청을 직접 처리합니다. 이 모듈은 `output_at_block`만 노출하는 `EngineQueryClient`를 통해 엔진의 L2 연결을 공유하며, watch 채널을 통해 엔진 상태를 읽습니다.
+
+### Rollup RPC 읽기
+
+`RollupRpc`는 `optimism_rollupConfig`를 위해 rollup 구성을 복제하고, `optimism_syncStatus`를 위해 엔진 상태 스냅샷과 L1 watcher 상태를 결합하며, `optimism_outputAtBlock`을 위해 `EngineQueryClient::output_at_block`을 호출합니다. 이러한 읽기는 jsonrpsee 요청 핸들러에서 실행되므로, 느린 output root 조회가 다른 엔진 상태 읽기를 차단하지 않습니다.
+
+## 사용 패턴
+
+### 기본 엔진 설정
+
+```rust
+// Create the concrete engine client through `EngineClientBuilder`.
+let client = EngineClientBuilder {
+    l2: l2_engine_url,
+    l2_jwt: jwt_secret,
+    l1_rpc: l1_rpc_url,
+    cfg: rollup_config,
+}
+.build();
+
+// Initialize engine state
+let state = EngineState::default();
+let (state_sender, state_receiver) = watch::channel(state);
+
+// Create engine with task queue
+let engine = Engine::new(state, state_sender);
+```
+
+### 작업 추가
+
+```rust
+// Add a consolidate task
+let task = EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+    client.clone(),
+    rollup_config.clone(),
+    input,
+)));
+
+engine.enqueue(task);
+```
+
+### 큐 비우기
+
+```rust
+// Process all pending tasks
+match engine.drain().await {
+    Ok(()) => info!("Tasks completed successfully"),
+    Err(e) => match e.severity() {
+        EngineTaskErrorSeverity::Reset => {
+            // Request derivation reset
+        },
+        EngineTaskErrorSeverity::Critical => {
+            // Handle critical error
+        },
+        _ => {
+            // Handle other error types
+        }
+    }
+}
+```
+
+## 오류 처리 및 복구
+
+엔진은 다음을 통해 견고한 오류 처리를 제공합니다.
+
+### 심각도 기반 복구
+
+- **일시적 오류**: 자동으로 재시도됩니다
+- **치명적 오류**: actor로 전파됩니다
+- **리셋 오류**: derivation 파이프라인 리셋을 트리거합니다
+- **Flush 오류**: derivation 파이프라인 flush를 트리거합니다
+
+`engine_forkchoiceUpdated`에서 `INVALID` payload 상태가 반환되면 요청한 head가 거부된 것이므로, Kona는 같은 forkchoice를 재시도하는 대신 엔진과 derivation을 리셋합니다. 이는 Holocene의 deposit 전용 대체 경로를 유지하는 `-38003` invalid-payload-attributes 오류와는 다릅니다. Derivation은 리셋을 처리하는 동안 복구된 safe head를 채택하고 재개합니다. head가 변경되지 않은 경우에도 마찬가지이며, 다른 L1 업데이트나 별도의 확인을 기다리지 않습니다.
+
+### 상태 일관성
+
+작업은 `EngineState`에서 원자적으로 동작하므로, 오류 상황에서도 일관성이 보장됩니다.
+
+## 버전 지원
+
+엔진은 하드포크 활성화에 따라 적절한 Engine API 버전을 자동으로 선택합니다.
+
+- **Ecotone 이전(Bedrock, Canyon, Delta)**: `engine_newPayloadV2`와 `engine_getPayloadV2`를 사용합니다
+- **Ecotone 이후**: `engine_newPayloadV3`와 `engine_getPayloadV3`를 사용합니다
+- **Isthmus 이후**: `engine_newPayloadV4`와 `engine_getPayloadV4`를 사용합니다
+- **Karst(Osaka) 이후**: `engine_getPayloadV5`를 사용합니다(`engine_newPayload`와 `engine_forkchoiceUpdated`는 각각 V4/V3 버전을 유지합니다)
+
+## 메트릭 및 관측 가능성
+
+엔진에는 항상 다음에 대한 메트릭 계측이 포함됩니다.
+
+- 작업 실행 성공 및 실패 횟수
+- 작업 유형별 오류율
+- 엔진 상태 전이
+- API 호출 지연 시간
+
+## 확장성
+
+trait 기반 아키텍처는 다음을 가능하게 합니다.
+
+- `ExecutableEngineTask`를 통한 **사용자 지정 작업 구현**
+- `EngineTaskError`를 통한 **사용자 지정 오류 처리**
+- **사용자 지정 상태 관리** 확장
+- **테스트 및 mocking** 지원
+
+이 모듈식 설계 덕분에 엔진은 하위 호환성을 유지하면서 향후 OP Stack 프로토콜 변경에 적응할 수 있습니다.

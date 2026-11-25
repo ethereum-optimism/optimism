@@ -21,7 +21,8 @@ type Metricer interface {
 	RecordLoopExecutionTime(duration float64)
 	RecordRollupBoostConnectionAttempts(success bool, source string)
 	RecordWebSocketClientCount(count int)
-	opmetrics.RPCMetricer
+	RecordRaftUnsafeHead(num uint64)
+	RecordNodeUnsafeHead(num uint64)
 }
 
 // Metrics implementation must implement RegistryMetricer to allow the metrics server to work.
@@ -31,8 +32,6 @@ type Metrics struct {
 	ns       string
 	registry *prometheus.Registry
 	factory  opmetrics.Factory
-
-	opmetrics.RPCMetrics
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
@@ -46,6 +45,8 @@ type Metrics struct {
 
 	loopExecutionTime prometheus.Histogram
 	webSocketClients  prometheus.Gauge
+
+	unsafeHead *prometheus.GaugeVec
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -62,8 +63,6 @@ func NewMetrics() *Metrics {
 		ns:       Namespace,
 		registry: registry,
 		factory:  factory,
-
-		RPCMetrics: opmetrics.MakeRPCMetrics(Namespace, factory),
 
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -122,6 +121,11 @@ func NewMetrics() *Metrics {
 			Name:      "websocket_clients_connected",
 			Help:      "Number of WebSocket clients currently connected to the hub",
 		}),
+		unsafeHead: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "unsafe_head_number",
+			Help:      "Latest unsafe block number in the local raft FSM (source=raft) and in op-node (source=node)",
+		}, []string{"source"}),
 	}
 }
 
@@ -182,4 +186,14 @@ func (m *Metrics) RecordRollupBoostConnectionAttempts(success bool, source strin
 // RecordWebSocketClientCount sets the current number of WebSocket clients connected.
 func (m *Metrics) RecordWebSocketClientCount(count int) {
 	m.webSocketClients.Set(float64(count))
+}
+
+// RecordRaftUnsafeHead sets the latest unsafe block number in the local raft FSM.
+func (m *Metrics) RecordRaftUnsafeHead(num uint64) {
+	m.unsafeHead.WithLabelValues("raft").Set(float64(num))
+}
+
+// RecordNodeUnsafeHead sets the latest unsafe block number reported by op-node.
+func (m *Metrics) RecordNodeUnsafeHead(num uint64) {
+	m.unsafeHead.WithLabelValues("node").Set(float64(num))
 }

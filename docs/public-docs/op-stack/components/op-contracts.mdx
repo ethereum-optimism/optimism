@@ -1,0 +1,84 @@
+---
+title: op-contracts
+description: Canonical hub for op-contracts, the OP Stack L1 and L2 smart contracts, covering what they do, how they are deployed and upgraded, and where their reference, releases, source, and specs live.
+diataxis: explanation
+---
+
+op-contracts is the OP Stack's smart contract layer: the L1 contracts that
+anchor an OP Stack chain to Ethereum and the L2 predeploy contracts that
+every OP Stack chain ships in its genesis state. Both live in
+`packages/contracts-bedrock` in the Optimism monorepo and release together as
+`op-contracts/vX.Y.Z`.
+
+## Overview
+
+The L1 contracts, deployed on Ethereum, facilitate cross-domain message
+passing and maintain the valid state root of the L2: deposits enter the chain
+through them, withdrawals are proven and finalized against dispute game
+results, and the chain's onchain configuration lives in them. The L2
+predeploys sit at predetermined addresses in the genesis state and provide
+the chain's built-in functionality, from the cross-domain messengers and
+bridges to the fee vaults and the gas price oracle. For a
+contract-by-contract tour of both layers, see the
+[smart contract overview](/op-stack/protocol/smart-contracts).
+
+It exists because an OP Stack chain's security anchors on Ethereum: the
+bridge, the state proposals that dispute games check, and the withdrawal path
+that [op-challenger](/op-stack/components/op-challenger) defends are all
+enforced by these contracts.
+
+**Who runs it:** nobody operates op-contracts as a service; the contracts run
+onchain. Chain operators deploy a chain's L1 contracts with
+[op-deployer](/op-stack/components/op-deployer) and upgrade them through the
+[OP Contracts Manager](/chain-operators/reference/opcm), which deploys and
+upgrades the contracts for a chain in a single transaction.
+
+## Get started
+
+*   [Deploy L1 contracts with op-deployer](/chain-operators/tutorials/create-l2-rollup/op-deployer-setup):
+    install op-deployer, prepare your environment, and deploy the L1
+    contracts for a new OP Stack chain.
+
+## How-tos
+
+*   [Upgrade using superchain-ops](/chain-operators/tutorials/l1-contract-upgrades/superchain-ops-guide):
+    upgrade a chain's L1 contracts with the superchain-ops task workflow,
+    the path for chains that require security council signing or a more
+    secure upgrade process.
+*   [Upgrade L1 contracts using op-deployer](/chain-operators/tutorials/l1-contract-upgrades/op-deployer-upgrade):
+    version availability and migration paths for op-deployer's deprecated
+    `upgrade` command, which supports upgrades only up to
+    `op-contracts/v5.0.0`.
+
+## Configuration & flags reference
+
+op-contracts has no CLI; its configuration surface is the deployment
+configuration the contracts are deployed with.
+
+*   [Rollup deployment configuration](/chain-operators/reference/rollup-deployment-configuration):
+    every deploy config field, generated from source and keyed to the
+    finalized op-deployer release named on the page.
+*   [What is a standard chain?](/op-stack/protocol/superchain-registry#what-is-a-standard-chain):
+    the standard configuration values a chain must adhere to.
+
+## Releases
+
+*   [op-contracts release history](/releases/op-contracts). Production
+    contract releases are always tagged `op-contracts/vX.Y.Z`; releases
+    tagged `v<semver>` without a component name contain no smart contracts.
+*   [Smart contract versioning policy](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/book/src/policies/versioning.md):
+    the in-repo definition of the release process.
+
+## Source & spec links
+
+*   [Source: `packages/contracts-bedrock/`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock)
+    in the Optimism monorepo.
+*   [Contracts book](https://devdocs.optimism.io/contracts-bedrock):
+    the in-repo developer book, covering interface documentation,
+    architecture, and contract policies.
+*   [Deposits specification](https://specs.optimism.io/protocol/deposits.html):
+    the normative definition of the deposit path the L1 contracts implement.
+*   [Withdrawals specification](https://specs.optimism.io/protocol/withdrawals.html):
+    the normative definition of the withdrawal path.
+*   [Predeploys specification](https://specs.optimism.io/protocol/predeploys.html):
+    the normative definition of the L2 predeploy contracts.

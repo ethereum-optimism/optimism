@@ -1,0 +1,34 @@
+---
+title: Delta
+description: Hardfork registry entry for the Delta network upgrade, which introduced span batches.
+diataxis: reference
+hardfork_name: delta
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/delta/overview.html
+hardfork_activation_mainnet: 1708560000
+hardfork_activation_sepolia: 1703203200
+hardfork_governance: https://gov.optimism.io/t/final-upgrade-proposal-3-delta-network-upgrade/7310
+---
+
+import DeltaFacts from "/snippets/generated/hardforks/delta.mdx"
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="This upgrade"
+  title="Delta specification"
+  href="https://specs.optimism.io/protocol/delta/overview.html"
+  note="This page records activation data and operational pointers; it does not restate the spec."
+/>
+
+Delta consisted of a single consensus-layer feature: span batches, which reduce
+the fixed per-block overhead of batch submission.
+
+<DeltaFacts />
+
+## What changed
+
+Per the [spec overview](https://specs.optimism.io/protocol/delta/overview.html):
+
+*   Consensus layer: [span batches](https://specs.optimism.io/protocol/delta/span-batches.html).
+    Delta is specified only in the rollup node (`delta_time`); it required no
+    execution-engine change.

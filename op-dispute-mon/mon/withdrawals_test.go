@@ -10,9 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,54 +28,60 @@ var (
 	nowUnix = int64(10_000)
 )
 
-func makeGames(distributionMode faultTypes.BondDistributionMode, noWithdrawalRequest bool) []*monTypes.EnrichedGameData {
+func makeGames(distributionMode faultTypes.BondDistributionMode, noWithdrawalRequest bool) []*monTypes.FaultGameData {
 	weth1Balance := big.NewInt(4200)
 	weth2Balance := big.NewInt(6000)
 
-	game1 := &monTypes.EnrichedGameData{
-		GameMetadata: types.GameMetadata{Proxy: common.Address{0x11, 0x11, 0x11}},
-		Credits: map[common.Address]*big.Int{
-			honestActor1: big.NewInt(3),
-			honestActor2: big.NewInt(1),
+	game1 := &monTypes.FaultGameData{
+		CommonGameData: monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x11, 0x11, 0x11}}},
+		BondGameData: monTypes.BondGameData{
+			Credits: map[common.Address]*big.Int{
+				honestActor1: big.NewInt(3),
+				honestActor2: big.NewInt(1),
+			},
+			BondDistributionMode: distributionMode,
+			WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+				honestActor1: {Amount: big.NewInt(3), Timestamp: big.NewInt(nowUnix - 101)}, // Claimable
+				honestActor2: {Amount: big.NewInt(1), Timestamp: big.NewInt(nowUnix - 99)},  // Not claimable
+			},
+			WETHContract:  weth1,
+			ETHCollateral: weth1Balance,
+			WETHDelay:     100 * time.Second,
 		},
-		BondDistributionMode: distributionMode,
-		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-			honestActor1: {Amount: big.NewInt(3), Timestamp: big.NewInt(nowUnix - 101)}, // Claimable
-			honestActor2: {Amount: big.NewInt(1), Timestamp: big.NewInt(nowUnix - 99)},  // Not claimable
-		},
-		WETHContract:  weth1,
-		ETHCollateral: weth1Balance,
-		WETHDelay:     100 * time.Second,
 	}
-	game2 := &monTypes.EnrichedGameData{
-		GameMetadata:         types.GameMetadata{Proxy: common.Address{0x22, 0x22, 0x22}},
-		BondDistributionMode: distributionMode,
-		Credits: map[common.Address]*big.Int{
-			honestActor1: big.NewInt(46),
-			honestActor2: big.NewInt(1),
+	game2 := &monTypes.FaultGameData{
+		CommonGameData: monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x22, 0x22, 0x22}}},
+		BondGameData: monTypes.BondGameData{
+			BondDistributionMode: distributionMode,
+			Credits: map[common.Address]*big.Int{
+				honestActor1: big.NewInt(46),
+				honestActor2: big.NewInt(1),
+			},
+			WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+				honestActor1: {Amount: big.NewInt(3), Timestamp: big.NewInt(nowUnix - 501)}, // Claimable
+				honestActor2: {Amount: big.NewInt(1), Timestamp: big.NewInt(nowUnix)},       // Not claimable
+			},
+			WETHContract:  weth2,
+			ETHCollateral: weth2Balance,
+			WETHDelay:     500 * time.Second,
 		},
-		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-			honestActor1: {Amount: big.NewInt(3), Timestamp: big.NewInt(nowUnix - 501)}, // Claimable
-			honestActor2: {Amount: big.NewInt(1), Timestamp: big.NewInt(nowUnix)},       // Not claimable
-		},
-		WETHContract:  weth2,
-		ETHCollateral: weth2Balance,
-		WETHDelay:     500 * time.Second,
 	}
-	game3 := &monTypes.EnrichedGameData{
-		GameMetadata:         types.GameMetadata{Proxy: common.Address{0x33, 0x33, 0x33}},
-		BondDistributionMode: distributionMode,
-		Credits: map[common.Address]*big.Int{
-			honestActor3:    big.NewInt(2),
-			dishonestActor4: big.NewInt(4),
+	game3 := &monTypes.FaultGameData{
+		CommonGameData: monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x33, 0x33, 0x33}}},
+		BondGameData: monTypes.BondGameData{
+			BondDistributionMode: distributionMode,
+			Credits: map[common.Address]*big.Int{
+				honestActor3:    big.NewInt(2),
+				dishonestActor4: big.NewInt(4),
+			},
+			WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+				honestActor3:    {Amount: big.NewInt(2), Timestamp: big.NewInt(nowUnix - 1)}, // Claimable
+				dishonestActor4: {Amount: big.NewInt(4), Timestamp: big.NewInt(nowUnix - 5)}, // Claimable
+			},
+			WETHContract:  weth2,
+			ETHCollateral: weth2Balance,
+			WETHDelay:     0 * time.Second,
 		},
-		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-			honestActor3:    {Amount: big.NewInt(2), Timestamp: big.NewInt(nowUnix - 1)}, // Claimable
-			dishonestActor4: {Amount: big.NewInt(4), Timestamp: big.NewInt(nowUnix - 5)}, // Claimable
-		},
-		WETHContract:  weth2,
-		ETHCollateral: weth2Balance,
-		WETHDelay:     0 * time.Second,
 	}
 	if noWithdrawalRequest {
 		// eth_call will return 0s, not nil, when no withdrawal request is present
@@ -84,7 +90,7 @@ func makeGames(distributionMode faultTypes.BondDistributionMode, noWithdrawalReq
 			Timestamp: big.NewInt(0),
 		}
 	}
-	return []*monTypes.EnrichedGameData{game1, game2, game3}
+	return []*monTypes.FaultGameData{game1, game2, game3}
 }
 
 func TestCheckWithdrawals(t *testing.T) {
@@ -121,7 +127,7 @@ func TestCheckWithdrawals(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			now := time.Unix(nowUnix, 0)
 			cl := clock.NewDeterministicClock(now)
-			logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+			logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 			metrics := &stubWithdrawalsMetrics{
 				matching:  make(map[common.Address]int),
 				divergent: make(map[common.Address]int),
@@ -129,7 +135,7 @@ func TestCheckWithdrawals(t *testing.T) {
 			honestActors := monTypes.NewHonestActors([]common.Address{honestActor1, honestActor2, honestActor3})
 			withdrawals := NewWithdrawalMonitor(logger, cl, metrics, honestActors)
 			games := makeGames(test.distributionMode, test.noWithdrawalRequest)
-			withdrawals.CheckWithdrawals(games)
+			withdrawals.CheckWithdrawals(asBondedGames(games))
 
 			require.Equal(t, metrics.matchCalls, 2)
 			require.Equal(t, metrics.divergeCalls, 2)
@@ -196,29 +202,31 @@ func TestCheckWithdrawals(t *testing.T) {
 func TestWithdrawalNotInitiated(t *testing.T) {
 	now := time.Unix(nowUnix, 0)
 	cl := clock.NewDeterministicClock(now)
-	logger, logs := testlog.CaptureLogger(t, log.LvlInfo)
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 	metrics := &stubWithdrawalsMetrics{
 		matching:  make(map[common.Address]int),
 		divergent: make(map[common.Address]int),
 	}
 	honestActors := monTypes.NewHonestActors([]common.Address{honestActor1, honestActor2, honestActor3})
 	withdrawals := NewWithdrawalMonitor(logger, cl, metrics, honestActors)
-	games := []*monTypes.EnrichedGameData{
+	games := []*monTypes.FaultGameData{
 		{
-			GameMetadata: types.GameMetadata{Proxy: common.Address{0x11, 0x11, 0x11}},
-			Credits: map[common.Address]*big.Int{
-				honestActor1: big.NewInt(3),
+			CommonGameData: monTypes.CommonGameData{GameMetadata: types.GameMetadata{Proxy: common.Address{0x11, 0x11, 0x11}}},
+			BondGameData: monTypes.BondGameData{
+				Credits: map[common.Address]*big.Int{
+					honestActor1: big.NewInt(3),
+				},
+				BondDistributionMode: faultTypes.NormalDistributionMode,
+				WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+					honestActor1: {Amount: big.NewInt(0), Timestamp: big.NewInt(0)},
+				},
+				WETHContract:  weth1,
+				ETHCollateral: big.NewInt(3),
+				WETHDelay:     100 * time.Second,
 			},
-			BondDistributionMode: faultTypes.NormalDistributionMode,
-			WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
-				honestActor1: {Amount: big.NewInt(0), Timestamp: big.NewInt(0)},
-			},
-			WETHContract:  weth1,
-			ETHCollateral: big.NewInt(3),
-			WETHDelay:     100 * time.Second,
 		},
 	}
-	withdrawals.CheckWithdrawals(games)
+	withdrawals.CheckWithdrawals(asBondedGames(games))
 
 	require.NotNil(t, logs.FindLog(testlog.NewMessageFilter("Found uninitiated withdrawal"),
 		testlog.NewAttributesFilter("recipient", honestActor1.Hex()),
@@ -227,6 +235,144 @@ func TestWithdrawalNotInitiated(t *testing.T) {
 
 	require.Truef(t, big.NewInt(3).Cmp(metrics.honestWithdrawable[honestActor1]) == 0,
 		"Expected %v withdrawable to be %v but was %v", honestActor1, 3, metrics.honestWithdrawable[honestActor1])
+}
+
+func TestZKWithdrawalMaturityIsInclusive(t *testing.T) {
+	honest := common.Address{0x01}
+	maturity := int64(110)
+	tests := []struct {
+		name string
+		now  int64
+		want int64
+	}{
+		{name: "T-1", now: maturity - 1},
+		{name: "T", now: maturity, want: 10},
+		{name: "T+1", now: maturity + 1, want: 10},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
+			monitor := NewWithdrawalMonitor(
+				testlog.Logger(t, log.LevelInfo),
+				clock.NewDeterministicClock(time.Unix(test.now, 0)),
+				metrics,
+				monTypes.NewHonestActors([]common.Address{honest}),
+			)
+			game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+				ExpectedCredits: map[common.Address]*big.Int{honest: big.NewInt(10)},
+				Credits:         map[common.Address]*big.Int{honest: new(big.Int)},
+				WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+					honest: {Amount: big.NewInt(10), Timestamp: big.NewInt(100)},
+				},
+				BondDistributionMode: faultTypes.NormalDistributionMode,
+				WETHContract:         weth1,
+				WETHDelay:            10 * time.Second,
+				ETHCollateral:        big.NewInt(10),
+			}}
+
+			monitor.CheckWithdrawals([]monTypes.BondedGame{game})
+			require.Equal(t, 1, metrics.matching[weth1])
+			require.Zero(t, metrics.divergent[weth1])
+			require.Equal(t, big.NewInt(test.want), metrics.honestWithdrawable[honest])
+		})
+	}
+}
+
+func TestZKCreditWithoutRequestIsNotWithdrawable(t *testing.T) {
+	honest := common.Address{0x01}
+	metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
+	monitor := NewWithdrawalMonitor(
+		testlog.Logger(t, log.LevelInfo),
+		clock.NewDeterministicClock(time.Unix(1000, 0)),
+		metrics,
+		monTypes.NewHonestActors([]common.Address{honest}),
+	)
+	game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+		ExpectedCredits: map[common.Address]*big.Int{honest: big.NewInt(10)},
+		Credits:         map[common.Address]*big.Int{honest: big.NewInt(10)},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+			honest: {Amount: new(big.Int), Timestamp: new(big.Int)},
+		},
+		BondDistributionMode: faultTypes.NormalDistributionMode,
+		WETHContract:         weth1,
+		WETHDelay:            10 * time.Second,
+		ETHCollateral:        big.NewInt(10),
+	}}
+
+	monitor.CheckWithdrawals([]monTypes.BondedGame{game})
+	require.Equal(t, 1, metrics.matching[weth1])
+	require.Zero(t, metrics.honestWithdrawable[honest].Sign())
+}
+
+func TestZKWithdrawalMatchingRequiresAnObligation(t *testing.T) {
+	recipient := common.Address{0x01}
+	tests := []struct {
+		name          string
+		expected      map[common.Address]*big.Int
+		wantMatching  int
+		wantDivergent int
+	}{
+		{name: "empty slot is ignored", expected: map[common.Address]*big.Int{}},
+		{name: "missing obligated credit is divergent", expected: map[common.Address]*big.Int{recipient: big.NewInt(10)}, wantDivergent: 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
+			monitor := NewWithdrawalMonitor(
+				testlog.Logger(t, log.LevelInfo),
+				clock.NewDeterministicClock(time.Unix(1000, 0)),
+				metrics,
+				nil,
+			)
+			game := &monTypes.ZKGameData{BondGameData: monTypes.BondGameData{
+				ExpectedCredits: test.expected,
+				Credits:         map[common.Address]*big.Int{recipient: new(big.Int)},
+				WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+					recipient: {Amount: new(big.Int), Timestamp: new(big.Int)},
+				},
+				BondDistributionMode: faultTypes.NormalDistributionMode,
+				WETHContract:         weth1,
+				WETHDelay:            10 * time.Second,
+				ETHCollateral:        big.NewInt(10),
+			}}
+
+			monitor.CheckWithdrawals([]monTypes.BondedGame{game})
+			require.Equal(t, test.wantMatching, metrics.matching[weth1])
+			require.Equal(t, test.wantDivergent, metrics.divergent[weth1])
+		})
+	}
+}
+
+func TestFaultWithdrawalMaturityRemainsExclusive(t *testing.T) {
+	honest := common.Address{0x01}
+	metrics := &stubWithdrawalsMetrics{matching: make(map[common.Address]int), divergent: make(map[common.Address]int)}
+	monitor := NewWithdrawalMonitor(
+		testlog.Logger(t, log.LevelInfo),
+		clock.NewDeterministicClock(time.Unix(110, 0)),
+		metrics,
+		monTypes.NewHonestActors([]common.Address{honest}),
+	)
+	game := &monTypes.FaultGameData{BondGameData: monTypes.BondGameData{
+		Credits: map[common.Address]*big.Int{honest: big.NewInt(10)},
+		WithdrawalRequests: map[common.Address]*contracts.WithdrawalRequest{
+			honest: {Amount: big.NewInt(10), Timestamp: big.NewInt(100)},
+		},
+		BondDistributionMode: faultTypes.NormalDistributionMode,
+		WETHContract:         weth1,
+		WETHDelay:            10 * time.Second,
+		ETHCollateral:        big.NewInt(10),
+	}}
+
+	monitor.CheckWithdrawals([]monTypes.BondedGame{game})
+	require.Zero(t, metrics.honestWithdrawable[honest].Sign())
+}
+
+func asBondedGames(games []*monTypes.FaultGameData) []monTypes.BondedGame {
+	result := make([]monTypes.BondedGame, len(games))
+	for i, game := range games {
+		result[i] = game
+	}
+	return result
 }
 
 type stubWithdrawalsMetrics struct {

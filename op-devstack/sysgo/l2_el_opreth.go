@@ -1,23 +1,35 @@
 package sysgo
 
 import (
+	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"os/exec"
 	"strings"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logpipe"
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // OpRethConfig holds the configurable knobs applied to an op-reth node before it is started.
 type OpRethConfig struct {
 	// ExtraArgs are appended to the generated CLI args.
 	ExtraArgs []string
+	// Binary selects the EL binary to launch. Empty means "op-reth". A CLI-compatible superset
+	// (any binary that accepts every op-reth subcommand/flag, plus optionally its own additive
+	// flags) may be selected via OpRethWithBinary.
+	Binary string
+	// DisableProofsHistory skips the proofs-history init + runtime flags for this node. The mixed
+	// runtime otherwise enables proofs-history on every op-reth node; some CLI-superset binaries
+	// reject --proofs-history in the mode under test.
+	DisableProofsHistory bool
 }
 
 // DefaultOpRethConfig returns a zero-valued OpRethConfig that callers can mutate via OpRethOptions.
@@ -60,19 +72,34 @@ func OpRethWithExtraArgs(args ...string) OpRethOption {
 	})
 }
 
-// OpRethWithSDMEnabled enables Sequencer-Defined Metering on the op-reth node.
-func OpRethWithSDMEnabled() OpRethOption {
-	return OpRethWithExtraArgs("--rollup.sdm-enabled")
+// OpRethWithBinary selects the EL binary to launch instead of the default "op-reth". The binary
+// must be a CLI superset of op-reth (it is invoked with op-reth's subcommands and flags). A binary
+// that lives outside this repo is resolved via the rustbin env overrides keyed off its name —
+// RUST_BINARY_PATH_<NAME> (or RUST_SRC_DIR_<NAME> + RUST_JIT_BUILD), with <NAME> the upper-snake-cased
+// binary name.
+func OpRethWithBinary(binary string) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		cfg.Binary = binary
+	})
 }
 
-// OpRethWithSupervisorURL wires the op-reth node to the given supervisor HTTP endpoint.
-// An empty supervisorURL is a no-op so callers can pass the value unconditionally.
-func OpRethWithSupervisorURL(supervisorURL string) OpRethOption {
+// OpRethWithoutProofsHistory disables the proofs-history subsystem for this node. The mixed runtime
+// enables proofs-history on every op-reth node by default; use this for a CLI-superset binary that
+// rejects --proofs-history in the mode under test.
+func OpRethWithoutProofsHistory() OpRethOption {
 	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
-		if supervisorURL == "" {
+		cfg.DisableProofsHistory = true
+	})
+}
+
+// OpRethWithInteropURL wires the op-reth node to the given interop filter HTTP endpoint.
+// An empty interopURL is a no-op so callers can pass the value unconditionally.
+func OpRethWithInteropURL(interopURL string) OpRethOption {
+	return OpRethOptionFn(func(p devtest.T, _ ComponentTarget, cfg *OpRethConfig) {
+		if interopURL == "" {
 			return
 		}
-		cfg.ExtraArgs = append(cfg.ExtraArgs, "--rollup.supervisor-http="+supervisorURL)
+		cfg.ExtraArgs = append(cfg.ExtraArgs, "--rollup.interop-http="+interopURL)
 	})
 }
 
@@ -94,6 +121,11 @@ type OpReth struct {
 	// Each entry is of the form "key=value".
 	env []string
 
+	// dataDirs lists every directory holding chain data, including --datadir;
+	// initCmds populate them from genesis.
+	dataDirs []string
+	initCmds [][]string
+
 	p devtest.T
 
 	sub *SubProcess
@@ -102,6 +134,7 @@ type OpReth struct {
 }
 
 var _ L2ELNode = (*OpReth)(nil)
+var _ stack.Wipeable = (*OpReth)(nil)
 
 func (n *OpReth) Start() {
 	n.mu.Lock()
@@ -126,7 +159,20 @@ func (n *OpReth) Start() {
 		})
 		n.userRPC = "ws://" + n.userProxy.Addr()
 	}
-	logOut := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID), log.LevelWarn)
+	stdoutLogger := n.p.Logger().New("component", "op-reth", "src", "stdout", "name", n.name, "chain", n.chainID)
+	stdoutInfo := logpipe.ToLoggerWithMinLevel(stdoutLogger, log.LevelInfo)
+	// Peer-disconnect reasons are logged below INFO under net::session / net::peers.
+	// Raise those entries to INFO (original level kept as an attribute) so they
+	// survive the devtest INFO log filter and peer drops stay diagnosable.
+	stdoutNetPeers := logpipe.ToLoggerRaisedToLevel(stdoutLogger, log.LevelInfo)
+	logOut := func(e logpipe.LogEntry) {
+		if r, ok := e.(logpipe.StructuredRustLogEntry); ok &&
+			(strings.HasPrefix(r.Target, "net::session") || strings.HasPrefix(r.Target, "net::peers")) {
+			stdoutNetPeers(e)
+			return
+		}
+		stdoutInfo(e)
+	}
 	logErr := logpipe.ToLoggerWithMinLevel(n.p.Logger().New("component", "op-reth", "src", "stderr", "name", n.name, "chain", n.chainID), log.LevelWarn)
 
 	authRPCChan := make(chan string, 1)
@@ -189,13 +235,74 @@ func (n *OpReth) Start() {
 }
 
 // Stop stops the op-reth node.
-// warning: no restarts supported yet, since the RPC port is not remembered.
 func (n *OpReth) Stop() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	if n.sub == nil {
+		n.p.Logger().Warn("op-reth already stopped")
+		return
+	}
+	n.clearProxyUpstreams()
 	err := n.sub.Stop(true)
 	n.p.Require().NoError(err, "Must stop")
 	n.sub = nil
+}
+
+// Wipe deletes the node's chain data and re-initializes it from genesis, so the
+// next Start begins with an empty chain. Stop/Start alone keeps the datadir.
+func (n *OpReth) Wipe() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.p.Require().Nil(n.sub, "op-reth %s must be stopped before wiping", n.name)
+	n.p.Logger().Info("Wiping op-reth", "name", n.name, "chain", n.chainID)
+	n.initData()
+}
+
+// initData resets dataDirs and runs initCmds. Callers must hold n.mu or have exclusive access.
+func (n *OpReth) initData() {
+	require := n.p.Require()
+	for _, dir := range n.dataDirs {
+		require.NoError(os.RemoveAll(dir), "must remove %s", dir)
+		require.NoError(os.MkdirAll(dir, 0o755), "must create %s", dir)
+	}
+	for _, args := range n.initCmds {
+		out, err := exec.CommandContext(n.p.Ctx(), n.execPath, args...).CombinedOutput()
+		require.NoError(err, "must run op-reth %s: %s", strings.Join(args, " "), string(out))
+	}
+}
+
+// Callers must hold n.mu.
+func (n *OpReth) clearProxyUpstreams() {
+	if n.userProxy != nil {
+		n.userProxy.ClearUpstream()
+	}
+	if n.authProxy != nil {
+		n.authProxy.ClearUpstream()
+	}
+}
+
+func (n *OpReth) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, n.Running, n.Start)
+}
+
+func (n *OpReth) StopControlled(ctx context.Context) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.sub == nil {
+		return nil
+	}
+	n.clearProxyUpstreams()
+	if err := n.sub.StopControlled(ctx, controlledInterruptWait, controlledKillWait); err != nil {
+		return err
+	}
+	n.sub = nil
+	return nil
+}
+
+func (n *OpReth) Running() bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.sub != nil
 }
 
 func (n *OpReth) UserRPC() string {

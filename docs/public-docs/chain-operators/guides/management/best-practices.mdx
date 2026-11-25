@@ -1,7 +1,10 @@
 ---
 title: Chain operator best practices
 description: Learn some best practices for managing the OP Stack's off-chain components.
+diataxis: explanation
 ---
+
+import OpEnterpriseCallout from '/snippets/op-enterprise-callout.mdx';
 
 The following information has some best practices around running the OP Stack's
 off-chain components.
@@ -67,7 +70,7 @@ GETH_TXPOOL_LIFETIME: "1h"
 GETH_TXPOOL_NOLOCALS: "true"
 ```
 
-For additional information about these flags, check out our [Execution Layer Configuration Options](/node-operators/reference/op-geth-config) doc.
+For additional information about these flags, check out our [Execution Layer Configuration Options](/node-operators/reference/op-reth-config) doc.
 
 ## Write your own runbooks
 
@@ -81,3 +84,5 @@ You'll want to setup metrics endpoints and monitoring on your key components of 
 The `op-proposer` currently assumes that `op-geth` is being run in archive
 mode. This will likely be updated in a future network upgrade, but it is
 necessary for L2 withdrawals at the moment.
+
+<OpEnterpriseCallout />

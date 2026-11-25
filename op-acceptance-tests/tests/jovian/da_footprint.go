@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/loadtest"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -22,11 +24,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func SpamCalldata(t devtest.T, l2BlockTime time.Duration, el *dsl.L2ELNode, wallet *dsl.HDWallet, faucet *dsl.Faucet) {
-	eoas := loadtest.FundEOAs(t, eth.HundredEther, 25, l2BlockTime, el, wallet, faucet)
+func SpamCalldata(t devtest.T, l2BlockTime time.Duration, el *dsl.L2ELNode, wallet *dsl.HDWallet, funder *dsl.FunderEOA) {
+	eoas := loadtest.FundEOAs(t, eth.HundredEther, 25, l2BlockTime, el, wallet, funder)
 	rr := loadtest.NewRoundRobin(eoas)
 
 	ctx, cancel := context.WithCancel(t.Ctx())
@@ -100,7 +101,7 @@ func (env *daFootprintEnv) getSystemConfigOwner(t devtest.T) *dsl.EOA {
 	return dsl.NewKey(t, priv).User(env.l1Client)
 }
 
-func (env *daFootprintEnv) setDAFootprintGasScalarViaSystemConfig(t devtest.T, scalar uint16) *types.Receipt {
+func (env *daFootprintEnv) setDAFootprintGasScalarViaSystemConfig(t devtest.T, scalar uint16) *optypes.Receipt {
 	owner := env.getSystemConfigOwner(t)
 	rec, err := contractio.Write(env.systemConfig.SetDAFootprintGasScalar(scalar), t.Ctx(), owner.Plan())
 	t.Require().NoError(err, "SetDAFootprintGasScalar transaction failed")
@@ -135,7 +136,7 @@ func TestDAFootprint(gt *testing.T) {
 	sys.FunderL1.FundAtLeast(systemOwner, eth.HalfEther)
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
 	sys.L2EL.WaitForOnline()
-	ethClient := sys.L2EL.Escape().EthClient()
+	l2Client := sys.L2EL.Escape().L2EthClient()
 
 	s1000 := uint16(1000)
 	s0 := uint16(0)
@@ -168,7 +169,7 @@ func TestDAFootprint(gt *testing.T) {
 			}
 			env.expectL1BlockDAFootprintGasScalar(t, tc.expected)
 
-			SpamCalldata(t, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+			SpamCalldata(t, l2BlockTime, sys.L2EL, sys.Wallet, sys.FunderL2)
 
 			rollupCfg := sys.L2Chain.Escape().RollupConfig()
 			gasTarget := rollupCfg.Genesis.SystemConfig.GasLimit / rollupCfg.ChainOpConfig.EIP1559Elasticity
@@ -192,22 +193,22 @@ func TestDAFootprint(gt *testing.T) {
 				return true, nil
 			})
 
-			_, txs, err := ethClient.InfoAndTxsByHash(t.Ctx(), info.Hash())
+			_, txs, err := l2Client.InfoAndUserTxsByHash(t.Ctx(), info.Hash())
 			require.NoError(err)
-			_, receipts, err := sys.L2EL.Escape().L2EthClient().FetchReceipts(t.Ctx(), info.Hash())
+			_, receipts, err := l2Client.FetchReceipts(t.Ctx(), info.Hash())
 			require.NoError(err)
+			userReceipts := receipts.UserReceipts()
+			require.Len(userReceipts, len(txs))
 
 			var totalDAFootprint uint64
 			for i, tx := range txs {
-				if tx.IsDepositTx() {
-					continue
-				}
-				recScalar := receipts[i].DAFootprintGasScalar
+				require.Equal(tx.Hash(), userReceipts[i].TxHash, "receipt %d does not belong to user tx %d", i, i)
+				recScalar := userReceipts[i].DAFootprintGasScalar
 				require.NotNil(recScalar, "nil receipt DA footprint gas scalar")
 				require.EqualValues(tc.expected, *recScalar, "DA footprint gas scalar mismatch in receipt")
 
-				txDAFootprint := bigs.Uint64Strict(tx.RollupCostData().EstimatedDASize()) * uint64(tc.expected)
-				require.Equal(txDAFootprint, receipts[i].BlobGasUsed, "tx DA footprint mismatch with receipt")
+				txDAFootprint := bigs.Uint64Strict(opfees.TxRollupCostData(tx).EstimatedDASize()) * uint64(tc.expected)
+				require.Equal(txDAFootprint, userReceipts[i].BlobGasUsed, "tx DA footprint mismatch with receipt")
 				totalDAFootprint += txDAFootprint
 			}
 			t.Logf("Block %s has header/calculated DA footprint %d/%d",

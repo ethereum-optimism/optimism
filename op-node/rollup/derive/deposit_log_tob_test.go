@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/fuzzerutils"
 	"github.com/ethereum/go-ethereum/common"
@@ -13,7 +14,7 @@ import (
 )
 
 // fuzzReceipts is similar to makeReceipts except it uses the fuzzer to populate DepositTx fields.
-func fuzzReceipts(typeProvider *fuzz.Fuzzer, blockHash common.Hash, depositContractAddr common.Address) (receipts []*types.Receipt, expectedDeposits []*types.DepositTx) {
+func fuzzReceipts(typeProvider *fuzz.Fuzzer, blockHash common.Hash, depositContractAddr common.Address) (receipts []*types.Receipt, expectedDeposits []*optypes.DepositTx) {
 	// Determine how many receipts to generate (capped)
 	var receiptCount uint64
 	typeProvider.Fuzz(&receiptCount)
@@ -60,7 +61,7 @@ func fuzzReceipts(typeProvider *fuzz.Fuzzer, blockHash common.Hash, depositContr
 				typeProvider.Fuzz(&fuzzedDepositInfo)
 
 				// Create our deposit transaction
-				dep := &types.DepositTx{
+				dep := &optypes.DepositTx{
 					SourceHash:          source.SourceHash(),
 					From:                *fuzzedDepositInfo.FromAddr,
 					To:                  fuzzedDepositInfo.ToAddr,

@@ -1,6 +1,8 @@
 package superchain
 
 import (
+	"strconv"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -9,7 +11,6 @@ type ChainConfig struct {
 	PublicRPC            string       `toml:"public_rpc"`
 	SequencerRPC         string       `toml:"sequencer_rpc"`
 	Explorer             string       `toml:"explorer"`
-	SuperchainLevel      int          `toml:"superchain_level"`
 	GovernedByOptimism   bool         `toml:"governed_by_optimism"`
 	SuperchainTime       *uint64      `toml:"superchain_time"`
 	DataAvailabilityType string       `toml:"data_availability_type"`
@@ -40,6 +41,15 @@ type Interop struct {
 	Dependencies map[string]Dependency `json:"dependencies" toml:"dependencies"`
 }
 
+// Dependencies returns the chain's interop dependency set, keyed by decimal chain ID. A chain
+// without an interop config depends only on itself.
+func (c *ChainConfig) Dependencies() map[string]Dependency {
+	if c.Interop == nil {
+		return map[string]Dependency{strconv.FormatUint(c.ChainID, 10): {}}
+	}
+	return c.Interop.Dependencies
+}
+
 type HardforkConfig struct {
 	CanyonTime   *uint64 `toml:"canyon_time"`
 	DeltaTime    *uint64 `toml:"delta_time"`
@@ -50,7 +60,11 @@ type HardforkConfig struct {
 	IsthmusTime  *uint64 `toml:"isthmus_time"`
 	JovianTime   *uint64 `toml:"jovian_time"`
 	KarstTime    *uint64 `toml:"karst_time"`
-	InteropTime  *uint64 `toml:"interop_time"`
+	// KeepKarstUpgradeGas opts out of the fix for the Karst upgrade-gas leak. It is a behavioral
+	// flag, not a scheduled time: set for chains that activated Karst with the leak baked into
+	// their history, so the inflated activation-block gas limit is kept on every later block.
+	KeepKarstUpgradeGas bool    `toml:"keep_karst_upgrade_gas"`
+	LagoonTime          *uint64 `toml:"lagoon_time"`
 	// Optional Forks
 	PectraBlobScheduleTime *uint64 `toml:"pectra_blob_schedule_time,omitempty"`
 }
@@ -87,6 +101,12 @@ type SystemConfig struct {
 	GasLimit          uint64         `json:"gasLimit" toml:"gasLimit"`
 	BaseFeeScalar     *uint64        `json:"baseFeeScalar,omitempty" toml:"baseFeeScalar,omitempty"`
 	BlobBaseFeeScalar *uint64        `json:"blobBaseFeeScalar,omitempty" toml:"blobBaseFeeScalar,omitempty"`
+	// Operator fee (Isthmus), min base fee and DA footprint gas scalar (Jovian). The registry
+	// records these only when non-zero, so an absent key means the chain started from zero.
+	OperatorFeeScalar    *uint32 `json:"operatorFeeScalar,omitempty" toml:"operatorFeeScalar,omitempty"`
+	OperatorFeeConstant  *uint64 `json:"operatorFeeConstant,omitempty" toml:"operatorFeeConstant,omitempty"`
+	MinBaseFee           *uint64 `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
+	DAFootprintGasScalar *uint16 `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
 }
 
 type RolesConfig struct {

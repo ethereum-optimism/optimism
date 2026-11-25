@@ -88,13 +88,10 @@ abstract contract Drippie_TestInit is Test {
         Drippie.DripAction[] memory actions = new Drippie.DripAction[](1);
         actions[0] = Drippie.DripAction({ target: payable(address(0x44)), data: hex"", value: 1 });
 
-        return Drippie.DripConfig({
-            interval: 100,
-            dripcheck: check,
-            reentrant: false,
-            checkparams: hex"",
-            actions: actions
-        });
+        return
+            Drippie.DripConfig({
+                interval: 100, dripcheck: check, reentrant: false, checkparams: hex"", actions: actions
+            });
     }
 
     /// @notice Creates a default drip using the default drip config.
@@ -430,9 +427,7 @@ contract Drippie_Drip_Test is Drippie_TestInit {
 
         // Add in an action
         cfg.actions[0] = Drippie.DripAction({
-            target: payable(address(simpleStorage)),
-            data: abi.encodeCall(SimpleStorage.set, (key, value)),
-            value: 0
+            target: payable(address(simpleStorage)), data: abi.encodeCall(SimpleStorage.set, (key, value)), value: 0
         });
 
         vm.prank(drippie.owner());

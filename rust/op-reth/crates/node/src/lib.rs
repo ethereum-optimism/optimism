@@ -17,13 +17,23 @@ use reth_db_api as _;
 /// CLI argument parsing for the optimism node.
 pub mod args;
 
-/// Exports optimism-specific implementations of the [`EngineTypes`](reth_node_api::EngineTypes)
-/// trait.
+/// The OP engine API validator and its payload and attribute checks.
 pub mod engine;
 pub use engine::OpEngineTypes;
 
+/// Canonical head metrics
+pub mod head_metrics;
+pub use head_metrics::{OpChainHeadMetrics, maintain_chain_head_metrics};
+
 pub mod node;
 pub use node::*;
+
+/// OP payload-service configuration.
+pub mod payload_service;
+pub use payload_service::OpPayloadServiceBuilder;
+
+mod derived_payload_service;
+pub use derived_payload_service::DerivedPayloadServiceBuilder;
 
 pub mod rpc;
 pub use rpc::OpEngineApiBuilder;
@@ -33,7 +43,7 @@ pub use version::OP_NAME_CLIENT;
 
 pub use reth_optimism_txpool as txpool;
 
-pub mod proof_history;
+mod sdm_test_policy;
 
 /// Helpers for running test node instances.
 #[cfg(feature = "test-utils")]
@@ -41,7 +51,7 @@ pub mod utils;
 
 pub use reth_optimism_payload_builder::{
     self as payload, OpBuiltPayload, OpPayloadAttributes, OpPayloadBuilder,
-    OpPayloadBuilderAttributes, OpPayloadPrimitives, OpPayloadTypes, config::OpDAConfig,
+    OpPayloadBuilderAttributes, config::OpDAConfig,
 };
 
 pub use reth_optimism_evm::*;
@@ -50,6 +60,3 @@ pub use reth_optimism_storage::OpStorage;
 
 use op_revm as _;
 use revm as _;
-
-#[cfg(feature = "test-utils")]
-use reth_tasks as _;

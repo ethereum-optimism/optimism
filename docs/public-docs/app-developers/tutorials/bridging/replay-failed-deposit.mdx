@@ -1,0 +1,178 @@
+---
+title: Replaying a failed deposit
+description: Learn how deposit replays work by deliberately failing a deposit against a test contract on OP Sepolia and then replaying it with more gas, end to end.
+---
+
+When a deposit transaction fails on L2 — usually because it ran out of gas or the L2 state didn't allow it to succeed — the message isn't lost. `L2CrossDomainMessenger` records it as a failed message, and you can replay it later, optionally with more gas.
+
+In this tutorial, you'll make a deposit fail on purpose against a test contract, then replay it successfully, so you can see the full failure-and-replay cycle end to end. For the concepts behind deposits and why replays are possible, see [Deposit flow](/op-stack/bridging/deposit-flow).
+
+## Before you begin
+
+- [Foundry](https://book.getfoundry.sh/getting-started/installation) installed (this tutorial uses `cast`).
+- A test account private key, funded with a small amount of test ETH on both **Ethereum Sepolia** (L1) and **OP Sepolia** (L2).
+- An L1 (Ethereum Sepolia) RPC URL — e.g. a free [Infura](https://infura.io) key or another provider.
+
+<Info>
+  **L1 vs L2 network clarification**
+
+  This tutorial involves **two different networks**:
+
+  *   **L1**: Ethereum Sepolia testnet (`https://sepolia.infura.io/v3/YOUR_KEY`)
+  *   **L2**: OP Sepolia testnet (`https://sepolia.optimism.io`)
+
+  You'll send transactions on L1 that trigger actions on L2. Make sure you're using the correct RPC URLs for each step.
+</Info>
+
+## Trigger and replay a failed deposit
+
+To see how replays work, you can use [this contract on OP Sepolia](https://testnet-explorer.optimism.io/address/0xEF60cF6C6D0C1c755be104843bb72CDa3D778630#code).
+
+1.  Call `stopChanges`, using this Foundry command:
+
+    ```sh
+    PRIV_KEY=<your private key here>
+    export ETH_RPC_URL=https://sepolia.optimism.io
+    GREETER=0xEF60cF6C6D0C1c755be104843bb72CDa3D778630
+    cast send --private-key $PRIV_KEY $GREETER "stopChanges()"
+    ```
+
+2.  Verify that `getStatus()` returns false, meaning changes are not allowed, and see the value of `greet()` using Foundry.
+    Note that Foundry returns false as zero.
+
+    ```sh
+    cast call $GREETER "greet()" | cast --to-ascii ; cast call $GREETER "getStatus()"
+    ```
+
+3.  Get the calldata.
+    You can use this Foundry command:
+
+    ```sh
+    cast calldata "setGreeting(string)" "testing"
+    ```
+
+    Or just use this value:
+
+    ```
+    0xa41368620000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000774657374696e6700000000000000000000000000000000000000000000000000
+    ```
+
+4.  Send a greeting change as a deposit from L1 (Ethereum Sepolia) to L2 (OP Sepolia).
+    Use these commands:
+
+    ```sh
+    # L1 = Ethereum Sepolia
+    # Get a free Infura key at https://infura.io or use the public RPC below
+    L1_RPC=https://sepolia.infura.io/v3/YOUR_INFURA_KEY    
+    L1XDM_ADDRESS=0x5086d1eef304eb5284a0f6720f79403b4e9be294
+    FUNC="sendMessage(address,bytes,uint32)"
+    CALLDATA=`cast calldata "setGreeting(string)" "testing"`
+    cast send --rpc-url $L1_RPC --private-key $PRIV_KEY $L1XDM_ADDRESS $FUNC $GREETER $CALLDATA 10000000
+    ```
+
+    The transaction will be successful on **L1 (Ethereum Sepolia)**, but then emit a fail event on **L2 (OP Sepolia)**.
+
+5.  The next step is to find the hash of the failed relay. There are several ways to do this:
+
+    **Method A: Using Etherscan Internal Transactions**
+
+    Look in [the internal transactions of the destination contract](https://testnet-explorer.optimism.io/address/0xEF60cF6C6D0C1c755be104843bb72CDa3D778630#internaltx), and select the latest one that appears as a failure. It should be a call to `L2CrossDomainMessenger` at address `0x420...007`.
+
+    **Method B: Using Contract Events (if internal transactions aren't visible)**
+
+    If you can't see internal transactions on Etherscan, check the [L2CrossDomainMessenger contract events](https://testnet-explorer.optimism.io/address/0x4200000000000000000000000000000000000007#events) and look for `FailedRelayedMessage` events with your contract address.
+
+    **Method C: Using cast to query failed messages**
+
+    ```sh
+    # First, you need the message hash. You can derive it from the L1 transaction, or check events
+    L2XDM_ADDRESS=0x4200000000000000000000000000000000000007
+    # Replace MSG_HASH with the actual message hash from the FailedRelayedMessage event
+    cast call $L2XDM_ADDRESS "failedMessages(bytes32)" $MSG_HASH
+    ```
+
+    If the latest internal transaction is a success, it probably means your transaction hasn't relayed yet. Wait until it is, that may take a few minutes.
+
+6.  Get the transaction information using Foundry.
+
+    <Info>
+      **Wait for the failed relay transaction**
+
+      Make sure you wait for the deposit to be processed on L2 and fail before proceeding. This can take 2-5 minutes. You should see a failed transaction in one of the methods from step 5.
+    </Info>
+
+    ```sh
+    TX_HASH=<transaction hash from the failed relay on L2>
+    L2XDM_ADDRESS=0x4200000000000000000000000000000000000007
+    REPLAY_DATA=`cast tx $TX_HASH input`
+    ```
+
+7.  Call `startChanges()` to allow changes using this Foundry command:
+
+    ```sh
+    cast send --private-key $PRIV_KEY $GREETER "startChanges()"
+    ```
+
+    <Info>
+      Don't do this prematurely
+
+      If you call `startChanges()` too early, it will happen when the message is relayed to L2, and then the initial deposit will be successful and there will be no need to replay it.
+    </Info>
+
+8.  Verify that `getStatus()` returns true, meaning changes are not allowed, and see the value of `greet()`.
+    Foundry returns true as one.
+
+    ```sh
+    cast call $GREETER "greet()" | cast --to-ascii ; cast call $GREETER "getStatus()"
+    ```
+
+9.  Now send the replay transaction.
+
+    ```sh
+    cast send --private-key $PRIV_KEY --gas-limit 10000000 $L2XDM_ADDRESS $REPLAY_DATA 
+    ```
+
+    <Info>
+      Why do we need to specify the gas limit?
+
+      The gas estimation mechanism tries to find the minimum gas limit at which the transaction would be successful.
+      However, `L2CrossDomainMessenger` does not revert when a replay fails due to low gas limit, it just emits a failure message.
+      The gas estimation mechanism considers that a success.
+
+      To get a gas estimate, you can use this command:
+
+      ```sh
+      cast estimate --from 0x0000000000000000000000000000000000000001 $L2XDM_ADDRESS $REPLAY_DATA
+      ```
+
+      That address is a special case in which the contract does revert.
+    </Info>
+
+10. Verify the greeting has changed:
+
+    ```sh
+    cast call $GREETER "greet()" | cast --to-ascii ; cast call $GREETER "getStatus()"
+    ```
+
+## Debugging
+
+To debug deposit transactions, you can ask the L2 cross domain messenger for the state of the transaction.
+
+1.  Look on Etherscan to see the `FailedRelayedMessage` event. Set `MSG_HASH` to that value.
+
+2.  To check if the message is listed as failed, run this:
+
+    ```sh
+    cast call $L2XDM_ADDRESS "failedMessages(bytes32)" $MSG_HASH
+    ```
+
+    To check if it is listed as successful, run this:
+
+    ```sh
+    cast call $L2XDM_ADDRESS "successfulMessages(bytes32)" $MSG_HASH
+    ```
+
+## Next steps
+
+- Read [Deposit flow](/op-stack/bridging/deposit-flow) to understand how deposits are processed across L1 and L2 under the hood.
+- Learn about [sending data between L1 and L2](/app-developers/guides/bridging/messaging) from your contracts.

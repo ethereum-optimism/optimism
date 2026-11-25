@@ -1,0 +1,32 @@
+---
+title: Granite
+description: bn256Pairing 입력 크기를 제한한 보안 강화 업그레이드인 Granite 네트워크 업그레이드의 하드포크 레지스트리 항목입니다.
+diataxis: reference
+hardfork_name: granite
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/granite/overview.html
+hardfork_activation_mainnet: 1726070401
+hardfork_activation_sepolia: 1723478400
+hardfork_governance: https://gov.optimism.io/t/upgrade-proposal-10-granite-network-upgrade/8733
+---
+
+import GraniteFacts from "/ko/snippets/generated/hardforks/granite.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="이 업그레이드"
+  title="Granite 명세"
+  href="https://specs.optimism.io/protocol/granite/overview.html"
+  note="이 페이지는 활성화 데이터와 운영 관련 참고 정보를 기록하며, 명세의 내용을 다시 서술하지 않습니다."
+/>
+
+Granite는 결함 증명(fault proof) 관련 영역을 대상으로 한 소규모 보안 강화 업그레이드였습니다.
+
+<GraniteFacts />
+
+## 변경 사항
+
+[명세 개요](https://specs.optimism.io/protocol/granite/overview.html)에 따른 변경 사항은 다음과 같습니다.
+
+*   실행 계층: `bn256Pairing` precompile 입력 크기를 제한했습니다.
+*   합의 계층: channel timeout을 50으로 줄였습니다.

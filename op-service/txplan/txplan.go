@@ -14,12 +14,15 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 )
 
@@ -32,7 +35,7 @@ type PlannedTx struct {
 	Unsigned      plan.Lazy[types.TxData]
 	Signed        plan.Lazy[*types.Transaction]
 	Submitted     plan.Lazy[struct{}]
-	Included      plan.Lazy[*types.Receipt]
+	Included      plan.Lazy[*optypes.Receipt] // OP Stack fields are nil through FromGethReceipts
 	IncludedBlock plan.Lazy[eth.BlockRef]
 	Success       plan.Lazy[struct{}]
 
@@ -58,6 +61,25 @@ type PlannedTx struct {
 	BlobFeeCap plan.Lazy[*uint256.Int]                 // resolves to nil if not a blob tx
 	BlobHashes plan.Lazy[[]common.Hash]                // resolves to nil if not a blob tx
 	Sidecar    plan.Lazy[*types.BlobTxSidecar]         // resolves to nil if not a blob tx
+
+	flags locks.RWMap[Flag, struct{}]
+}
+
+// Flag is an opaque marker one Option sets and another reads at eval time, letting Options
+// coordinate regardless of the order they are applied in.
+// Use an unexported zero-size type from the owning package so flags cannot collide.
+type Flag any
+
+// WithFlag sets a flag on the tx.
+func WithFlag(f Flag) Option {
+	return func(tx *PlannedTx) {
+		tx.flags.Set(f, struct{}{})
+	}
+}
+
+// HasFlag returns whether the given flag was set on this tx.
+func (ptx *PlannedTx) HasFlag(f Flag) bool {
+	return ptx.flags.Has(f)
 }
 
 func (ptx *PlannedTx) String() string {
@@ -222,10 +244,11 @@ func WithEstimator(cl Estimator, invalidateOnNewBlock bool) Option {
 			tx.Gas.DependOn(&tx.AgainstBlock)
 		}
 		tx.Gas.Fn(func(ctx context.Context) (uint64, error) {
+			// Leave CallMsg.Gas unset so the target node applies the estimation ceiling for its active
+			// fork.
 			msg := ethereum.CallMsg{
 				From:       tx.Sender.Value(),
 				To:         tx.To.Value(),
-				Gas:        params.MaxTxGas, // max gas, will be estimated
 				GasPrice:   nil,
 				GasFeeCap:  tx.GasFeeCap.Value(),
 				GasTipCap:  tx.GasTipCap.Value(),
@@ -259,17 +282,65 @@ func WithTransactionSubmitter(cl TransactionSubmitter) Option {
 
 func WithRetrySubmission(cl TransactionSubmitter, maxAttempts int, strategy retry.Strategy) Option {
 	return func(tx *PlannedTx) {
-		tx.Submitted.DependOn(&tx.Signed)
+		// Intentionally no DependOn(&tx.Signed) here.
+		//
+		// The Lazy DAG evaluates a node's fn while holding read-locks on all of
+		// its upstream dependencies. If tx.Submitted declared tx.Signed as an
+		// upstream dep, the fn would run with tx.Signed's mutex read-locked.
+		// Calling tx.Signed.Eval or tx.Nonce.Invalidate (which cascades down to
+		// tx.Submitted) from inside that fn would then deadlock trying to
+		// acquire those same mutexes. Instead we hold no upstream locks and
+		// drive the full eval+submit cycle ourselves on each retry attempt.
 		tx.Submitted.Fn(func(ctx context.Context) (struct{}, error) {
 			return struct{}{}, retry.Do0(ctx, maxAttempts, strategy, func() error {
-				return cl.SendTransaction(ctx, tx.Signed.Value())
+				// Evaluate (or re-evaluate after a nonce-too-low invalidation)
+				// the signed transaction. No upstream locks are held here, so
+				// Eval acquires the necessary mutexes safely.
+				signed, err := tx.Signed.Eval(ctx)
+				if err != nil {
+					return fmt.Errorf("re-evaluating signed tx: %w", err)
+				}
+				err = cl.SendTransaction(ctx, signed)
+				// If the nonce is stale (e.g. a deposit tx on L2 advanced the
+				// account nonce before we fetched it), invalidate the Nonce node
+				// so it is re-fetched on the next attempt. Because Nonce is
+				// upstream of Unsigned which is upstream of Signed, invalidating
+				// Nonce cascades through the whole signing pipeline.
+				if errors.Is(err, core.ErrNonceTooLow) {
+					tx.Nonce.Invalidate()
+				}
+				return err
 			})
 		})
 	}
 }
 
 type ReceiptGetter interface {
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*optypes.Receipt, error)
+}
+
+// GethReceiptGetter is the receipt getter shape of go-ethereum clients
+// (e.g. *ethclient.Client).
+type GethReceiptGetter interface {
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+}
+
+// FromGethReceipts adapts a go-ethereum receipt getter to ReceiptGetter.
+// The JSON-only OP fee fields stay nil, and a deposit receipt is an error:
+// suitable for L1 clients, and for L2 clients when only user transactions
+// are looked up.
+func FromGethReceipts(cl GethReceiptGetter) ReceiptGetter {
+	return gethReceiptGetter{inner: cl}
+}
+
+type gethReceiptGetter struct{ inner GethReceiptGetter }
+
+func (g gethReceiptGetter) TransactionReceipt(ctx context.Context, txHash common.Hash) (*optypes.Receipt, error) {
+	receipt, err := g.inner.TransactionReceipt(ctx, txHash)
+	if err != nil || receipt == nil {
+		return nil, err
+	}
+	return optypes.FromGethReceipt(receipt)
 }
 
 // WithAssumedInclusion assumes inclusion at the time of evaluation,
@@ -277,7 +348,7 @@ type ReceiptGetter interface {
 func WithAssumedInclusion(cl ReceiptGetter) Option {
 	return func(tx *PlannedTx) {
 		tx.Included.DependOn(&tx.Signed, &tx.Submitted)
-		tx.Included.Fn(func(ctx context.Context) (*types.Receipt, error) {
+		tx.Included.Fn(func(ctx context.Context) (*optypes.Receipt, error) {
 			return cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
 		})
 	}
@@ -286,12 +357,12 @@ func WithAssumedInclusion(cl ReceiptGetter) Option {
 func WithRetryInclusion(cl ReceiptGetter, maxAttempts int, strategy retry.Strategy) Option {
 	return func(tx *PlannedTx) {
 		tx.Included.DependOn(&tx.Signed, &tx.Submitted)
-		tx.Included.Fn(func(ctx context.Context) (*types.Receipt, error) {
+		tx.Included.Fn(func(ctx context.Context) (*optypes.Receipt, error) {
 			return cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
 		})
-		tx.Included.Wrap(func(fn plan.Fn[*types.Receipt]) plan.Fn[*types.Receipt] {
-			return func(ctx context.Context) (*types.Receipt, error) {
-				return retry.Do(ctx, maxAttempts, strategy, func() (*types.Receipt, error) {
+		tx.Included.Wrap(func(fn plan.Fn[*optypes.Receipt]) plan.Fn[*optypes.Receipt] {
+			return func(ctx context.Context) (*optypes.Receipt, error) {
+				return retry.Do(ctx, maxAttempts, strategy, func() (*optypes.Receipt, error) {
 					return fn(ctx)
 				})
 			}
@@ -364,8 +435,6 @@ func WithReader(cl Reader) Option {
 		tx.Read.DependOn(
 			&tx.Sender,
 			&tx.To,
-			&tx.GasFeeCap,
-			&tx.GasTipCap,
 			&tx.Value,
 			&tx.Data,
 			&tx.AccessList,
@@ -377,8 +446,8 @@ func WithReader(cl Reader) Option {
 				To:         tx.To.Value(),
 				Gas:        0, // auto estimated by the node
 				GasPrice:   nil,
-				GasFeeCap:  tx.GasFeeCap.Value(),
-				GasTipCap:  tx.GasTipCap.Value(),
+				GasFeeCap:  nil,
+				GasTipCap:  nil,
 				Value:      tx.Value.Value(),
 				Data:       tx.Data.Value(),
 				AccessList: tx.AccessList.Value(),
@@ -412,11 +481,8 @@ func WithBlobs(blobs []*eth.Blob, config *params.ChainConfig) Option {
 			return uint256.MustFromBig(tx.AgainstBlock.Value().BlobBaseFee(config)), nil
 		})
 		var blobHashes []common.Hash
-		tx.Sidecar.DependOn(&tx.AgainstBlock)
 		tx.Sidecar.Fn(func(_ context.Context) (*types.BlobTxSidecar, error) {
-			againstBlock := tx.AgainstBlock.Value()
-			useCellProofs := config.IsOsaka(new(big.Int).SetUint64(againstBlock.NumberU64()), againstBlock.Time())
-			sidecar, hashes, err := txmgr.MakeSidecar(blobs, useCellProofs)
+			sidecar, hashes, err := txmgr.MakeSidecar(blobs)
 			if err != nil {
 				return nil, fmt.Errorf("make blob tx sidecar: %w", err)
 			}
@@ -571,7 +637,7 @@ func (tx *PlannedTx) Defaults() {
 				R:          nil,
 				S:          nil,
 			}, nil
-		case types.DepositTxType:
+		case optypes.DepositTxType:
 			return nil, errors.New("deposit tx not supported")
 		default:
 			return nil, fmt.Errorf("unrecognized tx type: %d", tx.Type.Value())

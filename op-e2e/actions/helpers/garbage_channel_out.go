@@ -11,8 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -59,6 +58,10 @@ func (gk GarbageKind) String() string {
 type GarbageChannelCfg struct {
 	UseInvalidCompression bool
 	MalformRLP            bool
+	// TxModifier rewrites the transactions of each batch after the deposits have been filtered
+	// out and before the batch is encoded, so it can inject what the block-based batcher path
+	// cannot carry, like deposit-typed or non-canonical transaction bytes.
+	TxModifier func([]eth.Data) []eth.Data
 }
 
 // Writer is the interface shared between `zlib.Writer` and `gzip.Writer`
@@ -73,7 +76,7 @@ type Writer interface {
 type ChannelOutIface interface {
 	ID() derive.ChannelID
 	Reset() error
-	AddBlock(rollupCfg *rollup.Config, block *types.Block) (*derive.L1BlockInfo, error)
+	AddBlock(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (*derive.L1BlockInfo, error)
 	ReadyBytes() int
 	Flush() error
 	Close() error
@@ -157,14 +160,18 @@ func (co *GarbageChannelOut) Reset() error {
 // error that it returns is ErrTooManyRLPBytes. If this error
 // is returned, the channel should be closed and a new one
 // should be made.
-func (co *GarbageChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Block) (*derive.L1BlockInfo, error) {
+func (co *GarbageChannelOut) AddBlock(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (*derive.L1BlockInfo, error) {
 	if co.closed {
 		return nil, errors.New("already closed")
 	}
-	batch, l1Info, err := blockToBatch(rollupCfg, block)
+	singularBatch, l1Info, err := derive.PayloadToSingularBatch(rollupCfg, payload)
 	if err != nil {
 		return nil, err
 	}
+	if co.cfg.TxModifier != nil {
+		singularBatch.Transactions = co.cfg.TxModifier(singularBatch.Transactions)
+	}
+	batch := derive.NewBatchData(singularBatch)
 	// We encode to a temporary buffer to determine the encoded length to
 	// ensure that the total size of all RLP elements is less than or equal to MAX_RLP_BYTES_PER_CHANNEL
 	var buf bytes.Buffer
@@ -180,7 +187,7 @@ func (co *GarbageChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Blo
 	}
 
 	chainSpec := rollup.NewChainSpec(rollupCfg)
-	maxRLPBytesPerChannel := chainSpec.MaxRLPBytesPerChannel(block.Time())
+	maxRLPBytesPerChannel := chainSpec.MaxRLPBytesPerChannel(uint64(payload.Timestamp))
 	if co.rlpLength+buf.Len() > int(maxRLPBytesPerChannel) {
 		return nil, fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
 			buf.Len(), co.rlpLength, maxRLPBytesPerChannel, derive.ErrTooManyRLPBytes)
@@ -253,37 +260,4 @@ func (co *GarbageChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint1
 	} else {
 		return fn, nil
 	}
-}
-
-// blockToBatch transforms a block into a batch object that can easily be RLP encoded.
-func blockToBatch(rollupCfg *rollup.Config, block *types.Block) (*derive.BatchData, *derive.L1BlockInfo, error) {
-	opaqueTxs := make([]hexutil.Bytes, 0, len(block.Transactions()))
-	for i, tx := range block.Transactions() {
-		if tx.Type() == types.DepositTxType {
-			continue
-		}
-		otx, err := tx.MarshalBinary()
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not encode tx %v in block %v: %w", i, tx.Hash(), err)
-		}
-		opaqueTxs = append(opaqueTxs, otx)
-	}
-	l1InfoTx := block.Transactions()[0]
-	if l1InfoTx.Type() != types.DepositTxType {
-		return nil, nil, derive.ErrNotDepositTx
-	}
-	l1Info, err := derive.L1BlockInfoFromBytes(rollupCfg, block.Time(), l1InfoTx.Data())
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not parse the L1 Info deposit: %w", err)
-	}
-
-	singularBatch := &derive.SingularBatch{
-		ParentHash:   block.ParentHash(),
-		EpochNum:     rollup.Epoch(l1Info.Number),
-		EpochHash:    l1Info.BlockHash,
-		Timestamp:    block.Time(),
-		Transactions: opaqueTxs,
-	}
-
-	return derive.NewBatchData(singularBatch), l1Info, nil
 }

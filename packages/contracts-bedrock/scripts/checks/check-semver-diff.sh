@@ -20,7 +20,9 @@ EXCLUDED_CONTRACTS=(
 )
 
 github_token() {
-  if [ -n "${GH_TOKEN:-}" ]; then
+  if [ -n "${REPO_GITHUB_TOKEN:-}" ]; then
+    printf '%s' "$REPO_GITHUB_TOKEN"
+  elif [ -n "${GH_TOKEN:-}" ]; then
     printf '%s' "$GH_TOKEN"
   elif [ -n "${GITHUB_TOKEN:-}" ]; then
     printf '%s' "$GITHUB_TOKEN"
@@ -81,7 +83,7 @@ get_upstream_file() {
 # Helper function to check if a contract is excluded.
 is_excluded() {
   local contract="$1"
-  for excluded in "${EXCLUDED_CONTRACTS[@]}"; do
+  for excluded in "${EXCLUDED_CONTRACTS[@]-}"; do
     if [[ "$contract" == "$excluded" ]]; then
       return 0
     fi
@@ -89,9 +91,30 @@ is_excluded() {
   return 1
 }
 
+# Helper function to check that every contract in a source file kept its initCodeHash.
+init_code_unchanged() {
+  local contract="$1"
+  jq -e --arg file "$contract" --slurpfile upstream "$temp_dir/upstream_semver_lock.json" '
+    to_entries
+    | map(select(.key | startswith($file + ":")))
+    | all(.value.initCodeHash == $upstream[0][.key].initCodeHash)
+  ' "$temp_dir/local_semver_lock.json" > /dev/null
+}
+
 # Create a temporary directory.
 temp_dir=$(mktemp -d)
 trap 'rm -rf "$temp_dir"' EXIT
+
+# The check runner regenerates semver-lock.json (the `snapshots` check) before
+# this script runs, so in CI's clean checkout any diff here means the committed
+# lock was not generated from this source tree (e.g. stale after a semantic
+# merge). Skipped locally, where an uncommitted lock is normal during dev.
+if [ -n "${CI:-}" ] && ! git diff --quiet -- "$SEMVER_LOCK"; then
+  echo "❌ Error: committed $SEMVER_LOCK does not match the regenerated version."
+  git --no-pager diff -- "$SEMVER_LOCK"
+  echo "To fix: run 'just semver-lock' and commit the updated $SEMVER_LOCK."
+  exit 1
+fi
 
 # Exit early if semver-lock.json has not changed.
 UPSTREAM_REF="origin/${TARGET_BRANCH}"
@@ -101,9 +124,9 @@ if ! git rev-parse --verify --quiet "$UPSTREAM_REF" > /dev/null; then
 fi
 
 changed_files="$temp_dir/changed_files.txt"
-git diff "$UPSTREAM_REF"...HEAD --name-only > "$changed_files"
-git diff --name-only >> "$changed_files"
-git diff --cached --name-only >> "$changed_files"
+git diff --relative "$UPSTREAM_REF"...HEAD --name-only > "$changed_files"
+git diff --relative --name-only >> "$changed_files"
+git diff --relative --cached --name-only >> "$changed_files"
 
 if ! grep -qx "$SEMVER_LOCK" "$changed_files"; then
   echo "No changes detected in semver-lock.json"
@@ -155,6 +178,18 @@ for contract in $changed_contracts; do
   new_source_file="$temp_dir/new_${contract##*/}"
   get_upstream_file packages/contracts-bedrock/"$contract" "$old_source_file" || true
   cp "$contract" "$new_source_file"
+
+  # Normalize formatting so formatter-only changes do not require a version bump. The bytecode
+  # must also be unchanged, since a library or base contract change can alter it without
+  # touching this source file.
+  forge fmt --quiet --root . "$old_source_file" "$new_source_file"
+  if cmp -s "$old_source_file" "$new_source_file"; then
+    if init_code_unchanged "$contract"; then
+      echo "✅ $contract: formatting-only change"
+      continue
+    fi
+    echo "⚠️  $contract: source is unchanged after formatting, but its initCodeHash changed"
+  fi
 
   # Extract the old and new versions.
   old_version=$(extract_version "$old_source_file" 2> /dev/null || echo "N/A")

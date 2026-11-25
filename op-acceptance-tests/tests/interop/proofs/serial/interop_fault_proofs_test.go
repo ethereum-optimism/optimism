@@ -1,6 +1,7 @@
 package serial
 
 import (
+	"os"
 	"testing"
 
 	sfp "github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/superfaultproofs"
@@ -12,13 +13,13 @@ import (
 
 func TestInteropFaultProofs(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(t)
-	sfp.RunSuperFaultProofTest(t, sys)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunSuperFaultProofTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(t, presets.WithSuggestedInteropActivationOffset(365*24*60*60))
+	sys := presets.NewSimpleInterop(t, presets.WithSuggestedLagoonActivationOffset(365*24*60*60))
 	sfp.RunPreForkActivationTest(t, sys)
 }
 
@@ -26,75 +27,157 @@ func TestInteropFaultProofs_ActivationBoundary(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	// Set interop activation ~6s (3 blocks) after genesis. A small offset keeps
 	// the fork reachable within CI timeouts while still having pre-interop blocks.
-	sys := presets.NewSimpleInteropSupernodeProofs(t,
-		presets.WithSuggestedInteropActivationOffset(6),
+	sys := presets.NewSimpleInterop(t,
+		presets.WithSuggestedLagoonActivationOffset(6),
 	)
-	sfp.RunInteropActivationBoundaryTest(t, sys)
+	sfp.RunInteropActivationBoundaryTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(t)
-	sfp.RunConsolidateValidCrossChainMessageTest(t, sys)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunConsolidateValidCrossChainMessageTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_ConsolidateBelowHeadMessage(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunConsolidateBelowHeadMessageTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(t)
-	sfp.RunDepositMessageTest(t, sys)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunDepositMessageTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_VariedBlockTimes(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(
+	sys := presets.NewSimpleInterop(
 		t,
 		presets.WithL2BlockTimes(map[eth.ChainID]uint64{
 			sysgo.DefaultL2AID: 1,
 			sysgo.DefaultL2BID: 2,
 		}),
 	)
-	sfp.RunVariedBlockTimesTest(t, sys)
+	sfp.RunVariedBlockTimesTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(
+	sys := presets.NewSimpleInterop(
 		t,
 		presets.WithL2BlockTimes(map[eth.ChainID]uint64{
 			sysgo.DefaultL2AID: 2,
 			sysgo.DefaultL2BID: 1,
 		}),
 	)
-	sfp.RunVariedBlockTimesTest(t, sys)
+	sfp.RunVariedBlockTimesTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_InvalidBlock(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(t)
-	sfp.RunInvalidBlockTest(t, sys)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunInvalidBlockTest(t, sys, proofRunners()...)
 }
 
-func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
-	for _, tc := range sfp.IntraBlockCases() {
-		gt.Run(tc.Name, func(gt *testing.T) {
-			t := devtest.SerialT(gt)
-			sys := presets.NewSimpleInteropSupernodeProofs(t)
-			sfp.RunIntraBlockConsolidationTest(t, sys, tc)
-		})
-	}
+func TestInteropFaultProofs_DestroyedAndRecreatedAccount(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunDestroyedAndRecreatedAccountTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_ReplacedBlockStorageDeletion(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunReplacedBlockStorageDeletionTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_ReplacedBlockSameChainMessage(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunReplacedBlockSameChainMessageTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_ReplacedBlockCrossChainMessage(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunReplacedBlockCrossChainMessageTest(t, sys, proofRunners()...)
+}
+
+// Each intra-block case is a top-level test, so CI can shard the cases across
+// nodes. Each one builds its own devstack (~70s).
+func TestInteropFaultProofs_IntraBlock_CascadeInvalid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockCascadeInvalid())
+}
+
+func TestInteropFaultProofs_IntraBlock_SwapCascadeInvalid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockSwapCascadeInvalid())
+}
+
+func TestInteropFaultProofs_IntraBlock_CyclicDependencyValid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockCyclicDependencyValid())
+}
+
+func TestInteropFaultProofs_IntraBlock_CyclicDependencyInvalid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockCyclicDependencyInvalid())
+}
+
+func TestInteropFaultProofs_IntraBlock_LongDependencyChainValid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockLongDependencyChainValid())
+}
+
+func TestInteropFaultProofs_IntraBlock_SameChainValid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockSameChainValid())
+}
+
+func TestInteropFaultProofs_IntraBlock_SameChainInvalid(gt *testing.T) {
+	runIntraBlockCase(gt, sfp.IntraBlockSameChainInvalid())
+}
+
+func runIntraBlockCase(gt *testing.T, tc *sfp.IntraBlockTestCase) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunIntraBlockConsolidationTest(t, sys, tc, proofRunners()...)
+}
+
+func TestInteropFaultProofs_CycleReplacementPreservesAcyclicPrerequisite(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewThreeChainInterop(t, presets.WithoutHonestProposer())
+	sfp.RunCycleReplacementPreservesAcyclicPrerequisiteTest(t, sys, proofRunners()...)
 }
 
 func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewSimpleInteropSupernodeProofs(t)
-	sfp.RunDepositMessageInvalidExecutionTest(t, sys)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunDepositMessageInvalidExecutionTest(t, sys, proofRunners()...)
+}
+
+func TestInteropFaultProofs_SuperrootOptimisticPairing(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunOptimisticPairingTest(t, sys, true)
+}
+
+func TestInteropFaultProofs_SuperrootOptimisticPairing_NoReplacement(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	sfp.RunOptimisticPairingTest(t, sys, false)
 }
 
 func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	const messageExpiryWindow = uint64(12) // 12 seconds for fast test
-	sys := presets.NewSimpleInteropSupernodeProofs(t,
+	sys := presets.NewSimpleInterop(t,
 		presets.WithMessageExpiryWindow(messageExpiryWindow),
 	)
-	sfp.RunMessageExpiryTest(t, sys, messageExpiryWindow)
+	sfp.RunMessageExpiryTest(t, sys, messageExpiryWindow, proofRunners()...)
+}
+
+func proofRunners() []sfp.ProofRunner {
+	runners := []sfp.ProofRunner{sfp.NewKonaProofRunner()}
+	if os.Getenv("RUST_BINARY_PATH_KONA_SP1_SUPER_RANGE_EXECUTOR") != "" || os.Getenv("RUST_JIT_BUILD") != "" {
+		runners = append(runners, sfp.NewSP1NativeProofRunner())
+	}
+	return runners
 }

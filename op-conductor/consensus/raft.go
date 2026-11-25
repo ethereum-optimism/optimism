@@ -9,12 +9,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const defaultTimeout = 5 * time.Second
@@ -23,8 +22,7 @@ var _ Consensus = (*RaftConsensus)(nil)
 
 // RaftConsensus implements Consensus using raft protocol.
 type RaftConsensus struct {
-	log       log.Logger
-	rollupCfg *rollup.Config
+	log log.Logger
 
 	serverID raft.ServerID
 	r        *raft.Raft
@@ -55,7 +53,6 @@ type RaftConsensusConfig struct {
 
 	StorageDir         string
 	Bootstrap          bool
-	RollupCfg          *rollup.Config
 	SnapshotInterval   time.Duration
 	SnapshotThreshold  uint64
 	TrailingLogs       uint64
@@ -76,6 +73,7 @@ func checkTCPPortOpen(address string) error {
 // NewRaftConsensus creates a new RaftConsensus instance.
 func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus, error) {
 	rc := raft.DefaultConfig()
+	rc.Logger = newRaftLogger(log)
 	rc.SnapshotInterval = cfg.SnapshotInterval
 	rc.TrailingLogs = cfg.TrailingLogs
 	rc.SnapshotThreshold = cfg.SnapshotThreshold
@@ -109,7 +107,7 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 		return nil, fmt.Errorf(`boltdb.NewBoltStore(%q): %w`, stableStorePath, err)
 	}
 
-	snapshotStore, err := raft.NewFileSnapshotStoreWithLogger(baseDir, 1, rc.Logger)
+	snapshotStore, err := raft.NewFileSnapshotStoreWithLogger(baseDir, 1, rc.Logger.Named("snapshot"))
 	if err != nil {
 		return nil, fmt.Errorf(`raft.NewFileSnapshotStore(%q): %w`, baseDir, err)
 	}
@@ -134,7 +132,7 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 	timeout := 5 * time.Second
 
 	// When advertiseAddr == nil, the transport will use the local address that it is bound to.
-	transport, err := raft.NewTCPTransportWithLogger(bindAddr, advertiseAddr, maxConnPool, timeout, rc.Logger)
+	transport, err := raft.NewTCPTransportWithLogger(bindAddr, advertiseAddr, maxConnPool, timeout, rc.Logger.Named("network"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create raft tcp transport: %w", err)
 	}
@@ -185,7 +183,6 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 		r:             r,
 		serverID:      raft.ServerID(cfg.ServerID),
 		unsafeTracker: fsm,
-		rollupCfg:     cfg.RollupCfg,
 		transport:     transport,
 	}, err
 }
@@ -326,6 +323,11 @@ func (rc *RaftConsensus) LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, e
 	}
 
 	return rc.unsafeTracker.UnsafeHead(), nil
+}
+
+// LocalUnsafePayload implements Consensus, it returns the latest unsafe payload applied to the local FSM.
+func (rc *RaftConsensus) LocalUnsafePayload() *eth.ExecutionPayloadEnvelope {
+	return rc.unsafeTracker.UnsafeHead()
 }
 
 // ClusterMembership implements Consensus, it returns the current cluster membership configuration.

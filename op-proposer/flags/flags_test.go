@@ -12,6 +12,11 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+func TestSuperRootRpcsFlagCompatibility(t *testing.T) {
+	require.Equal(t, []string{"superroot-rpcs", "supernode-rpcs"}, SuperRootRpcsFlag.Names())
+	require.Equal(t, []string{"OP_PROPOSER_SUPERROOT_RPCS", "OP_PROPOSER_SUPERNODE_RPCS"}, SuperRootRpcsFlag.EnvVars)
+}
+
 // TestOptionalFlagsDontSetRequired asserts that all flags deemed optional set
 // the Required field to false.
 func TestOptionalFlagsDontSetRequired(t *testing.T) {
@@ -67,7 +72,11 @@ func TestHasEnvVar(t *testing.T) {
 			})
 			envFlags := envFlagGetter.GetEnvVars()
 			require.True(t, ok, "must be able to cast the flag to an EnvVar interface")
-			require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
+			if flagName == SuperRootRpcsFlag.Name {
+				require.Len(t, envFlags, 2, "super root RPC flag should keep its legacy env var")
+			} else {
+				require.Len(t, envFlags, 1, "flags should have exactly one env var")
+			}
 		})
 	}
 }
@@ -81,6 +90,7 @@ func TestEnvVarFormat(t *testing.T) {
 			txmgr.FeeLimitMultiplierFlagName,
 			txmgr.TxSendTimeoutFlagName,
 			txmgr.TxNotInMempoolTimeoutFlagName,
+			SuperRootRpcsFlag.Name, // Has a legacy env var for backwards compatibility
 		}
 
 		t.Run(flagName, func(t *testing.T) {

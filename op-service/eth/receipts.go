@@ -7,29 +7,21 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-)
 
-// EncodeReceipts encodes a list of receipts into raw receipts. Some non-consensus meta-data may be lost.
-func EncodeReceipts(elems []*types.Receipt) ([]hexutil.Bytes, error) {
-	out := make([]hexutil.Bytes, len(elems))
-	for i, el := range elems {
-		dat, err := el.MarshalBinary()
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal receipt %d: %w", i, err)
-		}
-		out[i] = dat
-	}
-	return out, nil
-}
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
+)
 
 // DecodeRawReceipts decodes receipts and adds additional blocks metadata.
 // The contract-deployment addresses are not set however (high cost, depends on nonce values, unused by op-node).
-func DecodeRawReceipts(block BlockID, rawReceipts []hexutil.Bytes, txHashes []common.Hash) ([]*types.Receipt, error) {
-	result := make([]*types.Receipt, len(rawReceipts))
+// The OP JSON-only fee fields (L1GasPrice, OperatorFeeScalar, ...) are not part
+// of the consensus encoding and remain nil; the consensus-encoded deposit
+// receipt fields (DepositNonce, DepositReceiptVersion) are decoded.
+func DecodeRawReceipts(block BlockID, rawReceipts []hexutil.Bytes, txHashes []common.Hash) (optypes.Receipts, error) {
+	result := make(optypes.Receipts, len(rawReceipts))
 	totalIndex := uint(0)
 	prevCumulativeGasUsed := uint64(0)
 	for i, r := range rawReceipts {
-		var x types.Receipt
+		var x optypes.Receipt
 		if err := x.UnmarshalBinary(r); err != nil {
 			return nil, fmt.Errorf("failed to decode receipt %d: %w", i, err)
 		}

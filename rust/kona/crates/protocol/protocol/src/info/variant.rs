@@ -52,6 +52,8 @@ impl L1BlockInfoTx {
         l1_header: &Header,
         l2_block_time: u64,
     ) -> Result<Self, BlockInfoError> {
+        let base_fee = l1_header.base_fee_per_gas.ok_or(BlockInfoError::MissingL1BaseFee)?;
+
         // In the first block of Ecotone, the L1Block contract has not been upgraded yet due to the
         // upgrade transactions being placed after the L1 info transaction. Because of this,
         // for the first block of Ecotone, we send a Bedrock style L1 block info transaction
@@ -61,7 +63,7 @@ impl L1BlockInfoTx {
             return Ok(Self::Bedrock(L1BlockInfoBedrock::new(
                 l1_header.number,
                 l1_header.timestamp,
-                l1_header.base_fee_per_gas.unwrap_or(0),
+                base_fee,
                 l1_header.hash_slow(),
                 sequence_number,
                 system_config.batcher_address,
@@ -81,9 +83,14 @@ impl L1BlockInfoTx {
             })
             .transpose()?
             .unwrap_or_default();
-        let base_fee_scalar = u32::from_be_bytes(
-            scalar[28..32].try_into().map_err(|_| BlockInfoError::BaseFeeScalar)?,
-        );
+        let base_fee_scalar = if scalar[0] == 0 && scalar[1..28].iter().any(|&byte| byte != 0) {
+            // The Ecotone spec saturates version-0 scalars with non-zero padding.
+            u32::MAX
+        } else {
+            u32::from_be_bytes(
+                scalar[28..32].try_into().map_err(|_| BlockInfoError::BaseFeeScalar)?,
+            )
+        };
 
         // Determine the blob fee configuration based on the timestamp.
         // We start with the scheduled blob fee parameters, and then check for the osaka and prague
@@ -116,7 +123,6 @@ impl L1BlockInfoTx {
 
         let blob_base_fee = l1_header.blob_fee(blob_fee_config).unwrap_or(1);
         let block_hash = l1_header.hash_slow();
-        let base_fee = l1_header.base_fee_per_gas.unwrap_or(0);
 
         if rollup_config.is_jovian_active(l2_block_time) &&
             !rollup_config.is_first_jovian_block(l2_block_time)
@@ -210,7 +216,7 @@ impl L1BlockInfoTx {
             source_hash: source.source_hash(),
             from: L1_INFO_DEPOSITOR_ADDRESS,
             to: TxKind::Call(Predeploys::L1_BLOCK_INFO),
-            mint: 0,
+            mint: U256::ZERO,
             value: U256::ZERO,
             gas_limit: 150_000_000,
             is_system_transaction: true,
@@ -392,7 +398,10 @@ impl L1BlockInfoTx {
 mod test {
     use super::*;
     use crate::test_utils::{RAW_BEDROCK_INFO_TX, RAW_ECOTONE_INFO_TX, RAW_ISTHMUS_INFO_TX};
-    use alloc::{string::ToString, vec::Vec};
+    use alloc::{
+        string::{String, ToString},
+        vec::Vec,
+    };
     use alloy_primitives::{address, b256};
     use kona_genesis::HardForkConfig;
     use kona_registry::L1Config;
@@ -719,7 +728,7 @@ mod test {
         let l1_config = L1Config::sepolia();
         let system_config = SystemConfig::default();
         let sequence_number = 0;
-        let l1_header = Header::default();
+        let l1_header = Header { base_fee_per_gas: Some(7), ..Default::default() };
         let l2_block_time = 0;
 
         let l1_info = L1BlockInfoTx::try_new(
@@ -738,7 +747,7 @@ mod test {
 
         assert_eq!(l1_info.number(), l1_header.number);
         assert_eq!(l1_info.time(), l1_header.timestamp);
-        assert_eq!(l1_info.base_fee(), { l1_header.base_fee_per_gas.unwrap_or(0) });
+        assert_eq!(Some(l1_info.base_fee()), l1_header.base_fee_per_gas);
         assert_eq!(l1_info.block_hash(), l1_header.hash_slow());
         assert_eq!(l1_info.sequence_number(), sequence_number);
         assert_eq!(l1_info.batcher_address(), system_config.batcher_address);
@@ -755,7 +764,7 @@ mod test {
         let l1_config = L1Config::sepolia();
         let system_config = SystemConfig::default();
         let sequence_number = 0;
-        let l1_header = Header::default();
+        let l1_header = Header { base_fee_per_gas: Some(7), ..Default::default() };
         let l2_block_time = 0xFF;
 
         let l1_info = L1BlockInfoTx::try_new(
@@ -774,7 +783,7 @@ mod test {
 
         assert_eq!(l1_info.number(), l1_header.number);
         assert_eq!(l1_info.time(), l1_header.timestamp);
-        assert_eq!(l1_info.base_fee(), { l1_header.base_fee_per_gas.unwrap_or(0) });
+        assert_eq!(Some(l1_info.base_fee()), l1_header.base_fee_per_gas);
         assert_eq!(l1_info.block_hash(), l1_header.hash_slow());
         assert_eq!(l1_info.sequence_number(), sequence_number);
         assert_eq!(l1_info.batcher_address(), system_config.batcher_address);
@@ -796,12 +805,82 @@ mod test {
         assert_eq!(l1_info.base_fee_scalar(), base_fee_scalar);
     }
 
+    // Successful vectors from op-service/eth/types_test.go::TestEcotoneScalars.
+    #[rstest]
+    #[case::dirty_v0_last_padding_byte(b256!("0000000000000000000000000000000000000000000000000000000100000002"), 0, u32::MAX)]
+    #[case::dirty_v0_first_padding_byte(b256!("0001000000000000000000000000000000000000000000000000000000000002"), 0, u32::MAX)]
+    #[case::dirty_v0_blob_scalar_offset(b256!("0000000000000000000000000000000000000000000000000100000000000002"), 0, u32::MAX)]
+    #[case::valid_v0(b256!("0000000000000000000000000000000000000000000000000000000000000002"), 0, 2)]
+    #[case::valid_v1_zero_blob_scalar(b256!("0100000000000000000000000000000000000000000000000000000000000002"), 0, 2)]
+    #[case::valid_v1(b256!("0100000000000000000000000000000000000000000000000000007b00000002"), 123, 2)]
+    #[case::valid_v1_zero_base_scalar(b256!("0100000000000000000000000000000000000000000000000000007b00000000"), 123, 0)]
+    #[case::valid_v1_full_width(b256!("0100000000000000000000000000000000000000000000001234567890abcdef"), 0x12345678, 0x90abcdef)]
+    #[case::zero_v0(B256::ZERO, 0, 0)]
+    #[case::zero_v1(b256!("0100000000000000000000000000000000000000000000000000000000000000"), 0, 0)]
+    fn test_try_new_ecotone_scalars(
+        #[case] scalar: B256,
+        #[case] blob_base_fee_scalar: u32,
+        #[case] base_fee_scalar: u32,
+        #[values(
+            HardForkConfig { ecotone_time: Some(1), ..Default::default() },
+            HardForkConfig { isthmus_time: Some(1), ..Default::default() },
+            HardForkConfig { jovian_time: Some(1), ..Default::default() }
+        )]
+        hardforks: HardForkConfig,
+    ) {
+        let rollup_config = RollupConfig { hardforks, ..Default::default() };
+        let system_config =
+            SystemConfig { scalar: U256::from_be_bytes(scalar.0), ..Default::default() };
+        let (l1_info, deposit_tx) = L1BlockInfoTx::try_new_with_deposit_tx(
+            &rollup_config,
+            &L1Config::sepolia(),
+            &system_config,
+            0,
+            &Header { base_fee_per_gas: Some(7), ..Default::default() },
+            0xFF,
+        )
+        .unwrap();
+
+        assert_eq!(l1_info.blob_base_fee_scalar(), U256::from(blob_base_fee_scalar));
+        assert_eq!(l1_info.l1_fee_scalar(), U256::from(base_fee_scalar));
+        // All post-Ecotone formats put the two scalars immediately after the selector.
+        assert_eq!(&deposit_tx.input[4..8], &base_fee_scalar.to_be_bytes());
+        assert_eq!(&deposit_tx.input[8..12], &blob_base_fee_scalar.to_be_bytes());
+    }
+
+    #[rstest]
+    #[case::before_ecotone(0)]
+    #[case::ecotone_activation(2)]
+    fn test_try_new_dirty_scalar_bedrock(#[case] l2_block_time: u64) {
+        let rollup_config = RollupConfig {
+            block_time: 2,
+            hardforks: HardForkConfig { ecotone_time: Some(2), ..Default::default() },
+            ..Default::default()
+        };
+        let system_config =
+            SystemConfig { scalar: U256::from(0x1_0000_0002u64), ..Default::default() };
+        let l1_info = L1BlockInfoTx::try_new(
+            &rollup_config,
+            &L1Config::sepolia(),
+            &system_config,
+            0,
+            &Header { base_fee_per_gas: Some(7), ..Default::default() },
+            l2_block_time,
+        )
+        .unwrap();
+
+        let L1BlockInfoTx::Bedrock(l1_info) = l1_info else {
+            panic!("Wrong fork");
+        };
+        assert_eq!(l1_info.l1_fee_scalar(), system_config.scalar);
+    }
+
     #[rstest]
     #[case::fork_active(true, false)]
     #[case::fork_inactive(false, false)]
-    #[should_panic]
+    #[should_panic(expected = "assertion `left == right` failed")]
     #[case::fork_active_wrong_params(true, true)]
-    #[should_panic]
+    #[should_panic(expected = "assertion `left == right` failed")]
     #[case::fork_inactive_wrong_params(false, true)]
     fn test_try_new_ecotone_with_optional_prague_fee_fork(
         #[case] fork_active: bool,
@@ -822,6 +901,7 @@ mod test {
         let sequence_number = 0;
         let l1_header = Header {
             timestamp: if fork_active { 2 } else { 1 },
+            base_fee_per_gas: Some(7),
             excess_blob_gas: Some(0x5080000),
             blob_gas_used: Some(0x100000),
             requests_hash: Some(B256::ZERO),
@@ -845,7 +925,7 @@ mod test {
 
         assert_eq!(l1_info.number(), l1_header.number);
         assert_eq!(l1_info.time(), l1_header.timestamp);
-        assert_eq!(l1_info.base_fee(), { l1_header.base_fee_per_gas.unwrap_or(0) });
+        assert_eq!(Some(l1_info.base_fee()), l1_header.base_fee_per_gas);
         assert_eq!(l1_info.block_hash(), l1_header.hash_slow());
         assert_eq!(l1_info.sequence_number(), sequence_number);
         assert_eq!(l1_info.batcher_address(), system_config.batcher_address);
@@ -934,7 +1014,7 @@ mod test {
             L1BlockInfoTx::Isthmus(L1BlockInfoIsthmus::new(
                 l1_header.number,
                 l1_header.timestamp,
-                l1_header.base_fee_per_gas.unwrap_or(0),
+                l1_header.base_fee_per_gas.unwrap(),
                 l1_header.hash_slow(),
                 sequence_number,
                 system_config.batcher_address,
@@ -1001,7 +1081,7 @@ mod test {
             L1BlockInfoTx::Isthmus(L1BlockInfoIsthmus::new(
                 l1_header.number,
                 l1_header.timestamp,
-                l1_header.base_fee_per_gas.unwrap_or(0),
+                l1_header.base_fee_per_gas.unwrap(),
                 l1_header.hash_slow(),
                 sequence_number,
                 system_config.batcher_address,
@@ -1012,6 +1092,25 @@ mod test {
                 system_config.operator_fee_constant.unwrap_or_default(),
             ))
         );
+    }
+
+    #[rstest]
+    #[case::bedrock(HardForkConfig::default())]
+    #[case::ecotone(HardForkConfig { ecotone_time: Some(1), ..Default::default() })]
+    fn test_try_new_missing_l1_base_fee(#[case] hardforks: HardForkConfig) {
+        let rollup_config = RollupConfig { hardforks, ..Default::default() };
+        let l1_header = Header { base_fee_per_gas: None, ..Default::default() };
+
+        let err = L1BlockInfoTx::try_new(
+            &rollup_config,
+            &L1Config::sepolia(),
+            &SystemConfig::default(),
+            0,
+            &l1_header,
+            0xFF,
+        )
+        .unwrap_err();
+        assert_eq!(err, BlockInfoError::MissingL1BaseFee);
     }
 
     #[test]
@@ -1054,5 +1153,123 @@ mod test {
         assert_eq!(deposit_tx.gas_limit, REGOLITH_SYSTEM_TX_GAS);
         assert!(!deposit_tx.is_system_transaction);
         assert_eq!(deposit_tx.input, l1_info.encode_calldata());
+    }
+
+    /// Pins, for each L1-info calldata format, the calldata encoding and decoding, the source hash
+    /// and the deposit tx hash of the vectors that op-node asserts too, in
+    /// `TestL1InfoDepositSharedVectors` (op-node/rollup/derive/l1_block_info_vectors_test.go).
+    #[test]
+    fn test_l1_info_shared_vectors() {
+        let vectors: serde_json::Value =
+            serde_json::from_str(include_str!("../../testdata/l1_info_vectors.json")).unwrap();
+        let mut variants = Vec::new();
+        for v in vectors.as_array().unwrap() {
+            let name = v["name"].as_str().unwrap();
+            let str_of = |value: &serde_json::Value, key: &str| -> String {
+                value[key].as_str().unwrap_or_else(|| panic!("{name}: missing {key}")).to_string()
+            };
+            let fields = &v["l1Info"];
+            let u64_of =
+                |key: &str| fields[key].as_u64().unwrap_or_else(|| panic!("{name}: missing {key}"));
+            let u32_of = |key: &str| u32::try_from(u64_of(key)).unwrap();
+            let u256_of = |key: &str| str_of(fields, key).parse::<U256>().unwrap();
+            let u128_of = |key: &str| u256_of(key).to::<u128>();
+
+            let number = u64_of("number");
+            let time = u64_of("time");
+            let base_fee = u256_of("baseFee").to::<u64>();
+            let block_hash = str_of(fields, "blockHash").parse::<B256>().unwrap();
+            let sequence_number = u64_of("sequenceNumber");
+            let batcher = str_of(fields, "batcherAddr").parse::<Address>().unwrap();
+
+            let variant = str_of(v, "variant");
+            let expected = match variant.as_str() {
+                "bedrock" => L1BlockInfoTx::Bedrock(L1BlockInfoBedrock::new(
+                    number,
+                    time,
+                    base_fee,
+                    block_hash,
+                    sequence_number,
+                    batcher,
+                    u256_of("l1FeeOverhead"),
+                    u256_of("l1FeeScalar"),
+                )),
+                "ecotone" => L1BlockInfoTx::Ecotone(L1BlockInfoEcotone::new(
+                    number,
+                    time,
+                    base_fee,
+                    block_hash,
+                    sequence_number,
+                    batcher,
+                    u128_of("blobBaseFee"),
+                    u32_of("blobBaseFeeScalar"),
+                    u32_of("baseFeeScalar"),
+                    false,
+                    U256::ZERO,
+                )),
+                "isthmus" => L1BlockInfoTx::Isthmus(L1BlockInfoIsthmus::new(
+                    number,
+                    time,
+                    base_fee,
+                    block_hash,
+                    sequence_number,
+                    batcher,
+                    u128_of("blobBaseFee"),
+                    u32_of("blobBaseFeeScalar"),
+                    u32_of("baseFeeScalar"),
+                    u32_of("operatorFeeScalar"),
+                    u64_of("operatorFeeConstant"),
+                )),
+                "jovian" => L1BlockInfoTx::Jovian(L1BlockInfoJovian::new(
+                    number,
+                    time,
+                    base_fee,
+                    block_hash,
+                    sequence_number,
+                    batcher,
+                    u128_of("blobBaseFee"),
+                    u32_of("blobBaseFeeScalar"),
+                    u32_of("baseFeeScalar"),
+                    u32_of("operatorFeeScalar"),
+                    u64_of("operatorFeeConstant"),
+                    u16::try_from(u64_of("daFootprintGasScalar")).unwrap(),
+                )),
+                other => panic!("{name}: unknown variant {other}"),
+            };
+            variants.push(variant);
+
+            let calldata = str_of(v, "calldata").parse::<Bytes>().unwrap();
+            assert_eq!(L1BlockInfoTx::decode_calldata(&calldata), Ok(expected), "{name}: decode");
+            assert_eq!(expected.encode_calldata(), calldata, "{name}: encode");
+
+            let source_hash = DepositSourceDomain::L1Info(L1InfoDepositSource {
+                l1_block_hash: block_hash,
+                seq_number: sequence_number,
+            })
+            .source_hash();
+            assert_eq!(
+                source_hash,
+                str_of(v, "sourceHash").parse::<B256>().unwrap(),
+                "{name}: source hash"
+            );
+            let deposit = TxDeposit {
+                source_hash,
+                from: L1_INFO_DEPOSITOR_ADDRESS,
+                to: TxKind::Call(Predeploys::L1_BLOCK_INFO),
+                mint: U256::ZERO,
+                value: U256::ZERO,
+                gas_limit: REGOLITH_SYSTEM_TX_GAS,
+                is_system_transaction: false,
+                input: calldata,
+            };
+            assert_eq!(
+                deposit.seal_slow().hash(),
+                str_of(v, "txHash").parse::<B256>().unwrap(),
+                "{name}: deposit tx hash"
+            );
+        }
+        for variant in ["bedrock", "ecotone", "isthmus", "jovian"] {
+            assert!(variants.iter().any(|v| v == variant), "no vector for variant {variant}");
+        }
     }
 }

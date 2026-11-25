@@ -1,0 +1,1100 @@
+# `sp1`
+
+This directory contains an integration of [SP1](https://github.com/succinctlabs/sp1) zero-knowledge proof capabilities into Kona, enabling validity proofs for OP Stack state transitions. This integration is derived from the [OP-Succinct](https://github.com/succinctlabs/op-succinct) project.
+
+> **⚠️ Experimental**: The SP1 fault proof integration is currently experimental and under active development. It is not yet recommended for production use.
+
+## Overview
+
+The SP1 integration provides zkVM-based fault proofs for the OP Stack, allowing verifiable state transitions to be proven on-chain. This enables trustless bridging and enhanced security for rollup chains.
+
+## Structure
+
+### Programs (`programs/`)
+
+zkVM programs that execute inside the SP1 prover:
+
+- **`log-commitment`**: Commits to the logs under each input receipts root as
+  `receipts_root ‖ log_count ‖ log_root` (72 bytes per root), so that interop message checks can
+  open a log without loading the block's receipts.
+- **`super-range`**: Unified super-root program for one or more chains, with modes for
+  proving ranges and span-shaped consolidation. A range may cover all or some of the chains of
+  its previous super roots; consolidation covers all of them.
+- **`super-aggregation`**: Recursively verifies unified super-range proofs and
+  commits the public values consumed by `ZKDisputeGame`. Read in order, the range outputs must
+  prove every `(timestamp, chain)` of the claim once, timestamp-major and chain-minor, so a
+  timestamp may be proven by one output for every chain or by several outputs that each cover a
+  contiguous run of its chains, in chain-ID order.
+- **`tests/bls12-381-check`** (test-only): Differential check of `CustomCrypto`'s EIP-2537
+  operations against revm's arkworks backend inside the zkVM; not part of `build-elfs`.
+- **`tests/hashdos-check`** (test-only): TSTORE hash-collision regression check of the guest hash
+  seed inside the zkVM (`just check-hashdos-zkvm`); not part of `build-elfs`.
+
+### Crates (`crates/`)
+
+Supporting libraries for the SP1 fault proof system:
+
+- **`bls12-381-check`** (test-only): EIP-2537 reference oracle, case corpus, host differential
+  tests, and the zkVM check runner (`just check-bls12-381-zkvm`)
+- **`build-info`**: Compile-time build marker embedding the monorepo commit into every guest
+- **`client`**: Client-side utilities and types for witness execution in the zkVM
+- **`elfs`**: Runtime loading of compiled ELF binaries
+- **`ethereum/client`**: Ethereum-specific client-side data availability utilities
+- **`host`**: Host-side logging, metrics, prover-network configuration, and witness-generation utilities
+- **`log-commitment-vkey`**: Compile-time `log-commitment` guest verification key, embedded from
+  generated `elf/vkeys.toml` and used by `super-range` to verify log-commitment batch proofs
+- **`range-vkeys`**: Compile-time `super-range` guest verification key, embedded from generated
+  `elf/vkeys.toml` and used by `super-aggregation`. The crate retains its historical name because
+  it authenticates the shipping super-range child program.
+- **`proposer`**: The `op-zk-proposer` service: creates super-root ZK dispute games,
+  defends challenged ones with SP1 super-aggregation proofs, resolves finished games, and
+  claims bonds (see the Proposer section below)
+- **`spn-wallet`**: Operator CLI that funds and inspects PROVE accounts on the Succinct Prover
+  Network, such as the proposer's SPN requester (see Funding the SPN requester below)
+- **`super-range-executor`**: Witness synthesis and execution engine for the super-root
+  programs; used as a library by the proposer and as the `kona-sp1-super-range-executor`
+  validity-checker binary in acceptance tests
+- **`zkvm-canary`**: The `kona-zkvm-canary` service, which continuously executes both
+  `super-range` modes against finalized live-network snapshots without producing proofs
+
+### Chain configuration
+
+The super-range guest reads chain configurations only from its compiled registry. Both range
+and consolidation reject chains without an embedded rollup config, L1 config, or matching
+dependency set. Range mode matches the dependency set against the chains of its previous super
+roots, not the chains it proves, so a range over one chain still derives under the whole set.
+Custom chains must be embedded at build time using `KONA_CUSTOM_CONFIGS_DIR`.
+Custom registry inputs currently support only Mainnet, Sepolia, and Holesky as L1s;
+embedding other L1 configurations requires additional registry support.
+
+The shared range and consolidation functions accept an optional `ChainConfigs` bundle.
+`None` selects the compiled registry. The native executor, proposer, and canary resolve deployment
+config files once and pass an explicit bundle to native witness collection, with embedded registry
+values for omitted files. The executor reuses that bundle for native replay. SP1 guest execution
+enforces the guest's compiled registry independently of host config files. Native acceptance tests
+require neither a guest ELF nor a Cargo feature, and do not read configs from Local preimage keys.
+
+The opt-in `test-config-fallback` feature belongs only to the `kona-sp1-super-range` guest.
+It allows that guest's test entrypoint to decode unverified Local-key configs and supply an
+explicit bundle to the shared functions. It is disabled by default;
+`ops/prestate-reproducibility/build-prestates.sh` rejects guest graphs that enable it and
+artifacts carrying a `-test` build marker.
+Test-feature ELFs also contain a dedicated unsafe-config marker that production
+prestate checks reject.
+For synthetic-chain ELFs, use `just build-elfs test-config-fallback` (or
+`build-elfs-native test-config-fallback`); these artifacts carry a `-test` build marker.
+The full-ELF executor seeds the resolved config bundle into its test witness, so one test ELF
+supports the existing synthetic deployments without rebuilding for each deployment.
+
+### ELF Binaries (`elf/`)
+
+Compiled ELF binaries for the zkVM programs, used by the prover:
+
+- **`log-commitment-elf`**: Compiled per-block log-commitment program
+- **`super-aggregation-elf`**: Compiled super-root aggregation program
+- **`super-range-elf`**: Compiled unified super-root range/consolidation program
+
+In the optimism monorepo port, these files and `elf/vkeys.toml` are generated on demand and
+ignored by git, matching the Cannon prestate artifact workflow. Generate reproducible ELFs
+on linux/amd64 with `just build-elfs`; it builds `log-commitment` and generates its vkey, then
+builds `super-range` with that vkey embedded through `kona-sp1-log-commitment-vkey`, generates its
+vkey, and then builds `super-aggregation` with that vkey embedded through `kona-sp1-range-vkeys`.
+So the `super-range` and `super-aggregation` vkeys depend on the `log-commitment` ELF. Use
+`just build-elfs-native` for local iteration and the fast per-PR compile check; CI persists the
+native manifest with the generated ELFs. Native ELF hashes may differ across build environments
+because paths and other environment details are embedded. The daily reproducibility job
+rebuilds each `kona-sp1` registry version from `kona-sp1-program/v<version>` using that tag's
+Docker `just build-elfs` recipe and compares only its `super-aggregation` vkey to the registry.
+
+Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
+artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
+infrastructure error. `kona-sp1-publish-prestates{,-on-tag}` publishes develop and tag ELFs
+(see [Releases](#releases)).
+
+#### Build provenance
+
+Every guest embeds the commit it was built from, so a guest ELF identifies its own source
+without a manifest, a lookup table, or executing it:
+
+```bash
+grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' elf/super-aggregation-elf | sort -u
+```
+
+The guests also print the marker at startup, which surfaces wherever the executor runs it —
+`kona-sp1-super-range-executor` locally and in the acceptance smoke tests, where a bare
+`println!` arrives as a WARN `Invalid JSON` line carrying the marker. Proving on the Succinct
+network sends guest output to the remote prover, so the ELF scan is the reliable path there.
+
+The commit is part of the compiled image, so it is part of the vkey: two builds from different
+commits produce different vkeys even when the program logic is identical. Range proofs are
+verified against the `SUPER_RANGE_VKEY` embedded in `super-aggregation`, so a range prover and an
+aggregator must come from the same commit, not merely the same code. The marker is recoverable,
+not attested: it records what an honest build embedded and proves nothing against a rewritten
+artifact.
+
+`just build-elfs` takes the commit from `git rev-parse HEAD`, resolved once per build so all
+guests agree. It appends `-dirty` when tracked files are modified and `-custom` for a
+`KONA_CUSTOM_CONFIGS_DIR` build, whose guest is compiled from configs the commit does not
+describe. Builds outside the justfile record `unknown`.
+Each build recipe checks its own ELF; CI (`kona-build-sp1-elfs`) additionally pins the natively
+built ELFs to the commit under test.
+
+Custom chains and devnets can compile separate SP1 artifacts with custom kona
+registry inputs:
+
+```bash
+KONA_CUSTOM_CONFIGS_DIR=/path/to/custom/configs just build-elfs
+```
+
+The directory must contain `chainList.json`, `configs.json`, and `depsets.json`.
+Those files are compiled into the kona crates used by the guest programs, so
+custom configs produce different ELFs and verification-key hashes.
+
+## Releases
+
+The `super-range` and `super-aggregation` guest programs are released as ELFs under the
+`kona-sp1-program/vX.Y.Z` monorepo tag family, with `kona-sp1-program/vX.Y.Z-rc.N` for release
+candidates. The prefix mirrors `kona-client/v*`. It publishes ELFs and builds no Docker image: the
+guests are RISC-V zkVM programs with no native entrypoint to containerize, so the apko image
+workflow, which does fire on `*/v*` tags, builds nothing for it. The native host binaries that run
+the guests ship separately; `op-zk-proposer` has its own image and `op-zk-proposer/vX.Y.Z` tag
+family, with `op-zk-proposer/vX.Y.Z-rc.N` for release candidates. It is to
+`kona-sp1-program` what `kona-host` is to `kona-client`, and must be compatible with the
+`kona-sp1-program` version it runs against.
+
+- **RC to final**: a final release tags the same commit as its last RC, so the vkeys are identical
+  across the RC and the final release.
+- **Tandem with `op-zk-proposer`**: release `kona-sp1-program` and `op-zk-proposer`
+  together whenever possible. The proposer embeds kona-host, which collects the witness these
+  programs execute. Tag both on the same commit; a proposer-only release with no program change is
+  fine.
+- **Release paths**: like `kona-client`, a release covers the whole `rust/kona/` tree.
+- **Every new commit rotates the vkeys**: both released guests embed the commit they were built
+  from (see [Build provenance](#build-provenance)), so a release tagged on a different commit from
+  the previous one always has new vkeys, even if no guest code changed, and every consumer must
+  repin. Only a final release, which re-tags its last RC's commit, keeps that RC's vkeys.
+
+CircleCI publishes the standard ELFs, built with the Docker recipe `just build-elfs` and no custom
+configs, to `gs://oplabs-network-data/proofs/kona/sp1/`, served publicly under
+<https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/>. The publish job refuses to
+upload unless `elf/vkeys.toml` records exactly the pipeline commit as `git_sha`, with no `-dirty`
+or `-custom` suffix, and all three vkeys are nonzero.
+
+| Trigger | Workflow | Objects |
+|---|---|---|
+| `kona-sp1-program/v*` tag | `kona-sp1-publish-prestates-on-tag` | `<vkey>.log.bin.gz`, `<vkey>.range.bin.gz`, `<vkey>.agg.bin.gz` |
+| Push to `develop` | `kona-sp1-publish-prestates` | `develop.log.bin.gz`, `develop.range.bin.gz`, `develop.agg.bin.gz`, `develop.bin.gz.txt` |
+
+- **Tag objects** are content-addressed by the lowercase `0x`-prefixed super-aggregation vkey.
+  That is the layout `OP_ZK_PROPOSER_PRESTATES_URL` resolves through `absolutePrestate()`, and
+  the vkey is printed in the workflow log. Keep them published for as long as games created under
+  that vkey can be live; see the operational requirement under
+  [Ownership](#ownership-which-games-it-defends).
+- **Develop objects** are branch-named, overwritten on every push, and served with
+  `Cache-Control: no-cache`. `develop.bin.gz.txt` uses the same format as kona-client's pointer
+  files: `Commit=<sha>` and `Prestate: <super-aggregation vkey>`. The zkvm canary consumes
+  `KONA_ZKVM_CANARY_PRESTATES_URL=https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/develop.range.bin.gz`.
+- **Metadata**: every ELF object carries `x-goog-meta-prestate-type: konaSP1` and
+  `x-goog-meta-kona-sp1-version`, set to the tag or, on develop, the commit. `chain-ids` is left
+  out: a standard build covers every chain in the embedded registry config, not one devnet's
+  chain set.
+
+Devnet ELFs built with custom configs (`git_sha` ends in `-custom`) never share vkeys with the
+published ones.
+
+## Acceptance coverage
+
+Kona-SP1 acceptance coverage targets the shipping super-root path: `super-range` and
+`super-aggregation`, for both multi-chain interop and a single-chain dependency set of size one.
+
+| Tier | Coverage | Boundary |
+|---|---|---|
+| Required native core | Existing two-chain scenarios and one canonical single-chain scenario collect real witnesses and replay the shared range/consolidation cores. | Does not load the zkVM ELF. |
+| Scheduled full ELF | One valid cross-chain transition and one canonical single-chain transition execute `super-range-elf`. | Exercises ELF input/output and zkVM patches, but does not generate a proof. |
+| Required lifecycle | The proposer and challenger assemble real child outputs and aggregation inputs, then submit mock proof bytes through `SP1PlonkAdapter` backed by `MockSP1Verifier`. | Exercises the onchain lifecycle without production proof verification. |
+| Guest and artifact | Guest tests validate single-chain aggregation, child ordering, and `SUPER_RANGE_VKEY`; scheduled checks bind the built aggregation vkey to the deployed prestate. | Does not generate a recursive aggregation proof. |
+
+Run the native and full-ELF acceptance packages from the repository root after building the
+standard acceptance dependencies:
+
+```bash
+RUST_JIT_BUILD=1 go test -count=1 -timeout=60m \
+  ./op-acceptance-tests/tests/interop/proofs/serial \
+  ./op-acceptance-tests/tests/interop/proofs-singlechain
+
+cd rust/kona/sp1 && just build-elfs-native test-config-fallback && just build-super-range-executor && cd ../../..
+KONA_SP1_ELF_DIR="$PWD/rust/kona/sp1/elf" \
+KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$PWD/rust/target/release/kona-sp1-super-range-executor" \
+RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \
+  ./op-acceptance-tests/tests/interop/proofs/sp1
+```
+
+Real recursive proof generation, SPN credentials, and production verifier proof-byte validation
+remain network-proving concerns rather than deterministic acceptance-test coverage.
+
+## Guest Precompile Patches
+
+All guest programs are isolated in `programs/Cargo.toml`, a nested Cargo workspace with its
+own `Cargo.lock` and `[patch.crates-io]` table. That workspace patches `sha2`, `sha3`,
+`crypto-bigint`, `k256`, `p256`, and `substrate-bn` to the SP1 forks, so the
+generated ELFs get zkVM precompile-accelerated crypto without changing the host
+`rust/` workspace dependency graph.
+
+The EVM-executing super-range guest also enables `revm`'s `bn` feature
+in the nested workspace. That forwards to `revm-precompile`'s `substrate-bn`
+backend for EIP-196/197 bn128 precompiles. The EIP-2537 BLS12-381 precompiles run
+through `CustomCrypto` on `sp1_bls12_381`, which uses SP1's BLS12-381 field, G1 point, and
+bigint syscalls. `just check-bls12-381-zkvm` (scheduled in CI) checks them inside the zkVM
+against revm's arkworks backend and prints per-operation cycle counts.
+
+## Guest hash seeding
+
+The guest workspace also patches `foldhash` to `programs/foldhash-seeded`. Inside the zkVM a
+hasher's seed is otherwise a constant of the ELF, so attacker-chosen keys could be made to collide,
+and the quadratic cost of hash-map operations on colliding keys would make a block unprovable.
+`super-range` installs a seed before it creates any hash map (`hash_seed` in
+`programs/super-range/src/main.rs`); creating one earlier panics. The seed comes from hashes that
+the guest already reads: in range mode the game's L1 head, which every batch and deposit the range
+derives precedes; in consolidation mode the claimed super root at `span.end` together with every
+optimistic block hash in the span, which commits to the transactions of a block that consolidation
+replaces. Both exist only after every key is fixed, so no on-chain actor can predict or choose the
+seed, and no block in the proof can read the L1 head or the super root at `span.end`, so no block
+can compute the seed. The prover may know it. Any seed must meet both conditions: never seed from
+a value known earlier, such as the previous super root or an idle chain's head, and include at
+least one input that no executed block can read. Block hashes alone are not enough, because a
+later block in the same proof can read an earlier one through `BLOCKHASH`. `log-commitment`,
+`super-aggregation` and `tests/bls12-381-check` create no foldhash-backed map and install no seed,
+so such a map added there panics until the guest installs a seed from such a hash first in `main`.
+`tests/hashdos-check` seeds from its deposit's source hash.
+
+The guest hashes under a different seed from the native host run that produces the claim and the
+witness, so **no committed output, error class or control-flow decision of any guest may depend on
+hash-map iteration order or hash values**, including through data built by iterating a map. Sort
+before such a use, or use an ordered collection. A witness read that depends on them can make an
+honest proof fail, because the host collects the witness under another seed. A hash map on a guest
+path must not be std's `HashMap`/`HashSet` unless its keys are trusted and bounded: its SipHash keys
+come from SP1's fixed `sys_rand` seed, which the guest hash seed does not reach.
+No map on the EVM path, where an attacker chooses the keys, hashes with std's `RandomState`, and
+`PreimageStore` is a `BTreeMap`. The std `HashMap` that rkyv's `SharedValidator` creates in each
+`rkyv::from_bytes` has a fixed `FxHasher64`, but it stays empty.
+
+`just check-sp1-guest-hashers` (part of `just lint-sp1-guest`) fails if a guest links an
+unseeded foldhash or a listed hasher crate, or builds alloy-primitives without `map-foldhash`
+(which `rust/Cargo.toml` enables for every in-tree crate). `just check-hashdos-zkvm` (scheduled in
+CI as `sp1-hashdos-zkvm-check`) checks inside the zkVM that the seed reaches revm's maps.
+
+## Usage
+
+The shipping SP1 integration proves super roots over a non-empty dependency set:
+
+1. **Super-range proof generation**: `super-range` executes one or more chains' range and
+   consolidation transitions in the zkVM.
+2. **Super-aggregation**: `super-aggregation` recursively verifies the child proofs and commits the
+   public values expected by `ZKDisputeGame`.
+3. **Onchain verification**: The aggregated proof is submitted to the dispute game on L1.
+
+## Proposer (`op-zk-proposer`)
+
+The proposer service (ported from op-succinct's fault-proof proposer) plays the
+super-root `ZKDisputeGame` (game type 10) end to end:
+
+1. **Create**: proposes the supernode's canonical super root on a fixed interval
+   (`proposer.rs` creation scheduling), extending only the anchor or its own
+   chain (see [Ownership](#ownership-which-games-it-defends)). A game built on
+   the head spans one interval while the proposer keeps up. When it falls two or
+   more intervals behind, after downtime or because each game takes longer than
+   an interval to create or, in fast finality mode, to prove, a game spans up to
+   `OP_ZK_PROPOSER_MAX_PROPOSAL_SPAN_INTERVALS` intervals, so the bond and prove
+   duration must cover that span. Three kinds of root game are not capped: every
+   game while the registered anchor is not a ZK game (each is a root from the
+   anchor); the fallback root when the registry rejects the head's chain (it keeps
+   the head's timestamp); and, with no anchor game registered, the next root after
+   the head drops (it spans from the registry's starting root). A collision walk
+   also moves a game off the interval grid by a second at a time.
+2. **Defend**: when an owned game is challenged, fetches the span's super
+   roots, collects witnesses through the kona `InteropHost`
+   (`super-range-executor` library), obtains SP1 proofs (`prover.rs` providers,
+   `proving.rs` pipeline), and submits `prove()`. In fast finality mode the same
+   pipeline also proves the signer's owned games while they are still
+   unchallenged.
+3. **Resolve and claim**: resolves finished owned games and claims the signer's
+   bond credit on any cached game (including the challenger bond earned by
+   proving).
+
+### Anchor validation
+
+At startup, the proposer waits until the registered anchor root matches a trusted
+supernode response at the exact anchor timestamp. Registry and anchor reads use
+one L1 block hash.
+
+A zero root, a timestamp exceeding `u64`, or a trusted mismatch produces an ERROR
+log. Missing data, RPC errors, and untrusted responses produce WARN logs. Startup
+also logs its first validation failure at ERROR, then retries.
+
+Correct the registry or restore access to trusted, matching history; startup
+resumes without a restart. Timestamp zero has no fallback if the RPC rejects it.
+Normal proposal scheduling and submission retain their existing retry behavior;
+anchor validation is not repeated after startup.
+
+### Ownership (which games it defends)
+
+A game is owned when its creator is owned and its `absolutePrestate()` artifacts
+load from `OP_ZK_PROPOSER_PRESTATES_URL`. Owned creators are the signer, always,
+plus any addresses listed in `OP_ZK_PROPOSER_OWNED_CREATORS`. The proposer logs
+the resolved set at startup.
+
+- **Head and creation**: the proposer builds only on the registered anchor or on
+  a game whose every link down to the anchor (which may be foreign), a root, or
+  an owned game that won has an owned creator, whatever its prestate. A parent
+  missing from the cache before any of those disqualifies the chain. With no
+  such game, it creates a root from the anchor.
+- **Validation**: only games from owned creators are checked against the
+  supernode. Other games are cached as records, without validation, so anchor
+  tracking keeps working when a foreign game becomes the anchor. They are never a
+  parent, a proof target, or a resolution target. A resolved record in normal
+  mode stays while it is ahead of the anchor; behind it, it leaves once the signer
+  holds no credit in it. A lost record, or one in refund mode, leaves unless it
+  has a cached child.
+- **Defense and resolution**: owned games only. The proposer resolves a listed
+  creator's game when it wins, and a signer game on any outcome. A challenged
+  game from an owned creator with an unknown or poisoned prestate is skipped,
+  with the `op_zk_proposer_unknown_prestate_challenged` gauge as the alarm. The
+  defense deadline checks cover games from owned creators, whatever their
+  prestate.
+- **Claims**: credit-driven for the signer on every cached game, including
+  foreign games the signer proved. The proposer closes a finalized game that owes
+  it nothing only when its creator is owned or it is the registered anchor. It
+  does not claim credit owed to another listed address.
+- **Foreign games' lifecycle**: op-challenger or the game's creator resolves and
+  closes foreign games. The proposer sends no close-only call for them, but
+  claiming the signer's credit on one closes it.
+
+Fast finality uses a narrower spend policy. It proves only unchallenged owned
+games created by the configured signer. Listed creators' games are defended and
+resolved when they win, but not fast-finalized.
+
+**Key rotation**: set `OP_ZK_PROPOSER_OWNED_CREATORS=<old signer>` in the same
+deploy that rotates the signer key, and keep the old prestate artifacts published
+under `OP_ZK_PROPOSER_PRESTATES_URL`. The proposer then keeps defending the old
+signer's games, resolving the ones that win, and extending its chain. Remove the
+variable only once the registered anchor has moved past the old signer's last
+game, about the max challenge duration plus the max prove duration plus the
+finality delay after it; removing it earlier makes the chain built on those games
+foreign, and the proposer starts a new root from the anchor. A listed address is
+trusted like the signer, so never list a compromised key. Leaving the variable
+unset is the steady state.
+
+**Operational requirement**: rotated-out prestate artifacts must remain published
+under `OP_ZK_PROPOSER_PRESTATES_URL` for as long as owned games created under
+them can be live, or the proposer loses the ability to defend and resolve those
+games.
+
+**Front-run collisions (accepted risk)**: a game's UUID does not include its
+creator, so a third party can create the proposer's exact game first. The
+proposer does not adopt or defend a foreign game: it moves the timestamp forward
+one second and retries, so stopping creation takes a copy of every attempt,
+about one per loop iteration, each with its own bond. The bonds come back: an
+unchallenged copy refunds its creator, and a copy the attacker challenges itself
+pays the attacker both bonds. Blacklisting a copy does not free its UUID.
+
+### Proof providers
+
+- `OP_ZK_PROPOSER_PROOF_PROVIDER=network`: real SP1 proving via the Succinct Prover Network.
+  Proving keys are set up per prestate on first use. The aggregation
+  verifying key must hash to the on-chain prestate, the aggregation ELF must
+  pin the super-range vkey, and the super-range ELF must pin the
+  log-commitment vkey (mismatches poison the prestate and remove its games
+  from the owned set). The registered prestate's
+  keys are verified BEFORE any game is created on it, so the proposer never
+  bonds a game it has not proven it can defend.
+  The proposer also reads the verifier behind each `SP1PlonkAdapter` it is about to rely on
+  (`sp1Verifier().VERIFIER_HASH()`) and compares it with `sha256(sp1_verifier::PLONK_VK_BYTES)`,
+  the selector the linked sp1-sdk puts on every proof. The registered adapter is checked
+  every creation cycle, so a mismatched registration pauses creation; each game's own
+  immutable verifier is checked before a proof is requested, so a game on another circuit is
+  given up without proving spend. The ERROR log names both hashes and the SDK circuit; the fix
+  is a verifier re-pin or an SDK change. Defense of games on a compatible verifier continues.
+- `OP_ZK_PROPOSER_PROOF_PROVIDER=mock`: dev-only. Runs the full pipeline natively (witness
+  collection computes the real range/consolidation outputs and the aggregation
+  inputs are validated), then submits placeholder proof bytes. Only a deployment
+  with a mock game verifier (devstack) accepts them. No ELFs, no SPN credentials.
+- `OP_ZK_PROPOSER_PROOF_PROVIDER=local-cuda`: real SP1 proving on local NVIDIA GPUs, a backup
+  for an SPN outage. It runs only in the `op-zk-proposer-cuda` image and needs no SPN
+  credentials. The key and verifier checks of `network` apply. See below.
+
+### Local CUDA proving
+
+The `op-zk-proposer-cuda` image (amd64 only) adds `sp1-gpu-server`, the CUDA
+12.8 runtime, and the PLONK circuits to the `op-zk-proposer` binary. To release
+it, push an `op-zk-proposer-cuda/vX.Y.Z` tag on the commit of an
+`op-zk-proposer/vX.Y.Z` release; the image workflow then publishes
+`op-zk-proposer-cuda:vX.Y.Z`. Deploy that tag, so that local proving runs the
+same proposer as production. At startup the proposer checks that
+`OP_ZK_PROPOSER_CUDA_SERVER_PATH --version` equals the linked SP1 version, then
+starts one server per device in `OP_ZK_PROPOSER_CUDA_DEVICES` and speaks the
+server's socket protocol itself. The SP1 SDK's CUDA client, which downloads a
+missing server, is not used, so the proposer never downloads a binary. A server
+gets the proposer's environment without the `OP_ZK_PROPOSER_*` variables. Server
+output goes to the container log in the server's own format. Outside the image,
+set `SP1_PLONK_CIRCUIT_PATH` to a directory that holds `v6.1.0/` with a
+`.complete` marker, as the image does; otherwise the server downloads the
+circuits.
+
+Each request first runs its program on the CPU (pre-execution) with its cycle
+limit and `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES`, at most one per device at a
+time. An execution error, such as a cycle or memory breach, or a guest exit code
+other than 0 is `Unexecutable`, so the proposer bisects or splits as it does for
+SPN. A memory-monitor kill counts only after 3 runs, since one kill reads a
+host-dependent RSS sample. The request then waits for a free device, which
+proves one request at a time; pre-execution holds no device. Any other failure
+ends the request as `ProverFailed`, logged at error level, and the next attempt
+submits it again until the game deadline. This includes an external kill of the
+executor and SP1's `Other` error, which covers an executor that failed or ended
+abnormally, such as on a full `/dev/shm`, but also some guest faults: such a
+span is retried, not split. An aggregation stdin over 4 GiB, about 3,370 child
+proofs, is `ProverFailed` without reaching a device: the server protocol frames
+a request with a 32-bit length. A wait returns after `SP1_TIMEOUT_SECONDS` while
+the proof keeps running, and the next attempt waits for the same proof. A
+finished proof is kept until it is waited for, up to 7 days; until then an
+unclaimed one, such as from an abandoned game, stays in memory. Nothing cancels
+a running proof, so the proof of an abandoned game runs to the end. A device
+sets up a program's proving key when a request first needs it, and keeps it
+until the process exits.
+
+A broken connection to a GPU server, an unexpected response such as a proof of
+another kind than requested, a verifying key that differs from the prestate's,
+or a panic while a task holds a device ends the process with an error, which
+stops every server; Kubernetes restarts the container. The memory-backed
+`/dev/shm` survives the restart, so at startup the proposer removes the SP1
+segments that the killed processes left there. Give the proposer its own
+`/dev/shm`: this removes the segments of any other SP1 process too. Proof
+progress is in memory and is lost, and the proposer rebuilds its state from L1.
+A server that crashes on one input therefore restarts the proposer each time it
+reaches that input, and every game loses its progress each time, not only the
+game with that input. This is a known limit of local mode: restarting only the
+failed server would need a way to free that server's `/dev/shm` segments while
+the other servers prove. A server that stops answering is not detected: its
+device proves nothing more, and only `op_zk_proposer_proving_timeout_error`
+grows. That metric also grows when a request's time in the queue and on the GPU
+together is longer than `SP1_TIMEOUT_SECONDS`, so compare it with the finished
+proofs before you treat it as a hung server.
+
+Sizing, per GPU: 24 GB of VRAM, compute capability 8.6 or higher, a driver for
+CUDA 12.8 (R570 or later), 8 CPU cores, and about 32 GB of host RAM, up to about
+96 GB during the PLONK wrap, in addition to the pre-execution memory below. For
+example, `g2-standard-32` with one L4. Each server gets
+`OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` as `MEMORY_LIMIT`, so its executor
+enforces the same limit as pre-execution. The executor keeps guest memory and
+its trace ring in POSIX shared memory, both in pre-execution and in a server
+while it proves. Mount a `medium: Memory` `emptyDir` at `/dev/shm` with room for
+the memory limit twice per device, for one pre-execution and one proof, and
+count it in pod memory; the container default of 64 MiB fails every
+pre-execution. Set `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` to the device
+count: the default `1` uses one GPU per game.
+
+A local request keeps its stdin until it is sent to a device, where SPN uploads
+a stdin and frees it. So a request starts only while fewer than two requests per
+device are unfinished, one in pre-execution and one at the device, each with a
+stdin of up to `OP_ZK_PROPOSER_MAX_STDIN_BYTES` except an aggregation's. A game
+that submits many log-commitment batches therefore waits between them, as it
+waits for SPN uploads. A caller builds its stdin before it waits, so up to
+`OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` ×
+(`OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` + 1) waiting stdins sit outside
+that limit. Size pod memory for both sets of stdins plus, per concurrent
+pre-execution, one stdin copy, about 24 GiB, and 4.4 GiB of gas-trace buffers.
+
+### Restart behavior
+
+Proving progress is process-local. Retries with unchanged inputs reuse submitted
+request IDs, completed chunks, and fulfilled aggregation proofs. `Cancelled`,
+`Expired`, `Reverted`, and `Unfulfillable` requests are retryable and may
+purchase replacements; so is a local `ProverFailed` request. A request that SPN also reports `UNEXECUTABLE` (how it
+reports gas, cycle, and memory breaches) is treated as `Unexecutable`, not
+`Unfulfillable`. Progress is cleared when a game becomes terminal, is
+evicted, fails a definitive pre-submit check, or is proven successfully.
+
+A restart loses all progress, including running local CUDA proofs, and re-detects games
+that still need proofs. A
+pre-flight check prevents duplicate `prove()` submissions. Fast finality also
+re-detects unproven, signer-created games after restart.
+
+### Terminal proof retry
+
+`Unexecutable` and local `ValidationFailed` requests are sticky. For unchanged
+attempt inputs, the proposer rejects the attempt before collecting witnesses
+or submitting another SPN request. Scheduler tasks may still run and check
+inputs. A change to the full attempt identity permits a new attempt. An
+`Unexecutable` range or consolidation request of a span with more than one
+timestamp is not sticky: the proposer bisects the span (see below), and only
+the halves' requests count from then on. Likewise, an `Unexecutable` range
+request of a single timestamp over several chains is split by chain, and only
+the chain halves' requests count.
+
+SIGUSR1 is a Unix signal: a message you send to a running program. Send it to
+the proposer to retry terminal proof requests without restarting it. This
+applies to all tracked games. The proposer keeps pending requests, finished
+proofs, and completed chunks. Normal scheduling decides when retries run.
+
+Check that the running build supports SIGUSR1 and has logged `op-zk-proposer started`.
+Older builds may exit when they receive this signal.
+
+Find the proposer's process ID (PID):
+
+```bash
+pgrep -fl op-zk-proposer
+```
+
+Replace `12345` below with that PID. Check that it is the right process before
+running `kill`:
+
+```bash
+ps -p 12345 -o pid=,command=
+kill -USR1 12345
+```
+
+Look for `Processed terminal proof retry` in the proposer logs:
+
+- `reset_games`: games cleared for another try.
+- `busy_games`: games with active proving tasks. These games were not reset.
+  Wait for them to finish, then send another signal to retry them.
+
+If a retry fails terminally, send another signal to try again. Several signals
+sent together may count as one request.
+
+### Operator alarms
+
+The following metrics support availability, funding, and defense-deadline alerts.
+Names below use the `op_zk_proposer_` prefix.
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `up` | Gauge | `1` after the process starts. This does not imply chain-dependent startup validation has completed. Use Prometheus scrape availability to detect process loss. |
+| `signer_balance_eth` | Gauge | L1 transaction signer's balance in ETH. |
+| `signer_nonce` / `signer_pending_nonce` | Gauge | L1 signer's latest mined and pending nonces. Pending stays above latest while proposer transactions wait in the mempool; a gap that does not close means a stuck transaction. |
+| `prove_balance` | Gauge | Configured SP1 network account's spendable balance in PROVE, not the signer's ERC-20 wallet balance. Absent in mock and local-cuda modes. |
+| `deadline_passed_total` | Counter | Missed game windows observed by this process, with `window="defense"` or `window="fast_finality"`. Defense expiry and missed fast-finality acceleration have different consequences. |
+| `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time across challenged games from owned creators, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
+| `proof_requests` | Gauge | Proof requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`, `log`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
+| `log_batches_submitted` | Gauge | Total log-commitment batch requests submitted. Unlike `proof_requests`, it keeps counting after a game's progress clears. |
+| `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock and local-cuda modes. |
+| `tx_sends_total` | Counter | L1 sends by `outcome`: `confirmed`, `reverted` (mined with status 0) or `failed` (no receipt: send timeout, nonce-too-low abort, or an error before publishing such as a gas-estimation revert). |
+
+Balances and nonces refresh every 15 seconds. Failed reads return `NaN`
+without blocking other metrics. Deadline metrics update during game sync
+using the confirmed L1 timestamp.
+
+Deadline checks cover discovered, in-progress games from owned creators with
+eligible ancestry, whatever their prestate. Positive infinity means no
+outstanding defense. `NaN` means the first sync or game validation is
+incomplete, or sync reads failed.
+
+Each expired window counts once while the game remains cached. Restarts or
+eviction can cause recounts; gaps between observations can miss events.
+A missed fast-finality window does not by itself mean a lost game.
+
+Set defense alerts early enough to allow proving, L1 inclusion, and operator
+response. Use the error metrics below for diagnosis, not separate alerts.
+
+`op_zk_proposer_game_proving_error` counts failed attempts; retries may buy
+replacement proofs. `op_zk_proposer_proving_timeout_error` means polling
+timed out; the next attempt can reuse the request.
+`op_zk_proposer_game_unprovable` counts games the proposer cannot prove.
+`op_zk_proposer_log_batch_error` counts failed log-commitment batch proofs; each
+fails its game attempt. A batch that the proposer splits (see below) is not counted.
+`op_zk_proposer_span_bisections` counts proving spans halved for exceeding a size,
+estimate or execution limit; log-batch splits are not counted. A steady rise means the
+chunks are too large for the limits: raise `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT`.
+`op_zk_proposer_range_chain_splits` counts range requests of a single timestamp
+halved by chain for exceeding a size or execution limit.
+
+`op_zk_proposer_proving_duration_seconds` records only successful runs,
+including the L1 transaction path. Use the task-stats log to investigate stuck work.
+
+L1 send diagnostics: `op_zk_proposer_tx_publish_errors_total` counts publishes that
+returned an error or no answer, by `reason` (`underpriced`, `nonce_too_low`,
+`rejected`, `no_response`); a `no_response` publish may still have reached the pool.
+Its `bump_failed` reason counts fee bumps that failed, for example when
+`OP_ZK_PROPOSER_MAX_FEE_PER_GAS` blocks the replacement.
+`op_zk_proposer_tx_fee_bumps_total` counts fee-bumped replacements sent to the node.
+`op_zk_proposer_tx_send_duration_seconds` is the duration of the latest send that
+got a receipt, and `op_zk_proposer_tx_fees_gwei_total` totals
+`gas_used * effective_gas_price` over those sends, in whole gwei.
+
+#### Funding the SPN requester
+
+The proposer pays for proofs from its SPN requester's PROVE balance (`prove_balance`).
+With op-signer, the requester is a KMS key that can sign only SPN messages, so it cannot
+deposit for itself. Another account funds it with `spn-wallet`, and the recipient
+signs nothing. Find the requester address in the `address` label of
+`op_zk_proposer_spn_requester_info`, or as the `fromAddress` of the `*-spn-requester.*`
+entry in op-signer's ConfigMap.
+
+```bash
+cd rust
+# From PROVE the funder already holds on SPN:
+PRIVATE_KEY=<funder key> cargo run -p spn-wallet -- fund --to <requester> --amount 100 --max-fee 1
+# From PROVE on Ethereum mainnet (deposits amount + fee into the funder's SPN account first):
+cargo run -p spn-wallet -- fund --to <requester> --amount 100 --max-fee 1 --from-l1 \
+  --l1-rpc <mainnet RPC> --kms-key projects/P/locations/L/keyRings/R/cryptoKeys/K/cryptoKeyVersions/V
+# Check the credit:
+cargo run -p spn-wallet -- history <requester>
+```
+
+- Every write command prints what it would send and signs nothing. Add `--broadcast`
+  to sign and send; `--max-fee` (in PROVE) is then required, and the command stops if
+  SPN quotes a higher fee. SPN charges 1 PROVE per transfer and per withdraw today.
+- The PROVE side is always Ethereum mainnet, also for chains that settle on Sepolia:
+  `--l1-rpc` must serve chain 1. The VApp's minimum deposit is 0.01 PROVE.
+- Sign with `PRIVATE_KEY` or with a GCP Cloud KMS key via `--kms-key` (or `KMS_KEY`), in
+  the format of op-signer's `key:`. KMS signing calls Cloud KMS directly with Application
+  Default Credentials (`gcloud auth application-default login`). It needs
+  `cloudkms.cryptoKeyVersions.viewPublicKey` on the key, plus `useToSign` to broadcast.
+- `fund` reports success once the recipient's balance history shows the TRANSFER_IN.
+  `requests <requester>`, `request <id> --bids` and `transaction <hash>` inspect SPN
+  state without a key.
+
+### Environment
+
+All proposer-owned variables use the `OP_ZK_PROPOSER_` prefix.
+
+For a standard network, set `--network <name>` or `OP_ZK_PROPOSER_NETWORK`
+to a predefined network name recognized by OP Stack services, such as `op-mainnet` or
+`op-sepolia`. The command-line
+value overrides the environment value. Custom deployments can set
+`OP_ZK_PROPOSER_FACTORY_ADDRESS`; an explicit address overrides network lookup. Startup fails
+when neither source is set, the network name is unknown, or the selected registry chain has no
+`DisputeGameFactory` address.
+
+Required core configuration:
+
+| Variable | Purpose |
+|---|---|
+| `OP_ZK_PROPOSER_L1_RPC` | L1 execution RPC; must support standard JSON-RPC batch requests (current proposer game-state batches contain at most 4 `eth_call` entries) |
+| `OP_ZK_PROPOSER_SUPERROOT_RPCS` | op-supernode or single-chain op-node RPCs serving `superroot_atTimestamp`. Multiple comma-separated RPCs can be provided for redundancy |
+| `OP_ZK_PROPOSER_NETWORK` | Predefined network name recognized by OP Stack services, such as `op-mainnet`; alternative to `OP_ZK_PROPOSER_FACTORY_ADDRESS` |
+| `OP_ZK_PROPOSER_FACTORY_ADDRESS` | Explicit `DisputeGameFactory` address; required when no network is selected and overrides network lookup |
+| `OP_ZK_PROPOSER_PRESTATES_URL` | prestate artifact directory (`<vkey>.agg.bin.gz`, `<vkey>.range.bin.gz`, and `<vkey>.log.bin.gz`) |
+| `OP_ZK_PROPOSER_PROOF_PROVIDER` | `network`, `mock`, or `local-cuda`; no default |
+| `OP_ZK_PROPOSER_L1_BEACON_RPC` | L1 beacon API (blob sidecars for derivation witnesses) |
+| `OP_ZK_PROPOSER_L2_RPCS` | comma-separated L2 EL RPCs, one per chain, in any order; each must serve a different chain. The proposer reads every chain ID at startup and exits on a duplicate chain or a node that does not answer |
+
+Optional core and operational configuration:
+
+| Variable | Purpose |
+|---|---|
+| `OP_ZK_PROPOSER_ROLLUP_CONFIG_PATHS` | comma-separated rollup config files; absent = registry fallback |
+| `OP_ZK_PROPOSER_L1_CONFIG_PATH` | L1 chain config file; absent = registry fallback |
+| `OP_ZK_PROPOSER_DEPENDENCY_SET_PATH` | dependency-set config file; absent = registry fallback |
+| `OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS` | proposal interval, in seconds; positive (default `3600`) |
+| `OP_ZK_PROPOSER_MAX_PROPOSAL_SPAN_INTERVALS` | longest span of a game built on the head, in proposal intervals, used when catching up from two or more intervals behind; positive, `1` keeps every span at one interval (default `4`) |
+| `OP_ZK_PROPOSER_PROPOSAL_SAFETY` | `safe` or `finalized` (default `finalized`) |
+| `OP_ZK_PROPOSER_FETCH_INTERVAL` | loop interval in seconds (default `30`) |
+| `OP_ZK_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
+| `OP_ZK_PROPOSER_SYNC_L1_CONFIRMATIONS` | L1 confirmation lag for pinned reads (default `0`) |
+| `OP_ZK_PROPOSER_MAX_GAME_DEADLINE_LAG_SECONDS` | Startup discovery and pending-game eviction cutoff relative to the anchor deadline (default `1209600`, 14 days) |
+| `OP_ZK_PROPOSER_TX_CONFIRMATION_TIMEOUT` | limit in seconds for one L1 transaction send, including fee bumps, until 3 confirmations (default `180`) |
+| `OP_ZK_PROPOSER_MAX_FEE_PER_GAS` | L1 max-fee cap in wei, also applied to fee bumps (default uncapped) |
+| `OP_ZK_PROPOSER_MAX_PRIORITY_FEE_PER_GAS` | L1 priority-fee cap in wei, also applied to fee bumps (default uncapped) |
+| `OP_ZK_PROPOSER_RANGE_SPLIT_COUNT` | chunks per defended span (default `16`, maximum `128`) |
+| `OP_ZK_PROPOSER_MAX_STDIN_BYTES` | encoded stdin bytes that one range, consolidation, or log-commitment request may upload, including embedded batch proofs (default `1610612736`, 1.5 GiB; maximum `2147483648`). The proposer collects the whole witness, so it holds an oversized one in memory before it refuses it, then checks the stdin before submitting it, in mock mode too. A proving task holds its range and consolidation stdin together until the range request is uploaded, and its consolidation stdin until the consolidation request is, so plan memory for twice this limit per concurrent chunk. A span over the limit is bisected, and a single timestamp's range over it is split by chain; a single timestamp's consolidation, or one chain's range, over it makes the game unprovable. The aggregation request is not checked |
+| `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` | child-proof concurrency per game (default `1`) |
+| `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
+| `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
+| `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
+| `OP_ZK_PROPOSER_OWNED_CREATORS` | comma-separated addresses whose games this proposer also owns, besides the signer (default unset: signer only). Duplicates and malformed addresses fail startup. See [Ownership](#ownership-which-games-it-defends) |
+| `OP_ZK_PROPOSER_LOG_PATH` | how a game proves executing messages that reference blocks below a local safe head: `table` (the default) or `receipts`. `receipts` turns the table path off and is meant only for chains with interop off; the proposer logs a warning at startup when it is set |
+| `OP_ZK_PROPOSER_CUDA_DEVICES` | `local-cuda` only: comma-separated CUDA device IDs, one `sp1-gpu-server` each (default `0`) |
+| `OP_ZK_PROPOSER_CUDA_SERVER_PATH` | `local-cuda` only: the `sp1-gpu-server` binary (default `/usr/local/bin/sp1-gpu-server`, where the image installs it) |
+| `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` | `local-cuda` only: memory limit of each pre-execution's executor process (default `25769803776`, 24 GiB) |
+| `OP_ZK_PROPOSER_DATA_DIR` | directory for the kona-host preimage store and log trees of each witness collection, one `collection-*` subdirectory each, removed when the collection ends; absent = in memory. Startup removes every `collection-*` entry, so use a directory private to one proposer process. It need not persist: a node-disk `emptyDir` fits, a `medium: Memory` one saves no memory. Under attack, a table-path collection can hold about 12 GB per chain for each timestamp it covers, and a collection covers a whole chunk (about 225 timestamps of a 3,600 s game at the default split), so no disk bounds the worst case. A full disk stalls collections, since kona-host keeps retrying the fetches it cannot store, and a restart collects the same chunk again; alert on the volume's usage and on `defense_deadline_remaining_seconds` |
+
+SP1 network configuration applies when `OP_ZK_PROPOSER_PROOF_PROVIDER=network`.
+`OP_ZK_PROPOSER_NETWORK_CALLS_TIMEOUT` also bounds metric observations in the other modes.
+`SP1_TIMEOUT_SECONDS` and the three cycle limits also apply to `local-cuda`. The gas limits
+drive the proposer's splitting estimates in every mode, but no local prover enforces them.
+
+| Variable | Purpose |
+|---|---|
+| `OP_ZK_PROPOSER_NETWORK_PRIVATE_KEY` | local SPN requester private key; mutually exclusive with `OP_ZK_PROPOSER_SPN_SIGNER_URL` |
+| `OP_ZK_PROPOSER_NETWORK_RPC_URL` | SPN RPC override; absent or empty uses the SP1 SDK default for the selected network mode |
+| `OP_ZK_PROPOSER_SPN_SIGNER_URL` | HTTPS op-signer endpoint for remote SPN request signing; mutually exclusive with `OP_ZK_PROPOSER_NETWORK_PRIVATE_KEY` |
+| `OP_ZK_PROPOSER_SPN_SIGNER_ADDRESS` | authorized op-signer address for SPN request signing |
+| `OP_ZK_PROPOSER_SPN_SIGNER_TLS_CA` | server CA certificate path for the SPN op-signer connection |
+| `OP_ZK_PROPOSER_SPN_SIGNER_TLS_CERT` | client certificate path for the SPN op-signer connection |
+| `OP_ZK_PROPOSER_SPN_SIGNER_TLS_KEY` | client private-key path for the SPN op-signer connection |
+| `OP_ZK_PROPOSER_RANGE_PROOF_STRATEGY` | range fulfillment strategy (default `auction`) |
+| `OP_ZK_PROPOSER_AGG_PROOF_STRATEGY` | aggregation fulfillment strategy (default `auction`) |
+| `OP_ZK_PROPOSER_SP1_TIMEOUT_SECONDS` | per-proof request deadline and client wait (default `7200`) |
+| `OP_ZK_PROPOSER_NETWORK_CALLS_TIMEOUT` | SP1 API and metric observation timeout, including L1 balance and super-root queries (default `15` seconds) |
+| `OP_ZK_PROPOSER_AUCTION_TIMEOUT` | unassigned mainnet request timeout (default `300`) |
+| `OP_ZK_PROPOSER_RANGE_CYCLE_LIMIT` | range request cycle limit (default `1e12`) |
+| `OP_ZK_PROPOSER_RANGE_GAS_LIMIT` | range request gas limit (default `200000000000`) |
+| `OP_ZK_PROPOSER_AGG_CYCLE_LIMIT` | aggregation request cycle limit (default `1e12`) |
+| `OP_ZK_PROPOSER_AGG_GAS_LIMIT` | aggregation request gas limit (default `1000000000`) |
+| `OP_ZK_PROPOSER_LOG_PROOF_STRATEGY` | log-commitment batch fulfillment strategy (default `auction`); must give the network mode of the range and aggregation strategies |
+| `OP_ZK_PROPOSER_LOG_CYCLE_LIMIT` | log-commitment batch cycle limit (default `1e12`) |
+| `OP_ZK_PROPOSER_LOG_GAS_LIMIT` | log-commitment batch gas limit (default `100000000000`) |
+| `OP_ZK_PROPOSER_MAX_PRICE_PER_PGU` | optional maximum price per proving gas unit; unset, empty, or `0` uses mainnet auction pricing |
+| `OP_ZK_PROPOSER_MIN_AUCTION_PERIOD` | minimum auction period in seconds (default `30`) |
+
+For mainnet auctions, the SP1 SDK derives the request ceiling from the network's
+published price with its 120% buffer and auction-tick rounding. A positive
+`MAX_PRICE_PER_PGU` replaces that dynamic ceiling exactly. It remains a ceiling,
+not the price paid: the auction settles at the winning bid. A ceiling below the
+clearing price leaves a request unbid until its deadline. Expiry makes the
+request retryable, so the next game attempt may submit a new auction.
+`MIN_AUCTION_PERIOD` is a floor every request waits out, so it needs to cover bid
+arrival (3-10s) and no more. It must leave assignment margin under
+`AUCTION_TIMEOUT`; cancellation retries the unfinished request while completed
+chunks remain cached when the proving inputs are unchanged.
+
+A defended span is split into up to the configured number of chunks. Each sufficiently
+large chunk can require a range proof and a consolidation proof before the final
+PLONK aggregation proof. `SP1_TIMEOUT_SECONDS` applies independently to each
+proof request, not to the complete defense.
+
+A chunk is bisected at its timestamp midpoint, and each half proved in turn, when one
+of its requests is over `MAX_STDIN_BYTES`, its consolidation estimate is not under
+80% of `RANGE_GAS_LIMIT`, or SPN reports its range or consolidation request
+`UNEXECUTABLE`. The proposer collects both witnesses and checks both requests before it
+submits the range request, so a size or estimate split buys no proof. The log line
+`Span exceeds proving limits; bisecting` names the span. Halves persist across
+attempts until the game's progress is cleared. A single timestamp over a size limit
+makes the game unprovable; one over its estimate is submitted anyway; one that SPN
+cannot execute stays terminal. The range request of a single timestamp over a size limit,
+or one that SPN cannot execute, is instead halved by chain, in super-root chain order,
+down to one chain; the log line `Range request exceeds proving limits; splitting by chain`
+names the chains. Each chain half is checked just before its request is submitted. One
+chain over a size limit makes the game unprovable, and one that SPN cannot execute stays
+terminal. The consolidation of a timestamp always covers every chain.
+
+At the default one-hour interval, an OP Mainnet span contains about 1,800
+two-second blocks. The default 16 chunks average 112.5 blocks each; configuring
+18 targets 100 blocks per chunk. Higher counts reduce per-request work but
+increase witness collection, fixed proving overhead, SPN request count, and
+aggregation input size. `RANGE_GAS_LIMIT` limits each range request, not the
+total work of the defense.
+
+An executing message can reference a block below its chain's local safe head. By
+default every game takes the table path: the proposer scans the span's messages and
+makes no batches when no message references such a block. With `LOG_PATH=receipts`, a
+consolidation reads the receipts of each such block instead. On the table path, the
+proposer submits `log-commitment` batch requests that prove each referenced
+block once, under `LOG_GAS_LIMIT`, before any consolidation collection. It cuts the
+blocks evenly into the fewest batches that fit 80% of `LOG_GAS_LIMIT` by estimate,
+4,096 entries, and `MAX_STDIN_BYTES` of witness, and halves any batch still over one.
+Each consolidation request then waits for and carries the batch proofs of the blocks
+that it reads.
+Every range, consolidation, and batch stdin must stay under `MAX_STDIN_BYTES`. A
+batch of several blocks whose stdin is over it, or that SPN reports `UNEXECUTABLE`, is
+split into halves that are proved in its place; a chunk whose consolidation was
+collected against the split batch collects it again. One block over the limit makes the
+game unprovable. Any other failed batch proof, or an `UNEXECUTABLE` batch of one block,
+fails the game attempt; it does not bisect a chunk.
+
+Transaction signing requires exactly one of these configurations:
+
+| Variable | Purpose |
+|---|---|
+| `OP_ZK_PROPOSER_PRIVATE_KEY` | local L1 transaction-signing key; mutually exclusive with `OP_ZK_PROPOSER_SIGNER_URL` |
+| `OP_ZK_PROPOSER_SIGNER_URL` | Web3Signer URL; requires `OP_ZK_PROPOSER_SIGNER_ADDRESS`; mutually exclusive with `OP_ZK_PROPOSER_PRIVATE_KEY` |
+| `OP_ZK_PROPOSER_SIGNER_ADDRESS` | Web3Signer address; requires `OP_ZK_PROPOSER_SIGNER_URL` |
+| `OP_ZK_PROPOSER_SIGNER_TLS_CA` | server CA PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `OP_ZK_PROPOSER_SIGNER_TLS_CERT` | client certificate PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+| `OP_ZK_PROPOSER_SIGNER_TLS_KEY` | client private-key PEM path; all three signer TLS paths are required together and enable mTLS to op-signer |
+
+Logging and telemetry:
+
+| Variable | Purpose |
+|---|---|
+| `OP_ZK_PROPOSER_LOGGER_NAME` | OpenTelemetry service name (default `kona-sp1`) |
+| `OP_ZK_PROPOSER_OTLP_ENDPOINT` | OpenTelemetry endpoint (default `http://localhost:4317`) |
+| `OP_ZK_PROPOSER_OTLP_ENABLED` | enable OpenTelemetry export (default `false`) |
+| `OP_ZK_PROPOSER_LOG_FORMAT` | `pretty` or `json` (default `pretty`) |
+
+The proposer and its dependencies also observe the standard `RUST_LOG`, `NO_COLOR`,
+`SSL_CERT_DIR`, `SSL_CERT_FILE`, `OTEL_*`, proxy, and SP1 worker/debug
+variables. `KONA_SP1_ELF_DIR` configures shared build/test infrastructure.
+
+### Fast finality
+
+With `OP_ZK_PROPOSER_FAST_FINALITY_MODE=true` the proposer proves every signer-created owned
+game while it is still unchallenged, spawned by the per-tick scan one fetch
+interval after creation. A proven game is over immediately, so it resolves as
+soon as its parent does instead of waiting out `maxChallengeDuration`: proof
+spend traded for finality latency. Blacklisted and retired games are skipped.
+Off by default.
+
+Spend framing: in network mode this proves every game created by this signer
+whose prestate artifacts are available; in local-cuda mode the cost is GPU time, not PROVE. At a one-hour proposal interval that is
+a baseline of 24 aggregation proofs per day; the default
+`OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT=1` serializes them. An unchallenged game created by
+another address is not proven, even when that address is listed in
+`OP_ZK_PROPOSER_OWNED_CREATORS` or the game uses a known prestate. Enabling the
+mode on a chain with an existing unchallenged backlog proves the signer-created
+owned backlog.
+
+Concurrency interaction:
+
+| Situation | Effect |
+|---|---|
+| active proving tasks (defense + fast finality) >= limit | no new fast-finality proving; game creation paused this tick |
+| defense tasks alone >= limit | same: defense load pauses creation (upstream parity) |
+| fast-finality tasks in flight | never count against `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` |
+| game challenged while a fast-finality proof is in flight | the proof stays valid; per-game dedup prevents a second task |
+| a fast-finality proof keeps failing at the limit | creation stays paused until it succeeds or is classified unprovable; watch `op_zk_proposer_game_proving_error` |
+
+## Live execution canary (`kona-zkvm-canary`)
+
+`kona-zkvm-canary` checks that the published `super-range` guest agrees with a finalized,
+L1-pinned live-network view. One process owns one network and one artifact URL.
+It selects a consecutive finalized span, runs range mode and consolidation mode sequentially,
+and classifies their results. The L1 pin is the earlier of the supernode's fully processed block
+(`CurrentL1 - 1`) and L1's `finalized` block; a snapshot whose `required_l1` is above that chosen
+pin is an input error. The pin and required L1 block identities are checked against the L1 RPC's
+canonical blocks. `CurrentL1` is used by number to bound the pin and verify processing progress;
+its hash is not independently validated. Finalized supernode responses are assumed immutable for
+a timestamp. An identical successful fingerprint is not re-executed; a correctness failure
+receives one confirmation attempt. The next selection is scheduled only after the prior attempt
+and its cadence plus bounded jitter have completed.
+
+The canary always uses SP1 CPU `execute` mode. This runs the real RISC-V ELF and returns an
+`ExecutionReport`, but it never invokes a proving API, submits work to the Succinct Prover Network,
+or creates proof bytes. This differs from the proposer's `mock` provider, which does not execute an
+ELF and submits placeholder proof bytes to a development verifier. It also differs from the
+one-shot executor's `--native-core` mode, which replays witnesses without the SP1 emulator. The
+canary exposes neither a mock mode nor a native-core switch.
+
+### Artifact identity and startup
+
+`KONA_ZKVM_CANARY_PRESTATES_URL` is the direct URL of a gzip-compressed `super-range` ELF. Startup
+downloads and decompresses it in memory, computes the decompressed ELF's SHA-256 digest, and
+derives its SP1 verification-key hash. Each scheduler cycle refetches the same URL. Unchanged bytes
+reuse the existing SP1 identity; changed bytes derive a new identity and produce a new attempt
+fingerprint. The URL may therefore name either an immutable release or a moving artifact such as
+`develop.bin.gz`. The aggregation ELF is not downloaded. The service image contains only the host
+binary, not a locally generated guest ELF.
+
+Startup is fail-fast and ordered: parse and validate all configuration, load the artifact and
+derive its identity, bind the host-utils metrics server, register canary metrics, then emit the
+structured `kona-zkvm-canary started` log. Configuration or artifact failures return non-zero
+before a metrics listener is bound. Host-utils serves `/health` unchanged. There is no `/ready`
+endpoint or ready gauge: a scrapeable process already holds a usable SP1 artifact.
+
+### Configuration
+
+All canary-owned variables use the `KONA_ZKVM_CANARY_` prefix. RPC URLs must use HTTP or HTTPS and
+must not contain user information, query parameters, or fragments. Production artifact URLs must
+use HTTPS with the same restrictions and redirects disabled. A `file://` artifact URL is
+accepted only with `--once`. Numeric limits marked non-zero fail validation when set to zero.
+
+Required configuration:
+
+| Variable | Purpose |
+|---|---|
+| `KONA_ZKVM_CANARY_SUPERROOT_RPC` | op-supernode endpoint serving `superroot_atTimestamp` |
+| `KONA_ZKVM_CANARY_L1_RPC` | L1 execution JSON-RPC endpoint used to pin and canonicalize block identities |
+| `KONA_ZKVM_CANARY_L1_BEACON_RPC` | L1 beacon API endpoint used for blob sidecars during witness collection |
+| `KONA_ZKVM_CANARY_L2_RPCS` | Comma-separated `<chain-id>=<http(s)-url>` L2 execution endpoints; decimal and `0x` chain IDs are accepted and duplicates are rejected |
+| `KONA_ZKVM_CANARY_PRESTATES_URL` | Direct gzip-compressed `super-range` ELF URL; `file://` is diagnostic and `--once` only |
+| `KONA_ZKVM_CANARY_GUEST_CYCLE_LIMIT` | Non-zero maximum cycles for each range or consolidation guest execution; no default |
+
+Optional execution, scheduling, and input limits:
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `KONA_ZKVM_CANARY_ROLLUP_CONFIG_PATHS` | registry | Comma-separated rollup-config JSON files with exact L2 endpoint coverage |
+| `KONA_ZKVM_CANARY_L1_CONFIG_PATH` | registry | L1 chain-config JSON override |
+| `KONA_ZKVM_CANARY_DEPENDENCY_SET_PATH` | registry | Dependency-set JSON override with exact L2 endpoint coverage |
+| `KONA_ZKVM_CANARY_FINALIZED_SPAN` | `1` | Consecutive finalized timestamps per attempt; range `1..=128` |
+| `KONA_ZKVM_CANARY_CADENCE_SECONDS` | `300` | Non-zero wait after an attempt completes |
+| `KONA_ZKVM_CANARY_JITTER_SECONDS` | `min(30, cadence)` | Maximum additional wait; zero is allowed and the value cannot exceed cadence |
+| `KONA_ZKVM_CANARY_ATTEMPT_DEADLINE_SECONDS` | `10800` | Non-zero deadline for cancellable attempt stages |
+| `KONA_ZKVM_CANARY_RPC_REQUEST_TIMEOUT_SECONDS` | `30` | Non-zero deadline for each parent JSON-RPC request |
+| `KONA_ZKVM_CANARY_ARTIFACT_REQUEST_TIMEOUT_SECONDS` | `60` | Non-zero whole-request artifact deadline |
+| `KONA_ZKVM_CANARY_MAX_PARENT_RESPONSE_BYTES` | `4194304` | Non-zero maximum parent JSON-RPC response body |
+| `KONA_ZKVM_CANARY_MAX_PARENT_RESPONSE_ENTRIES` | `256` | Non-zero maximum parent response entries and configured chains; maximum `256` |
+| `KONA_ZKVM_CANARY_MEMORY_LIMIT` | `25769803776` | SP1 emulator accounted-memory limit in bytes; not a process RSS ceiling |
+| `KONA_ZKVM_CANARY_METRICS_PORT` | disabled | `disabled`, empty, or any numeric zero disables metrics; `auto` binds an ephemeral port; a non-zero port binds that port on all interfaces |
+
+Optional structured logging configuration:
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `KONA_ZKVM_CANARY_LOG_FORMAT` | `pretty` | `pretty` or structured `json` logs |
+
+The logger also observes `RUST_LOG` and `NO_COLOR`. TLS and HTTP clients may observe the standard
+certificate and proxy variables. `KONA_SP1_ELF_DIR` is not a canary input: the canary uses only its
+downloaded in-memory artifact. `TRACE_FILE` must be unset; startup rejects it because SP1's
+cycle-tracker feature can otherwise persist a profile, while the canary has a no-file-output
+contract.
+
+### Execution bounds and termination
+
+The bounds serve different purposes:
+
+- `GUEST_CYCLE_LIMIT` is applied independently to range and consolidation execution. SP1 stops an
+  execution that exceeds it and releases that work; the run outcome is `cycle_limit_exceeded`, not
+  a guest rejection or divergence.
+- `MEMORY_LIMIT` is passed to the in-process SP1 CPU emulator and bounds memory tracked by its
+  internal accounting. Allocator overhead and other process memory are outside that accounting, so
+  this is not a hard RSS ceiling. The process metrics below expose observed resident and virtual
+  memory; the orchestrator or cgroup remains the hard process-memory backstop.
+- `ATTEMPT_DEADLINE_SECONDS` covers artifact refresh, selection, and witness collection. It does
+  not interrupt SP1 setup or execution: SP1 uses blocking work that Tokio cannot cancel. A setup
+  that finishes after the deadline records `timeout` before snapshot selection begins.
+
+If the emulator wedges beyond the cycle and memory bounds, or the process is killed for memory,
+the orchestrator must restart it. `SIGINT` and `SIGTERM` stop all further scheduling and exit the
+process. A signal received during artifact refresh or SP1 execution abandons that work by terminating
+the process; the service does not claim to cancel the in-flight blocking task.
+
+### Metrics
+
+When enabled, host-utils serves Prometheus samples and updates process metrics every 750 ms. The
+canary metric namespace is `kona_zkvm_canary`:
+
+| Metric | Meaning |
+|---|---|
+| `kona_zkvm_canary_up` | `1` after metrics registration with a loaded SP1 artifact; `0` when one-shot operation completes normally |
+| `kona_zkvm_canary_scheduler_heartbeat_timestamp_seconds` | Unix time of the latest selection cycle |
+| `kona_zkvm_canary_run_active` | Whether the one sequential attempt is active |
+| `kona_zkvm_canary_last_attempt_timestamp_seconds` / `kona_zkvm_canary_last_success_timestamp_seconds` | Completion time of the latest attempt / valid attempt; zero means unknown |
+| `kona_zkvm_canary_last_attempted_target_timestamp` / `kona_zkvm_canary_last_successful_target_timestamp` | Latest attempted / valid finalized target; zero means unknown |
+| `kona_zkvm_canary_consecutive_failures` | Consecutive non-valid terminal outcomes |
+| `kona_zkvm_canary_runs_total{outcome}` | Attempt count by `valid`, `guest_rejected`, `output_mismatch`, `input_error`, `cycle_limit_exceeded`, or `timeout` |
+| `kona_zkvm_canary_last_run_duration_seconds` | Total duration of the latest attempt |
+| `kona_zkvm_canary_last_input_selection_duration_seconds` | Canonical snapshot selection duration of the latest attempt |
+| `kona_zkvm_canary_last_stage_witness_duration_seconds{mode}` / `kona_zkvm_canary_last_stage_execute_duration_seconds{mode}` | Latest witness and SP1 execution duration for `range` or `consolidation` |
+| `kona_zkvm_canary_selected_span_length` / `kona_zkvm_canary_selected_chain_count` | Timestamp and chain counts in the latest selected input |
+| `kona_zkvm_canary_executed_l2_gas` | Total gas used by L2 blocks in the latest selected span with a range PGU, summed across chains; an absent PGU leaves the prior gauge unchanged |
+| `kona_zkvm_canary_finalized_target_lag_seconds` | Wall-clock lag of the latest attempted finalized target |
+| `kona_zkvm_canary_report_target_timestamp{mode}` | Target associated with the latest completed SP1 report for the mode |
+| `kona_zkvm_canary_report_pgu{mode}` | Latest normalized SP1 proving-gas-unit estimate; an absent SP1 value leaves the prior gauge unchanged |
+| `kona_zkvm_canary_report_instructions{mode}` / `kona_zkvm_canary_report_syscalls{mode}` | Latest instruction and syscall totals |
+| `kona_zkvm_canary_report_record_bytes{mode}` | Latest estimated SP1 execution-record size; not process memory |
+| `kona_zkvm_canary_report_exit_code{mode}` | Latest SP1 guest exit code |
+
+Host-utils additionally exports unprefixed process samples including
+`process_resident_memory_bytes`, `process_virtual_memory_bytes`,
+`process_virtual_memory_max_bytes`, `process_cpu_seconds_total`, file-descriptor counts, thread
+count, and process start time where the platform supports them. Because both guest modes run in
+the service process, resident-memory samples include SP1 execution rather than a child process.
+Metric labels never contain RPC URLs, run IDs, roots, chain IDs, error strings, opcode names, or
+syscall names. Per-phase cycle and invocation totals remain available in the bounded
+`range_report` and `consolidation_report` fields of each structured attempt log; they are not
+exported as Prometheus series.
+
+### One-shot diagnostics
+
+`--once` calls the same `Runner::run_one` selection and execution path as the loop. It emits the
+terminal outcome and both bounded range/consolidation report summaries as structured fields, then
+exits `0` for `valid`, `1` for `guest_rejected` or `output_mismatch`, and `2` for every other
+outcome. It accepts no result path and writes no artifact, witness, report, or result file. For a
+local artifact:
+
+```bash
+KONA_ZKVM_CANARY_PRESTATES_URL="file:///absolute/path/to/develop.bin.gz" \
+KONA_ZKVM_CANARY_GUEST_CYCLE_LIMIT="..." \
+KONA_ZKVM_CANARY_SUPERROOT_RPC="http://127.0.0.1:9545" \
+KONA_ZKVM_CANARY_L1_RPC="http://127.0.0.1:8545" \
+KONA_ZKVM_CANARY_L1_BEACON_RPC="http://127.0.0.1:5052" \
+KONA_ZKVM_CANARY_L2_RPCS="901=http://127.0.0.1:9546" \
+cargo run --locked --package kona-zkvm-canary --bin kona-zkvm-canary -- --once
+```
+
+All snapshots, witnesses, ELF bytes, and report data remain in memory. The canary
+does not generate or persist a proof in either looping or one-shot operation.
+
+## Building
+
+Programs are compiled for the zkVM target through the recipes in this directory's `justfile`.
+
+The `cargo prove` subcommand is pinned by `mise.toml`. Install the native Succinct
+toolchain for non-Docker local builds with:
+
+```bash
+just install-sp1-toolchain
+```
+
+## Testing (SP1 execute action tests)
+
+The `super-range-executor` crate (`crates/super-range-executor`) builds a host binary,
+`kona-sp1-super-range-executor`, that runs the `super-range` guest in SP1 **execute** mode (no
+proving) against a real chain's witness. It resolves the span from `superroot_atTimestamp`,
+collects range and consolidation witnesses through kona's `InteropHost`, runs the
+`super-range` ELF in the SP1 emulator, and exits `0` (valid claim) / `1` (invalid claim) / `2`
+(infrastructure error) — mirroring the native fault-proof program convention.
+
+The consolidation takes the table path. When the first collection reads a
+block below a local safe head, the executor fetches that block's receipts from the L2 node,
+computes its entry with the `log-commitment` ELF (natively with `--native-core`), and collects
+again through the entries. A block still without an entry after that, or any failure in this
+log stage, exits `2`.
+
+The op-e2e action test `TestSP1SuperRangeSimpleEmptyChain`
+(`rust/kona/tests/proofs/sp1_simple_program_test.go`) drives this binary against an
+in-process action-test chain, exercising both guest modes end-to-end on real inputs. Run it
+with:
+
+```bash
+cd rust/kona/tests && just action-tests-sp1
+```
+
+That recipe builds test guest ELFs (`just build-elfs test-config-fallback`, Dockerized SP1 toolchain), builds the
+`super-range-executor` binary, and runs the test with `KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH`
+and `KONA_SP1_ELF_DIR` set — the same two variables the acceptance full-ELF suite reads. The
+executor loads the `super-range` ELF at runtime. The test skips when the executor-path variable
+is unset, so the heavy SP1 toolchain is only required when explicitly running the SP1 action
+tests. Per-PR CI doesn't set it; the daily `scheduled-sp1-elf-smoke` CircleCI workflow runs these
+tests in its `kona-sp1-action-tests` job. The executor also loads `log-commitment-elf` when the
+consolidation reads a block below a local safe head.
+
+Because the executor is a separate process that resolves the transition itself, the action-test
+harness serves op-node's superroot API over a loopback HTTP listener
+(`L2Verifier.StartSuperRootHTTPRPC`) and passes it as `--supernode-address`. op-node answers
+with a one-chain response, which is what the action-test chain is.
+
+For faster coverage of the super-range logic, the same executor also supports `--native-core`.
+This mode still collects the real witnesses, but replays them through the shared native cores
+instead of executing the SP1 ELF. Use the default SP1 execute path for a small smoke test of
+the ELF, SP1 stdin, and public-values boundary; use `--native-core` when broad action-test
+coverage would otherwise multiply SP1 emulator cost.
+
+Native-core replay reads the witness exactly as the guest does, so a preimage missing from the
+witness **panics** instead of returning an error. The panic is deliberate: shared kona code turns
+some oracle errors into protocol outcomes (an interop message judged invalid, a span batch
+skipped), so a prover that could make a read fail would choose those outcomes. Anything that runs
+the guest code outside the zkVM with an incomplete witness therefore crashes (exit `101` from
+the executor) rather than reporting the claim invalid.
+
+The test covers both an honest claim and an invalid claim. Note the invalid-claim path is
+driven by **corrupting the claim the guest sees**, not by feeding the executor a wrong claim:
+the executor synthesizes the agreed pre-state and the claim from the supernode and collects
+witnesses against them, so there is nothing to pass a junk value to, and a witness collected
+against a bad claim would fail host-side before the guest ran (a confusing infra error, exit
+2). So an invalid-claim test sets `--corrupt-claimed-root` (via `WithCorruptClaim()` in the Go
+harness), which flips a bit in the claimed optimistic output root *after* witness collection.
+The witness has no preimage for the corrupted root, so the guest aborts when it reads it
+(exit 1) — a soundness smoke test that a false transition cannot be executed (and thus could
+not be proven). If the guest instead runs the tampered claim to completion and agrees with the
+honest outputs, the executor exits `2` rather than reporting the claim valid. Do **not** write
+an SP1 negative test by passing a junk `WithL2Claim(...)`. Combining `--corrupt-claimed-root`
+with `--native-core` is unsupported: the native replay panics on the missing preimage (exit
+`101`), which the Go harness reports as a test failure, so the harness rejects that combination.
+Keep invalid-claim tests on the SP1 execute path.
+
+## Dependencies
+
+This integration depends on:
+- SP1 SDK and zkVM runtime
+- Core Kona libraries (`kona-proof`, `kona-derive`, `kona-executor`, etc.)
+- Alloy and OP-Alloy for Ethereum types
+
+## License and Attribution
+
+This implementation is derived from [OP-Succinct](https://github.com/succinctlabs/op-succinct)
+by Succinct Labs and incorporates code licensed under the MIT License and Apache License 2.0.
+Significant modifications have been made to integrate with the Kona monorepo architecture.
+
+See [LICENSE-THIRD-PARTY](./LICENSE-THIRD-PARTY) for full license details and attribution.

@@ -38,3 +38,11 @@ func cliInitIntent(t *testing.T, runner *CLITestRunner, l1ChainID uint64, l2Chai
 
 	return intent, st
 }
+
+// setSP1VerifierOverride points the intent's implementations deploy at sp1Verifier.
+func setSP1VerifierOverride(intent *state.Intent, sp1Verifier common.Address) {
+	if intent.GlobalDeployOverrides == nil {
+		intent.GlobalDeployOverrides = make(map[string]any)
+	}
+	intent.GlobalDeployOverrides["sp1Verifier"] = sp1Verifier
+}

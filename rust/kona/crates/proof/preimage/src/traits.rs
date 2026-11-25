@@ -1,3 +1,7 @@
+// `#[async_trait]` adds `#[must_use]` to every async trait method it expands, which
+// nightly clippy flags as `double_must_use` on the `Pin<Box<dyn Future>>` return type.
+#![allow(clippy::double_must_use)]
+
 use crate::{
     PreimageKey,
     errors::{ChannelResult, PreimageOracleResult},

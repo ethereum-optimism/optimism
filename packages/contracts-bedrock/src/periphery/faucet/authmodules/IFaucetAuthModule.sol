@@ -12,12 +12,5 @@ interface IFaucetAuthModule {
     /// @param _id     Authentication ID to verify.
     /// @param _proof  Authentication proof to verify.
     /// @return valid_ True if the drip parameters are valid.
-    function verify(
-        Faucet.DripParameters memory _params,
-        bytes32 _id,
-        bytes memory _proof
-    )
-        external
-        view
-        returns (bool);
+    function verify(Faucet.DripParameters memory _params, bytes32 _id, bytes memory _proof) external view returns (bool);
 }

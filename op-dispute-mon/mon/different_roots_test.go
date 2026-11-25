@@ -5,14 +5,14 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCheckDifferentRoots(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointDifferentRoots: true,
@@ -39,7 +39,7 @@ func TestCheckDifferentRoots(t *testing.T) {
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewDifferentRootMonitor(logger, metrics)
 	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 2, metrics.recordedCount)
@@ -65,7 +65,7 @@ func TestCheckDifferentRoots(t *testing.T) {
 }
 
 func TestCheckDifferentRoots_NoDisagreements(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointDifferentRoots: false,
@@ -76,7 +76,7 @@ func TestCheckDifferentRoots_NoDisagreements(t *testing.T) {
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewDifferentRootMonitor(logger, metrics)
 	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 0, metrics.recordedCount)
@@ -89,9 +89,9 @@ func TestCheckDifferentRoots_NoDisagreements(t *testing.T) {
 }
 
 func TestCheckDifferentRoots_EmptyGamesList(t *testing.T) {
-	games := []*types.EnrichedGameData{}
+	games := []*types.CommonGameData{}
 	metrics := &stubDifferentOutputRootMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewDifferentRootMonitor(logger, metrics)
 	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 0, metrics.recordedCount)
@@ -104,7 +104,7 @@ func TestCheckDifferentRoots_EmptyGamesList(t *testing.T) {
 }
 
 func TestCheckDifferentRoots_AllGamesHaveDisagreements(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointDifferentRoots: true,
@@ -122,7 +122,7 @@ func TestCheckDifferentRoots_AllGamesHaveDisagreements(t *testing.T) {
 		},
 	}
 	metrics := &stubDifferentOutputRootMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewDifferentRootMonitor(logger, metrics)
 	monitor.CheckDifferentRoots(games)
 	require.Equal(t, 3, metrics.recordedCount)

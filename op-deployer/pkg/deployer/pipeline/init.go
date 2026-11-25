@@ -2,20 +2,43 @@ package pipeline
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind/v2"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/lmittmann/w3"
 )
 
 func IsSupportedStateVersion(version int) bool {
 	return version == 1
+}
+
+func ValidateInputs(intent *state.Intent, st *state.State) error {
+	if err := intent.Check(); err != nil {
+		return err
+	}
+	if err := checkSettlementGroups(intent); err != nil {
+		return err
+	}
+	if err := checkSettlementChainIDsUnchanged(intent, st); err != nil {
+		return err
+	}
+	if intent.OPCMAddress != nil {
+		if _, ok := intent.GlobalDeployOverrides["sp1Verifier"]; ok {
+			return fmt.Errorf("sp1Verifier must not be specified when using a predeployed OPCM")
+		}
+	}
+	if !IsSupportedStateVersion(st.Version) {
+		return fmt.Errorf("unsupported state version: %d", st.Version)
+	}
+	return nil
 }
 
 func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
@@ -46,24 +69,30 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 
 		// If only an OPCM address is provided, resolve SuperchainConfigProxy from it on-chain.
 		if superchainConfigAddr == (common.Address{}) && opcmAddr != (common.Address{}) {
-			opcmContract := opcm.NewContract(opcmAddr, env.L1Client)
-			resolved, err := opcmContract.SuperchainConfig(ctx)
+			resolved, err := resolveSuperchainConfig(ctx, env.L1Client, opcmAddr)
 			if err != nil {
 				return fmt.Errorf("error resolving SuperchainConfig from OPCM at %s: %w", opcmAddr, err)
 			}
 			superchainConfigAddr = resolved
 		}
-		superDeployment, superRoles, err := PopulateSuperchainState(env, opcmAddr, superchainConfigAddr)
+		superDeployment, superRoles, err := PopulateSuperchainState(ctx, env.L1Client, superchainConfigAddr)
 		if err != nil {
 			return fmt.Errorf("error populating superchain state: %w", err)
 		}
 		st.SuperchainDeployment = superDeployment
 		st.SuperchainRoles = superRoles
 
-		if hasPredeployedOPCM && st.ImplementationsDeployment == nil {
-			st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-				OpcmV2Impl: opcmAddr,
+		// An earlier op-deployer recorded only the OPCM here, and most of the rest after the first
+		// chain, but never the OPCM container.
+		if hasPredeployedOPCM && (st.ImplementationsDeployment == nil || st.ImplementationsDeployment.OpcmContainerImpl == (common.Address{})) {
+			if st.ImplementationsDeployment != nil {
+				opcmAddr = st.ImplementationsDeployment.OpcmV2Impl
 			}
+			impls, err := opcm.ReadImplementations(ctx, env.L1Client, opcmAddr)
+			if err != nil {
+				return fmt.Errorf("failed to read implementations from OPCM at %s: %w", opcmAddr, err)
+			}
+			st.ImplementationsDeployment = impls
 		}
 	}
 
@@ -76,7 +105,7 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		return fmt.Errorf("l1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
 	}
 
-	deployerCode, err := env.L1Client.CodeAt(ctx, script.DeterministicDeployerAddress, nil)
+	deployerCode, err := env.L1Client.CodeAt(ctx, predeploys.DeterministicDeploymentProxyAddr, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get deployer code: %w", err)
 	}
@@ -111,11 +140,8 @@ func initCommonChecks(intent *state.Intent, st *state.State) error {
 		return fmt.Errorf("unsupported state version: %d", st.Version)
 	}
 
-	if st.Create2Salt == (common.Hash{}) {
-		_, err := rand.Read(st.Create2Salt[:])
-		if err != nil {
-			return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
-		}
+	if err := st.EnsureCreate2Salt(); err != nil {
+		return err
 	}
 
 	return nil
@@ -142,44 +168,58 @@ func immutableErr(field string, was, is any) error {
 	return fmt.Errorf("%s is immutable: was %v, is %v", field, was, is)
 }
 
-func PopulateSuperchainState(env *Env, opcmAddr common.Address, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
-	input := opcm.ReadSuperchainDeploymentInput{
-		SuperchainConfigProxy: superchainConfigProxy,
+func resolveSuperchainConfig(ctx context.Context, client *ethclient.Client, opcmAddr common.Address) (common.Address, error) {
+	opcmContract := opcm.NewContract(opcmAddr, client)
+	validatorAddr, err := opcmContract.OPCMStandardValidator(ctx)
+	if err == nil {
+		return opcm.NewContract(validatorAddr, client).SuperchainConfig(ctx)
 	}
+	return opcmContract.SuperchainConfig(ctx)
+}
 
-	var out opcm.ReadSuperchainDeploymentOutput
-	var err error
+var (
+	proxyAdminMethod          = w3.MustNewFunc("admin()", "address")
+	proxyImplementationMethod = w3.MustNewFunc("implementation()", "address")
+	guardianMethod            = w3.MustNewFunc("guardian()", "address")
+	ownerMethod               = w3.MustNewFunc("owner()", "address")
+)
 
-	if env.UseForge {
-		forgeEnv := &opcm.ForgeEnv{
-			Client:   env.ForgeClient,
-			Context:  env.Context,
-			L1RPCUrl: env.L1RPCUrl,
-		}
-		out, err = opcm.ReadSuperchainDeploymentViaForge(forgeEnv, input)
-		if err != nil {
-			return nil, nil, err
-		}
-	} else {
-		readScript, err := opcm.NewReadSuperchainDeploymentScript(env.L1ScriptHost)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error generating read superchain deployment script: %w", err)
-		}
-
-		out, err = readScript.Run(input)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error reading superchain deployment: %w", err)
-		}
+// PopulateSuperchainState reads the superchain deployment behind a SuperchainConfig proxy. OP's
+// Proxy answers admin() and implementation() only when the sender is its admin or address(0), and
+// CallGetter sends the call from address(0).
+func PopulateSuperchainState(ctx context.Context, client bind.ContractCaller, superchainConfigProxy common.Address) (*addresses.SuperchainContracts, *addresses.SuperchainRoles, error) {
+	code, err := client.CodeAt(ctx, superchainConfigProxy, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read the code of the SuperchainConfig proxy %s: %w", superchainConfigProxy, err)
+	}
+	if len(code) == 0 {
+		return nil, nil, fmt.Errorf("the SuperchainConfig proxy %s has no code", superchainConfigProxy)
+	}
+	proxyAdmin, err := opcm.CallGetter[common.Address](ctx, client, superchainConfigProxy, proxyAdminMethod)
+	if err != nil {
+		return nil, nil, err
+	}
+	impl, err := opcm.CallGetter[common.Address](ctx, client, superchainConfigProxy, proxyImplementationMethod)
+	if err != nil {
+		return nil, nil, err
+	}
+	guardian, err := opcm.CallGetter[common.Address](ctx, client, superchainConfigProxy, guardianMethod)
+	if err != nil {
+		return nil, nil, err
+	}
+	owner, err := opcm.CallGetter[common.Address](ctx, client, proxyAdmin, ownerMethod)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	deployment := &addresses.SuperchainContracts{
-		SuperchainProxyAdminImpl: out.SuperchainProxyAdmin,
-		SuperchainConfigProxy:    out.SuperchainConfigProxy,
-		SuperchainConfigImpl:     out.SuperchainConfigImpl,
+		SuperchainProxyAdminImpl: proxyAdmin,
+		SuperchainConfigProxy:    superchainConfigProxy,
+		SuperchainConfigImpl:     impl,
 	}
 	roles := &addresses.SuperchainRoles{
-		SuperchainProxyAdminOwner: out.SuperchainProxyAdminOwner,
-		SuperchainGuardian:        out.Guardian,
+		SuperchainProxyAdminOwner: owner,
+		SuperchainGuardian:        guardian,
 	}
 	return deployment, roles, nil
 }

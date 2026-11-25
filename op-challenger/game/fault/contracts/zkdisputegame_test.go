@@ -3,6 +3,7 @@ package contracts
 import (
 	"context"
 	"errors"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ const (
 
 var (
 	zkGameAddr = common.Address{0x45, 0x44, 0x43}
+	zkWethAddr = common.Address{0x57, 0x45, 0x54, 0x48}
 )
 
 var zkVersions = []contractVersion{
@@ -131,6 +133,166 @@ func TestZKGetMetadata(t *testing.T) {
 	}
 }
 
+func TestProposalStatusFromUint8(t *testing.T) {
+	for value := uint8(ProposalStatusUnchallenged); value <= uint8(ProposalStatusResolved); value++ {
+		status, err := ProposalStatusFromUint8(value)
+		require.NoError(t, err)
+		require.Equal(t, ProposalStatus(value), status)
+	}
+	status, err := ProposalStatusFromUint8(uint8(ProposalStatusResolved) + 1)
+	require.ErrorContains(t, err, "invalid proposal status")
+	require.Equal(t, ProposalStatusUnchallenged, status)
+}
+
+func TestZKGetAnchorStateRegistryAtPinnedBlock(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			block := rpcblock.ByHash(common.Hash{0x88, 0x99})
+			expected := common.Address{0xab}
+			stubRpc.SetResponse(zkGameAddr, methodAnchorStateRegistry, block, nil, []interface{}{expected})
+			actual, err := contract.GetAnchorStateRegistry(context.Background(), block)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		})
+	}
+}
+
+func TestZKGetBondMetadataAtPinnedBlock(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			block := rpcblock.ByHash(common.Hash{0x91})
+			expected := ZKBondMetadata{
+				GameCreator:    common.Address{0x01},
+				TotalBonds:     big.NewInt(23),
+				ChallengerBond: big.NewInt(7),
+			}
+			stubRpc.SetResponse(zkGameAddr, methodGameCreator, block, nil, []interface{}{expected.GameCreator})
+			stubRpc.SetResponse(zkGameAddr, methodTotalBonds, block, nil, []interface{}{expected.TotalBonds})
+			stubRpc.SetResponse(zkGameAddr, methodChallengerBond, block, nil, []interface{}{expected.ChallengerBond})
+
+			actual, err := contract.GetBondMetadata(t.Context(), block)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+		})
+	}
+}
+
+func TestZKGetCreditsAtPinnedBlock(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			block := rpcblock.ByNumber(492)
+			recipients := []common.Address{{0x01}, {0x02}, {0x03}}
+			expected := []*big.Int{big.NewInt(3), big.NewInt(5), big.NewInt(8)}
+			for i, recipient := range recipients {
+				stubRpc.SetResponse(zkGameAddr, methodCredit, block, []interface{}{recipient}, []interface{}{expected[i]})
+			}
+
+			actual, err := contract.GetCredits(t.Context(), block, recipients...)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+
+			empty, err := contract.GetCredits(t.Context(), block)
+			require.NoError(t, err)
+			require.Empty(t, empty)
+			require.NotNil(t, empty)
+		})
+	}
+}
+
+func TestZKGetWithdrawalsAtPinnedBlock(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			stubRpc.AddContract(zkWethAddr, snapshots.LoadDelayedWETHABI())
+			block := rpcblock.ByHash(common.Hash{0x92})
+			recipients := []common.Address{{0x01}, {0x02}}
+			expected := []*WithdrawalRequest{
+				{Amount: big.NewInt(11), Timestamp: big.NewInt(101)},
+				{Amount: big.NewInt(13), Timestamp: big.NewInt(103)},
+			}
+			stubRpc.SetResponse(zkGameAddr, methodWETH, block, nil, []interface{}{zkWethAddr})
+			for i, recipient := range recipients {
+				stubRpc.SetResponse(zkWethAddr, methodWithdrawals, block, []interface{}{zkGameAddr, recipient}, []interface{}{expected[i].Amount, expected[i].Timestamp})
+			}
+
+			actual, err := contract.GetWithdrawals(t.Context(), block, recipients...)
+			require.NoError(t, err)
+			require.Equal(t, expected, actual)
+
+			_, emptyContract := setupZKDisputeGameTest(t, version)
+			empty, err := emptyContract.GetWithdrawals(t.Context(), block)
+			require.NoError(t, err)
+			require.Empty(t, empty)
+			require.NotNil(t, empty)
+		})
+	}
+}
+
+func TestZKGetBalanceAndDelayAtPinnedBlock(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			stubRpc.AddContract(zkWethAddr, snapshots.LoadDelayedWETHABI())
+			block := rpcblock.ByNumber(493)
+			balance := big.NewInt(144)
+			delaySeconds := int64(77)
+			stubRpc.SetResponse(zkGameAddr, methodWETH, block, nil, []interface{}{zkWethAddr})
+			stubRpc.AddExpectedCall(batchingTest.NewGetBalanceCall(zkWethAddr, block, balance))
+			stubRpc.SetResponse(zkWethAddr, methodDelay, block, nil, []interface{}{big.NewInt(delaySeconds)})
+
+			actualBalance, actualDelay, actualAddr, err := contract.GetBalanceAndDelay(t.Context(), block)
+			require.NoError(t, err)
+			require.Equal(t, balance, actualBalance)
+			require.Equal(t, time.Duration(delaySeconds)*time.Second, actualDelay)
+			require.Equal(t, zkWethAddr, actualAddr)
+		})
+	}
+}
+
+func TestZKGetBalanceAndDelayRejectsDurationOverflow(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			stubRpc.AddContract(zkWethAddr, snapshots.LoadDelayedWETHABI())
+			block := rpcblock.ByNumber(493)
+			tooManySeconds := big.NewInt(math.MaxInt64/int64(time.Second) + 1)
+			stubRpc.SetResponse(zkGameAddr, methodWETH, block, nil, []interface{}{zkWethAddr})
+			stubRpc.AddExpectedCall(batchingTest.NewGetBalanceCall(zkWethAddr, block, big.NewInt(144)))
+			stubRpc.SetResponse(zkWethAddr, methodDelay, block, nil, []interface{}{tooManySeconds})
+
+			_, _, _, err := contract.GetBalanceAndDelay(t.Context(), block)
+			require.ErrorContains(t, err, "withdrawal delay too big for time.Duration")
+		})
+	}
+}
+
+func TestZKGetBalanceAndDelayAcceptsMaxDuration(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, contract := setupZKDisputeGameTest(t, version)
+			stubRpc.AddContract(zkWethAddr, snapshots.LoadDelayedWETHABI())
+			block := rpcblock.ByNumber(493)
+			maxSeconds := int64(math.MaxInt64 / int64(time.Second))
+			stubRpc.SetResponse(zkGameAddr, methodWETH, block, nil, []interface{}{zkWethAddr})
+			stubRpc.AddExpectedCall(batchingTest.NewGetBalanceCall(zkWethAddr, block, big.NewInt(144)))
+			stubRpc.SetResponse(zkWethAddr, methodDelay, block, nil, []interface{}{big.NewInt(maxSeconds)})
+
+			_, actualDelay, _, err := contract.GetBalanceAndDelay(t.Context(), block)
+			require.NoError(t, err)
+			require.Equal(t, time.Duration(maxSeconds)*time.Second, actualDelay)
+		})
+	}
+}
+
+func TestValidateResultCount(t *testing.T) {
+	require.NoError(t, validateResultCount(2, 2))
+	require.ErrorContains(t, validateResultCount(2, 1), "expected 2 results but got 1")
+	require.ErrorContains(t, validateResultCount(2, 3), "expected 2 results but got 3")
+}
+
 func TestZKGetGameRange(t *testing.T) {
 	for _, version := range zkVersions {
 		version := version
@@ -138,7 +300,7 @@ func TestZKGetGameRange(t *testing.T) {
 			stubRpc, contract := setupZKDisputeGameTest(t, version)
 			expectedStart := uint64(65)
 			expectedEnd := uint64(102)
-			stubRpc.SetResponse(zkGameAddr, methodStartingBlockNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
+			stubRpc.SetResponse(zkGameAddr, methodStartingSequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
 			stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
 			start, end, err := contract.GetGameRange(context.Background())
 			require.NoError(t, err)
@@ -182,6 +344,8 @@ func TestZKGetChallengerMetadata(t *testing.T) {
 			expected := ChallengerMetadata{
 				ParentIndex:      expectedParentIndex,
 				ProposalStatus:   expectedProposalStatus,
+				Challenger:       challenger,
+				Prover:           prover,
 				ProposedRoot:     expectedRootClaim,
 				L2SequenceNumber: expectedL2BlockNumber,
 				Deadline:         expectedDeadline,
@@ -190,6 +354,20 @@ func TestZKGetChallengerMetadata(t *testing.T) {
 			require.Equal(t, expected, actual)
 		})
 	}
+}
+
+func TestZKGetChallengerMetadataAllowsUnknownProposalStatus(t *testing.T) {
+	stubRpc, contract := setupZKDisputeGameTest(t, zkVersions[0])
+	block := rpcblock.ByNumber(889)
+	unknown := ProposalStatus(255)
+	stubRpc.SetResponse(zkGameAddr, methodClaimData, block, nil, []interface{}{
+		uint32(0), unknown, common.Address{}, common.Address{}, uint64(0), common.Hash{},
+	})
+	stubRpc.SetResponse(zkGameAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int)})
+
+	metadata, err := contract.GetChallengerMetadata(context.Background(), block)
+	require.NoError(t, err)
+	require.Equal(t, unknown, metadata.ProposalStatus)
 }
 
 func TestZKChallengeTx(t *testing.T) {
@@ -237,11 +415,58 @@ func TestZKGame_GetCredit(t *testing.T) {
 			expectedStatus := gameTypes.GameStatusChallengerWon
 			stubRpc.SetResponse(zkGameAddr, methodCredit, rpcblock.Latest, []interface{}{addr}, []interface{}{expectedCredit})
 			stubRpc.SetResponse(zkGameAddr, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
+			stubRpc.SetResponse(zkGameAddr, methodWETH, rpcblock.Latest, nil, []interface{}{zkWethAddr})
 
 			actualCredit, actualStatus, err := game.GetCredit(context.Background(), addr)
 			require.NoError(t, err)
 			require.Equal(t, expectedCredit, actualCredit)
 			require.Equal(t, expectedStatus, actualStatus)
+		})
+	}
+}
+
+func TestZKGame_GetCreditFallsBackToPendingWithdrawal(t *testing.T) {
+	cases := []struct {
+		name    string
+		pending *big.Int
+	}{
+		{name: "Unlocked", pending: big.NewInt(4284)},
+		{name: "PaidOut", pending: big.NewInt(0)},
+	}
+	for _, version := range zkVersions {
+		for _, tc := range cases {
+			t.Run(version.String()+"-"+tc.name, func(t *testing.T) {
+				stubRpc, game := setupZKDisputeGameTest(t, version)
+				stubRpc.AddContract(zkWethAddr, snapshots.LoadDelayedWETHABI())
+				addr := common.Address{0x01}
+				expectedStatus := gameTypes.GameStatusChallengerWon
+				stubRpc.SetResponse(zkGameAddr, methodCredit, rpcblock.Latest, []interface{}{addr}, []interface{}{big.NewInt(0)})
+				stubRpc.SetResponse(zkGameAddr, methodStatus, rpcblock.Latest, nil, []interface{}{expectedStatus})
+				stubRpc.SetResponse(zkGameAddr, methodWETH, rpcblock.Latest, nil, []interface{}{zkWethAddr})
+				stubRpc.SetResponse(zkWethAddr, methodWithdrawals, rpcblock.Latest, []interface{}{zkGameAddr, addr}, []interface{}{tc.pending, big.NewInt(101)})
+
+				actualCredit, actualStatus, err := game.GetCredit(context.Background(), addr)
+				require.NoError(t, err)
+				require.Equal(t, tc.pending.String(), actualCredit.String())
+				require.Equal(t, expectedStatus, actualStatus)
+			})
+		}
+	}
+}
+
+func TestZKGame_GetCreditSkipsWithdrawalLookupForInProgressGame(t *testing.T) {
+	for _, version := range zkVersions {
+		t.Run(version.String(), func(t *testing.T) {
+			stubRpc, game := setupZKDisputeGameTest(t, version)
+			addr := common.Address{0x01}
+			stubRpc.SetResponse(zkGameAddr, methodCredit, rpcblock.Latest, []interface{}{addr}, []interface{}{big.NewInt(0)})
+			stubRpc.SetResponse(zkGameAddr, methodStatus, rpcblock.Latest, nil, []interface{}{gameTypes.GameStatusInProgress})
+			stubRpc.SetResponse(zkGameAddr, methodWETH, rpcblock.Latest, nil, []interface{}{zkWethAddr})
+
+			actualCredit, actualStatus, err := game.GetCredit(context.Background(), addr)
+			require.NoError(t, err)
+			require.Equal(t, "0", actualCredit.String())
+			require.Equal(t, gameTypes.GameStatusInProgress, actualStatus)
 		})
 	}
 }
@@ -283,6 +508,36 @@ func TestZKGame_GetBondDistributionMode(t *testing.T) {
 			mode, err := game.GetBondDistributionMode(context.Background(), rpcblock.Latest)
 			require.NoError(t, err)
 			require.Equal(t, faultTypes.NormalDistributionMode, mode)
+		})
+	}
+}
+
+func TestZKGame_IsClosed(t *testing.T) {
+	modes := []struct {
+		name   string
+		mode   faultTypes.BondDistributionMode
+		closed bool
+	}{
+		{name: "Undecided", mode: faultTypes.UndecidedDistributionMode, closed: false},
+		{name: "Normal", mode: faultTypes.NormalDistributionMode, closed: true},
+		{name: "Refund", mode: faultTypes.RefundDistributionMode, closed: true},
+		{name: "Legacy", mode: faultTypes.LegacyDistributionMode, closed: true},
+	}
+	for _, version := range zkVersions {
+		version := version
+		t.Run(version.String(), func(t *testing.T) {
+			for _, test := range modes {
+				test := test
+				t.Run(test.name, func(t *testing.T) {
+					stubRpc, game := setupZKDisputeGameTest(t, version)
+					stubRpc.SetResponse(zkGameAddr, methodBondDistributionMode, rpcblock.Latest, nil, []interface{}{uint8(test.mode)})
+
+					closed, err := game.IsClosed(context.Background())
+
+					require.NoError(t, err)
+					require.Equal(t, test.closed, closed)
+				})
+			}
 		})
 	}
 }

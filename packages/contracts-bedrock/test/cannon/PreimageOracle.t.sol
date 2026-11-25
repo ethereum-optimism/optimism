@@ -95,9 +95,7 @@ abstract contract PreimageOracle_TestInit is Test {
             LibKeccak.permutation(_stateMatrix);
 
             leaves_[i] = IPreimageOracle.Leaf({
-                input: blockSlice,
-                index: uint32(i),
-                stateCommitment: keccak256(abi.encode(_stateMatrix))
+                input: blockSlice, index: uint32(i), stateCommitment: keccak256(abi.encode(_stateMatrix))
             });
         }
     }
@@ -444,12 +442,15 @@ contract PreimageOracle_LoadPrecompilePreimagePart_Test is PreimageOracle_TestIn
 
     /// @notice Tests that a global precompile load succeeds on a variety of gas inputs.
     function testFuzz_loadPrecompilePreimagePart_withVaryingGas_succeeds(uint64 _gas) public {
-        uint64 requiredGas = 100_000;
+        // Large enough that the oracle's gas check, not storing the result, sets the minimum gas.
+        uint64 requiredGas = 500_000;
         bytes memory input = hex"deadbeef";
         address precompile = address(uint160(0xdeadbeef));
         vm.mockCall(precompile, input, hex"abba");
         uint256 offset = 0;
-        uint64 minGas = uint64(bound(_gas, requiredGas * 3, 20_000_000));
+        // The oracle's gas check, plus the gas spent before it (under 1k optimized, under 2k unoptimized).
+        uint256 checkedGas = requiredGas * 64 / 63 + oracle.PRECOMPILE_CALL_RESERVED_GAS();
+        uint64 minGas = uint64(bound(_gas, checkedGas + 3_000, 20_000_000));
         vm.expectCallMinGas(precompile, 0, requiredGas, input);
         oracle.loadPrecompilePreimagePart{ gas: minGas }(offset, precompile, requiredGas, input);
     }
@@ -1005,10 +1006,7 @@ contract PreimageOracle_ChallengeFirstLPP_Test is PreimageOracle_TestInit {
 
         vm.expectRevert(PostStateMatches.selector);
         oracle.challengeFirstLPP({
-            _claimant: address(this),
-            _uuid: TEST_UUID,
-            _postState: leaves[0],
-            _postStateProof: p
+            _claimant: address(this), _uuid: TEST_UUID, _postState: leaves[0], _postStateProof: p
         });
 
         LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
@@ -1049,10 +1047,7 @@ contract PreimageOracle_ChallengeFirstLPP_Test is PreimageOracle_TestInit {
         // Should succeed since the commitment was wrong.
         vm.expectRevert(StatesNotContiguous.selector);
         oracle.challengeFirstLPP({
-            _claimant: address(this),
-            _uuid: TEST_UUID,
-            _postState: leaves[1],
-            _postStateProof: p
+            _claimant: address(this), _uuid: TEST_UUID, _postState: leaves[1], _postStateProof: p
         });
     }
 
@@ -1089,10 +1084,7 @@ contract PreimageOracle_ChallengeFirstLPP_Test is PreimageOracle_TestInit {
         // Should succeed since the commitment was wrong.
         uint256 balanceBefore = address(this).balance;
         oracle.challengeFirstLPP({
-            _claimant: address(this),
-            _uuid: TEST_UUID,
-            _postState: leaves[0],
-            _postStateProof: p
+            _claimant: address(this), _uuid: TEST_UUID, _postState: leaves[0], _postStateProof: p
         });
         assertEq(address(this).balance, balanceBefore + oracle.MIN_BOND_SIZE());
         assertEq(oracle.proposalBonds(address(this), TEST_UUID), 0);
@@ -1132,10 +1124,7 @@ contract PreimageOracle_ChallengeFirstLPP_Test is PreimageOracle_TestInit {
         assertEq(rootA, canonicalRoot);
 
         oracle.challengeFirstLPP({
-            _claimant: address(this),
-            _uuid: TEST_UUID,
-            _postState: leaves[0],
-            _postStateProof: postProof
+            _claimant: address(this), _uuid: TEST_UUID, _postState: leaves[0], _postStateProof: postProof
         });
 
         LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);
@@ -1237,10 +1226,7 @@ contract PreimageOracle_SqueezeLPP_Test is PreimageOracle_TestInit {
 
         // Should succeed since the commitment was wrong.
         oracle.challengeFirstLPP({
-            _claimant: address(this),
-            _uuid: TEST_UUID,
-            _postState: leaves[0],
-            _postStateProof: preProof
+            _claimant: address(this), _uuid: TEST_UUID, _postState: leaves[0], _postStateProof: preProof
         });
 
         LPPMetaData metaData = oracle.proposalMetadata(address(this), TEST_UUID);

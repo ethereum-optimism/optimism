@@ -86,3 +86,12 @@ func TestEnvVarFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestDeprecatedFlagsAreHidden(t *testing.T) {
+	app := cli.NewApp()
+	app.Flags = Flags
+	visibleFlags := app.VisibleFlags()
+	for _, flag := range deprecatedFlags {
+		require.NotContains(t, visibleFlags, flag, "%s should be hidden from help", flag.Names()[0])
+	}
+}

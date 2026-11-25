@@ -1,0 +1,42 @@
+---
+title: Req/Res CL P2P sync 지원 중단
+description: op-node의 Req/Res 합의 계층 P2P sync 클라이언트가 실행 계층 동기화로 대체되어 지원 중단됩니다.
+date: 2026-06-26
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: req-resp-cl-sync-deprecation
+personas:
+  - node-operator
+  - chain-operator
+categories:
+  - infrastructure
+  - protocol
+is_imported_content: 'false'
+---
+
+`op-node`의 request-response(Req/Res) 합의 계층(CL) P2P sync 클라이언트는 실행 계층(EL) 클라이언트를 통한 동기화로 대체되어 지원 중단됩니다.
+
+이 변경으로 `op-node` 구성이 단순해지고, 취약한 동기화 로직이 제거되며, 더 많은 실전 검증을 거친 실행 클라이언트의 네이티브 P2P 동기화에 의존하게 됩니다.
+
+## 의미
+
+- `op-node`의 Req/Res CL P2P sync **클라이언트**는 지원 중단됩니다.
+- 로컬 상태와 gossip으로 수신한 체인 팁 사이에 간격이 있는 경우, `op-node`는 연결된 EL node(**op-geth** 또는 **op-reth** 등)에 의존하여 체인 팁에 도달해야 합니다.
+- 운영자는 EL node가 독립적으로 동기화할 수 있도록 건강한 P2P 연결과 충분한 피어를 확보했는지 확인해야 합니다.
+- 여전히 `--syncmode.req-resp=true`를 명시적으로 설정하고 있다면 해당 오버라이드를 제거할 계획을 세우십시오.
+- 이전 node에 페이로드를 계속 제공하던 Req/Res **서버** 경로도 이후 제거되었습니다. `--p2p.sync.req-resp`는 이제 아무 동작도 하지 않는 지원 중단된 플래그이므로 구성에서 제거해도 됩니다.
+
+## 필요한 조치
+
+### 노드 운영자
+
+지원 중단된 Req/Res 클라이언트 경로에서 벗어나 EL 동기화에 의존하십시오.
+
+- EL node의 P2P 연결이 건강한지 확인하십시오.
+- 일시적인 하위 호환성이 필요한 경우가 아니라면 명시적인 `--syncmode.req-resp=true` 오버라이드를 제거하십시오.
+- Req/Res가 여전히 기본적으로 활성화된 이전 릴리스를 실행 중이라면 `--syncmode.req-resp=false`를 설정하여 지금 새 동작을 적용하십시오.
+
+<Warning>
+  Req/Res 클라이언트 경로가 완전히 제거되면 EL 피어 연결이 불량한 node는 unsafe 팁을 따라잡지 못할 수 있습니다.
+</Warning>

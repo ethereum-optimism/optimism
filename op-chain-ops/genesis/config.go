@@ -12,16 +12,18 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	gethforks "github.com/ethereum/go-ethereum/params/forks"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	opcoreparams "github.com/ethereum-optimism/optimism/op-core/params"
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var (
@@ -95,10 +97,13 @@ type L2GenesisBlockDeployConfig struct {
 	L2GenesisBlockGasUsed       hexutil.Uint64 `json:"l2GenesisBlockGasUsed"`
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
+	// L2GenesisBlockTimestamp is the timestamp of the L2 genesis block. When unset, it
+	// defaults to the timestamp of the "l1StartingBlockTag" block. When set, it must not be
+	// below that block's timestamp. It also serves as the base for the hardfork
+	//  activation-time offsets.
+	L2GenesisBlockTimestamp *hexutil.Uint64 `json:"l2GenesisBlockTimestamp,omitempty"`
 	// Note that there is no L2 genesis ExtraData, as it must default to a valid Holocene eip-1559
 	// configuration. See constant 'HoloceneExtraData' for the specific value used.
-	// Note that there is no L2 genesis timestamp:
-	// This is instead configured based on the timestamp of "l1StartingBlockTag".
 }
 
 var _ ConfigChecker = (*L2GenesisBlockDeployConfig)(nil)
@@ -116,6 +121,23 @@ func (d *L2GenesisBlockDeployConfig) Check(log log.Logger) error {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
 	}
 	return nil
+}
+
+// L2GenesisTime returns the L2 genesis timestamp for a chain anchored at an L1 block with
+// timestamp l1StartTime (the explicit L2GenesisBlockTimestamp when set, l1StartTime
+// otherwise). Returns an error if the explicit L2GenesisBlockTimestamp is below l1StartTime.
+func (d *L2GenesisBlockDeployConfig) L2GenesisTime(l1StartTime uint64) (uint64, error) {
+	if d.L2GenesisBlockTimestamp == nil {
+		return l1StartTime, nil
+	}
+	l2GenesisTime := uint64(*d.L2GenesisBlockTimestamp)
+	if l2GenesisTime < l1StartTime {
+		return 0, fmt.Errorf(
+			"%w: l2GenesisBlockTimestamp (%d) is below the timestamp of the L1 starting block (%d)",
+			ErrInvalidDeployConfig, l2GenesisTime, l1StartTime,
+		)
+	}
+	return l2GenesisTime, nil
 }
 
 // OwnershipDeployConfig defines the ownership of an L2 chain deployment.
@@ -243,13 +265,13 @@ type GasPriceOracleDeployConfig struct {
 	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
 	// GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used for fee calculations.
-	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar" evm:"basefeeScalar"`
+	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar"`
 	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
-	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar" evm:"blobbasefeeScalar"`
+	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar"`
 	// GasPriceOracleOperatorFeeScalar represents the value of the operator fee scalar used for fee calculations.
-	GasPriceOracleOperatorFeeScalar uint32 `json:"gasPriceOracleOperatorFeeScalar" evm:"operatorfeeScalar"`
+	GasPriceOracleOperatorFeeScalar uint32 `json:"gasPriceOracleOperatorFeeScalar"`
 	// GasPriceOracleOperatorFeeConstant represents the value of the operator fee constant used for fee calculations.
-	GasPriceOracleOperatorFeeConstant uint64 `json:"gasPriceOracleOperatorFeeConstant" evm:"operatorfeeConstant"`
+	GasPriceOracleOperatorFeeConstant uint64 `json:"gasPriceOracleOperatorFeeConstant"`
 }
 
 var _ ConfigChecker = (*GasPriceOracleDeployConfig)(nil)
@@ -322,7 +344,7 @@ func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 // OperatorDeployConfig configures the hot-key addresses for operations such as sequencing and batch-submission.
 type OperatorDeployConfig struct {
 	// P2PSequencerAddress is the address of the key the sequencer uses to sign blocks on the P2P layer.
-	P2PSequencerAddress common.Address `json:"p2pSequencerAddress" evm:"p2pSequencerAddress"`
+	P2PSequencerAddress common.Address `json:"p2pSequencerAddress"`
 	// BatchSenderAddress represents the initial sequencer account that authorizes batches.
 	// Transactions sent from this account to the batch inbox address are considered valid.
 	BatchSenderAddress common.Address `json:"batchSenderAddress"`
@@ -394,9 +416,14 @@ type UpgradeScheduleDeployConfig struct {
 	// L2GenesisKarstTimeOffset is the number of seconds after genesis block that the Karst hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Karst.
 	L2GenesisKarstTimeOffset *hexutil.Uint64 `json:"l2GenesisKarstTimeOffset,omitempty"`
-	// L2GenesisInteropTimeOffset is the number of seconds after genesis block that the Interop hard fork activates.
-	// Set it to 0 to activate at genesis. Nil to disable Interop.
-	L2GenesisInteropTimeOffset *hexutil.Uint64 `json:"l2GenesisInteropTimeOffset,omitempty"`
+	// L2GenesisLagoonTimeOffset is the number of seconds after genesis block that the Lagoon hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Lagoon.
+	L2GenesisLagoonTimeOffset *hexutil.Uint64 `json:"l2GenesisLagoonTimeOffset,omitempty"`
+
+	// KeepKarstUpgradeGas opts the chain out of reverting the Karst activation block's one-time
+	// upgrade gas at the following block, keeping the inflated gas limit on every post-activation
+	// block. It exists for chains that activated Karst with that leak baked into their history.
+	KeepKarstUpgradeGas bool `json:"keepKarstUpgradeGas,omitempty"`
 
 	// Optional Forks
 
@@ -418,6 +445,8 @@ type UpgradeScheduleDeployConfig struct {
 	L1BPO3TimeOffset *hexutil.Uint64 `json:"l1BPO3TimeOffset,omitempty"`
 	// When BPO4 activates. Relative to L1 genesis.
 	L1BPO4TimeOffset *hexutil.Uint64 `json:"l1BPO4TimeOffset,omitempty"`
+	// When Amsterdam activates. Relative to L1 genesis.
+	L1AmsterdamTimeOffset *hexutil.Uint64 `json:"l1AmsterdamTimeOffset,omitempty"`
 	// Blob schedule config.
 	L1BlobScheduleConfig *params.BlobScheduleConfig `json:"l1BlobScheduleConfig,omitempty"`
 }
@@ -457,11 +486,18 @@ func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint
 		return (*uint64)(d.L2GenesisJovianTimeOffset)
 	case forks.Karst:
 		return (*uint64)(d.L2GenesisKarstTimeOffset)
-	case forks.Interop:
-		return (*uint64)(d.L2GenesisInteropTimeOffset)
+	case forks.Lagoon:
+		return (*uint64)(d.L2GenesisLagoonTimeOffset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
 	}
+}
+
+// IsForkActive reports whether fork is active at timestamp on a chain whose L2 genesis is at
+// genesisTime.
+func (d *UpgradeScheduleDeployConfig) IsForkActive(fork rollup.ForkName, genesisTime, timestamp uint64) bool {
+	activation := offsetToUpgradeTime((*hexutil.Uint64)(d.ForkTimeOffset(fork)), genesisTime)
+	return activation != nil && timestamp >= *activation
 }
 
 func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, offset *uint64) {
@@ -486,8 +522,8 @@ func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, of
 		d.L2GenesisJovianTimeOffset = (*hexutil.Uint64)(offset)
 	case forks.Karst:
 		d.L2GenesisKarstTimeOffset = (*hexutil.Uint64)(offset)
-	case forks.Interop:
-		d.L2GenesisInteropTimeOffset = (*hexutil.Uint64)(offset)
+	case forks.Lagoon:
+		d.L2GenesisLagoonTimeOffset = (*hexutil.Uint64)(offset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
 	}
@@ -520,6 +556,36 @@ func (d *UpgradeScheduleDeployConfig) ActivateForkAtOffset(fork rollup.ForkName,
 // See also [ActivateForkAtOffset].
 func (d *UpgradeScheduleDeployConfig) ActivateForkAtGenesis(fork rollup.ForkName) {
 	d.ActivateForkAtOffset(fork, 0)
+}
+
+// DisableL1ForksAfter unschedules every L1 fork that activates after fork, for a dev L1 that runs
+// an older fork than the default. It panics for a fork the dev L1 genesis cannot schedule.
+func (d *UpgradeScheduleDeployConfig) DisableL1ForksAfter(fork gethforks.Fork) {
+	// In activation order (go-ethereum's CheckConfigForkOrder), which differs from the order of
+	// gethforks.Fork: Amsterdam precedes BPO3.
+	l1Forks := []struct {
+		fork   gethforks.Fork
+		offset **hexutil.Uint64
+	}{
+		{gethforks.Cancun, &d.L1CancunTimeOffset},
+		{gethforks.Prague, &d.L1PragueTimeOffset},
+		{gethforks.Osaka, &d.L1OsakaTimeOffset},
+		{gethforks.BPO1, &d.L1BPO1TimeOffset},
+		{gethforks.BPO2, &d.L1BPO2TimeOffset},
+		{gethforks.Amsterdam, &d.L1AmsterdamTimeOffset},
+		{gethforks.BPO3, &d.L1BPO3TimeOffset},
+		{gethforks.BPO4, &d.L1BPO4TimeOffset},
+	}
+	for i, f := range l1Forks {
+		if f.fork != fork {
+			continue
+		}
+		for _, later := range l1Forks[i+1:] {
+			*later.offset = nil
+		}
+		return
+	}
+	panic(fmt.Sprintf("the dev L1 genesis cannot schedule L1 fork %v", fork))
 }
 
 func (d *UpgradeScheduleDeployConfig) RegolithTime(genesisTime uint64) *uint64 {
@@ -566,8 +632,8 @@ func (d *UpgradeScheduleDeployConfig) KarstTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisKarstTimeOffset, genesisTime)
 }
 
-func (d *UpgradeScheduleDeployConfig) InteropTime(genesisTime uint64) *uint64 {
-	return offsetToUpgradeTime(d.L2GenesisInteropTimeOffset, genesisTime)
+func (d *UpgradeScheduleDeployConfig) LagoonTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisLagoonTimeOffset, genesisTime)
 }
 
 func (d *UpgradeScheduleDeployConfig) AllocMode(genesisTime uint64) L2AllocsMode {
@@ -601,7 +667,7 @@ func (d *UpgradeScheduleDeployConfig) forks() []Fork {
 		{L2GenesisTimeOffset: d.L2GenesisIsthmusTimeOffset, Name: string(L2AllocsIsthmus)},
 		{L2GenesisTimeOffset: d.L2GenesisJovianTimeOffset, Name: string(L2AllocsJovian)},
 		{L2GenesisTimeOffset: d.L2GenesisKarstTimeOffset, Name: string(L2AllocsKarst)},
-		{L2GenesisTimeOffset: d.L2GenesisInteropTimeOffset, Name: string(L2AllocsInterop)},
+		{L2GenesisTimeOffset: d.L2GenesisLagoonTimeOffset, Name: string(L2AllocsLagoon)},
 	}
 }
 
@@ -685,6 +751,9 @@ type L2CoreDeployConfig struct {
 	// from. It is an override to set this value on legacy networks where it is not set by
 	// default. It can be removed once all networks have this value set in their storage.
 	SystemConfigStartBlock uint64 `json:"systemConfigStartBlock"`
+
+	// SettlementChainID is written into the ChainConfig predeploy and the rollup config.
+	SettlementChainID uint64 `json:"settlementChainId,omitempty"`
 }
 
 var _ ConfigChecker = (*L2CoreDeployConfig)(nil)
@@ -1007,7 +1076,7 @@ type DeployConfig struct {
 	// The L2 genesis timestamp does not affect the initial L2 account state:
 	// the storage of the L1Block contract at genesis is zeroed, since the adoption of
 	// the L2-genesis allocs-generation through solidity script.
-	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag" evm:"-"`
+	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag"`
 
 	// L1 contracts configuration.
 	// The deployer of the contracts chooses which sub-systems to deploy.
@@ -1019,7 +1088,7 @@ type DeployConfig struct {
 	L1DependenciesConfig
 
 	// Legacy, ignored, here for strict-JSON decoding to be accepted.
-	LegacyDeployConfig `evm:"-"`
+	LegacyDeployConfig
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -1093,7 +1162,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
 	}
 
-	chainOpConfig := &params.OptimismConfig{
+	chainOpConfig := &opcoreparams.OptimismConfig{
 		EIP1559Elasticity:        d.EIP1559Elasticity,
 		EIP1559Denominator:       d.EIP1559Denominator,
 		EIP1559DenominatorCanyon: &d.EIP1559DenominatorCanyon,
@@ -1109,7 +1178,10 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		}
 	}
 
-	l1StartTime := l1StartBlock.Time
+	l2GenesisTime, err := d.L2GenesisTime(l1StartBlock.Time)
+	if err != nil {
+		return nil, err
+	}
 
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
@@ -1121,7 +1193,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 				Hash:   l2GenesisBlockHash,
 				Number: l2GenesisBlockNumber,
 			},
-			L2Time:       l1StartBlock.Time,
+			L2Time:       l2GenesisTime,
 			SystemConfig: d.GenesisSystemConfig(),
 		},
 		BlockTime:              d.L2BlockTime,
@@ -1133,20 +1205,22 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		BatchInboxAddress:      d.BatchInboxAddress,
 		DepositContractAddress: d.OptimismPortalProxy,
 		L1SystemConfigAddress:  d.SystemConfigProxy,
-		RegolithTime:           d.RegolithTime(l1StartTime),
-		CanyonTime:             d.CanyonTime(l1StartTime),
-		DeltaTime:              d.DeltaTime(l1StartTime),
-		EcotoneTime:            d.EcotoneTime(l1StartTime),
-		FjordTime:              d.FjordTime(l1StartTime),
-		GraniteTime:            d.GraniteTime(l1StartTime),
-		HoloceneTime:           d.HoloceneTime(l1StartTime),
-		PectraBlobScheduleTime: d.PectraBlobScheduleTime(l1StartTime),
-		IsthmusTime:            d.IsthmusTime(l1StartTime),
-		JovianTime:             d.JovianTime(l1StartTime),
-		KarstTime:              d.KarstTime(l1StartTime),
-		InteropTime:            d.InteropTime(l1StartTime),
+		RegolithTime:           d.RegolithTime(l2GenesisTime),
+		CanyonTime:             d.CanyonTime(l2GenesisTime),
+		DeltaTime:              d.DeltaTime(l2GenesisTime),
+		EcotoneTime:            d.EcotoneTime(l2GenesisTime),
+		FjordTime:              d.FjordTime(l2GenesisTime),
+		GraniteTime:            d.GraniteTime(l2GenesisTime),
+		HoloceneTime:           d.HoloceneTime(l2GenesisTime),
+		PectraBlobScheduleTime: d.PectraBlobScheduleTime(l2GenesisTime),
+		IsthmusTime:            d.IsthmusTime(l2GenesisTime),
+		JovianTime:             d.JovianTime(l2GenesisTime),
+		KarstTime:              d.KarstTime(l2GenesisTime),
+		LagoonTime:             d.LagoonTime(l2GenesisTime),
+		KeepKarstUpgradeGas:    d.KeepKarstUpgradeGas,
 		AltDAConfig:            altDA,
 		ChainOpConfig:          chainOpConfig,
+		SettlementChainID:      d.SettlementChainID,
 	}, nil
 }
 
@@ -1222,23 +1296,23 @@ type L1Deployments struct {
 func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deployments {
 	return &L1Deployments{
 		AddressManager:                    contracts.AddressManagerImpl,
-		DisputeGameFactory:                contracts.DisputeGameFactoryImpl,
+		DisputeGameFactory:                contracts.Implementations.DisputeGameFactoryImpl,
 		DisputeGameFactoryProxy:           contracts.DisputeGameFactoryProxy,
-		L1CrossDomainMessenger:            contracts.L1CrossDomainMessengerImpl,
+		L1CrossDomainMessenger:            contracts.Implementations.L1CrossDomainMessengerImpl,
 		L1CrossDomainMessengerProxy:       contracts.L1CrossDomainMessengerProxy,
-		L1ERC721Bridge:                    contracts.L1Erc721BridgeImpl,
+		L1ERC721Bridge:                    contracts.Implementations.L1Erc721BridgeImpl,
 		L1ERC721BridgeProxy:               contracts.L1Erc721BridgeProxy,
-		L1StandardBridge:                  contracts.L1StandardBridgeImpl,
+		L1StandardBridge:                  contracts.Implementations.L1StandardBridgeImpl,
 		L1StandardBridgeProxy:             contracts.L1StandardBridgeProxy,
 		L2OutputOracleProxy:               contracts.L2OutputOracleProxy,
-		OptimismMintableERC20Factory:      contracts.OptimismMintableErc20FactoryImpl,
+		OptimismMintableERC20Factory:      contracts.Implementations.OptimismMintableErc20FactoryImpl,
 		OptimismMintableERC20FactoryProxy: contracts.OptimismMintableErc20FactoryProxy,
-		OptimismPortal:                    contracts.OptimismPortalImpl,
+		OptimismPortal:                    contracts.Implementations.OptimismPortalImpl,
 		OptimismPortalProxy:               contracts.OptimismPortalProxy,
-		ETHLockbox:                        contracts.EthLockboxImpl,
+		ETHLockbox:                        contracts.Implementations.EthLockboxImpl,
 		ETHLockboxProxy:                   contracts.EthLockboxProxy,
 		ProxyAdmin:                        contracts.OpChainProxyAdminImpl,
-		SystemConfig:                      contracts.SystemConfigImpl,
+		SystemConfig:                      contracts.Implementations.SystemConfigImpl,
 		SystemConfigProxy:                 contracts.SystemConfigProxy,
 		DataAvailabilityChallenge:         contracts.AltDAChallengeImpl,
 		DataAvailabilityChallengeProxy:    contracts.AltDAChallengeProxy,

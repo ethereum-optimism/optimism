@@ -1,0 +1,120 @@
+---
+title: "Sequencer Mode"
+description: "Understand how the kona-node sequencer actor builds L2 blocks, and the trait abstractions and programmatic configuration behind sequencer mode."
+diataxis: explanation
+---
+
+import { Unreleased } from "/snippets/unreleased.mdx"
+
+The Kona node can operate in **sequencer mode** to build and produce new L2 blocks. In this mode, the node acts as the sequencer for an OP Stack rollup, building L2 blocks on top of the current unsafe head and extending the L2 chain.
+
+This page explains the design of sequencer mode and how to configure it programmatically through the Node SDK. To run `kona-node` as a sequencer from the command line, follow the [run a sequencer node](/node-operators/kona-node/run/sequencer) guide.
+
+## Overview
+
+When running in sequencer mode, the Kona node:
+
+- **Builds L2 blocks** by collecting transactions from the mempool and constructing new blocks
+- **Selects L1 origins** for new L2 blocks based on finalized L1 data
+- **Manages block production timing** and ensures proper sequencing constraints
+- **Integrates with conductor services** for leader election in multi-sequencer setups
+- **Handles recovery scenarios** when the sequencer needs to catch up with L1
+
+The sequencer uses the same core derivation pipeline as validator nodes but operates in reverse - instead of deriving L2 blocks from L1 data, it produces L2 blocks that will later be derivable from L1.
+
+## Core Components
+
+### `NodeMode`
+
+The node's operational mode is expressed by the `NodeMode` enum, carried on the node's `EngineConfig`:
+
+```rust
+pub enum NodeMode {
+    /// Validator mode.
+    Validator,
+    /// Sequencer mode.
+    Sequencer,
+}
+```
+
+### `SequencerActor`
+
+The core actor responsible for block production. Like every node component, it implements the `NodeActor` trait:
+
+- Builds L2 blocks using the attributes builder
+- Manages timing and L1 origin selection
+- Handles admin RPC commands for sequencer control
+- Coordinates with conductor services for leader election
+
+### `SequencerConfig`
+
+Sequencer behavior is configured through the `SequencerConfig` struct:
+
+```rust
+pub struct SequencerConfig {
+    /// Whether to boot the sequencer active. Ignored when a conductor is configured.
+    pub sequencer_start: bool,
+    /// Whether or not the sequencer is in recovery mode.
+    pub sequencer_recovery_mode: bool,
+    /// The Url for the conductor RPC endpoint. If Some, enables the conductor service.
+    pub conductor_rpc_url: Option<Url>,
+    /// The confirmation delay for the sequencer.
+    pub l1_conf_delay: u64,
+}
+```
+
+Unless `sequencer_start` is set, the sequencer boots stopped. Start it with `admin_startSequencer`, which op-conductor calls on the leader. With a conductor, the sequencer always boots stopped, whatever `sequencer_start` says. See [starting the sequencer](/node-operators/kona-node/run/sequencer#starting-the-sequencer).
+
+## Programmatic Configuration
+
+### Using the RollupNodeBuilder
+
+<Unreleased component="kona-node" />
+
+To configure a Kona node programmatically for sequencer mode, set `NodeMode::Sequencer` on the `EngineConfig` and pass a `SequencerConfig` to the `RollupNodeBuilder`:
+
+```rust
+use kona_node_service::{NodeMode, RollupNodeBuilder, SequencerConfig};
+
+// Configure sequencer settings
+let sequencer_config = SequencerConfig {
+    sequencer_start: false,             // Boot stopped; the conductor starts the leader
+    sequencer_recovery_mode: false,     // Normal operation mode
+    conductor_rpc_url: Some(            // Optional conductor integration
+        Url::parse("http://conductor:8080").unwrap()
+    ),
+    l1_conf_delay: 4,                   // L1 origin confirmation delay
+};
+
+// engine_config carries `mode: NodeMode::Sequencer` along with the node's
+// authenticated L2 engine connection, built once with `kona_sources::rpc::engine`.
+// The L1 client travels in l1_config_builder. A sequencer needs a block
+// signer: `p2p_config.gossip_signer` must be `Some`, or `start` fails.
+// `version` is the string the node reports as its version over RPC.
+RollupNodeBuilder::new(
+    version,
+    rollup_config,
+    l1_config_builder,
+    engine_config,
+    p2p_config,
+    rpc_config,
+)
+.with_sequencer_config(sequencer_config)
+.build()
+.start()
+.await?;
+```
+
+### Configuration Options
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `sequencer_start` | Boot the sequencer active, for a single sequencer with no standby. Ignored with a conductor | `false` |
+| `sequencer_recovery_mode` | Enable recovery mode for catch-up | `false` |
+| `conductor_rpc_url` | Conductor service endpoint for leader election | `None` |
+| `l1_conf_delay` | Confirmation delay for L1 origin selection | `0` |
+
+## Next Steps
+
+- To run a sequencer from the command line, including the required flags and example configurations, see [run a sequencer node](/node-operators/kona-node/run/sequencer).
+- For the full CLI flag catalogue, see the [Kona node CLI reference](/node-operators/kona-node/configuration).

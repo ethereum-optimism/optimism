@@ -1,0 +1,1549 @@
+//! Proposer configuration.
+//!
+//! Trimmed from op-succinct's `fault-proof/src/config.rs` (@ 13716c2c):
+//! proof-provider selection, SP1 network knobs, range splitting, and the
+//! fast finality knobs are ported; cluster proving, restart recovery, and
+//! the challenger and forge-deploy configs are deliberately not ported
+//! (see PR #21463 for the ledger).
+
+use std::{
+    env,
+    num::{NonZeroU8, NonZeroU64, NonZeroUsize},
+    path::PathBuf,
+    str::FromStr,
+};
+
+use alloy_primitives::{Address, B256};
+use alloy_transport_http::reqwest::{self, Url};
+use anyhow::{Context, Result, anyhow, bail};
+use kona_registry::{CHAINS, OPCHAINS};
+use kona_sources::redacted_url;
+use kona_sp1_host_utils::{
+    metrics::MetricsListen,
+    network::{determine_network_mode, parse_fulfillment_strategy},
+};
+use kona_sp1_super_range_executor::DEFAULT_MAX_STDIN_BYTES;
+use sp1_core_executor::DEFAULT_MEMORY_LIMIT;
+use sp1_sdk::network::{FulfillmentStrategy, NetworkMode};
+
+use crate::{env_var, proposer::MAX_GAME_DEADLINE_LAG};
+
+/// Safety level gating how far proposals may advance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProposalSafety {
+    /// Propose up to the cross-safe super-root timestamp.
+    Safe,
+    /// Propose up to the finalized super-root timestamp (default).
+    Finalized,
+}
+
+impl FromStr for ProposalSafety {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "safe" => Ok(Self::Safe),
+            "finalized" => Ok(Self::Finalized),
+            other => bail!("{other} (expected safe|finalized)"),
+        }
+    }
+}
+
+/// Which proof provider drives the defend path.
+///
+/// There is no default: deployments state explicitly whether they make real
+/// SP1 proofs or run the ELF-free mock pipeline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProofProviderKind {
+    /// Real SP1 proving via the Succinct Prover Network.
+    Network,
+    /// Native-core execution with placeholder proof bytes. Only a deployment
+    /// whose game verifier accepts arbitrary bytes (devstack's mock
+    /// verifier) can resolve games proven this way.
+    Mock,
+    /// Real SP1 proving on local NVIDIA GPUs through `sp1-gpu-server`.
+    LocalCuda,
+}
+
+impl ProofProviderKind {
+    /// Returns whether this provider makes real SP1 proofs.
+    pub const fn proves_with_sp1(self) -> bool {
+        match self {
+            Self::Network | Self::LocalCuda => true,
+            Self::Mock => false,
+        }
+    }
+
+    /// Returns whether this provider pays for proofs from an SPN account's PROVE balance.
+    pub const fn has_prove_balance(self) -> bool {
+        matches!(self, Self::Network)
+    }
+}
+
+impl FromStr for ProofProviderKind {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "network" => Ok(Self::Network),
+            "mock" => Ok(Self::Mock),
+            "local-cuda" => Ok(Self::LocalCuda),
+            other => bail!("{other} (expected network|mock|local-cuda)"),
+        }
+    }
+}
+
+/// The consolidation path of a game's references to blocks below a local-safe head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogPath {
+    /// The receipts path: no log-commitment batch proofs. Only for chains with interop off.
+    Receipts,
+    /// The table path, the default: a batch proof for every referenced block below a head. A game
+    /// without such references makes no batches.
+    Table,
+}
+
+impl FromStr for LogPath {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "receipts" => Ok(Self::Receipts),
+            "table" => Ok(Self::Table),
+            other => bail!("{other} (expected receipts|table)"),
+        }
+    }
+}
+
+/// Runtime configuration for the proposer.
+#[derive(Debug, Clone)]
+pub struct ProposerConfig {
+    /// The L1 RPC URL.
+    pub l1_rpc: Url,
+
+    /// The RPC URL serving `superroot_atTimestamp`, provided by an op-supernode
+    /// or a single-chain op-node. Multiple URLs are accepted for redundancy
+    pub superroot_rpcs: Vec<Url>,
+
+    /// The address of the `DisputeGameFactory` contract.
+    pub factory_address: Address,
+
+    /// Base URL of a prestate artifact directory, accepting `file://` and
+    /// `http(s)://` URIs. Each prestate is keyed by the game's
+    /// `absolutePrestate()` hash and maps to the three [`PrestatePrograms`]
+    /// ELFs, following the op-challenger `--prestates-url` convention:
+    /// - `<url>/<vkey>.agg.bin.gz` (super-aggregation program)
+    /// - `<url>/<vkey>.range.bin.gz` (super-range program)
+    /// - `<url>/<vkey>.log.bin.gz` (log-commitment program)
+    ///
+    /// The create path checks artifact availability (creation pauses when
+    /// any artifact is missing, since the proposer could not defend such
+    /// a game); the defend path loads the ELFs from the same location and,
+    /// in the SP1 modes (network and local-cuda), verifies the vkey chain during proving-key
+    /// setup.
+    pub prestates_url: Url,
+
+    /// Spacing, in seconds of super-root timestamps, between the canonical head and a new
+    /// proposal; positive. A game built on the head spans one interval while the proposer keeps
+    /// up, plus any seconds a UUID-collision walk adds.
+    pub proposal_interval_seconds: u64,
+
+    /// Longest span, in proposal intervals, of a game built on the head while the proposer
+    /// catches up from two or more intervals behind.
+    pub max_proposal_span_intervals: NonZeroU64,
+
+    /// Safety level bounding the newest proposable timestamp.
+    pub proposal_safety: ProposalSafety,
+
+    /// The interval in seconds between sync/schedule loop iterations.
+    pub fetch_interval: u64,
+
+    /// Where the Prometheus metrics endpoint listens: `0` (the default)
+    /// disables it, `auto` binds a kernel-assigned port, and any other value
+    /// is a fixed port.
+    pub metrics_listen: MetricsListen,
+
+    /// Number of L1 blocks behind `latest` to pin reads during sync cycles.
+    pub sync_l1_confirmations: u64,
+
+    /// Maximum game-deadline lag behind the anchor, in seconds.
+    pub max_game_deadline_lag: u64,
+
+    /// Maximum time (in seconds) for one L1 transaction send, from nonce
+    /// selection through fee bumps until a version reaches the required
+    /// confirmations.
+    pub tx_confirmation_timeout: u64,
+
+    /// Optional cap, in wei, on the EIP-1559 max fee per gas of submitted
+    /// transactions, including fee bumps. Unset = uncapped.
+    /// A cap below prevailing fees delays inclusion until fees decay; for a
+    /// deadline-driven actor that can cost far more than it saves. Leave
+    /// unset unless a specific need exists.
+    pub max_fee_per_gas: Option<u128>,
+
+    /// Optional cap, in wei, on the EIP-1559 max priority fee per gas of
+    /// submitted transactions, including fee bumps. Unset = uncapped. A cap
+    /// below prevailing fees delays inclusion until fees decay; for a
+    /// deadline-driven actor that can cost far more than it saves. Leave
+    /// unset unless a specific need exists.
+    pub max_priority_fee_per_gas: Option<u128>,
+
+    /// Selects network, mock, or local CUDA proving for challenged games.
+    pub proof_provider: ProofProviderKind,
+
+    /// The L1 beacon API URL serving blob sidecars for derivation witnesses.
+    pub l1_beacon_rpc: Url,
+
+    /// L2 execution-layer RPC URLs, one per chain in the dependency set; each must serve a
+    /// different chain. The proposer reads every chain ID at startup and exits on a duplicate
+    /// chain or a node that does not answer.
+    pub l2_rpcs: Vec<Url>,
+
+    /// Optional rollup config files, one per chain (comma-separated env).
+    /// Absent = kona-host falls back to the superchain registry, matching
+    /// the super-range executor CLI.
+    pub rollup_config_paths: Option<Vec<PathBuf>>,
+
+    /// Optional L1 chain config file. Absent = superchain-registry fallback.
+    pub l1_config_path: Option<PathBuf>,
+
+    /// Optional dependency-set config file. Absent = superchain-registry
+    /// fallback. The suffix matches the executor's `DEPENDENCY_SET_PATH`.
+    pub dependency_set_path: Option<PathBuf>,
+
+    /// Number of proof chunks per defended timestamp span.
+    pub range_split_count: RangeSplitCount,
+
+    /// Encoded stdin bytes that one range, consolidation, or log-commitment request may upload.
+    pub max_stdin_bytes: StdinByteLimit,
+
+    /// Testing only: most chains one range request may prove; `None` is no limit. Needs the mock
+    /// proof provider.
+    pub testing_max_range_chains: Option<NonZeroUsize>,
+
+    /// Maximum concurrent child (range/consolidation) proofs within one
+    /// game's defense.
+    pub max_concurrent_range_proofs: NonZeroUsize,
+
+    /// Maximum number of games being defended concurrently. Zero is
+    /// rejected at parse time: it would silently disable defense.
+    pub max_concurrent_defense_tasks: NonZeroU64,
+
+    /// Prove the signer's owned games while they are still unchallenged (fast finality).
+    /// A proven game resolves as soon as its parent does, without waiting out
+    /// `maxChallengeDuration`. Trades proof spend for finality latency.
+    pub fast_finality_mode: bool,
+
+    /// Total in-flight proving tasks (defense included) allowed before game
+    /// creation pauses in fast finality mode.
+    pub fast_finality_proving_limit: NonZeroU64,
+
+    /// SP1 proof-provider settings (timeouts, strategies, limits, prices).
+    pub proof_provider_config: ProofProviderConfig,
+
+    /// Local CUDA prover settings.
+    pub local_cuda: LocalCudaConfig,
+
+    /// Consolidation path for blocks below a local-safe head.
+    pub log_path: LogPath,
+
+    /// Optional directory for the on-disk preimage stores and log trees of witness collections.
+    /// Absent = they stay in memory. At startup the proposer creates it and removes the
+    /// `collection-*` entries that a previous process left there.
+    pub data_dir: Option<PathBuf>,
+
+    /// Addresses besides the signer whose games this proposer owns
+    /// (`OP_ZK_PROPOSER_OWNED_CREATORS`), such as a rotated-out signer whose games
+    /// still need defense. The signer is always owned and need not be listed; empty means the
+    /// signer only.
+    pub owned_creators: Vec<Address>,
+}
+
+fn required_env(suffix: &str) -> Result<String> {
+    let name = env_var(suffix);
+    env::var(&name).with_context(|| format!("{name} not set"))
+}
+
+fn optional_env(suffix: &str) -> Option<String> {
+    let name = env_var(suffix);
+    match env::var(name) {
+        Ok(value) if !value.is_empty() => Some(value),
+        _ => None,
+    }
+}
+
+fn explicit_factory_address_env() -> Result<Option<String>> {
+    let name = env_var("FACTORY_ADDRESS");
+    match env::var(&name) {
+        Ok(value) => Ok(Some(value)),
+        Err(env::VarError::NotPresent) => Ok(None),
+        Err(err) => Err(anyhow!("invalid {name}: {err}")),
+    }
+}
+
+fn env_or(suffix: &str, default: &str) -> String {
+    env::var(env_var(suffix)).unwrap_or_else(|_| default.to_string())
+}
+
+fn parsed_required_env<T: FromStr>(suffix: &str) -> Result<T>
+where
+    T::Err: std::fmt::Display,
+{
+    let name = env_var(suffix);
+    required_env(suffix)?.parse::<T>().map_err(|err| anyhow!("invalid {name}: {err}"))
+}
+
+fn parsed_env_or<T: FromStr>(suffix: &str, default: T) -> Result<T>
+where
+    T::Err: std::fmt::Display,
+{
+    parsed_optional_env(suffix).map(|value| value.unwrap_or(default))
+}
+
+fn parsed_optional_env<T: FromStr>(suffix: &str) -> Result<Option<T>>
+where
+    T::Err: std::fmt::Display,
+{
+    let name = env_var(suffix);
+    optional_env(suffix)
+        .map(|value| value.parse::<T>().map_err(|err| anyhow!("invalid {name}: {err}")))
+        .transpose()
+}
+
+fn resolve_factory_address(
+    explicit_address: Option<&str>,
+    network: Option<&str>,
+) -> Result<Address> {
+    let address_name = env_var("FACTORY_ADDRESS");
+    if let Some(address) = explicit_address {
+        return address.parse().map_err(|err| anyhow!("invalid {address_name}: {err}"));
+    }
+
+    let network = network.ok_or_else(|| anyhow!("{address_name} or --network is required"))?;
+    factory_address_from_network(network)
+}
+
+fn factory_address_from_network(network: &str) -> Result<Address> {
+    let chain = CHAINS
+        .chains
+        .iter()
+        .find(|chain| network_matches_identifier(network, &chain.identifier))
+        .ok_or_else(|| anyhow!("unknown network {network:?}"))?;
+    let chain_id = chain.chain_id;
+    let chain_config = OPCHAINS
+        .get(&chain_id)
+        .expect("chain list and chain configs must contain the same chain IDs");
+
+    chain_config
+        .addresses
+        .as_ref()
+        .and_then(|addresses| addresses.dispute_game_factory_proxy)
+        .ok_or_else(|| {
+            anyhow!("network {network:?} (chain ID {chain_id}) has no dispute game factory proxy")
+        })
+}
+
+fn network_matches_identifier(network: &str, identifier: &str) -> bool {
+    let Some((superchain, chain)) = identifier.split_once('/') else {
+        return false;
+    };
+    let Some(network_chain) = network.get(..chain.len()) else {
+        return false;
+    };
+    let Some(network_superchain) =
+        network.get(chain.len()..).and_then(|suffix| suffix.strip_prefix('-'))
+    else {
+        return false;
+    };
+
+    network_chain.eq_ignore_ascii_case(chain) && network_superchain.eq_ignore_ascii_case(superchain)
+}
+
+impl ProposerConfig {
+    /// Reads environment settings and resolves the factory address.
+    ///
+    /// The explicit factory-address environment variable takes precedence over
+    /// the predefined network name.
+    pub fn from_env(network: Option<&str>) -> Result<Self> {
+        let explicit_factory_address = explicit_factory_address_env()?;
+        let factory_address =
+            resolve_factory_address(explicit_factory_address.as_deref(), network)?;
+        let tx_confirmation_timeout = parsed_env_or("TX_CONFIRMATION_TIMEOUT", 180u64)?;
+        let max_game_deadline_lag =
+            parsed_env_or("MAX_GAME_DEADLINE_LAG_SECONDS", MAX_GAME_DEADLINE_LAG)?;
+        anyhow::ensure!(
+            max_game_deadline_lag > 0,
+            "{} must be positive",
+            env_var("MAX_GAME_DEADLINE_LAG_SECONDS")
+        );
+        anyhow::ensure!(
+            tx_confirmation_timeout > 0,
+            "{} must be positive (0 would time out every transaction immediately)",
+            env_var("TX_CONFIRMATION_TIMEOUT")
+        );
+        let proposal_interval_seconds = parsed_env_or("PROPOSAL_INTERVAL_SECONDS", 3600u64)?;
+        anyhow::ensure!(
+            proposal_interval_seconds > 0,
+            "{} must be positive",
+            env_var("PROPOSAL_INTERVAL_SECONDS")
+        );
+
+        let proof_provider_name = env_var("PROOF_PROVIDER");
+        let proof_provider = env::var(&proof_provider_name)
+            .with_context(|| {
+                format!(
+                    "{proof_provider_name} not set (expected network|mock|local-cuda; there is \
+                     no default)"
+                )
+            })?
+            .parse::<ProofProviderKind>()
+            .map_err(|err| anyhow!("invalid {proof_provider_name}: {err}"))?;
+        let l2_rpcs_name = env_var("L2_RPCS");
+        let l2_rpcs = parse_url_list(&required_env("L2_RPCS")?)
+            .with_context(|| format!("invalid {l2_rpcs_name}"))?;
+        let superroot_rpcs_name = env_var("SUPERROOT_RPCS");
+        let superroot_rpcs = parse_url_list(&required_env("SUPERROOT_RPCS")?)
+            .with_context(|| format!("invalid {superroot_rpcs_name}"))?;
+        let testing_max_range_chains = parsed_optional_env("TESTING_MAX_RANGE_CHAINS")?;
+        anyhow::ensure!(
+            testing_max_range_chains.is_none() || proof_provider == ProofProviderKind::Mock,
+            "{} is testing only and needs {proof_provider_name}=mock",
+            env_var("TESTING_MAX_RANGE_CHAINS")
+        );
+        Ok(Self {
+            l1_rpc: parsed_required_env("L1_RPC")?,
+            superroot_rpcs,
+            factory_address,
+            prestates_url: parsed_required_env("PRESTATES_URL")?,
+            proposal_interval_seconds,
+            max_proposal_span_intervals: parsed_env_or(
+                "MAX_PROPOSAL_SPAN_INTERVALS",
+                NonZeroU64::new(4).expect("4 is non-zero"),
+            )?,
+            proposal_safety: parsed_env_or("PROPOSAL_SAFETY", ProposalSafety::Finalized)?,
+            fetch_interval: parsed_env_or("FETCH_INTERVAL", 30u64)?,
+            metrics_listen: parsed_env_or("METRICS_PORT", MetricsListen::default())?,
+            sync_l1_confirmations: parsed_env_or("SYNC_L1_CONFIRMATIONS", 0u64)?,
+            max_game_deadline_lag,
+            tx_confirmation_timeout,
+            max_fee_per_gas: parsed_optional_env("MAX_FEE_PER_GAS")?,
+            max_priority_fee_per_gas: parsed_optional_env("MAX_PRIORITY_FEE_PER_GAS")?,
+            proof_provider,
+            l1_beacon_rpc: parsed_required_env("L1_BEACON_RPC")?,
+            l2_rpcs,
+            rollup_config_paths: optional_env("ROLLUP_CONFIG_PATHS")
+                .map(|list| list.split(',').map(|path| PathBuf::from(path.trim())).collect()),
+            l1_config_path: optional_env("L1_CONFIG_PATH").map(PathBuf::from),
+            dependency_set_path: optional_env("DEPENDENCY_SET_PATH").map(PathBuf::from),
+            range_split_count: parsed_env_or("RANGE_SPLIT_COUNT", RangeSplitCount::default())?,
+            max_stdin_bytes: parsed_env_or("MAX_STDIN_BYTES", StdinByteLimit::default())?,
+            testing_max_range_chains,
+            max_concurrent_range_proofs: parsed_env_or(
+                "MAX_CONCURRENT_RANGE_PROOFS",
+                NonZeroUsize::MIN,
+            )?,
+            max_concurrent_defense_tasks: parsed_env_or(
+                "MAX_CONCURRENT_DEFENSE_TASKS",
+                NonZeroU64::new(8).expect("8 is non-zero"),
+            )?,
+            fast_finality_mode: parsed_env_or("FAST_FINALITY_MODE", false)?,
+            fast_finality_proving_limit: parsed_env_or(
+                "FAST_FINALITY_PROVING_LIMIT",
+                NonZeroU64::MIN,
+            )?,
+            proof_provider_config: ProofProviderConfig::from_env()?,
+            local_cuda: LocalCudaConfig::from_env()?,
+            log_path: parsed_env_or("LOG_PATH", LogPath::Table)?,
+            data_dir: optional_env("DATA_DIR").map(PathBuf::from),
+            owned_creators: optional_env("OWNED_CREATORS")
+                .map(|list| {
+                    parse_address_list(&list)
+                        .with_context(|| format!("invalid {}", env_var("OWNED_CREATORS")))
+                })
+                .transpose()?
+                .unwrap_or_default(),
+        })
+    }
+}
+
+fn parse_address_list(value: &str) -> Result<Vec<Address>> {
+    let mut addresses = Vec::new();
+    for entry in value.split(',').map(str::trim).filter(|entry| !entry.is_empty()) {
+        let address = parse_address(entry)?;
+        anyhow::ensure!(address != Address::ZERO, "zero address");
+        anyhow::ensure!(!addresses.contains(&address), "duplicate address {address}");
+        addresses.push(address);
+    }
+    anyhow::ensure!(!addresses.is_empty(), "expected at least one address");
+    Ok(addresses)
+}
+
+/// Parses a hex address, enforcing its EIP-55 checksum when the entry mixes cases.
+fn parse_address(entry: &str) -> Result<Address> {
+    let hex = entry.strip_prefix("0x").unwrap_or(entry);
+    if hex.bytes().any(|b| b.is_ascii_uppercase()) && hex.bytes().any(|b| b.is_ascii_lowercase()) {
+        Address::parse_checksummed(entry, None)
+            .map_err(|err| anyhow!("invalid address {entry}: {err}"))
+    } else {
+        entry.parse::<Address>().map_err(|err| anyhow!("invalid address {entry}: {err}"))
+    }
+}
+
+fn parse_url_list(value: &str) -> Result<Vec<Url>> {
+    let urls = value
+        .split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| entry.parse::<Url>().map_err(|err| anyhow!("invalid URL {entry}: {err}")))
+        .collect::<Result<Vec<_>>>()?;
+    anyhow::ensure!(!urls.is_empty(), "expected at least one URL");
+    Ok(urls)
+}
+
+const DEFAULT_PROOF_CYCLE_LIMIT: u64 = 1_000_000_000_000;
+const DEFAULT_RANGE_GAS_LIMIT: u64 = 200_000_000_000;
+const DEFAULT_AGG_GAS_LIMIT: u64 = 1_000_000_000;
+/// A full batch, about 0.44 of the limit in measured PGU, takes about 45 minutes on a fast prover,
+/// so bidders accept it under the default timeout.
+const DEFAULT_LOG_GAS_LIMIT: u64 = 100_000_000_000;
+
+/// Floor on how long an auction stays open, so the field can bid and undercut
+/// rather than the fastest poller winning at the ceiling. Observed arrivals are
+/// 3-10s, on other requesters' traffic; this doubles that for margin, at the
+/// cost of ~90s per defense (range, consolidation and agg wait it out in turn).
+const DEFAULT_MIN_AUCTION_PERIOD_SECONDS: u64 = 30;
+
+/// Grace for an unassigned request before cancellation and retry.
+const DEFAULT_AUCTION_TIMEOUT_SECONDS: u64 = 300;
+
+/// Room between an auction closing and its request being cancelled: the
+/// auctioneer still has to assign the winner, and the proposer to observe it.
+const AUCTION_ASSIGNMENT_MARGIN_SECONDS: u64 = 30;
+
+/// SP1 proof-provider settings (timeouts, strategies, limits, prices).
+///
+/// Parsed in mock mode too, but all values have defaults and require no credentials.
+/// `OP_ZK_PROPOSER_NETWORK_PRIVATE_KEY` is read only when the network provider is built.
+#[derive(Debug, Clone)]
+pub struct ProofProviderConfig {
+    /// Per-proof timeout in seconds: the server-side deadline for proof
+    /// requests and the client-side maximum wait.
+    pub timeout: u64,
+    /// Timeout in seconds for SP1 API calls and metric observations, including
+    /// L1 balance and super-root queries.
+    pub network_calls_timeout: u64,
+    /// Cancel requests still unassigned past `created_at + auction_timeout`
+    /// seconds (mainnet auctions only).
+    pub auction_timeout: u64,
+    /// Fulfillment strategy for super-range proofs.
+    pub range_proof_strategy: FulfillmentStrategy,
+    /// Fulfillment strategy for the aggregation proof.
+    pub agg_proof_strategy: FulfillmentStrategy,
+    /// Cycle limit for super-range proof requests.
+    pub range_cycle_limit: u64,
+    /// Gas limit for super-range proof requests.
+    pub range_gas_limit: u64,
+    /// Cycle limit for the aggregation proof request.
+    pub agg_cycle_limit: u64,
+    /// Gas limit for the aggregation proof request.
+    pub agg_gas_limit: u64,
+    /// Fulfillment strategy for log-commitment batch proofs.
+    pub log_proof_strategy: FulfillmentStrategy,
+    /// Cycle limit for log-commitment batch proof requests.
+    pub log_cycle_limit: u64,
+    /// Gas limit for log-commitment batch proof requests. A batch stays within 80% of it by
+    /// estimate, unless it holds one block.
+    pub log_gas_limit: u64,
+    /// Optional maximum price per proving gas unit.
+    pub max_price_per_pgu: Option<NonZeroU64>,
+    /// Minimum auction period in seconds.
+    pub min_auction_period: u64,
+}
+
+impl ProofProviderConfig {
+    /// Reads proof-provider settings from environment variables.
+    pub fn from_env() -> Result<Self> {
+        let timeout = parsed_env_or("SP1_TIMEOUT_SECONDS", 7_200u64)?;
+        anyhow::ensure!(
+            timeout > 0,
+            "{} must be positive: 0 would stop every proof polling attempt immediately after \
+             submission",
+            env_var("SP1_TIMEOUT_SECONDS")
+        );
+        let network_calls_timeout = parsed_env_or("NETWORK_CALLS_TIMEOUT", 15u64)?;
+        anyhow::ensure!(
+            network_calls_timeout > 0,
+            "{} must be positive: 0 would time out every SPN call before any I/O completes",
+            env_var("NETWORK_CALLS_TIMEOUT")
+        );
+        let auction_timeout = parsed_env_or("AUCTION_TIMEOUT", DEFAULT_AUCTION_TIMEOUT_SECONDS)?;
+        anyhow::ensure!(
+            auction_timeout > 0,
+            "{} must be positive: 0 would cancel every mainnet request by its second poll",
+            env_var("AUCTION_TIMEOUT")
+        );
+        let min_auction_period =
+            parsed_env_or("MIN_AUCTION_PERIOD", DEFAULT_MIN_AUCTION_PERIOD_SECONDS)?;
+        anyhow::ensure!(
+            min_auction_period + AUCTION_ASSIGNMENT_MARGIN_SECONDS <= auction_timeout,
+            "{} ({min_auction_period}s) must leave {AUCTION_ASSIGNMENT_MARGIN_SECONDS}s under {} \
+             ({auction_timeout}s): requests would be cancelled before a closing auction could be \
+             assigned",
+            env_var("MIN_AUCTION_PERIOD"),
+            env_var("AUCTION_TIMEOUT")
+        );
+        Ok(Self {
+            timeout,
+            network_calls_timeout,
+            auction_timeout,
+            range_proof_strategy: parse_fulfillment_strategy(env_or(
+                "RANGE_PROOF_STRATEGY",
+                "auction",
+            ))
+            .with_context(|| format!("invalid {}", env_var("RANGE_PROOF_STRATEGY")))?,
+            agg_proof_strategy: parse_fulfillment_strategy(env_or("AGG_PROOF_STRATEGY", "auction"))
+                .with_context(|| format!("invalid {}", env_var("AGG_PROOF_STRATEGY")))?,
+            range_cycle_limit: parsed_env_or("RANGE_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
+            range_gas_limit: parsed_env_or("RANGE_GAS_LIMIT", DEFAULT_RANGE_GAS_LIMIT)?,
+            agg_cycle_limit: parsed_env_or("AGG_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
+            agg_gas_limit: parsed_env_or("AGG_GAS_LIMIT", DEFAULT_AGG_GAS_LIMIT)?,
+            log_proof_strategy: parse_fulfillment_strategy(env_or("LOG_PROOF_STRATEGY", "auction"))
+                .with_context(|| format!("invalid {}", env_var("LOG_PROOF_STRATEGY")))?,
+            log_cycle_limit: parsed_env_or("LOG_CYCLE_LIMIT", DEFAULT_PROOF_CYCLE_LIMIT)?,
+            log_gas_limit: parsed_env_or("LOG_GAS_LIMIT", DEFAULT_LOG_GAS_LIMIT)?,
+            max_price_per_pgu: parsed_optional_env::<u64>("MAX_PRICE_PER_PGU")?
+                .and_then(NonZeroU64::new),
+            min_auction_period,
+        })
+    }
+
+    /// The SPN network mode of the request strategies. The log strategy must give the mode of the
+    /// range and aggregation strategies.
+    pub fn network_mode(&self) -> Result<NetworkMode> {
+        let mode = determine_network_mode(self.range_proof_strategy, self.agg_proof_strategy)?;
+        let log_mode = determine_network_mode(self.range_proof_strategy, self.log_proof_strategy)
+            .with_context(|| format!("invalid {}", env_var("LOG_PROOF_STRATEGY")))?;
+        anyhow::ensure!(
+            log_mode == mode,
+            "{} gives network mode {log_mode:?}, but the range and aggregation strategies give \
+             {mode:?}",
+            env_var("LOG_PROOF_STRATEGY"),
+        );
+        Ok(mode)
+    }
+}
+
+/// Local CUDA prover settings.
+///
+/// Parsed in every mode; all values have defaults.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalCudaConfig {
+    /// CUDA device IDs (see [`CudaDevices`]).
+    pub devices: CudaDevices,
+    /// RSS limit in bytes of each pre-execution's executor child process.
+    pub memory_limit_bytes: NonZeroU64,
+    /// The `sp1-gpu-server` binary; the `op-zk-proposer-cuda` image installs it at the default.
+    pub server_path: PathBuf,
+}
+
+impl Default for LocalCudaConfig {
+    fn default() -> Self {
+        Self {
+            devices: CudaDevices::default(),
+            memory_limit_bytes: NonZeroU64::new(DEFAULT_MEMORY_LIMIT)
+                .expect("SP1's default memory limit is non-zero"),
+            server_path: PathBuf::from("/usr/local/bin/sp1-gpu-server"),
+        }
+    }
+}
+
+impl LocalCudaConfig {
+    /// Reads local CUDA prover settings from environment variables.
+    pub fn from_env() -> Result<Self> {
+        let defaults = Self::default();
+        Ok(Self {
+            devices: parsed_env_or("CUDA_DEVICES", defaults.devices)?,
+            memory_limit_bytes: parsed_env_or(
+                "CUDA_MEMORY_LIMIT_BYTES",
+                defaults.memory_limit_bytes,
+            )?,
+            server_path: optional_env("CUDA_SERVER_PATH")
+                .map_or(defaults.server_path, PathBuf::from),
+        })
+    }
+}
+
+/// CUDA device IDs, one `sp1-gpu-server` each: non-empty and without duplicates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CudaDevices(Vec<u32>);
+
+impl CudaDevices {
+    /// Returns the device IDs.
+    pub fn ids(&self) -> &[u32] {
+        &self.0
+    }
+}
+
+impl Default for CudaDevices {
+    fn default() -> Self {
+        Self(vec![0])
+    }
+}
+
+impl FromStr for CudaDevices {
+    type Err = anyhow::Error;
+
+    /// Parses a comma-separated list. An empty entry fails to parse, so the list is never empty.
+    fn from_str(list: &str) -> Result<Self> {
+        let mut devices = Vec::new();
+        for entry in list.split(',').map(str::trim) {
+            let device = entry.parse::<u32>().map_err(|err| anyhow!("device {entry:?}: {err}"))?;
+            anyhow::ensure!(!devices.contains(&device), "duplicate device {device}");
+            devices.push(device);
+        }
+        Ok(Self(devices))
+    }
+}
+
+/// Splits defended super-root timestamp spans into 1 to 128 chunks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RangeSplitCount(NonZeroU8);
+
+impl RangeSplitCount {
+    /// Maximum accepted chunk count.
+    pub const MAX: u8 = 128;
+
+    /// Creates a new `RangeSplitCount`, rejecting 0 and values above
+    /// [`Self::MAX`].
+    pub fn new(count: u8) -> Result<Self> {
+        if count == 0 || count > Self::MAX {
+            bail!("range splits must be between 1 and {}, got {count}", Self::MAX);
+        }
+        let count =
+            NonZeroU8::new(count).ok_or_else(|| anyhow!("range splits must be non zero"))?;
+        Ok(Self(count))
+    }
+
+    /// Returns a single-chunk split.
+    pub const fn one() -> Self {
+        Self(NonZeroU8::MIN)
+    }
+
+    /// Returns the chunk count as a `usize`.
+    pub const fn to_usize(self) -> usize {
+        self.0.get() as usize
+    }
+
+    /// Splits a timestamp span into up to `count` contiguous, non-empty
+    /// chunks for proving.
+    ///
+    /// Each tuple `(start, end)` is a proving chunk where `start` is the
+    /// agreed timestamp (already-proven checkpoint) and `end` is the claimed
+    /// timestamp (included in the proof).
+    ///
+    /// - Errors if `start >= end`.
+    /// - Caps the number of produced chunks at the span length.
+    /// - Uses ceil division for even chunks; may yield fewer than requested (e.g. 9 timestamps / 4
+    ///   -> step 3 -> 3 chunks).
+    /// - Returned chunks exactly cover `(start, end]` with no gaps or overlaps.
+    pub fn split(&self, start: u64, end: u64) -> Result<Vec<(u64, u64)>> {
+        let total = end.checked_sub(start).ok_or_else(|| {
+            anyhow!("end timestamp {end} is not greater than start timestamp {start}")
+        })?;
+        if total == 0 {
+            bail!("start timestamp equals end timestamp ({start}); nothing to prove");
+        }
+
+        let splits = self.to_usize();
+        if splits == 1 {
+            return Ok(vec![(start, end)]);
+        }
+
+        let segments = splits.min(total as usize);
+        let mut ranges = Vec::with_capacity(segments);
+        let step = total.div_ceil(segments as u64);
+
+        let mut cur = start;
+        for _ in 0..segments {
+            if cur >= end {
+                break;
+            }
+            let next = cur.saturating_add(step).min(end);
+            ranges.push((cur, next));
+            cur = next;
+        }
+
+        Ok(ranges)
+    }
+}
+impl Default for RangeSplitCount {
+    fn default() -> Self {
+        Self::new(16).expect("default is a valid range split count")
+    }
+}
+
+impl FromStr for RangeSplitCount {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        let count = value
+            .parse::<u8>()
+            .map_err(|err| anyhow!("invalid range split count {value}: {err}"))?;
+        Self::new(count)
+    }
+}
+
+/// Encoded stdin bytes that one range, consolidation, or log-commitment request may upload: its
+/// input buffers and embedded proofs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StdinByteLimit(NonZeroU64);
+
+impl StdinByteLimit {
+    /// Default: [`DEFAULT_MAX_STDIN_BYTES`] (1.5 GiB).
+    pub const DEFAULT: u64 = DEFAULT_MAX_STDIN_BYTES;
+    /// 2 GiB: a witness archive must stay under rkyv's 32-bit offsets anyway.
+    pub const MAX: u64 = 1 << 31;
+
+    /// Creates a limit, accepting 1 to [`Self::MAX`] bytes.
+    pub fn new(bytes: u64) -> Result<Self> {
+        match NonZeroU64::new(bytes) {
+            Some(bytes) if bytes.get() <= Self::MAX => Ok(Self(bytes)),
+            _ => bail!("max stdin bytes must be between 1 and {}, got {bytes}", Self::MAX),
+        }
+    }
+
+    /// Returns the limit in bytes.
+    pub const fn get(self) -> u64 {
+        self.0.get()
+    }
+}
+
+impl Default for StdinByteLimit {
+    fn default() -> Self {
+        Self::new(Self::DEFAULT).expect("default is a valid stdin byte limit")
+    }
+}
+
+impl FromStr for StdinByteLimit {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        let bytes = value
+            .parse::<u64>()
+            .map_err(|err| anyhow!("invalid max stdin bytes {value}: {err}"))?;
+        Self::new(bytes)
+    }
+}
+
+/// Artifact suffix for the super-aggregation program ELF.
+pub const AGGREGATION_ARTIFACT_SUFFIX: &str = ".agg.bin.gz";
+/// Artifact suffix for the super-range program ELF (whose vkey the
+/// aggregation program embeds).
+pub const RANGE_ARTIFACT_SUFFIX: &str = ".range.bin.gz";
+/// Artifact suffix for the log-commitment program ELF.
+pub const LOG_COMMITMENT_ARTIFACT_SUFFIX: &str = ".log.bin.gz";
+
+/// Returns the artifact URL for `prestate` with the given suffix under the
+/// `base` directory URL: `<base>/<prestate><suffix>`.
+pub fn prestate_artifact_url(base: &Url, prestate: B256, suffix: &str) -> Result<Url> {
+    let mut url = base.clone();
+    url.path_segments_mut()
+        .map_err(|()| {
+            anyhow!("{} cannot be a base: {}", env_var("PRESTATES_URL"), redacted_url(base))
+        })?
+        .pop_if_empty()
+        .push(&format!("{prestate}{suffix}"));
+    Ok(url)
+}
+
+/// The program ELFs a prestate resolves to: the super-aggregation program
+/// (whose vkey is the on-chain `absolutePrestate()`), the super-range
+/// program (whose vkey the aggregation program embeds), and the
+/// log-commitment program (whose vkey the super-range program embeds).
+/// The prestate hash is therefore a unique key for all three.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PrestatePrograms {
+    /// Decompressed super-aggregation program ELF.
+    pub aggregation_elf: Vec<u8>,
+    /// Decompressed super-range program ELF.
+    pub range_elf: Vec<u8>,
+    /// Decompressed log-commitment program ELF.
+    pub log_commitment_elf: Vec<u8>,
+}
+
+#[cfg(test)]
+impl PrestatePrograms {
+    /// Programs whose three ELFs are `[byte]`.
+    pub(crate) fn stub(byte: u8) -> Self {
+        Self { aggregation_elf: vec![byte], range_elf: vec![byte], log_commitment_elf: vec![byte] }
+    }
+}
+
+/// Loads and decompresses the three program ELFs for `prestate` from `base`
+/// (`file://` reads the filesystem; `http(s)://` issues GET requests).
+///
+/// Fails when any artifact is missing, unreadable, or not valid gzip.
+/// The create path uses a successful load as the proof that games with this
+/// prestate are defendable; the defend path proves with the returned ELFs.
+/// In the SP1 modes, `PrestateCache::proof_keys` later verifies the vkeys
+/// during SP1 proving-key setup; mock mode never executes the artifacts and
+/// skips that check.
+pub async fn load_prestate(base: &Url, prestate: B256) -> Result<PrestatePrograms> {
+    let aggregation_elf =
+        fetch_artifact(&prestate_artifact_url(base, prestate, AGGREGATION_ARTIFACT_SUFFIX)?)
+            .await?;
+    let range_elf =
+        fetch_artifact(&prestate_artifact_url(base, prestate, RANGE_ARTIFACT_SUFFIX)?).await?;
+    let log_commitment_elf =
+        fetch_artifact(&prestate_artifact_url(base, prestate, LOG_COMMITMENT_ARTIFACT_SUFFIX)?)
+            .await?;
+    Ok(PrestatePrograms { aggregation_elf, range_elf, log_commitment_elf })
+}
+
+/// Maximum time for fetching a single prestate artifact, matching
+/// op-challenger's prestate download timeout. Bounds the creation gate:
+/// a hung prestates server must not stall the proposer's schedule loop.
+const ARTIFACT_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Fetches a single artifact and gunzips it.
+async fn fetch_artifact(url: &Url) -> Result<Vec<u8>> {
+    let compressed = match url.scheme() {
+        "file" => {
+            let path = url.to_file_path().map_err(|()| {
+                anyhow!("invalid file path in {}: {url}", env_var("PRESTATES_URL"))
+            })?;
+            tokio::fs::read(&path)
+                .await
+                .with_context(|| format!("failed to read prestate artifact {path:?}"))?
+        }
+        "http" | "https" => reqwest::Client::builder()
+            .timeout(ARTIFACT_FETCH_TIMEOUT)
+            .build()
+            .context("failed to build prestate artifact client")?
+            .get(url.clone())
+            .send()
+            .await
+            .with_context(|| format!("failed to fetch prestate artifact at {}", redacted_url(url)))?
+            .error_for_status()
+            .with_context(|| format!("prestate artifact fetch failed for {}", redacted_url(url)))?
+            .bytes()
+            .await
+            .with_context(|| {
+                format!("failed to read prestate artifact body from {}", redacted_url(url))
+            })?
+            .to_vec(),
+        other => bail!(
+            "unsupported {} scheme {other} (expected file, http, or https)",
+            env_var("PRESTATES_URL")
+        ),
+    };
+
+    let mut elf = Vec::new();
+    std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(compressed.as_slice()), &mut elf)
+        .with_context(|| format!("prestate artifact at {} is not valid gzip", redacted_url(url)))?;
+    Ok(elf)
+}
+
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+
+    use super::*;
+
+    /// Removes every `OP_ZK_PROPOSER_*` variable.
+    fn clear_proposer_env() {
+        for (name, _) in env::vars_os() {
+            if name.to_string_lossy().starts_with(crate::ENV_VAR_PREFIX) {
+                // SAFETY: The environment-mutating tests in this crate are serialized.
+                unsafe { env::remove_var(name) };
+            }
+        }
+    }
+
+    fn set_proposer_env(suffix: &str, value: &str) {
+        // SAFETY: The environment-mutating tests in this crate are serialized.
+        unsafe { env::set_var(env_var(suffix), value) };
+    }
+
+    fn remove_proposer_env(suffix: &str) {
+        // SAFETY: The environment-mutating tests in this crate are serialized.
+        unsafe { env::remove_var(env_var(suffix)) };
+    }
+
+    #[test]
+    fn proposal_safety_parsing() {
+        assert_eq!(ProposalSafety::from_str("safe").unwrap(), ProposalSafety::Safe);
+        assert_eq!(ProposalSafety::from_str("Finalized").unwrap(), ProposalSafety::Finalized);
+        assert!(ProposalSafety::from_str("latest").is_err());
+    }
+
+    mod prestates {
+        use super::*;
+
+        const HASH_A: &str = "0x0101010101010101010101010101010101010101010101010101010101010101";
+
+        fn artifact_dir(name: &str) -> std::path::PathBuf {
+            let dir = std::env::temp_dir()
+                .join(format!("kona-sp1-prestates-test-{}-{name}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            dir
+        }
+
+        fn write_artifact(dir: &std::path::Path, suffix: &str, contents: &[u8]) {
+            let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            std::io::Write::write_all(&mut gz, contents).unwrap();
+            std::fs::write(dir.join(format!("{HASH_A}{suffix}")), gz.finish().unwrap()).unwrap();
+        }
+
+        fn write_artifacts(dir: &std::path::Path) {
+            write_artifact(dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
+            write_artifact(dir, RANGE_ARTIFACT_SUFFIX, b"range-elf");
+            write_artifact(dir, LOG_COMMITMENT_ARTIFACT_SUFFIX, b"log-commitment-elf");
+        }
+
+        #[test]
+        fn artifact_url_follows_challenger_naming() {
+            let hash = HASH_A.parse::<B256>().unwrap();
+            let base = Url::parse("https://example.com/prestates").unwrap();
+            let url = prestate_artifact_url(&base, hash, AGGREGATION_ARTIFACT_SUFFIX).unwrap();
+            assert_eq!(url.as_str(), format!("https://example.com/prestates/{HASH_A}.agg.bin.gz"));
+            // A trailing slash on the base must not produce a double slash.
+            let base = Url::parse("https://example.com/prestates/").unwrap();
+            let url = prestate_artifact_url(&base, hash, RANGE_ARTIFACT_SUFFIX).unwrap();
+            assert_eq!(
+                url.as_str(),
+                format!("https://example.com/prestates/{HASH_A}.range.bin.gz")
+            );
+        }
+
+        #[tokio::test]
+        async fn loads_and_decompresses_three_programs() {
+            let dir = artifact_dir("present");
+            write_artifacts(&dir);
+            let base = Url::from_directory_path(&dir).unwrap();
+            let programs = load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.unwrap();
+            assert_eq!(programs.aggregation_elf, b"aggregation-elf");
+            assert_eq!(programs.range_elf, b"range-elf");
+            assert_eq!(programs.log_commitment_elf, b"log-commitment-elf");
+        }
+
+        /// Pins a failed load when only the log-commitment artifact is missing.
+        #[tokio::test]
+        async fn missing_log_commitment_artifact_fails_to_load() {
+            let dir = artifact_dir("no-log");
+            write_artifact(&dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
+            write_artifact(&dir, RANGE_ARTIFACT_SUFFIX, b"range-elf");
+            let base = Url::from_directory_path(&dir).unwrap();
+            let err = load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.unwrap_err();
+            assert!(format!("{err:#}").contains(LOG_COMMITMENT_ARTIFACT_SUFFIX), "{err:#}");
+        }
+
+        #[tokio::test]
+        async fn missing_artifacts_fail_to_load() {
+            let dir = artifact_dir("missing");
+            let base = Url::from_directory_path(&dir).unwrap();
+            assert!(load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.is_err());
+        }
+
+        #[tokio::test]
+        async fn aggregation_artifact_alone_fails_to_load() {
+            // The aggregation ELF alone cannot defend a game.
+            let dir = artifact_dir("agg-only");
+            write_artifact(&dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
+            let base = Url::from_directory_path(&dir).unwrap();
+            assert!(load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.is_err());
+        }
+
+        #[tokio::test]
+        async fn corrupt_artifact_fails_to_load() {
+            // A truncated or non-gzip artifact must not count as a usable
+            // program.
+            let dir = artifact_dir("corrupt");
+            write_artifact(&dir, AGGREGATION_ARTIFACT_SUFFIX, b"aggregation-elf");
+            std::fs::write(dir.join(format!("{HASH_A}{RANGE_ARTIFACT_SUFFIX}")), b"not gzip")
+                .unwrap();
+            let base = Url::from_directory_path(&dir).unwrap();
+            assert!(load_prestate(&base, HASH_A.parse::<B256>().unwrap()).await.is_err());
+        }
+
+        #[tokio::test]
+        async fn unsupported_scheme_is_an_error() {
+            let url = Url::parse("ftp://example.com/prestates").unwrap();
+            assert!(load_prestate(&url, HASH_A.parse::<B256>().unwrap()).await.is_err());
+        }
+    }
+
+    mod factory_address {
+        use super::*;
+
+        fn registry_factory(chain_id: u64) -> Address {
+            OPCHAINS
+                .get(&chain_id)
+                .and_then(|config| config.addresses.as_ref())
+                .and_then(|addresses| addresses.dispute_game_factory_proxy)
+                .expect("dispute game factory missing from registry")
+        }
+
+        #[test]
+        fn standard_network_resolves_registry_factory() {
+            assert_eq!(factory_address_from_network("op-mainnet").unwrap(), registry_factory(10));
+        }
+
+        #[test]
+        fn network_names_are_case_insensitive_and_preserve_hyphens() {
+            assert!(network_matches_identifier("A-B-C-D", "c-d/a-b"));
+            assert!(!network_matches_identifier("A-B-C-D", "a-b/c-d"));
+        }
+
+        #[test]
+        fn explicit_factory_takes_precedence() {
+            let address = "0x000000000000000000000000000000000000dEaD";
+            assert_eq!(
+                resolve_factory_address(Some(address), Some("not-a-network")).unwrap(),
+                address.parse::<Address>().unwrap()
+            );
+        }
+
+        #[test]
+        #[serial]
+        fn empty_explicit_factory_does_not_fall_back() {
+            clear_proposer_env();
+            set_proposer_env("FACTORY_ADDRESS", "");
+            let name = env_var("FACTORY_ADDRESS");
+
+            let explicit_factory_address = explicit_factory_address_env().unwrap();
+            let err =
+                resolve_factory_address(explicit_factory_address.as_deref(), Some("op-mainnet"))
+                    .unwrap_err()
+                    .to_string();
+            assert!(err.contains(&name), "unexpected error: {err}");
+        }
+
+        #[test]
+        fn missing_factory_source_is_rejected() {
+            let err = resolve_factory_address(None, None).unwrap_err().to_string();
+            assert!(err.contains("OP_ZK_PROPOSER_FACTORY_ADDRESS"), "unexpected error: {err}");
+            assert!(err.contains("--network"), "unexpected error: {err}");
+        }
+    }
+
+    mod proving_config {
+        use super::*;
+
+        #[test]
+        fn proof_provider_kind_parse_rejects_unknown() {
+            assert_eq!(ProofProviderKind::from_str("network").unwrap(), ProofProviderKind::Network);
+            assert_eq!(ProofProviderKind::from_str("Mock").unwrap(), ProofProviderKind::Mock);
+            assert!(ProofProviderKind::from_str("cluster").is_err());
+            assert!(ProofProviderKind::from_str("").is_err());
+        }
+
+        #[test]
+        fn proof_provider_kind_parses_local_cuda() {
+            for value in ["local-cuda", "Local-CUDA"] {
+                assert_eq!(
+                    ProofProviderKind::from_str(value).unwrap(),
+                    ProofProviderKind::LocalCuda
+                );
+            }
+        }
+
+        #[test]
+        fn proves_with_sp1_classifies_every_kind() {
+            assert!(ProofProviderKind::Network.proves_with_sp1());
+            assert!(ProofProviderKind::LocalCuda.proves_with_sp1());
+            assert!(!ProofProviderKind::Mock.proves_with_sp1());
+            assert!(ProofProviderKind::Network.has_prove_balance());
+            assert!(!ProofProviderKind::LocalCuda.has_prove_balance());
+            assert!(!ProofProviderKind::Mock.has_prove_balance());
+        }
+
+        #[test]
+        #[serial]
+        fn cuda_devices_default_to_zero() {
+            clear_proposer_env();
+            assert_eq!(LocalCudaConfig::from_env().unwrap(), LocalCudaConfig::default());
+            assert_eq!(LocalCudaConfig::default().devices.ids(), [0]);
+            set_proposer_env("CUDA_DEVICES", "1, 3");
+            assert_eq!(LocalCudaConfig::from_env().unwrap().devices.ids(), [1, 3]);
+            set_proposer_env("CUDA_SERVER_PATH", "/opt/gpu/sp1-gpu-server");
+            assert_eq!(
+                LocalCudaConfig::from_env().unwrap().server_path,
+                PathBuf::from("/opt/gpu/sp1-gpu-server")
+            );
+        }
+
+        #[test]
+        #[serial]
+        fn cuda_devices_reject_empty_entries_and_duplicates() {
+            clear_proposer_env();
+            assert!("".parse::<CudaDevices>().is_err());
+            for invalid in ["0,0", "x", "1,"] {
+                set_proposer_env("CUDA_DEVICES", invalid);
+                let err = LocalCudaConfig::from_env().unwrap_err().to_string();
+                assert!(err.contains("OP_ZK_PROPOSER_CUDA_DEVICES"), "{invalid:?}: {err}");
+            }
+        }
+
+        #[test]
+        #[serial]
+        fn cuda_memory_limit_rejects_zero() {
+            clear_proposer_env();
+            set_proposer_env("CUDA_MEMORY_LIMIT_BYTES", "0");
+            let err = LocalCudaConfig::from_env().unwrap_err().to_string();
+            assert!(err.contains("OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES"), "unexpected: {err}");
+        }
+
+        #[test]
+        fn l2_rpcs_parses_comma_list() {
+            let urls = parse_url_list("http://a:1, http://b:2/").unwrap();
+            assert_eq!(urls.len(), 2);
+            assert_eq!(urls[1].as_str(), "http://b:2/");
+            assert!(parse_url_list("").is_err());
+            assert!(parse_url_list(" , ").is_err());
+            assert!(parse_url_list("not a url").is_err());
+        }
+
+        #[test]
+        fn range_split_bounds() {
+            assert!(RangeSplitCount::new(0).is_err());
+            assert!(RangeSplitCount::new(129).is_err());
+            assert_eq!(RangeSplitCount::one().to_usize(), 1);
+            assert_eq!(RangeSplitCount::default().to_usize(), 16);
+            assert_eq!(RangeSplitCount::new(RangeSplitCount::MAX).unwrap().to_usize(), 128);
+        }
+
+        #[test]
+        fn range_split_chunks() {
+            // Single split covers the whole span.
+            assert_eq!(RangeSplitCount::one().split(100, 700).unwrap(), vec![(100, 700)]);
+            // Ceil division may yield fewer chunks than requested:
+            // 9 timestamps / 4 -> step 3 -> 3 chunks.
+            assert_eq!(
+                RangeSplitCount::new(4).unwrap().split(0, 9).unwrap(),
+                vec![(0, 3), (3, 6), (6, 9)]
+            );
+            // Chunk count caps at the span length.
+            assert_eq!(
+                RangeSplitCount::new(16).unwrap().split(0, 4).unwrap(),
+                vec![(0, 1), (1, 2), (2, 3), (3, 4)]
+            );
+            // A long enough span can use the full supported chunk count.
+            assert_eq!(
+                RangeSplitCount::new(RangeSplitCount::MAX)
+                    .unwrap()
+                    .split(0, u64::from(RangeSplitCount::MAX))
+                    .unwrap()
+                    .len(),
+                128
+            );
+            // Ceil division produces fewer than 128 chunks for a one-hour timestamp span.
+            let chunks =
+                RangeSplitCount::new(RangeSplitCount::MAX).unwrap().split(0, 3_600).unwrap();
+            assert_eq!(chunks.len(), 125);
+            assert_eq!(chunks.first(), Some(&(0, 29)));
+            assert_eq!(chunks.last(), Some(&(3_596, 3_600)));
+            // Chunks exactly cover (start, end] with no gaps or overlaps.
+            for pair in chunks.windows(2) {
+                assert_eq!(pair[0].1, pair[1].0);
+            }
+            // Degenerate spans are rejected.
+            assert!(RangeSplitCount::one().split(5, 5).is_err());
+            assert!(RangeSplitCount::one().split(6, 5).is_err());
+        }
+
+        #[test]
+        #[serial]
+        fn auction_period_crowding_the_cancel_timeout_is_rejected() {
+            clear_proposer_env();
+            // An auction needs assignment margin before the cancellation timeout.
+            set_proposer_env("AUCTION_TIMEOUT", "300");
+            for crowding in ["300", "290"] {
+                set_proposer_env("MIN_AUCTION_PERIOD", crowding);
+                let err = ProofProviderConfig::from_env().unwrap_err().to_string();
+                assert!(err.contains("OP_ZK_PROPOSER_MIN_AUCTION_PERIOD"), "unexpected: {err}");
+                assert!(err.contains("OP_ZK_PROPOSER_AUCTION_TIMEOUT"), "unexpected: {err}");
+            }
+
+            set_proposer_env("MIN_AUCTION_PERIOD", "270");
+            assert_eq!(ProofProviderConfig::from_env().unwrap().min_auction_period, 270);
+        }
+
+        #[test]
+        #[serial]
+        fn owned_creators_parses_comma_list_and_rejects_bad_entries() {
+            clear_proposer_env();
+            set_required_mock_env();
+            assert!(ProposerConfig::from_env(None).unwrap().owned_creators.is_empty());
+
+            let first = Address::repeat_byte(0x11);
+            let second = Address::repeat_byte(0x22);
+            set_proposer_env("OWNED_CREATORS", &format!(" {first}, ,{second} "));
+            assert_eq!(ProposerConfig::from_env(None).unwrap().owned_creators, vec![first, second]);
+
+            let lettered = Address::repeat_byte(0xab);
+            let checksummed = lettered.to_checksum(None);
+            for valid in [checksummed.clone(), checksummed.to_lowercase()] {
+                set_proposer_env("OWNED_CREATORS", &valid);
+                assert_eq!(ProposerConfig::from_env(None).unwrap().owned_creators, vec![lettered]);
+            }
+            let mut miscased = checksummed.into_bytes();
+            let letter = miscased.iter().skip(2).position(u8::is_ascii_alphabetic).unwrap() + 2;
+            miscased[letter] ^= 0x20;
+            let miscased = String::from_utf8(miscased).unwrap();
+
+            for invalid in [
+                format!("{first},{first}"),
+                "0x1234".to_string(),
+                " , ".to_string(),
+                Address::ZERO.to_string(),
+                miscased,
+            ] {
+                set_proposer_env("OWNED_CREATORS", &invalid);
+                let err = format!("{:#}", ProposerConfig::from_env(None).unwrap_err());
+                assert!(err.contains("invalid OP_ZK_PROPOSER_OWNED_CREATORS"), "{invalid}: {err}");
+            }
+            remove_proposer_env("OWNED_CREATORS");
+        }
+
+        #[test]
+        #[serial]
+        fn from_env_requires_defend_path_vars() {
+            clear_proposer_env();
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545,http://127.0.0.1:9546");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
+
+            // The proof provider has no default.
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(err.contains("OP_ZK_PROPOSER_PROOF_PROVIDER"), "unexpected error: {err}");
+
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(err.contains("OP_ZK_PROPOSER_L2_RPCS"), "unexpected error: {err}");
+
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646,http://127.0.0.1:8647");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(err.contains("OP_ZK_PROPOSER_L1_BEACON_RPC"), "unexpected error: {err}");
+
+            // Mock mode requires no SPN credentials.
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
+            let config = ProposerConfig::from_env(None).unwrap();
+            assert_eq!(config.proof_provider, ProofProviderKind::Mock);
+            assert_eq!(config.superroot_rpcs.len(), 2);
+            assert_eq!(config.l2_rpcs.len(), 2);
+            assert!(config.rollup_config_paths.is_none());
+            assert_eq!(config.tx_confirmation_timeout, 180);
+            assert_eq!(config.max_game_deadline_lag, MAX_GAME_DEADLINE_LAG);
+            set_proposer_env("MAX_GAME_DEADLINE_LAG_SECONDS", "2419200");
+            assert_eq!(ProposerConfig::from_env(None).unwrap().max_game_deadline_lag, 2_419_200);
+            remove_proposer_env("MAX_GAME_DEADLINE_LAG_SECONDS");
+            assert_eq!(config.max_stdin_bytes.get(), 1_610_612_736);
+            set_proposer_env("MAX_STDIN_BYTES", "2147483648");
+            assert_eq!(ProposerConfig::from_env(None).unwrap().max_stdin_bytes.get(), 1 << 31);
+            for invalid in ["0", "2147483649"] {
+                set_proposer_env("MAX_STDIN_BYTES", invalid);
+                let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+                assert!(
+                    err.contains("max stdin bytes must be between 1 and 2147483648"),
+                    "unexpected: {err}"
+                );
+            }
+            remove_proposer_env("MAX_STDIN_BYTES");
+            assert_eq!(config.testing_max_range_chains, None);
+            set_proposer_env("TESTING_MAX_RANGE_CHAINS", "1");
+            assert_eq!(
+                ProposerConfig::from_env(None).unwrap().testing_max_range_chains,
+                NonZeroUsize::new(1)
+            );
+            set_proposer_env("PROOF_PROVIDER", "network");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(err.contains("is testing only"), "unexpected: {err}");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("TESTING_MAX_RANGE_CHAINS", "0");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(
+                err.contains("invalid OP_ZK_PROPOSER_TESTING_MAX_RANGE_CHAINS"),
+                "unexpected: {err}"
+            );
+            remove_proposer_env("TESTING_MAX_RANGE_CHAINS");
+            assert_eq!(config.range_split_count.to_usize(), 16);
+            set_proposer_env("RANGE_SPLIT_COUNT", "128");
+            assert_eq!(ProposerConfig::from_env(None).unwrap().range_split_count.to_usize(), 128);
+            set_proposer_env("RANGE_SPLIT_COUNT", "129");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(err.contains("range splits must be between 1 and 128"), "unexpected: {err}");
+            assert_eq!(config.max_concurrent_defense_tasks.get(), 8);
+            assert!(!config.fast_finality_mode);
+            assert_eq!(config.fast_finality_proving_limit.get(), 1);
+            assert_eq!(config.proof_provider_config.timeout, 7_200);
+            assert_eq!(
+                config.proof_provider_config.range_proof_strategy,
+                FulfillmentStrategy::Auction
+            );
+            assert_eq!(
+                config.proof_provider_config.agg_proof_strategy,
+                FulfillmentStrategy::Auction
+            );
+            assert_eq!(config.proof_provider_config.range_cycle_limit, 1_000_000_000_000);
+            assert_eq!(config.proof_provider_config.range_gas_limit, 200_000_000_000);
+            assert_eq!(config.proof_provider_config.agg_cycle_limit, 1_000_000_000_000);
+            assert_eq!(config.proof_provider_config.agg_gas_limit, 1_000_000_000);
+            assert_eq!(config.proof_provider_config.max_price_per_pgu, None);
+        }
+
+        /// Zero disables the explicit SPN price ceiling while positive values are preserved.
+        #[test]
+        #[serial]
+        fn max_price_per_pgu_zero_disables_explicit_ceiling() {
+            clear_proposer_env();
+            set_proposer_env("MAX_PRICE_PER_PGU", "0");
+            assert_eq!(ProofProviderConfig::from_env().unwrap().max_price_per_pgu, None);
+
+            set_proposer_env("MAX_PRICE_PER_PGU", "123");
+            assert_eq!(
+                ProofProviderConfig::from_env().unwrap().max_price_per_pgu,
+                NonZeroU64::new(123)
+            );
+        }
+
+        /// Pins startup rejection of a zero `MAX_CONCURRENT_DEFENSE_TASKS`.
+        #[test]
+        #[serial]
+        fn zero_defense_cap_is_rejected() {
+            clear_proposer_env();
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646");
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
+            set_proposer_env("MAX_CONCURRENT_DEFENSE_TASKS", "0");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(
+                err.contains("OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS"),
+                "unexpected error: {err}"
+            );
+        }
+
+        /// A zero interval would plan every game at its parent's timestamp.
+        #[test]
+        #[serial]
+        fn zero_proposal_interval_is_rejected() {
+            clear_proposer_env();
+            set_required_mock_env();
+            set_proposer_env("PROPOSAL_INTERVAL_SECONDS", "0");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(
+                err.contains("OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS"),
+                "unexpected error: {err}"
+            );
+        }
+
+        #[test]
+        #[serial]
+        fn max_proposal_span_intervals_defaults_to_four_and_rejects_zero() {
+            clear_proposer_env();
+            set_required_mock_env();
+            assert_eq!(
+                ProposerConfig::from_env(None).unwrap().max_proposal_span_intervals.get(),
+                4
+            );
+            set_proposer_env("MAX_PROPOSAL_SPAN_INTERVALS", "1");
+            assert_eq!(
+                ProposerConfig::from_env(None).unwrap().max_proposal_span_intervals.get(),
+                1
+            );
+            set_proposer_env("MAX_PROPOSAL_SPAN_INTERVALS", "0");
+            assert!(ProposerConfig::from_env(None).is_err());
+            remove_proposer_env("MAX_PROPOSAL_SPAN_INTERVALS");
+        }
+
+        fn set_required_mock_env() {
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646");
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
+        }
+
+        /// Pins the log request defaults and their overrides.
+        #[test]
+        #[serial]
+        fn log_settings_request_defaults_and_overrides() {
+            clear_proposer_env();
+            let config = ProofProviderConfig::from_env().unwrap();
+            assert_eq!(config.log_gas_limit, 100_000_000_000);
+            assert_eq!(config.log_cycle_limit, 1_000_000_000_000);
+            assert_eq!(config.log_proof_strategy, FulfillmentStrategy::Auction);
+
+            set_proposer_env("LOG_GAS_LIMIT", "5");
+            set_proposer_env("LOG_CYCLE_LIMIT", "6");
+            set_proposer_env("LOG_PROOF_STRATEGY", "reserved");
+            let config = ProofProviderConfig::from_env().unwrap();
+            assert_eq!(config.log_gas_limit, 5);
+            assert_eq!(config.log_cycle_limit, 6);
+            assert_eq!(config.log_proof_strategy, FulfillmentStrategy::Reserved);
+        }
+
+        /// Pins the table default, the receipts opt-out, and an unknown path.
+        #[test]
+        #[serial]
+        fn log_settings_path() {
+            clear_proposer_env();
+            set_required_mock_env();
+            let config = ProposerConfig::from_env(None).unwrap();
+            assert_eq!(config.log_path, LogPath::Table);
+
+            set_proposer_env("LOG_PATH", "Receipts");
+            let config = ProposerConfig::from_env(None).unwrap();
+            assert_eq!(config.log_path, LogPath::Receipts);
+
+            set_proposer_env("LOG_PATH", "sometimes");
+            let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+            assert!(err.contains("OP_ZK_PROPOSER_LOG_PATH"), "unexpected error: {err}");
+        }
+
+        /// Pins a startup error for a log strategy in another network mode.
+        #[test]
+        #[serial]
+        fn log_strategy_must_match_network_mode() {
+            clear_proposer_env();
+            let mut config = ProofProviderConfig::from_env().unwrap();
+            assert_eq!(config.network_mode().unwrap(), NetworkMode::Mainnet);
+
+            config.log_proof_strategy = FulfillmentStrategy::Reserved;
+            let err = format!("{:#}", config.network_mode().unwrap_err());
+            assert!(err.contains("OP_ZK_PROPOSER_LOG_PROOF_STRATEGY"), "unexpected error: {err}");
+
+            config.range_proof_strategy = FulfillmentStrategy::Reserved;
+            config.agg_proof_strategy = FulfillmentStrategy::Hosted;
+            assert_eq!(config.network_mode().unwrap(), NetworkMode::Reserved);
+        }
+
+        /// Pins startup rejection of each zero SPN timeout.
+        #[test]
+        #[serial]
+        fn zero_spn_timeouts_are_rejected() {
+            clear_proposer_env();
+            set_proposer_env("L1_RPC", "http://127.0.0.1:8545");
+            set_proposer_env("SUPERROOT_RPCS", "http://127.0.0.1:9545");
+            set_proposer_env("FACTORY_ADDRESS", "0x000000000000000000000000000000000000dEaD");
+            set_proposer_env("PRESTATES_URL", "file:///tmp/prestates");
+            set_proposer_env("PROOF_PROVIDER", "mock");
+            set_proposer_env("L2_RPCS", "http://127.0.0.1:8646");
+            set_proposer_env("L1_BEACON_RPC", "http://127.0.0.1:5052");
+            for var in ["SP1_TIMEOUT_SECONDS", "NETWORK_CALLS_TIMEOUT", "AUCTION_TIMEOUT"] {
+                set_proposer_env(var, "0");
+                let err = ProposerConfig::from_env(None).unwrap_err().to_string();
+                let name = env_var(var);
+                assert!(err.contains(&name), "expected {name} rejection, got: {err}");
+                remove_proposer_env(var);
+            }
+        }
+    }
+}

@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 // Testing
 import { Vm } from "forge-std/Vm.sol";
-import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/setup/DisputeGameFactoryTestInit.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { stdError } from "forge-std/StdError.sol";
 
@@ -72,7 +72,7 @@ function _dummyClaim() view returns (Claim) {
 /// @notice Base test initializer that can be used by other contracts outside of this test suite.
 abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
-    GameType internal immutable GAME_TYPE = GameTypes.CANNON;
+    GameType internal immutable GAME_TYPE = GameTypes.CANNON_KONA;
 
     /// @dev The initial bond for the game.
     uint256 internal initBond;
@@ -101,6 +101,9 @@ abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
 
         (address _impl, AlphabetVM _vm,) = setupFaultDisputeGame(absolutePrestate);
         gameImpl = IFaultDisputeGame(_impl);
+
+        vm.prank(systemConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(GAME_TYPE);
 
         // Set the init bond for the given game type.
         initBond = disputeGameFactory.initBonds(GAME_TYPE);
@@ -136,6 +139,15 @@ abstract contract BaseFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
 
     receive() external payable { }
 
+    function respectGameType(GameType _gameType) internal {
+        if (anchorStateRegistry.respectedGameType().raw() == _gameType.raw()) {
+            return;
+        }
+
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setRespectedGameType(_gameType);
+    }
+
     function copyBytes(bytes memory src, bytes memory dest) internal pure returns (bytes memory) {
         uint256 byteCount = src.length < dest.length ? src.length : dest.length;
         for (uint256 i = 0; i < byteCount; i++) {
@@ -165,6 +177,7 @@ abstract contract FaultDisputeGame_TestInit is BaseFaultDisputeGame_TestInit {
         absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
 
         super.setUp();
+        respectGameType(GAME_TYPE);
 
         // Get the actual anchor roots
         (Hash root, uint256 l2Bn) = anchorStateRegistry.getAnchorRoot();
@@ -249,14 +262,12 @@ contract FaultDisputeGame_Constructor_Test is FaultDisputeGame_TestInit {
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IFaultDisputeGame.__constructor__,
-                    (
-                        IFaultDisputeGame.GameConstructorParams({
+                    (IFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: _maxGameDepth,
                             splitDepth: _maxGameDepth + 1,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -273,14 +284,12 @@ contract FaultDisputeGame_Constructor_Test is FaultDisputeGame_TestInit {
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IFaultDisputeGame.__constructor__,
-                    (
-                        IFaultDisputeGame.GameConstructorParams({
+                    (IFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: maxGameDepth,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -297,14 +306,12 @@ contract FaultDisputeGame_Constructor_Test is FaultDisputeGame_TestInit {
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IFaultDisputeGame.__constructor__,
-                    (
-                        IFaultDisputeGame.GameConstructorParams({
+                    (IFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: 2 ** 3,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -329,14 +336,12 @@ contract FaultDisputeGame_Constructor_Test is FaultDisputeGame_TestInit {
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IFaultDisputeGame.__constructor__,
-                    (
-                        IFaultDisputeGame.GameConstructorParams({
+                    (IFaultDisputeGame.GameConstructorParams({
                             maxGameDepth: 16,
                             splitDepth: 8,
                             clockExtension: Duration.wrap(_clockExtension),
                             maxClockDuration: Duration.wrap(_maxClockDuration)
-                        })
-                    )
+                        }))
                 )
             )
         });
@@ -378,13 +383,11 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
 
         assertEq(address(gameProxy).balance, 0);
         gameProxy = IFaultDisputeGame(
-            payable(
-                address(
+            payable(address(
                     disputeGameFactory.create{ value: _value }(
                         GAME_TYPE, arbitraryRootClaim, abi.encode(validL2BlockNumber)
                     )
-                )
-            )
+                ))
         );
         assertEq(address(gameProxy).balance, 0);
         assertEq(delayedWeth.balanceOf(address(gameProxy)), _value);
@@ -438,9 +441,9 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
         Claim claim = _dummyClaim();
         vm.expectRevert(IFaultDisputeGame.BadExtraData.selector);
         gameProxy = IFaultDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber)))
-            )
+            payable(address(
+                    disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber))
+                ))
         );
     }
 
@@ -460,9 +463,9 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
         Claim claim = _dummyClaim();
         vm.expectRevert(IFaultDisputeGame.BadExtraData.selector);
         gameProxy = IFaultDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber)))
-            )
+            payable(address(
+                    disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber))
+                ))
         );
     }
 
@@ -505,9 +508,9 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
         // Creation should fail.
         vm.expectRevert(AnchorRootNotFound.selector);
         gameProxy = IFaultDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32))))
-            )
+            payable(address(
+                    disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32)))
+                ))
         );
     }
 
@@ -536,13 +539,11 @@ contract FaultDisputeGame_Initialize_Test is FaultDisputeGame_TestInit {
 
         // Create game via factory - initialize() is called automatically and should revert
         gameProxy = IFaultDisputeGame(
-            payable(
-                address(
+            payable(address(
                     disputeGameFactory.create{ value: initBond }(
                         GAME_TYPE, _dummyClaim(), abi.encode(validL2BlockNumber)
                     )
-                )
-            )
+                ))
         );
     }
 }

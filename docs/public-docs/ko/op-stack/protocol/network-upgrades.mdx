@@ -1,0 +1,137 @@
+---
+title: 네트워크 업그레이드
+description: 하드포크 레지스트리 — 모든 OP Stack 네트워크 업그레이드의 활성화 시간, 기준 명세, 최소 구성 요소 버전을 제공합니다.
+diataxis: reference
+---
+
+import HardforkSummary from "/ko/snippets/generated/hardforks/summary.mdx"
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="네트워크 업그레이드 활성화"
+  title="Superchain 업그레이드 명세"
+  href="https://specs.optimism.io/protocol/superchain-upgrades.html#activation-rules"
+  note="이 레지스트리는 활성화 데이터와 운영 관련 참고 정보를 기록합니다. 각 업그레이드가 무엇을 변경하는지는 레지스트리 페이지에 링크된 해당 업그레이드의 명세에서 정의합니다."
+/>
+
+이 페이지는 **하드포크 레지스트리**의 인덱스입니다. 모든 OP Stack 하드포크에는
+활성화 타임스탬프, 기준 명세, 거버넌스 승인, 최소 구성 요소 버전을 기록하는
+영구 페이지가 하나씩 있습니다. 하드포크를 수반하지 않는 거버넌스 승인
+[컨트랙트 업그레이드](#contract-upgrades)는 아래에 별도로 나열되어 있습니다.
+Bedrock 이후의 네트워크 업그레이드 이름은 영어 알파벳의 다음 글자를 기반으로 한
+지질학 테마를 따릅니다.
+
+아래 표는 레지스트리 페이지의 구조화된 frontmatter로부터 생성되며,
+[superchain-registry](https://github.com/ethereum-optimism/superchain-registry)와
+대조하여 검증됩니다. 이 표는 절대 수작업으로 편집하지 않습니다.
+[이 레지스트리의 관리 방식](#how-this-registry-is-maintained)을 참조하십시오.
+
+## 활성화
+
+네트워크 업그레이드는 L2 블록 타임스탬프를 기준으로 활성화됩니다. 활성화
+타임스탬프 이전에 OP Stack 소프트웨어를 업그레이드하지 않으면 체인 분기가
+발생하며, 체인을 다시 동기화해야 합니다. 각 업그레이드에 대한 운영자 조치 사항은
+[공지](/ko/notices)에 게시됩니다.
+
+<HardforkSummary />
+
+위의 모든 업그레이드는 **Bedrock**을 기반으로 합니다. Bedrock은
+[거버넌스 승인](https://gov.optimism.io/t/final-upgrade-1-bedrock-protocol-upgrade-v2/5548)을
+받은 2023년 OP Mainnet의 re-genesis로, 블록 `105235063`(L2 타임스탬프 `1686068903`)에서
+이루어졌으며 하드포크 시리즈의 시작점입니다. Sepolia OP Stack 체인은 처음부터
+Bedrock으로 출시되었습니다.
+
+### 활성화 타임스탬프당 하나의 업그레이드
+
+genesis 이후에는 두 개의 네트워크 업그레이드가 동일한 L2 블록 타임스탬프에
+활성화되도록 구성해서는 절대 안 됩니다. 각 업그레이드의 활성화 블록 동작(입금하는
+업그레이드 트랜잭션, 변경하는 상태, 도출하는 블록 attributes)은 이전의 모든
+업그레이드가 이미 활성화된 체인을 기준으로만 정의됩니다. 따라서 두 업그레이드가
+활성화 블록을 공유하는 것은 지원되지 않는 구성이며, 그 결합된 동작은 어떤 명세에서도
+다루지 않습니다. 활성화 타임스탬프는 업그레이드 순서에 따라 엄격하게 증가해야 하며,
+`op-node`는 두 업그레이드가 함께 활성화되도록 예약된 rollup config를 거부합니다.
+Superchain 업그레이드 명세의
+[활성화 규칙](https://specs.optimism.io/protocol/superchain-upgrades.html?utm_source=op-docs&utm_medium=docs#activation-rules)을
+참조하십시오.
+
+업그레이드가 이미 존재하는 시점 이후에 출시되는 체인은 대신 genesis 블록에서 해당
+업그레이드를 활성화하며, 관례적으로 활성화 타임스탬프를 `0`으로 설정합니다. 따라서
+genesis부터 활성화되는 업그레이드들은 타임스탬프를 공유하게 되며, 이는 규칙에서
+허용하는 유일한 경우입니다. 이 제한은 OP Stack 업그레이드에만 적용됩니다. 동일한
+체인에서 OP Stack 업그레이드 타임스탬프가 L1 포크 타임스탬프와 겹치는 것은 제한하지
+않으며, 두 타임스탬프는 일치할 수 있습니다.
+
+## 컨트랙트 업그레이드
+
+거버넌스에서 승인된 모든 업그레이드가 하드포크인 것은 아닙니다. 하드포크는 모든
+체인에서 L2 블록 타임스탬프를 기준으로 활성화되는 반면, 컨트랙트 업그레이드는
+[op-contracts 릴리스](/ko/releases/op-contracts)로 제공되며 거버넌스 승인 후 각 체인의
+L1 컨트랙트에서 실행됩니다. 컨트랙트만 변경하는 업그레이드에는 활성화 타임스탬프가
+없으므로 하드포크 레지스트리 페이지가 생성되지 않습니다. 이러한 업그레이드의 영구
+기록은 op-contracts 릴리스 이력과 운영자 공지입니다.
+
+| 업그레이드 | 제공된 내용 | 운영자 공지 | op-contracts 릴리스 |
+| --- | --- | --- | --- |
+| Upgrade 20 | Super Root 분쟁 게임(dispute game)(`SUPER_PERMISSIONED`, `SUPER_CANNON_KONA`) 및 `SystemConfig` 인터페이스 정리 | [공지](/ko/notices/archive/upgrade-20) | [`v8.0.0`](/ko/releases/op-contracts) |
+| Upgrade 18 | Cannon + Kona game type, Custom Gas Token v2, creator 패턴 분쟁 게임 리팩터링 | [공지](/ko/notices/archive/upgrade-18) | [`v6.0.0`](/ko/releases/op-contracts) |
+| Upgrade 16a | Upgrade 16을 대체하는 유지 보수 릴리스(사용되지 않는 interop 출금 증명 코드 제거, 기능 토글 추가) | [공지](/ko/notices/archive/upgrade-16a) | [`v4.1.0`](/ko/releases/op-contracts) |
+| Upgrade 16 | Interop 대응 `OptimismPortal`, Stage 1 업데이트, Cannon의 Go 1.23 지원 | [공지](/ko/notices/archive/upgrade-16) | [`v4.0.0`](/ko/releases/op-contracts) |
+| Upgrade 14 | 멀티스레드 64비트 Cannon(MT-Cannon) 및 Isthmus L1 컨트랙트 | [공지](/ko/notices/archive/upgrade-14) | [`v3.0.0`](/ko/releases/op-contracts) |
+| Upgrade 13 | OP Contracts Manager(OPCM) 및 사고 대응 개선 | [공지](/ko/notices/archive/upgrade-13) | [`v2.0.0`](/ko/releases/op-contracts) |
+
+하드포크를 수반하는 업그레이드(예: Upgrade 15 / Isthmus, Upgrade 17 / Jovian,
+Upgrade 19 / Karst)는 위의 [활성화 표](#activations)에 나열되어 있으며, 각
+레지스트리 페이지에서 해당 공지로 연결됩니다.
+
+## 업그레이드 프로세스
+
+네트워크 업그레이드는 다음과 같은 일반적인 프로세스를 따릅니다. 업그레이드에
+포함되는 기능은 `develop` 브랜치에서 분기한 릴리스 버전에 포함되며, 이후 해당
+소프트웨어가 프로덕션 네트워크에 배포됩니다.
+
+<Info>
+  네트워크에서 "Baking"이란 node 소프트웨어가 배포되어 실제로 운영 중인 상태를
+  의미합니다. 엔지니어는 이 기간 동안 프로덕션 네트워크에서 소프트웨어의 동작을
+  관찰합니다.
+</Info>
+
+<Image src="/public/img/builders/node-operators/network-upgrades/node-software-release-timeline.png" alt="Node 소프트웨어 릴리스 타임라인" width={0} height={0} sizes="100vw" style={{ width: '100%', height: 'auto' }} quality={100} />
+
+<Steps>
+  <Step title="Devnet">
+  *   `Devnet Upgrade Notice Period`는 핵심 개발자가 활성화 타임스탬프 이전에
+        내부 devnet에서 node 소프트웨어를 업그레이드하는 기간입니다.
+    *   `Upgrade Activates on Devnet`
+    *   `Baking on Devnet`
+  </Step>
+
+  <Step title="Testnet">
+  *   `Testnet Upgrade Notice Period`는 testnet node 운영자가 활성화 타임스탬프
+        이전에 testnet에서 node 소프트웨어를 업그레이드할 수 있도록 하는 기간입니다.
+    *   `Upgrade Activates on Testnet`
+    *   `Baking on Testnet`
+  </Step>
+
+  <Step title="Mainnet">
+  *   `Governance Voting Review Period`는 Optimism 거버넌스가 네트워크 업그레이드
+        제안을 포함한 제안을 검토하는 기간입니다.
+    *   `Governance Voting Period`는 Optimism 거버넌스가 제안에 대해 투표하는
+        기간입니다.
+    *   `Veto Period`는 거버넌스 시스템의 Citizens' House가 Token House에서
+        승인된 프로토콜 업그레이드에 거부권을 행사할 수 있는 기간입니다.
+    *   `Cut Mainnet Release`
+    *   `Mainnet Upgrade Notice Period`는 mainnet node 운영자가 활성화 타임스탬프
+        이전에 mainnet에서 node 소프트웨어를 업그레이드할 수 있도록 하는 기간입니다.
+    *   `Upgrade Activated`
+  </Step>
+</Steps>
+
+## 이 레지스트리의 관리 방식
+
+각 하드포크 페이지는 기계가 읽을 수 있는 정보(lifecycle, 활성화 타임스탬프, 명세
+링크, 최소 구성 요소 버전)를 구조화된 frontmatter에 보관합니다.
+`scripts/generate-hardforks.ts`는 이 데이터를 superchain-registry와 대조하여
+검증하고 활성화 표를 렌더링합니다. 활성화 행을 변경하는 유일한 방법은 frontmatter를
+편집한 후 다시 생성하는 것입니다. 스키마는
+[`scripts/hardfork-registry.md`](https://github.com/ethereum-optimism/optimism/blob/develop/docs/public-docs/scripts/hardfork-registry.md)에
+문서화되어 있습니다.

@@ -13,17 +13,22 @@ pub use metrics::Metrics;
 mod beacon_client;
 pub use beacon_client::{
     APIConfigResponse, APIGenesisResponse, BeaconClient, OnlineBeaconClient, ReducedConfigData,
-    ReducedGenesisData,
+    ReducedGenesisData, SlotDurationError,
 };
 
 mod blobs;
 pub use blobs::{BlobWithCommitmentAndProof, BoxedBlob, OnlineBlobProvider};
 
 mod chain_provider;
-pub use chain_provider::{AlloyChainProvider, AlloyChainProviderError};
+pub use chain_provider::{
+    AlloyChainProvider, AlloyChainProviderError, BlockLabel, InvalidStorageProofReason,
+};
 
 mod l2_chain_provider;
 pub use l2_chain_provider::{AlloyL2ChainProvider, AlloyL2ChainProviderError};
+
+mod buffered_l2_chain_provider;
+pub use buffered_l2_chain_provider::BufferedAlloyL2ChainProvider;
 
 mod pipeline;
 pub use pipeline::OnlinePipeline;

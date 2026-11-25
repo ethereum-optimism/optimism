@@ -10,7 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 )
 
@@ -30,7 +31,7 @@ func TestRestartSync(gt *testing.T) {
 	// Ensure that the nodes are advancing.
 	var preCheckFuns []dsl.CheckFunc
 	for _, node := range out.L2CLNodes() {
-		preCheckFuns = append(preCheckFuns, node.AdvancedFn(types.LocalSafe, 20, 100), node.AdvancedFn(types.LocalUnsafe, 20, 100))
+		preCheckFuns = append(preCheckFuns, node.AdvancedFn(safety.LocalSafe, 20, 100), node.AdvancedFn(safety.LocalUnsafe, 20, 100))
 	}
 	dsl.CheckAll(t, preCheckFuns...)
 
@@ -64,7 +65,7 @@ func TestRestartSync(gt *testing.T) {
 		t.Require().Error(err, "expected node %s to be stopped", clName)
 	}
 
-	sequencer.Advanced(types.LocalUnsafe, 50, 200)
+	sequencer.Advanced(safety.LocalUnsafe, 50, 200)
 
 	var postStartCheckFuns []dsl.CheckFunc
 	for _, node := range nodes {
@@ -75,7 +76,7 @@ func TestRestartSync(gt *testing.T) {
 		node.ConnectPeer(&sequencer)
 
 		// Check that the node is resyncing with the network
-		postStartCheckFuns = append(postStartCheckFuns, node_utils.MatchedWithinRange(t, node, sequencer, 3, types.LocalSafe, 100), node_utils.MatchedWithinRange(t, node, sequencer, 3, types.LocalUnsafe, 100))
+		postStartCheckFuns = append(postStartCheckFuns, node_utils.MatchedWithinRange(t, node, sequencer, 3, safety.LocalSafe, 100), node_utils.MatchedWithinRange(t, node, sequencer, 3, safety.LocalUnsafe, 100))
 
 		// Check that the node is connected to the reference node
 		peers := node.Peers()

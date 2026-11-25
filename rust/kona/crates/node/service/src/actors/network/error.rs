@@ -4,7 +4,7 @@ use kona_disc::Discv5BuilderError;
 use kona_gossip::GossipDriverBuilderError;
 
 /// An error from the [`crate::NetworkBuilder`].
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum NetworkBuilderError {
     /// An error from building the gossip driver.
     #[error(transparent)]

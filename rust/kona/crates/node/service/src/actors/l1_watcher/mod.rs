@@ -1,6 +1,9 @@
 mod actor;
 pub use actor::L1WatcherActor;
 
+mod chain;
+pub use chain::L1WatcherChain;
+
 mod blockstream;
 pub use blockstream::BlockStream;
 

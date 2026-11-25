@@ -5,11 +5,17 @@ import (
 	"math/big"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 func TestPlannedTx_Defaults(t *testing.T) {
@@ -19,7 +25,7 @@ func TestPlannedTx_Defaults(t *testing.T) {
 	ptx := NewPlannedTx(WithPrivateKey(key), WithValue(eth.WeiU64(123)))
 	t.Log("tx", ptx.Signed.String())
 
-	block := types.NewBlock(&types.Header{BaseFee: big.NewInt(7e9)}, nil, nil, nil, types.DefaultBlockConfig)
+	block := types.NewBlockWithHeader(&types.Header{BaseFee: big.NewInt(7e9)})
 	blockInfo := eth.BlockToInfo(block)
 	ptx.AgainstBlock.Set(blockInfo)
 
@@ -47,5 +53,88 @@ func TestPlannedTx_Defaults(t *testing.T) {
 		require.Equal(t, expectedAddr, sender)
 
 		require.Equal(t, big.NewInt(42), tx.Value())
+	}
+}
+
+type mockReader struct {
+	msg         ethereum.CallMsg
+	blockNumber rpc.BlockNumber
+}
+
+func (m *mockReader) Call(_ context.Context, msg ethereum.CallMsg, blockNumber rpc.BlockNumber) ([]byte, error) {
+	m.msg = msg
+	m.blockNumber = blockNumber
+	return []byte{0x01}, nil
+}
+
+func TestWithReaderDoesNotUseDefaultFeeCaps(t *testing.T) {
+	reader := new(mockReader)
+	to := common.Address{0x01}
+	from := common.Address{0x02}
+	accessList := types.AccessList{
+		{Address: common.Address{0x03}, StorageKeys: []common.Hash{{0x04}}},
+	}
+	block := types.NewBlockWithHeader(&types.Header{Number: big.NewInt(7), BaseFee: big.NewInt(8)})
+
+	ptx := NewPlannedTx(
+		WithReader(reader),
+		WithSender(from),
+		WithTo(&to),
+		WithValue(eth.WeiU64(9)),
+		WithData([]byte{0x0a}),
+	)
+	ptx.AccessList.Set(accessList)
+	ptx.AgainstBlock.Set(eth.BlockToInfo(block))
+
+	output, err := ptx.Read.Eval(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []byte{0x01}, output)
+
+	require.Equal(t, from, reader.msg.From)
+	require.Equal(t, &to, reader.msg.To)
+	require.Zero(t, reader.msg.Gas)
+	require.Nil(t, reader.msg.GasPrice)
+	require.Nil(t, reader.msg.GasFeeCap)
+	require.Nil(t, reader.msg.GasTipCap)
+	require.Equal(t, big.NewInt(9), reader.msg.Value)
+	require.Equal(t, []byte{0x0a}, reader.msg.Data)
+	require.Equal(t, accessList, reader.msg.AccessList)
+	require.Equal(t, rpc.BlockNumber(7), reader.blockNumber)
+}
+
+type stubReceiptGetter map[common.Hash]*optypes.Receipt
+
+func (s stubReceiptGetter) TransactionReceipt(_ context.Context, txHash common.Hash) (*optypes.Receipt, error) {
+	if r, ok := s[txHash]; ok {
+		return r, nil
+	}
+	return nil, ethereum.NotFound
+}
+
+// TestIncludedKeepsOPReceiptFields checks that Included is the receipt the ReceiptGetter returns,
+// so a caller can read the L1 and operator fees without fetching the receipt again.
+func TestIncludedKeepsOPReceiptFields(t *testing.T) {
+	tx := types.NewTx(&types.DynamicFeeTx{Nonce: 1})
+	want := &optypes.Receipt{
+		Receipt:             types.Receipt{TxHash: tx.Hash(), Status: types.ReceiptStatusSuccessful},
+		L1Fee:               big.NewInt(1234),
+		OperatorFeeScalar:   ptr.New(uint64(5)),
+		OperatorFeeConstant: ptr.New(uint64(6)),
+	}
+	cl := stubReceiptGetter{tx.Hash(): want}
+
+	for name, opt := range map[string]Option{
+		"WithAssumedInclusion": WithAssumedInclusion(cl),
+		"WithRetryInclusion":   WithRetryInclusion(cl, 1, &retry.FixedStrategy{}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ptx := NewPlannedTx(opt)
+			ptx.Signed.Set(tx)
+			ptx.Submitted.Set(struct{}{})
+
+			got, err := ptx.Included.Eval(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, want, got)
+		})
 	}
 }

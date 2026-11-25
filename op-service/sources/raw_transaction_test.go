@@ -1,0 +1,249 @@
+package sources
+
+import (
+	"encoding/json"
+	"math/big"
+	"testing"
+
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/trie"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
+)
+
+// l2BlockTxs builds the canonical binary encodings of a Lagoon-era L2 block's
+// transaction list: the L1-info deposit first, user transactions of several
+// standard types, and a trailing post-exec transaction.
+func l2BlockTxs(t *testing.T) RawTransactions {
+	t.Helper()
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	chainID := big.NewInt(10)
+	signer := types.LatestSignerForChainID(chainID)
+	to := common.HexToAddress("0x4242424242424242424242424242424242424242")
+
+	deposit, err := (&optypes.DepositTx{
+		SourceHash: common.HexToHash("0x01"),
+		From:       common.HexToAddress("0x1111111111111111111111111111111111111111"),
+		Mint:       big.NewInt(0),
+		Value:      big.NewInt(0),
+		Gas:        1_000_000,
+		Data:       []byte{0xde, 0xad},
+	}).MarshalBinary()
+	require.NoError(t, err)
+	legacy := types.MustSignNewTx(key, signer, &types.LegacyTx{
+		Nonce: 0, GasPrice: big.NewInt(2), Gas: 21000, To: &to, Value: big.NewInt(1),
+	})
+	dynFee := types.MustSignNewTx(key, signer, &types.DynamicFeeTx{
+		ChainID: chainID, Nonce: 1, GasTipCap: big.NewInt(1), GasFeeCap: big.NewInt(5),
+		Gas: 21000, To: &to, Value: big.NewInt(2),
+	})
+	blob := types.MustSignNewTx(key, signer, &types.BlobTx{
+		ChainID: uint256.NewInt(10), Nonce: 2, GasTipCap: uint256.NewInt(1),
+		GasFeeCap: uint256.NewInt(5), Gas: 21000, To: to, BlobFeeCap: uint256.NewInt(1),
+		BlobHashes: []common.Hash{{0x01}},
+	})
+	setCode := types.MustSignNewTx(key, signer, &types.SetCodeTx{
+		ChainID: uint256.NewInt(10), Nonce: 3, GasTipCap: uint256.NewInt(1),
+		GasFeeCap: uint256.NewInt(5), Gas: 50000, To: to,
+		AuthList: []types.SetCodeAuthorization{
+			{ChainID: *uint256.NewInt(10), Address: to, Nonce: 7, V: 1, R: *uint256.NewInt(2), S: *uint256.NewInt(3)},
+			// EIP-7702 only bounds an authorization's yParity to a byte: one that
+			// recovers no signer is skipped at execution and the tx stays valid.
+			// Mainnet L1 block 26268195 holds one with yParity 28. A decoder that
+			// rejects it can never read a block holding such a tx.
+			{ChainID: *uint256.NewInt(10), Address: to, Nonce: 8, V: 28, R: *uint256.NewInt(2), S: *uint256.NewInt(3)},
+		},
+	})
+	postExec, err := (&optypes.PostExecTx{Data: []byte{0xc2, 0x80, 0x80}}).MarshalBinary()
+	require.NoError(t, err)
+
+	txs := append(RawTransactions{deposit}, mustRawTransactions(types.Transactions{legacy, dynFee, blob, setCode})...)
+	return append(txs, postExec)
+}
+
+// l2RPCBlockJSON serves an RPC block JSON object for the given transactions,
+// with a consistent transactions root and block hash.
+func l2RPCBlockJSON(t *testing.T, txs RawTransactions) []byte {
+	t.Helper()
+	hdr := RPCHeader{
+		UncleHash: types.EmptyUncleHash,
+		Number:    hexutil.Uint64(123),
+		Time:      hexutil.Uint64(1_700_000_000),
+		GasUsed:   hexutil.Uint64(21_000),
+		BaseFee:   (*hexutil.Big)(big.NewInt(7)),
+		TxHash:    types.DeriveSha(txs, trie.NewStackTrie(nil)),
+	}
+	hdr.Hash = hdr.computeBlockHash()
+
+	blockJSON, err := json.Marshal(&RPCBlock{RPCHeader: hdr, Transactions: txs})
+	require.NoError(t, err)
+	return blockJSON
+}
+
+// TestRPCBlockDecodesL2Block asserts that an L2 block's JSON — deposit,
+// standard user txs, and post-exec — decodes into the canonical per-tx binary
+// encodings, verifies against the transactions root, and passes through to the
+// execution payload byte-identically.
+func TestRPCBlockDecodesL2Block(t *testing.T) {
+	txs := l2BlockTxs(t)
+	blockJSON := l2RPCBlockJSON(t, txs)
+
+	var block RPCBlock
+	require.NoError(t, json.Unmarshal(blockJSON, &block))
+	require.Len(t, block.Transactions, len(txs))
+	for i, tx := range txs {
+		require.Equal(t, []byte(tx), []byte(block.Transactions[i]), "tx %d binary encoding", i)
+	}
+
+	require.NoError(t, block.Verify(), "tx root and block hash must verify")
+
+	envelope, err := block.ExecutionPayloadEnvelope(false)
+	require.NoError(t, err)
+	require.Len(t, envelope.ExecutionPayload.Transactions, len(txs))
+	for i := range txs {
+		require.Equal(t, []byte(block.Transactions[i]), []byte(envelope.ExecutionPayload.Transactions[i]), "payload tx %d passthrough", i)
+	}
+}
+
+// TestRPCBlockJSONRoundTrip asserts marshal(unmarshal(J)) is a fixed point on
+// the transaction objects.
+func TestRPCBlockJSONRoundTrip(t *testing.T) {
+	blockJSON := l2RPCBlockJSON(t, l2BlockTxs(t))
+
+	var block RPCBlock
+	require.NoError(t, json.Unmarshal(blockJSON, &block))
+	remarshaled, err := json.Marshal(&block)
+	require.NoError(t, err)
+	var block2 RPCBlock
+	require.NoError(t, json.Unmarshal(remarshaled, &block2))
+	require.Equal(t, block.Transactions, block2.Transactions)
+	require.Equal(t, block.RPCHeader, block2.RPCHeader)
+}
+
+func TestRawTransactionsPartition(t *testing.T) {
+	txs := l2BlockTxs(t)
+	blockJSON := l2RPCBlockJSON(t, txs)
+	var block RPCBlock
+	require.NoError(t, json.Unmarshal(blockJSON, &block))
+
+	userTxs, err := block.Transactions.UserTxs()
+	require.NoError(t, err)
+	require.Len(t, userTxs, 4, "deposit and post-exec txs are excluded")
+	for i, tx := range userTxs {
+		require.Equal(t, txs[i+1].Hash(), tx.Hash(), "user tx %d", i)
+	}
+
+	deposits, err := block.Transactions.Deposits()
+	require.NoError(t, err)
+	require.Len(t, deposits, 1)
+	require.Equal(t, common.HexToHash("0x01"), deposits[0].SourceHash)
+
+	first, err := block.Transactions.FirstDeposit()
+	require.NoError(t, err)
+	require.Equal(t, deposits[0], first)
+
+	// A list not starting with a deposit has no first deposit.
+	_, err = RawTransactions{block.Transactions[1]}.FirstDeposit()
+	require.ErrorIs(t, err, ErrMissingFirstDeposit)
+	_, err = RawTransactions{}.FirstDeposit()
+	require.ErrorIs(t, err, ErrMissingFirstDeposit)
+
+	// Zero-length entries error rather than classifying as user txs.
+	_, err = RawTransactions{{}}.UserTxs()
+	require.ErrorContains(t, err, "empty")
+	_, err = RawTransactions{{}}.Deposits()
+	require.ErrorContains(t, err, "empty")
+}
+
+// TestRawTransactionJSONEmptyPostExecRejected pins the canonical-encoding
+// contract on decode: a post-exec tx with empty input must fail JSON decode
+// rather than produce the one-byte value 0x7d, which the binary decoders
+// (UnmarshalPostExecTx, op-geth) reject.
+func TestRawTransactionJSONEmptyPostExecRejected(t *testing.T) {
+	var tx RawTransaction
+	err := json.Unmarshal([]byte(`{"type":"0x7d","input":"0x"}`), &tx)
+	require.ErrorContains(t, err, "invalid post-exec tx")
+}
+
+// TestRawTransactionJSONLegacyWithoutType covers an RPC transaction object with
+// no type field, which decodes as a legacy transaction.
+func TestRawTransactionJSONLegacyWithoutType(t *testing.T) {
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	to := common.HexToAddress("0x4242424242424242424242424242424242424242")
+	tx := types.MustSignNewTx(key, types.LatestSignerForChainID(big.NewInt(10)), &types.LegacyTx{
+		Nonce: 3, GasPrice: big.NewInt(2), Gas: 21000, To: &to, Value: big.NewInt(1),
+	})
+	txJSON, err := tx.MarshalJSON()
+	require.NoError(t, err)
+	obj := map[string]json.RawMessage{}
+	require.NoError(t, json.Unmarshal(txJSON, &obj))
+	delete(obj, "type")
+	stripped, err := json.Marshal(obj)
+	require.NoError(t, err)
+
+	var raw RawTransaction
+	require.NoError(t, json.Unmarshal(stripped, &raw))
+	want, err := tx.MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, want, []byte(raw))
+	require.Equal(t, tx.Hash(), raw.Hash())
+}
+
+// TestRPCBlockNullTransactionRejected pins what a JSON null transaction costs: it
+// decodes to an empty RawTransaction, which has no canonical encoding and no
+// hash, so block verification must reject the block rather than pass it on.
+func TestRPCBlockNullTransactionRejected(t *testing.T) {
+	blockJSON := l2RPCBlockJSON(t, l2BlockTxs(t))
+	obj := map[string]json.RawMessage{}
+	require.NoError(t, json.Unmarshal(blockJSON, &obj))
+	var txsJSON []json.RawMessage
+	require.NoError(t, json.Unmarshal(obj["transactions"], &txsJSON))
+	txsJSON[1] = json.RawMessage("null")
+	var err error
+	obj["transactions"], err = json.Marshal(txsJSON)
+	require.NoError(t, err)
+	withNull, err := json.Marshal(obj)
+	require.NoError(t, err)
+
+	var block RPCBlock
+	require.NoError(t, json.Unmarshal(withNull, &block))
+	require.Empty(t, block.Transactions[1])
+	require.ErrorContains(t, block.Verify(), "block tx 1 is nil or empty")
+}
+
+// TestRawTransactionsGeth decodes the user txs of an L2 block, the only class
+// upstream go-ethereum decodes, and checks they match the block's UserTxs
+// partition, and that an OP Stack tx fails with ErrOpTxInBody.
+func TestRawTransactionsGeth(t *testing.T) {
+	txs := l2BlockTxs(t)
+	userRaw := txs[1 : len(txs)-1] // between the leading deposit and the trailing post-exec tx
+
+	decoded, err := userRaw.Geth()
+	require.NoError(t, err)
+	require.Len(t, decoded, len(userRaw))
+	userTxs, err := txs.UserTxs()
+	require.NoError(t, err)
+	require.Len(t, userTxs, len(userRaw))
+	for i, tx := range decoded {
+		require.Equal(t, userRaw[i].Hash(), tx.Hash(), "tx %d", i)
+		require.Equal(t, userTxs[i].Hash(), tx.Hash(), "tx %d", i)
+	}
+
+	_, err = RawTransactions{{0xff}}.Geth()
+	require.Error(t, err)
+
+	_, err = txs.Geth()
+	require.ErrorIs(t, err, ErrOpTxInBody)
+	for _, opTx := range []RawTransaction{txs[0], txs[len(txs)-1]} {
+		_, err = RawTransactions{opTx}.Geth()
+		require.ErrorIs(t, err, ErrOpTxInBody, "tx type %#x", opTx.Type())
+	}
+}

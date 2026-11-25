@@ -7,14 +7,16 @@ import (
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
-const EnvVarPrefix = "OP_CONDUCTOR"
+const (
+	EnvVarPrefix                    = "OP_CONDUCTOR"
+	DefaultExecutionHeaderCacheSize = 1000
+)
 
 var (
 	ConsensusAddr = &cli.StringFlag{
@@ -91,10 +93,11 @@ var (
 		Usage:   "HTTP provider URL for execution layer",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EXECUTION_RPC"),
 	}
-	SupervisorRPC = &cli.StringFlag{
-		Name:    "supervisor.rpc",
-		Usage:   "HTTP provider URL for supervisor",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "SUPERVISOR_RPC"),
+	ExecutionHeaderCacheSize = &cli.IntFlag{
+		Name:    "execution.header-cache-size",
+		Usage:   "Number of execution layer headers to cache. Zero uses the default.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EXECUTION_HEADER_CACHE_SIZE"),
+		Value:   DefaultExecutionHeaderCacheSize,
 	}
 	RollupBoostEnabled = &cli.BoolFlag{
 		Name:    "rollup-boost.enabled",
@@ -236,6 +239,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	ExecutionHeaderCacheSize,
 	AdvertisedFullAddr,
 	Paused,
 	RPCEnableProxy,
@@ -247,7 +251,6 @@ var optionalFlags = []cli.Flag{
 	RaftTrailingLogs,
 	RaftHeartbeatTimeout,
 	RaftLeaderLeaseTimeout,
-	SupervisorRPC,
 	RollupBoostEnabled,
 	RollupBoostHealthcheckTimeout,
 	RollupBoostNextEnabled,
@@ -264,10 +267,10 @@ var optionalFlags = []cli.Flag{
 
 func init() {
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, logcli.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, "")...)
+	optionalFlags = append(optionalFlags, deprecatedFlags...)
 	optionalFlags = append(optionalFlags, RollupBoostWsURL)
 	optionalFlags = append(optionalFlags, WebsocketServerPort)
 	Flags = append(requiredFlags, optionalFlags...)
@@ -281,5 +284,5 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
-	return opflags.CheckRequiredXor(ctx)
+	return nil
 }

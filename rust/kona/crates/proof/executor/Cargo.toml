@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 # Workspace
 kona-mpt.workspace = true
-kona-genesis = { workspace = true, features = ["revm"] }
+kona-genesis.workspace = true
 kona-protocol.workspace = true
 
 # Alloy

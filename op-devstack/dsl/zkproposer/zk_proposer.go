@@ -1,0 +1,179 @@
+package zkproposer
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	devtestmetrics "github.com/ethereum-optimism/optimism/op-devstack/devtest/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+)
+
+const (
+	metricPollInterval         = 100 * time.Millisecond
+	stateWaitTimeout           = 10 * time.Minute
+	defenseTasksSpawnedMetric  = "op_zk_proposer_games_defense_spawned"
+	gameProvingFailuresMetric  = "op_zk_proposer_game_proving_error"
+	logBatchesSubmittedMetric  = "op_zk_proposer_log_batches_submitted"
+	spanBisectionsMetric       = "op_zk_proposer_span_bisections"
+	rangeChainSplitsMetric     = "op_zk_proposer_range_chain_splits"
+	metricsDisabledInstruction = "ZK proposer metrics are disabled; pass presets.WithZKProposerOption(sysgo.WithZKMetrics()) when creating the preset"
+)
+
+// Runtime provides the process-owned metrics transport without exposing its endpoint.
+type Runtime interface {
+	MetricsClient() client.HTTP
+}
+
+// ZKProposer verifies the observable state of a running op-zk-proposer.
+type ZKProposer struct {
+	t       devtest.T
+	log     log.Logger
+	metrics *devtestmetrics.MetricsClient
+}
+
+// New creates a DSL facade for a running proposer runtime.
+func New(t devtest.T, runtime Runtime) *ZKProposer {
+	t.Require().NotNil(runtime, "ZK proposer runtime must not be nil")
+	var metricsClient *devtestmetrics.MetricsClient
+	if httpClient := runtime.MetricsClient(); httpClient != nil {
+		metricsClient = devtestmetrics.NewMetricsClient(httpClient, devtestmetrics.WithWaitTimeout(stateWaitTimeout))
+	}
+	return &ZKProposer{t: t, log: t.Logger(), metrics: metricsClient}
+}
+
+// StateExpectation describes one proposer-state observation.
+type StateExpectation struct {
+	description string
+	expected    int
+	metric      string
+	atLeast     bool
+}
+
+// DefenseTasksSpawned expects the exact number of spawned defense tasks.
+func DefenseTasksSpawned(expected int) *StateExpectation {
+	return &StateExpectation{
+		description: "defense tasks spawned",
+		expected:    expected,
+		metric:      defenseTasksSpawnedMetric,
+	}
+}
+
+// ProvingFailures expects the exact number of proving failures.
+func ProvingFailures(expected int) *StateExpectation {
+	return &StateExpectation{
+		description: "proving failures",
+		expected:    expected,
+		metric:      gameProvingFailuresMetric,
+	}
+}
+
+// LogBatchesSubmitted expects the exact number of log-commitment batch proof
+// requests.
+func LogBatchesSubmitted(expected int) *StateExpectation {
+	return &StateExpectation{
+		description: "log batches submitted",
+		expected:    expected,
+		metric:      logBatchesSubmittedMetric,
+	}
+}
+
+// LogBatchesSubmittedAtLeast expects at least minimum log-commitment batch proof requests.
+func LogBatchesSubmittedAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "log batches submitted",
+		expected:    minimum,
+		metric:      logBatchesSubmittedMetric,
+		atLeast:     true,
+	}
+}
+
+// SpanBisectionsAtLeast expects at least minimum proving spans halved for
+// exceeding a proving limit.
+func SpanBisectionsAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "span bisections",
+		expected:    minimum,
+		metric:      spanBisectionsMetric,
+		atLeast:     true,
+	}
+}
+
+// RangeChainSplitsAtLeast expects at least minimum single-timestamp range
+// requests split by chain for exceeding a proving limit.
+func RangeChainSplitsAtLeast(minimum int) *StateExpectation {
+	return &StateExpectation{
+		description: "range chain splits",
+		expected:    minimum,
+		metric:      rangeChainSplitsMetric,
+		atLeast:     true,
+	}
+}
+
+// VerifyState waits for every expectation to hold in one metrics snapshot.
+func (p *ZKProposer) VerifyState(expectations ...*StateExpectation) {
+	p.t.Require().NoError(p.verifyState(p.t.Ctx(), expectations...), "verify ZK proposer state")
+}
+
+func (p *ZKProposer) verifyState(ctx context.Context, expectations ...*StateExpectation) error {
+	if p.metrics == nil {
+		return errors.New(metricsDisabledInstruction)
+	}
+	if len(expectations) == 0 {
+		return errors.New("at least one ZK proposer state expectation is required")
+	}
+	for i, expectation := range expectations {
+		if expectation == nil || expectation.metric == "" {
+			return fmt.Errorf("ZK proposer state expectation %d is empty", i)
+		}
+	}
+
+	type observation struct {
+		value uint64
+		err   string
+		seen  bool
+	}
+	last := make([]observation, len(expectations))
+	p.log.Info("Waiting for ZK proposer state", "expectations", len(expectations))
+	_, err := p.metrics.WaitForSnapshot(ctx, metricPollInterval, func(snapshot *devtestmetrics.Snapshot) error {
+		for i, expectation := range expectations {
+			observed, err := snapshot.Gauge(expectation.metric, nil)
+			current := observation{value: math.Float64bits(observed), seen: true}
+			if err != nil {
+				current.err = err.Error()
+			}
+			if current != last[i] {
+				last[i] = current
+				if err != nil {
+					p.log.Info("ZK proposer state observation unavailable",
+						"expectation", expectation.description,
+						"expected", expectation.expected,
+						"at_least", expectation.atLeast,
+						"err", err)
+				} else {
+					p.log.Info("Observed ZK proposer state",
+						"expectation", expectation.description,
+						"expected", expectation.expected,
+						"at_least", expectation.atLeast,
+						"observed", observed)
+				}
+			}
+			if err != nil {
+				return fmt.Errorf("%s: %w", expectation.description, err)
+			}
+			if expectation.atLeast {
+				if observed < float64(expectation.expected) {
+					return fmt.Errorf("%s expected at least %d but observed %v", expectation.description, expectation.expected, observed)
+				}
+			} else if observed != float64(expectation.expected) {
+				return fmt.Errorf("%s expected %d but observed %v", expectation.description, expectation.expected, observed)
+			}
+		}
+		return nil
+	})
+	return err
+}

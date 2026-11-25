@@ -7,7 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // TestELSyncSafeRetractedByOffset verifies that when OffsetELSafe is configured on
@@ -24,7 +25,8 @@ import (
 //  5. Assert safe/finalized are behind unsafe.
 func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sysgo.SkipOnOpReth(t, "not supported (peering issue)")
+	// TODO(#23828): remove once kona-node supports OffsetELSafe.
+	sysgo.SkipOnKonaNode(t, "kona-node does not support OffsetELSafe")
 	sys := newOffsetELSafeSystem(t)
 	require := t.Require()
 	logger := t.Logger()
@@ -32,12 +34,13 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	// Advance both CLs to LocalSafe so the verifier CL has valid finalized state
 	// before we stop it (prevents "forkchoice not initialized" after EL wipe).
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
-		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
-	sys.L2CLB.InSync(sys.L2CL, types.LocalSafe, 30)
+		sys.L2CL.AdvancedFn(safety.LocalSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(safety.LocalSafe, 1, 30))
+	sys.L2CLB.InSync(sys.L2CL, safety.LocalSafe, 30)
 
 	// Stop verifier and wipe its EL to force a full EL sync on restart.
 	sys.L2ELB.Stop()
+	sys.L2ELB.Wipe()
 	sys.L2CLB.Stop()
 
 	// Stop the batcher so new sequencer blocks are unsafe-only.
@@ -46,10 +49,12 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	sys.L2Batcher.Stop()
 
 	// Advance sequencer further while verifier is down (unsafe only, no batches).
-	sys.L2CL.Advanced(types.LocalUnsafe, 3, 30)
+	sys.L2CL.Advanced(safety.LocalUnsafe, 3, 30)
 
 	sys.L2ELB.Start()
+	t.Require().Zero(sys.L2ELB.BlockRefByLabel(eth.Unsafe).Number, "EL resync must start from genesis")
 	sys.L2CLB.Start()
+	sys.L2ELB.WaitForOnline()
 	sys.L2ELB.PeerWith(sys.L2EL)
 
 	// Wait for the verifier CL to advance LocalSafe, which confirms:
@@ -58,7 +63,9 @@ func TestELSyncSafeRetractedByOffset(gt *testing.T) {
 	//  - Derivation began processing old batched data
 	// Because the batcher is stopped, derivation can only reach the last batched
 	// block — the gap between safe and unsafe is permanent.
-	sys.L2CLB.Advanced(types.LocalSafe, 1, 30)
+	// A full EL sync after a wipe is slower than the initial sync, so allow the
+	// same budget as TestTruncateDatabaseOnELResync.
+	sys.L2CLB.Advanced(safety.LocalSafe, 1, 90)
 
 	unsafeHead := sys.L2ELB.BlockRefByLabel(eth.Unsafe)
 	safeHead := sys.L2ELB.SafeHead().BlockRef

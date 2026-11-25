@@ -15,9 +15,11 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IStorageSetter } from "interfaces/universal/IStorageSetter.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
+import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 
 /// @title OPContractsManagerUtils
 /// @notice OPContractsManagerUtils is a contract that provides utility functions for the OPContractsManager.
@@ -41,6 +43,9 @@ contract OPContractsManagerUtils {
     /// @notice ERC-7201 Initializable slot used by OpenZeppelin Contracts v5.
     bytes32 internal constant OZ_V5_INITIALIZABLE_SLOT =
         0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+
+    /// @notice ABI-encoded ZKDisputeGameConfig length: four static 32-byte fields.
+    uint256 internal constant ZK_DISPUTE_GAME_CONFIG_LENGTH = 4 * 32;
 
     /// @notice Emitted when a proxy is created by this contract.
     /// @param name  The name of the proxy.
@@ -298,7 +303,7 @@ contract OPContractsManagerUtils {
     }
 
     /// @notice Upgrades a contract by resetting the initialized slot and calling the initializer.
-    /// @param _proxyAdmin The proxy admin of the contract.
+    /// @param _proxyAdmin Fallback ProxyAdmin, used when the target can't report its own.
     /// @param _target The target of the contract.
     /// @param _implementation The implementation of the contract.
     /// @param _data The data to call the initializer with.
@@ -314,6 +319,13 @@ contract OPContractsManagerUtils {
     )
         external
     {
+        // Route the upgrade through the ProxyAdmin that actually administers the target rather
+        // than assuming the caller's. After an interop migration a chain set shares an ETHLockbox,
+        // DisputeGameFactory, AnchorStateRegistry and DelayedWETH that are all administered by the
+        // first chain's ProxyAdmin, so an upgrade driven by any other member would otherwise
+        // revert on the shared contracts' proxy admin-slot check. Ref: #21731.
+        _proxyAdmin = _adminFor(_proxyAdmin, _target);
+
         // Check to make sure that we're not downgrading. Downgrades aren't inherently dangerous
         // but we also don't test for them so we don't really know if a specific downgrade will be
         // dangerous or not. It's easier to just revert instead.
@@ -338,7 +350,8 @@ contract OPContractsManagerUtils {
         }
 
         // Upgrade to StorageSetter.
-        _proxyAdmin.upgrade(payable(_target), address(implementations().storageSetterImpl));
+        address storageSetter = implementations().storageSetterImpl;
+        _proxyAdmin.upgrade(payable(_target), storageSetter);
 
         // OpenZeppelin Contracts v5 Initializable uses an ERC-7201 namespaced slot instead of
         // the v4 one-byte `_initialized` field. OPCM does not support the v5 layout, so abort
@@ -357,6 +370,36 @@ contract OPContractsManagerUtils {
 
         // Upgrade to the implementation and call the initializer.
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);
+
+        // The check above only inspects the proxy's state before the upgrade, so it cannot catch a
+        // v5-style implementation whose initializer writes the ERC-7201 slot during upgradeAndCall.
+        // Re-point at StorageSetter to read what the initializer wrote and revert the whole upgrade
+        // if v5 state is now present, which keeps an unsupported implementation from being installed.
+        // TODO: This should be removed when the OPCM has proper support for upgrading a v5 Initializable contract.
+        _proxyAdmin.upgrade(payable(_target), storageSetter);
+        if (IStorageSetter(_target).getBytes32(OZ_V5_INITIALIZABLE_SLOT) != bytes32(0)) {
+            revert OPContractsManagerUtils_OZv5InitializableUnsupported();
+        }
+
+        // No v5 state was written, so restore the real implementation. A plain upgrade (not
+        // upgradeAndCall) leaves the initializer state from above intact and does not re-run it.
+        _proxyAdmin.upgrade(payable(_target), _implementation);
+    }
+
+    /// @notice Resolves the ProxyAdmin that administers a proxy from its self-reported admin
+    ///         (ProxyAdminOwnedBase), so upgrades route correctly when a chain set spans distinct
+    ///         ProxyAdmins. Falls back to _defaultAdmin for a freshly-deployed proxy that can't
+    ///         report one yet, which is always administered by the ProxyAdmin that deployed it.
+    /// @param _defaultAdmin Fallback ProxyAdmin for not-yet-initialized proxies.
+    /// @param _target The proxy whose administering ProxyAdmin should be resolved.
+    /// @return The administering ProxyAdmin.
+    function _adminFor(IProxyAdmin _defaultAdmin, address _target) internal view returns (IProxyAdmin) {
+        // eip150-safe
+        try IProxyAdminOwnedBase(_target).proxyAdmin() returns (IProxyAdmin admin_) {
+            return address(admin_) == address(0) ? _defaultAdmin : admin_;
+        } catch {
+            return _defaultAdmin;
+        }
     }
 
     /// @notice Returns the implementations for the contracts.
@@ -382,7 +425,7 @@ contract OPContractsManagerUtils {
             return IDisputeGame(impls.permissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.CANNON_KONA.raw()) {
             return IDisputeGame(impls.faultDisputeGameImpl);
-        } else if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        } else if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED.raw()) {
             return IDisputeGame(impls.superPermissionedDisputeGameImpl);
         } else if (_gameType.raw() == GameTypes.SUPER_CANNON_KONA.raw()) {
             return IDisputeGame(impls.superFaultDisputeGameImpl);
@@ -429,7 +472,7 @@ contract OPContractsManagerUtils {
                 address(_delayedWETH),
                 chainId
             );
-        } else if (rawGT == GameTypes.PERMISSIONED_CANNON.raw() || rawGT == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+        } else if (rawGT == GameTypes.PERMISSIONED_CANNON.raw()) {
             IOPContractsManagerUtils.PermissionedDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.PermissionedDisputeGameConfig));
             return abi.encodePacked(
@@ -441,21 +484,101 @@ contract OPContractsManagerUtils {
                 parsedInputArgs.proposer,
                 parsedInputArgs.challenger
             );
+        } else if (rawGT == GameTypes.SUPER_PERMISSIONED.raw()) {
+            IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig memory parsedInputArgs =
+                abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig));
+            return abi.encodePacked(address(_anchorStateRegistry), parsedInputArgs.proposer);
         } else if (rawGT == GameTypes.ZK_DISPUTE_GAME.raw()) {
+            if (_gcfg.gameArgs.length != ZK_DISPUTE_GAME_CONFIG_LENGTH) {
+                revert IOPContractsManagerUtils.OPContractsManagerUtils_InvalidZKGameArgsLength(_gcfg.gameArgs.length);
+            }
             IOPContractsManagerUtils.ZKDisputeGameConfig memory parsedInputArgs =
                 abi.decode(_gcfg.gameArgs, (IOPContractsManagerUtils.ZKDisputeGameConfig));
             return abi.encodePacked(
                 parsedInputArgs.absolutePrestate,
-                parsedInputArgs.verifier,
+                impls.sp1PlonkAdapterImpl,
                 parsedInputArgs.maxChallengeDuration,
                 parsedInputArgs.maxProveDuration,
                 parsedInputArgs.challengerBond,
                 address(_anchorStateRegistry),
-                address(_delayedWETH),
-                chainId
+                address(_delayedWETH)
             );
         } else {
             revert IOPContractsManagerUtils.OPContractsManagerUtils_UnsupportedGameType();
         }
+    }
+
+    /// @notice Reads a chain's last used OPCM and parses it alongside the calling OPCM's version.
+    ///         Shared by the upgrade and migrate sequence checks.
+    /// @param _systemConfig The SystemConfig of the chain to compare.
+    /// @param _opcm The OPCM performing the action.
+    /// @return isSameOPCM_ Whether _opcm is the OPCM that last touched the chain.
+    /// @return lastUsedSemver_ The parsed version of the chain's last used OPCM.
+    /// @return thisSemver_ The parsed version of _opcm.
+    function _compareToLastUsedOPCM(
+        ISystemConfig _systemConfig,
+        address _opcm
+    )
+        private
+        view
+        returns (bool isSameOPCM_, SemverComp.Semver memory lastUsedSemver_, SemverComp.Semver memory thisSemver_)
+    {
+        ISemver lastUsedOPCM = ISemver(address(_systemConfig.lastUsedOPCM()));
+        isSameOPCM_ = address(lastUsedOPCM) == _opcm;
+        lastUsedSemver_ = SemverComp.parse(lastUsedOPCM.version());
+        thisSemver_ = SemverComp.parse(ISemver(_opcm).version());
+    }
+
+    /// @notice Returns whether a chain may be upgraded by the given OPCM.
+    /// @param _systemConfig The SystemConfig of the chain to check.
+    /// @param _opcm The OPCM performing the upgrade.
+    /// @return True if the upgrade sequence is permitted.
+    function isPermittedUpgradeSequence(ISystemConfig _systemConfig, address _opcm) external view returns (bool) {
+        // If the SystemConfig is not initialized, this is an initial deployment, which is always
+        // permitted. Initial deployments can use any OPCM version.
+        if (address(_systemConfig) == address(0)) {
+            return true;
+        }
+
+        // Chains prior to OPCMv2 (version 7.0.0) don't have a functional lastUsedOPCM function on
+        // the SystemConfig contract. The first deployment of OPCMv2 which makes this available is
+        // version 7.0.0. We need to skip the check for 7.x.x OPCM versions because they can't
+        // guarantee that the lastUsedOPCM function will be available on the incoming SystemConfig.
+        // 8.0.0 and later will always have this function available.
+        if (SemverComp.lt(ISemver(_opcm).version(), "8.0.0")) {
+            return true;
+        }
+
+        (bool isSameOPCM, SemverComp.Semver memory lastUsedSemver, SemverComp.Semver memory thisSemver) =
+            _compareToLastUsedOPCM(_systemConfig, _opcm);
+
+        // We have three permitted cases:
+        // 1. Address of the last used OPCM is identical to the address of this OPCM (re-running).
+        // 2. This OPCM version is the same major version but a greater minor version (patch).
+        // 3. This OPCM version is the next major version (sequential upgrade).
+        bool isNextMajor = thisSemver.major == lastUsedSemver.major + 1;
+        bool isSameMajorHigherMinor =
+            thisSemver.major == lastUsedSemver.major && thisSemver.minor > lastUsedSemver.minor;
+
+        return isSameOPCM || isSameMajorHigherMinor || isNextMajor;
+    }
+
+    /// @notice Returns whether a chain is on the given OPCM's release and may be
+    ///         migrated. Unlike isPermittedUpgradeSequence this refuses the next-major case.
+    /// @param _systemConfig The SystemConfig of the chain to check.
+    /// @param _opcm The OPCM performing the migration.
+    /// @return True if the chain may be migrated.
+    function isPermittedMigrateSequence(ISystemConfig _systemConfig, address _opcm) external view returns (bool) {
+        (bool isSameOPCM, SemverComp.Semver memory lastUsedSemver, SemverComp.Semver memory thisSemver) =
+            _compareToLastUsedOPCM(_systemConfig, _opcm);
+
+        // Two permitted cases:
+        // 1. This is the same OPCM that last touched the chain.
+        // 2. A replacement OPCM for the same release. The minor must be at least as new, so an
+        //    older OPCM cannot migrate a chain that a newer one already upgraded.
+        bool isSameMajorAndAtLeastMinor =
+            thisSemver.major == lastUsedSemver.major && thisSemver.minor >= lastUsedSemver.minor;
+
+        return isSameOPCM || isSameMajorAndAtLeastMinor;
     }
 }

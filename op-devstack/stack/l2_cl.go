@@ -14,14 +14,11 @@ type L2CLNode interface {
 	ClientRPC() client.RPC
 	RollupAPI() apis.RollupClient
 	P2PAPI() apis.P2PClient
-	InteropRPC() (endpoint string, jwtSecret eth.Bytes32)
 	UserRPC() string
 
 	// ELs returns the engine(s) that this L2CLNode is connected to.
 	// This may be empty, if the L2CL is not connected to any.
 	ELs() []L2ELNode
-	RollupBoostNodes() []RollupBoostNode
-	OPRBuilderNodes() []OPRBuilderNode
 
 	ELClient() apis.EthClient
 }

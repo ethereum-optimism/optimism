@@ -22,13 +22,13 @@ pub struct Registry {
 impl Registry {
     /// Read the chain list.
     pub fn read_chain_list() -> ChainList {
-        let chain_list = include_str!("../etc/chainList.json");
+        let chain_list = include_str!(concat!(env!("KONA_REGISTRY_DIR"), "/chainList.json"));
         serde_json::from_str(chain_list).expect("Failed to read chain list")
     }
 
     /// Read superchain configs.
     pub fn read_superchain_configs() -> Superchains {
-        let superchain_configs = include_str!("../etc/configs.json");
+        let superchain_configs = include_str!(concat!(env!("KONA_REGISTRY_DIR"), "/configs.json"));
         serde_json::from_str(superchain_configs).expect("Failed to read superchain configs")
     }
 
@@ -59,10 +59,6 @@ impl Registry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_op_hardforks::{
-        OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP, OP_SEPOLIA_ISTHMUS_TIMESTAMP,
-        OP_SEPOLIA_JOVIAN_TIMESTAMP,
-    };
     use alloy_primitives::address;
 
     #[test]
@@ -87,25 +83,5 @@ mod tests {
             *superchains.rollup_configs.get(&10).unwrap(),
             crate::test_utils::OP_MAINNET_CONFIG
         );
-    }
-
-    #[test]
-    fn test_isthmus_timestamps() {
-        let superchains = Registry::from_chain_list();
-        let op_mainnet_config = superchains.rollup_configs.get(&10).unwrap();
-        assert_eq!(op_mainnet_config.hardforks.isthmus_time, Some(OP_MAINNET_ISTHMUS_TIMESTAMP));
-
-        let op_sepolia_config = superchains.rollup_configs.get(&11155420).unwrap();
-        assert_eq!(op_sepolia_config.hardforks.isthmus_time, Some(OP_SEPOLIA_ISTHMUS_TIMESTAMP));
-    }
-
-    #[test]
-    fn test_jovian_timestamps() {
-        let superchains = Registry::from_chain_list();
-        let op_mainnet_config = superchains.rollup_configs.get(&10).unwrap();
-        assert_eq!(op_mainnet_config.hardforks.jovian_time, Some(OP_MAINNET_JOVIAN_TIMESTAMP));
-
-        let op_sepolia_config = superchains.rollup_configs.get(&11155420).unwrap();
-        assert_eq!(op_sepolia_config.hardforks.jovian_time, Some(OP_SEPOLIA_JOVIAN_TIMESTAMP));
     }
 }

@@ -6,25 +6,30 @@ import { Test } from "test/setup/Test.sol";
 
 // Scripts
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Libraries
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
-import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { L2ContractsManagerTypes } from "src/libraries/L2ContractsManagerTypes.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 
 /// @title GenerateNUTBundle_Harness
 /// @notice Harness contract that exposes internal functions for testing.
 contract GenerateNUTBundle_Harness is GenerateNUTBundle {
-    /// @notice Builds the upgrade transaction bundle Output struct without writing to disk.
-    function buildOutput() external returns (Output memory) {
-        return _buildOutput();
+    /// @notice Returns the fork name used by the generated bundle.
+    function upgradeName() external pure returns (string memory) {
+        return UPGRADE_NAME;
     }
 
     /// @notice Asserts that the given output is valid.
-    function assertValidOutput(Output memory _output) external pure {
+    function assertValidOutput(Output memory _output) external view {
         _assertValidOutput(_output);
+    }
+
+    /// @notice Builds the implementation deployment configurations.
+    function buildImplementationDeploymentConfigs() external {
+        _buildImplementationDeploymentConfigs();
     }
 }
 
@@ -45,6 +50,8 @@ contract GenerateNUTBundleTest is Test {
     function test_run_succeeds() public {
         GenerateNUTBundle.Output memory output = script.run();
 
+        assertEq(output.fork, script.upgradeName(), "fork mismatch");
+
         // Verify artifact written correctly
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory readTxns =
             NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
@@ -58,49 +65,31 @@ contract GenerateNUTBundleTest is Test {
         }
     }
 
+    /// @notice Tests that the harness build path returns the same fork name as the script run path.
+    function test_buildOutput_setsFork_succeeds() public {
+        GenerateNUTBundle.Output memory output = script.buildOutput();
+
+        assertEq(output.fork, script.upgradeName(), "fork mismatch");
+    }
+
     /// @notice Tests that transactions have correct structure.
-    /// @dev Includes ConditionalDeployer and ProxyAdmin upgrades.
     function test_run_transactionStructure_succeeds() public {
         GenerateNUTBundle.Output memory output = script.run();
 
         // Should include:
-        // 1. ConditionalDeployer deployment
-        // 2. ConditionalDeployer upgrade
-        // 3. All implementation deployments (StorageSetter + predeploys)
-        // 4. L2ProxyAdmin upgrade
-        // 5. L2ContractsManager deployment
-        // 6. Upgrade execution
-
-        // Verify ConditionalDeployer deployment
-        assertEq(
-            output.txns[0].intent,
-            "ConditionalDeployer Deployment",
-            "First transaction should be ConditionalDeployer deployment"
-        );
-
-        // Verify ConditionalDeployer upgrade
-        assertEq(
-            output.txns[1].intent,
-            "Upgrade ConditionalDeployer Implementation",
-            "Second transaction should be ConditionalDeployer upgrade"
-        );
+        // 1. All implementation deployments (StorageSetter + predeploys)
+        // 2. L2ContractsManager deployment
+        // 3. Upgrade execution
 
         // Verify implementation deployments
-        string[] memory implementationsToUpgrade = UpgradeUtils.getImplementationsNamesToUpgrade();
+        string[] memory implementationsToUpgrade = script.getStandardDeploymentNames();
         for (uint256 i = 0; i < implementationsToUpgrade.length; i++) {
             assertEq(
-                output.txns[i + 2].intent,
+                output.txns[i].intent,
                 string.concat("Deploy ", implementationsToUpgrade[i], " Implementation"),
                 string.concat("Transaction should be ", implementationsToUpgrade[i], " deployment")
             );
         }
-
-        // Verify L2ProxyAdmin upgrade
-        assertEq(
-            output.txns[output.txns.length - 3].intent,
-            "Upgrade L2ProxyAdmin Implementation",
-            "Third to last transaction should be L2ProxyAdmin upgrade"
-        );
 
         // Verify L2ContractsManager deployment
         assertEq(
@@ -132,6 +121,7 @@ contract GenerateNUTBundleTest is Test {
         internal
         pure
     {
+        assertEq(_output1.fork, _output2.fork, "Fork should match");
         assertEq(_output1.txns.length, _output2.txns.length, "Should produce same number of transactions");
         for (uint256 i = 0; i < _output1.txns.length; i++) {
             assertEq(_output1.txns[i].intent, _output2.txns[i].intent, "Transaction intent should match");
@@ -144,19 +134,53 @@ contract GenerateNUTBundleTest is Test {
         }
     }
 
-    /// @notice Tests that the number of implementations in the deployment list matches the number of fields in the
-    /// Implementations struct.
-    function test_implementationCount_matchesStructFields_succeeds() public pure {
-        L2ContractsManagerTypes.Implementations memory emptyImpl;
-        uint256 structFieldCount = abi.encode(emptyImpl).length / 32;
-        string[] memory names = UpgradeUtils.getImplementationsNamesToUpgrade();
-        assertEq(names.length, structFieldCount, "Deployment list must equal Implementations struct field count");
+    /// @notice Tests that the implementation deployment list length matches the ImplRecord array length.
+    /// @dev The deployment list is: 1 StorageSetter + all registry records.
+    ///      The ImplRecord array passed to the L2CM constructor must have one entry per deployment.
+    ///      If these diverge, a new predeploy was added to one location but not the other.
+    function test_implementationCount_matchesImplRecordArray_succeeds() public {
+        script.run();
+
+        assertEq(
+            script.implementationConfigs().length,
+            script.implRecords().length,
+            "Config count (registry records + StorageSetter) must equal ImplRecord array length"
+        );
+    }
+
+    /// @notice Tests that the registry implementation count matches the implementation config count.
+    function test_registryRecordCount_matchesImplementationConfigs_succeeds() public {
+        script.buildImplementationDeploymentConfigs();
+        assertEq(
+            script.implementationConfigs().length,
+            Predeploys.getUpgradeableImpls().length + 1,
+            "Implementation configs must be upgradeable impls + 1 StorageSetter"
+        );
+    }
+}
+
+/// @title GenerateNUTBundle_assertValidOutput_Test
+/// @notice Tests that GenerateNUTBundle rejects invalid bundles. The valid bundle does not depend
+///         on the fuzz inputs, so setUp builds it once and each fuzz run mutates a fresh copy.
+contract GenerateNUTBundle_assertValidOutput_Test is Test {
+    GenerateNUTBundle_Harness script;
+
+    /// @notice ABI encoding of the valid bundle that setUp builds.
+    bytes internal encodedOutput;
+
+    function setUp() public {
+        script = new GenerateNUTBundle_Harness();
+        encodedOutput = abi.encode(script.buildOutput());
+    }
+
+    /// @notice Returns a fresh copy of the valid bundle that setUp built.
+    function _validOutput() internal view returns (GenerateNUTBundle.Output memory) {
+        return abi.decode(encodedOutput, (GenerateNUTBundle.Output));
     }
 
     /// @notice Tests that a bundle with an incorrect number of transactions is rejected.
-    /// @dev Builds a valid bundle, then mutates the array length to trigger the assertion.
     function testFuzz_assertValidOutput_transactionCountMismatch_reverts(uint256 _newLength) public {
-        GenerateNUTBundle.Output memory output = script.buildOutput();
+        GenerateNUTBundle.Output memory output = _validOutput();
 
         _newLength = bound(_newLength, 0, output.txns.length - 1);
         NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = output.txns;
@@ -169,9 +193,8 @@ contract GenerateNUTBundleTest is Test {
     }
 
     /// @notice Tests that a transaction with empty data is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_emptyData_reverts(uint256 _index) public {
-        GenerateNUTBundle.Output memory output = script.buildOutput();
+        GenerateNUTBundle.Output memory output = _validOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         output.txns[_index].data = new bytes(0);
@@ -181,9 +204,8 @@ contract GenerateNUTBundleTest is Test {
     }
 
     /// @notice Tests that a transaction with an empty intent is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_emptyIntent_reverts(uint256 _index) public {
-        GenerateNUTBundle.Output memory output = script.buildOutput();
+        GenerateNUTBundle.Output memory output = _validOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         output.txns[_index].intent = "";
@@ -193,9 +215,8 @@ contract GenerateNUTBundleTest is Test {
     }
 
     /// @notice Tests that a transaction with a zero destination address is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_zeroTo_reverts(uint256 _index) public {
-        GenerateNUTBundle.Output memory output = script.buildOutput();
+        GenerateNUTBundle.Output memory output = _validOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         output.txns[_index].to = address(0);
@@ -205,9 +226,8 @@ contract GenerateNUTBundleTest is Test {
     }
 
     /// @notice Tests that a transaction exceeding the EIP-7825 per-tx gas limit cap is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_gasLimitExceedsMax_reverts(uint256 _index, uint64 _gasLimit) public {
-        GenerateNUTBundle.Output memory output = script.buildOutput();
+        GenerateNUTBundle.Output memory output = _validOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         _gasLimit = uint64(bound(_gasLimit, script.MAX_TX_GAS_LIMIT() + 1, type(uint64).max));
@@ -225,9 +245,8 @@ contract GenerateNUTBundleTest is Test {
     }
 
     /// @notice Tests that a transaction with a zero gas limit is rejected by the EIP-7623 floor.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_zeroGasLimit_reverts(uint256 _index) public {
-        GenerateNUTBundle.Output memory output = script.buildOutput();
+        GenerateNUTBundle.Output memory output = _validOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         output.txns[_index].gasLimit = 0;
@@ -244,9 +263,8 @@ contract GenerateNUTBundleTest is Test {
     }
 
     /// @notice Tests that a transaction whose gasLimit is one below the EIP-7623 floor is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_gasLimitBelowFloor_reverts(uint256 _index) public {
-        GenerateNUTBundle.Output memory output = script.buildOutput();
+        GenerateNUTBundle.Output memory output = _validOutput();
 
         _index = bound(_index, 0, output.txns.length - 1);
         uint64 floor = UpgradeUtils.computeFloorDataGas(output.txns[_index].data);
@@ -264,9 +282,8 @@ contract GenerateNUTBundleTest is Test {
     }
 
     /// @notice Tests that a transaction with a zero sender and a non-privileged destination is rejected.
-    /// @dev Builds a valid bundle, then mutates one transaction to trigger the assertion.
     function testFuzz_assertValidOutput_zeroFromNonPrivilegedTo_reverts(uint256 _index, address _to) public {
-        GenerateNUTBundle.Output memory output = script.buildOutput();
+        GenerateNUTBundle.Output memory output = _validOutput();
 
         vm.assume(_to != address(0));
         vm.assume(_to != Predeploys.PROXY_ADMIN && _to != Predeploys.CONDITIONAL_DEPLOYER);

@@ -23,8 +23,10 @@ go_build BIN PKG *FLAGS:
 go_test SELECTOR *FLAGS:
     go test -v {{_GORACE_FLAG}} {{FLAGS}} {{SELECTOR}}
 
+# `-parallel=1`: one fuzz worker per target, so concurrent `parallel` runs don't
+# oversubscribe the CPU and starve workers into missing the `-fuzztime` deadline.
 [private]
-go_fuzz FUZZ TIME='10s' PKG='': (go_test PKG _EXTRALDFLAGS "-fuzztime" TIME "-fuzz" FUZZ "-run" "NOTAREALTEST")
+go_fuzz FUZZ TIME='10s' PKG='': (go_test PKG _EXTRALDFLAGS "-parallel" "1" "-fuzztime" TIME "-fuzz" FUZZ "-run" "NOTAREALTEST")
 
 [private]
 go_generate SELECTOR *FLAGS:

@@ -1,14 +1,12 @@
 package node_restart
 
 import (
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func TestSequencerRestart(gt *testing.T) {
@@ -27,7 +25,7 @@ func TestSequencerRestart(gt *testing.T) {
 	// Let's ensure that all the nodes are properly advancing.
 	var preCheckFuns []dsl.CheckFunc
 	for _, node := range nodes {
-		preCheckFuns = append(preCheckFuns, node.LaggedFn(&sequencer, types.CrossUnsafe, 20, true), node.AdvancedFn(types.LocalSafe, 20, 40))
+		preCheckFuns = append(preCheckFuns, node.LaggedFn(&sequencer, safety.LocalUnsafe, 20, true), node.AdvancedFn(safety.LocalSafe, 20, 40))
 	}
 	dsl.CheckAll(t, preCheckFuns...)
 
@@ -37,21 +35,13 @@ func TestSequencerRestart(gt *testing.T) {
 
 	var stopCheckFuns []dsl.CheckFunc
 	for _, node := range nodes {
-		// Ensure that the node is no longer connected to the sequencer
-		nodePeers := node.Peers()
-		_, err := retry.Do(t.Ctx(), 5, &retry.ExponentialStrategy{Max: 10 * time.Second, Min: 1 * time.Second, MaxJitter: 250 * time.Millisecond}, func() (any, error) {
-			for _, peer := range nodePeers.Peers {
-				if peer.PeerID == seqPeerId {
-					return nil, fmt.Errorf("expected node %s to be disconnected from sequencer %s", node.Escape().Name(), sequencer.Escape().Name())
-				}
-			}
-			return nil, nil
-		})
-		t.Require().NoError(err)
+		// Ensure that the node is no longer connected to the sequencer.
+		// The node drops the connection only once it notices the sequencer is gone, so wait for it.
+		node.WaitForPeerIDDropped(seqPeerId)
 
 		// Ensure that the other nodes are not advancing.
 		// The local safe head may advance (for the next l1 block to be processed), but the unsafe head should not.
-		stopCheckFuns = append(stopCheckFuns, node.NotAdvancedFn(types.LocalUnsafe, 50))
+		stopCheckFuns = append(stopCheckFuns, node.NotAdvancedFn(safety.LocalUnsafe, 20))
 	}
 
 	dsl.CheckAll(t, stopCheckFuns...)
@@ -71,7 +61,7 @@ func TestSequencerRestart(gt *testing.T) {
 	t.Logf("Waiting for nodes to advance")
 	var postCheckFuns []dsl.CheckFunc
 	for _, node := range nodes {
-		postCheckFuns = append(postCheckFuns, node.AdvancedFn(types.LocalSafe, 10, 100), node.AdvancedFn(types.LocalUnsafe, 10, 100))
+		postCheckFuns = append(postCheckFuns, node.AdvancedFn(safety.LocalSafe, 10, 100), node.AdvancedFn(safety.LocalUnsafe, 10, 100))
 	}
 
 	dsl.CheckAll(t, postCheckFuns...)

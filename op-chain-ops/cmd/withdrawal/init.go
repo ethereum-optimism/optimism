@@ -6,7 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/urfave/cli/v2"
 )
@@ -62,7 +62,7 @@ func initFlags() []cli.Flag {
 		ValueFlag,
 	}
 	cliFlags = append(cliFlags, txmgr.CLIFlagsWithDefaults(EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
-	cliFlags = append(cliFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	cliFlags = append(cliFlags, logcli.CLIFlags(EnvVarPrefix)...)
 	return cliFlags
 }
 

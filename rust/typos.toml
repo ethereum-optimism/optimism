@@ -98,7 +98,6 @@ vec = "vec"
 # Additional project-specific terms
 flate = "flate"
 ratatui = "ratatui"
-superseed = "superseed"
 jsonrpsee = "jsonrpsee"
 tokio = "tokio"
 async = "async"
@@ -112,3 +111,6 @@ ONL = "ONL"
 Iy = "Iy"
 Pn = "Pn"
 BA = "BA"
+
+# op-e2e Go identifiers (kona/tests/proofs action tests)
+dfault = "dfault"

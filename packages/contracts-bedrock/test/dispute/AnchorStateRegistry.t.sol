@@ -5,16 +5,27 @@ pragma solidity ^0.8.15;
 import { BaseFaultDisputeGame_TestInit, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 // Libraries
-import { GameType, GameTypes, GameStatus, Hash, Claim, Duration, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
+import {
+    GameType,
+    GameTypes,
+    GameStatus,
+    Hash,
+    Claim,
+    Duration,
+    VMStatuses,
+    Proposal
+} from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 /// @title AnchorStateRegistry_TestInit
 /// @notice Reusable test initialization for `AnchorStateRegistry` tests.
@@ -22,9 +33,17 @@ abstract contract AnchorStateRegistry_TestInit is BaseFaultDisputeGame_TestInit 
     /// @dev A valid l2BlockNumber that comes after the current anchor root block.
     uint256 validL2BlockNumber;
 
+    /// @notice The configured ETHLockbox.
+    IETHLockbox asrETHLockbox;
+
+    /// @notice The configured dispute game finality delay. Read once in setUp so tests can pass it
+    ///         back to initialize() without an external call consuming a pending prank.
+    uint256 asrFinalityDelay;
+
     event AnchorUpdated(IFaultDisputeGame indexed game);
     event RespectedGameTypeSet(GameType gameType);
     event RetirementTimestampSet(uint256 timestamp);
+    event DisputeGameFinalityDelaySecondsSet(uint256 disputeGameFinalityDelaySeconds);
 
     function setUp() public virtual override {
         // Duplicating the initialization/setup logic of FaultDisputeGame_Test.
@@ -38,6 +57,14 @@ abstract contract AnchorStateRegistry_TestInit is BaseFaultDisputeGame_TestInit 
         validL2BlockNumber = l2BlockNumber + 1;
         Claim rootClaim = Claim.wrap(Hash.unwrap(root));
         super.init({ rootClaim: rootClaim, absolutePrestate: absolutePrestate, l2BlockNumber: validL2BlockNumber });
+
+        asrETHLockbox = anchorStateRegistry.ethLockbox();
+        asrFinalityDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+    }
+
+    /// @notice Returns the expected ETHLockbox.
+    function expectedETHLockbox() internal view returns (IETHLockbox) {
+        return optimismPortal2.ethLockbox();
     }
 }
 
@@ -47,6 +74,36 @@ contract AnchorStateRegistry_Version_Test is AnchorStateRegistry_TestInit {
     /// @notice Tests that the version function returns a string.
     function test_version_succeeds() public view {
         assert(bytes(anchorStateRegistry.version()).length > 0);
+    }
+}
+
+/// @title AnchorStateRegistry_Constructor_Test
+/// @notice Tests the constructor of the `AnchorStateRegistry` contract.
+contract AnchorStateRegistry_Constructor_Test is AnchorStateRegistry_TestInit {
+    /// @notice Tests that the constructor sets the delay bounds and leaves the delay itself unset.
+    function test_constructor_succeeds() public view {
+        IAnchorStateRegistry impl = IAnchorStateRegistry(EIP1967Helper.getImplementation(address(anchorStateRegistry)));
+        assertEq(impl.disputeGameFinalityDelaySeconds(), 0);
+        assertEq(impl.minDisputeGameFinalityDelaySeconds(), deploy.cfg().minDisputeGameFinalityDelaySeconds());
+        assertEq(impl.maxDisputeGameFinalityDelaySeconds(), deploy.cfg().maxDisputeGameFinalityDelaySeconds());
+    }
+
+    /// @notice Tests that the constructor rejects a zero lower bound.
+    function test_constructor_zeroMinBound_reverts() public {
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidDisputeGameFinalityDelayBounds.selector);
+        DeployUtils.create1({
+            _name: "AnchorStateRegistry",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IAnchorStateRegistry.__constructor__, (0, 1)))
+        });
+    }
+
+    /// @notice Tests that the constructor rejects inverted bounds.
+    function test_constructor_invertedBounds_reverts() public {
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidDisputeGameFinalityDelayBounds.selector);
+        DeployUtils.create1({
+            _name: "AnchorStateRegistry",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IAnchorStateRegistry.__constructor__, (2, 1)))
+        });
     }
 }
 
@@ -63,7 +120,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         assertEq(l2BlockNumber, 0);
 
         // Verify contract addresses.
-        assert(anchorStateRegistry.systemConfig() == systemConfig);
+        assert(anchorStateRegistry.ethLockbox() == expectedETHLockbox());
         assert(anchorStateRegistry.disputeGameFactory() == disputeGameFactory);
         assert(anchorStateRegistry.superchainConfig() == superchainConfig);
     }
@@ -104,10 +161,11 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
 
         vm.prank(proxyAdminOwner);
         anchorStateRegistry.initialize(
-            systemConfig,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({ root: root, l2SequenceNumber: l2SequenceNumber }),
-            startingGameType
+            startingGameType,
+            asrFinalityDelay
         );
 
         assertEq(anchorStateRegistry.retirementTimestamp(), expectedTimestamp);
@@ -136,10 +194,11 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
 
         vm.prank(proxyAdminOwner);
         anchorStateRegistry.initialize(
-            systemConfig,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({ root: root, l2SequenceNumber: l2SequenceNumber }),
-            startingGameType
+            startingGameType,
+            asrFinalityDelay
         );
 
         assertEq(anchorStateRegistry.retirementTimestamp(), originalTimestamp);
@@ -149,13 +208,13 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
     function test_initialize_twice_reverts() public {
         vm.expectRevert("Initializable: contract is already initialized");
         anchorStateRegistry.initialize(
-            systemConfig,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({
-                root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
-                l2SequenceNumber: 0
+                root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF), l2SequenceNumber: 0
             }),
-            GameType.wrap(0)
+            GameType.wrap(0),
+            asrFinalityDelay
         );
     }
 
@@ -179,13 +238,13 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         // Call the `initialize` function with the sender
         vm.prank(_sender);
         anchorStateRegistry.initialize(
-            systemConfig,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({
-                root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
-                l2SequenceNumber: 0
+                root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF), l2SequenceNumber: 0
             }),
-            GameType.wrap(0)
+            GameType.wrap(0),
+            asrFinalityDelay
         );
     }
 
@@ -213,7 +272,9 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
             Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: currentSeqNum + 42 });
 
         vm.prank(anchorStateRegistry.proxyAdminOwner());
-        anchorStateRegistry.initialize(systemConfig, disputeGameFactory, newStartingRoot, GameTypes.SUPER_CANNON_KONA);
+        anchorStateRegistry.initialize(
+            asrETHLockbox, disputeGameFactory, newStartingRoot, GameTypes.SUPER_CANNON_KONA, asrFinalityDelay
+        );
 
         // anchorGame should be cleared.
         assertEq(address(anchorStateRegistry.anchorGame()), address(0));
@@ -246,7 +307,9 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
 
         // Re-initialize with the same starting anchor root.
         vm.prank(anchorStateRegistry.proxyAdminOwner());
-        anchorStateRegistry.initialize(systemConfig, disputeGameFactory, currentRoot, GameTypes.SUPER_CANNON_KONA);
+        anchorStateRegistry.initialize(
+            asrETHLockbox, disputeGameFactory, currentRoot, GameTypes.SUPER_CANNON_KONA, asrFinalityDelay
+        );
 
         // anchorGame should still be the same.
         assertEq(address(anchorStateRegistry.anchorGame()), anchorGameBefore);
@@ -272,10 +335,11 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
 
         vm.prank(anchorStateRegistry.proxyAdminOwner());
         anchorStateRegistry.initialize(
-            systemConfig,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 42 }),
-            GameTypes.SUPER_CANNON_KONA
+            GameTypes.SUPER_CANNON_KONA,
+            asrFinalityDelay
         );
 
         // retirementTimestamp should be unchanged.
@@ -302,10 +366,11 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         vm.prank(anchorStateRegistry.proxyAdminOwner());
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidAnchorGame.selector);
         anchorStateRegistry.initialize(
-            systemConfig,
+            asrETHLockbox,
             disputeGameFactory,
             Proposal({ root: Hash.wrap(bytes32(uint256(0xBEEF))), l2SequenceNumber: 50 }),
-            GameTypes.SUPER_CANNON_KONA
+            GameTypes.SUPER_CANNON_KONA,
+            asrFinalityDelay
         );
     }
 
@@ -328,10 +393,49 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         Proposal memory currentRoot = anchorStateRegistry.getStartingAnchorRoot();
 
         vm.prank(anchorStateRegistry.proxyAdminOwner());
-        anchorStateRegistry.initialize(systemConfig, disputeGameFactory, currentRoot, GameType.wrap(_gameTypeRaw));
+        anchorStateRegistry.initialize(
+            asrETHLockbox, disputeGameFactory, currentRoot, GameType.wrap(_gameTypeRaw), asrFinalityDelay
+        );
 
         // respectedGameType must be unchanged.
         assertEq(anchorStateRegistry.respectedGameType().raw(), _gameTypeRaw);
+    }
+
+    /// @notice Tests that the initializer stores the finality delay and emits the event.
+    function test_initialize_setsDisputeGameFinalityDelay_succeeds() public {
+        skipIfForkTest("State has changed since initialization on a forked network.");
+
+        uint256 newDelay = anchorStateRegistry.minDisputeGameFinalityDelaySeconds();
+        address proxyAdminOwner = anchorStateRegistry.proxyAdminOwner();
+        Proposal memory currentRoot = anchorStateRegistry.getStartingAnchorRoot();
+        GameType currentGameType = anchorStateRegistry.respectedGameType();
+
+        // Reset initialized state so we can reinitialize.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        vm.expectEmit(address(anchorStateRegistry));
+        emit DisputeGameFinalityDelaySecondsSet(newDelay);
+        vm.prank(proxyAdminOwner);
+        anchorStateRegistry.initialize(asrETHLockbox, disputeGameFactory, currentRoot, currentGameType, newDelay);
+
+        assertEq(anchorStateRegistry.disputeGameFinalityDelaySeconds(), newDelay);
+    }
+
+    /// @notice Tests that the initializer rejects a finality delay outside the bounds.
+    function test_initialize_disputeGameFinalityDelayOutOfBounds_reverts() public {
+        uint256 tooHigh = anchorStateRegistry.maxDisputeGameFinalityDelaySeconds() + 1;
+        address proxyAdminOwner = anchorStateRegistry.proxyAdminOwner();
+        Proposal memory currentRoot = anchorStateRegistry.getStartingAnchorRoot();
+        GameType currentGameType = anchorStateRegistry.respectedGameType();
+
+        // Reset initialized state so we can reinitialize.
+        StorageSlot memory initSlot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+        vm.store(address(anchorStateRegistry), bytes32(initSlot.slot), bytes32(0));
+
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidDisputeGameFinalityDelay.selector);
+        vm.prank(proxyAdminOwner);
+        anchorStateRegistry.initialize(asrETHLockbox, disputeGameFactory, currentRoot, currentGameType, tooHigh);
     }
 }
 
@@ -353,6 +457,17 @@ contract AnchorStateRegistry_Paused_Test is AnchorStateRegistry_TestInit {
 
         // Paused should return false.
         assertFalse(anchorStateRegistry.paused());
+    }
+
+    /// @notice Tests scoped pause behavior.
+    function test_paused_scopedPause_succeeds() public {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0xbad));
+        assertFalse(anchorStateRegistry.paused());
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(asrETHLockbox));
+        assertTrue(anchorStateRegistry.paused());
     }
 }
 
@@ -383,6 +498,143 @@ contract AnchorStateRegistry_SetRespectedGameType_Test is AnchorStateRegistry_Te
         vm.prank(_caller);
         vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_Unauthorized.selector);
         anchorStateRegistry.setRespectedGameType(_gameType);
+    }
+}
+
+/// @title AnchorStateRegistry_DisputeGameFinalityDelaySeconds_Test
+/// @notice Tests the `disputeGameFinalityDelaySeconds` function of the `AnchorStateRegistry` contract.
+contract AnchorStateRegistry_DisputeGameFinalityDelaySeconds_Test is AnchorStateRegistry_TestInit {
+    /// @notice Tests that the delay is within the configured bounds and matches the portal's view.
+    function test_disputeGameFinalityDelaySeconds_succeeds() public view {
+        uint256 delay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        assertTrue(delay > 0);
+        assertGe(delay, anchorStateRegistry.minDisputeGameFinalityDelaySeconds());
+        assertLe(delay, anchorStateRegistry.maxDisputeGameFinalityDelaySeconds());
+        assertEq(delay, optimismPortal2.disputeGameFinalityDelaySeconds());
+    }
+}
+
+/// @title AnchorStateRegistry_MinDisputeGameFinalityDelaySeconds_Test
+/// @notice Tests the `minDisputeGameFinalityDelaySeconds` function of the `AnchorStateRegistry` contract.
+contract AnchorStateRegistry_MinDisputeGameFinalityDelaySeconds_Test is AnchorStateRegistry_TestInit {
+    /// @notice Tests that the lower bound matches the deploy config.
+    function test_minDisputeGameFinalityDelaySeconds_succeeds() public view {
+        assertEq(
+            anchorStateRegistry.minDisputeGameFinalityDelaySeconds(), deploy.cfg().minDisputeGameFinalityDelaySeconds()
+        );
+    }
+}
+
+/// @title AnchorStateRegistry_MaxDisputeGameFinalityDelaySeconds_Test
+/// @notice Tests the `maxDisputeGameFinalityDelaySeconds` function of the `AnchorStateRegistry` contract.
+contract AnchorStateRegistry_MaxDisputeGameFinalityDelaySeconds_Test is AnchorStateRegistry_TestInit {
+    /// @notice Tests that the upper bound matches the deploy config.
+    function test_maxDisputeGameFinalityDelaySeconds_succeeds() public view {
+        assertEq(
+            anchorStateRegistry.maxDisputeGameFinalityDelaySeconds(), deploy.cfg().maxDisputeGameFinalityDelaySeconds()
+        );
+    }
+}
+
+/// @title AnchorStateRegistry_SetDisputeGameFinalityDelaySeconds_Test
+/// @notice Tests the `setDisputeGameFinalityDelaySeconds` function of the `AnchorStateRegistry` contract.
+contract AnchorStateRegistry_SetDisputeGameFinalityDelaySeconds_Test is AnchorStateRegistry_TestInit {
+    /// @notice Tests that the ProxyAdmin owner can set any in-range delay and the event is emitted.
+    /// @param _delay The new finality delay.
+    function testFuzz_setDisputeGameFinalityDelaySeconds_succeeds(uint256 _delay) public {
+        _delay = bound(
+            _delay,
+            anchorStateRegistry.minDisputeGameFinalityDelaySeconds(),
+            anchorStateRegistry.maxDisputeGameFinalityDelaySeconds()
+        );
+        address proxyAdminOwner = anchorStateRegistry.proxyAdminOwner();
+
+        vm.expectEmit(address(anchorStateRegistry));
+        emit DisputeGameFinalityDelaySecondsSet(_delay);
+        vm.prank(proxyAdminOwner);
+        anchorStateRegistry.setDisputeGameFinalityDelaySeconds(_delay);
+
+        assertEq(anchorStateRegistry.disputeGameFinalityDelaySeconds(), _delay);
+    }
+
+    /// @notice Tests that only the ProxyAdmin owner can set the delay. The guardian, who controls
+    ///         the other registry setters, is not enough.
+    /// @param _caller The address attempting the call.
+    function testFuzz_setDisputeGameFinalityDelaySeconds_notProxyAdminOwner_reverts(address _caller) public {
+        vm.assume(_caller != anchorStateRegistry.proxyAdminOwner());
+        uint256 delay = anchorStateRegistry.minDisputeGameFinalityDelaySeconds();
+
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        vm.prank(_caller);
+        anchorStateRegistry.setDisputeGameFinalityDelaySeconds(delay);
+    }
+
+    /// @notice Tests that a delay below the lower bound is rejected.
+    function test_setDisputeGameFinalityDelaySeconds_belowMin_reverts() public {
+        uint256 tooLow = anchorStateRegistry.minDisputeGameFinalityDelaySeconds() - 1;
+        address proxyAdminOwner = anchorStateRegistry.proxyAdminOwner();
+
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidDisputeGameFinalityDelay.selector);
+        vm.prank(proxyAdminOwner);
+        anchorStateRegistry.setDisputeGameFinalityDelaySeconds(tooLow);
+    }
+
+    /// @notice Tests that a delay above the upper bound is rejected.
+    function test_setDisputeGameFinalityDelaySeconds_aboveMax_reverts() public {
+        uint256 tooHigh = anchorStateRegistry.maxDisputeGameFinalityDelaySeconds() + 1;
+        address proxyAdminOwner = anchorStateRegistry.proxyAdminOwner();
+
+        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_InvalidDisputeGameFinalityDelay.selector);
+        vm.prank(proxyAdminOwner);
+        anchorStateRegistry.setDisputeGameFinalityDelaySeconds(tooHigh);
+    }
+
+    /// @notice Tests that lowering the delay applies to games that already resolved: a game not yet
+    ///         past the old delay is finalized as soon as the delay drops below its age.
+    function test_setDisputeGameFinalityDelaySeconds_lowerFinalizesResolvedGame_succeeds() public {
+        uint256 oldDelay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+        uint256 newDelay = anchorStateRegistry.minDisputeGameFinalityDelaySeconds();
+        assertLt(newDelay, oldDelay);
+        address proxyAdminOwner = anchorStateRegistry.proxyAdminOwner();
+
+        // Resolve the game for the defender right now.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+
+        // Past the new delay but not the old one: not finalized.
+        vm.warp(block.timestamp + newDelay + 1);
+        assertFalse(anchorStateRegistry.isGameFinalized(gameProxy));
+
+        // Lower the delay; the already-resolved game is finalized immediately.
+        vm.prank(proxyAdminOwner);
+        anchorStateRegistry.setDisputeGameFinalityDelaySeconds(newDelay);
+        assertTrue(anchorStateRegistry.isGameFinalized(gameProxy));
+    }
+
+    /// @notice Tests that raising the delay applies to games that already resolved: a game that was
+    ///         finalized under the old delay is no longer finalized until the new delay passes.
+    function test_setDisputeGameFinalityDelaySeconds_raiseUnfinalizesResolvedGame_succeeds() public {
+        uint256 lowDelay = anchorStateRegistry.minDisputeGameFinalityDelaySeconds();
+        uint256 highDelay = anchorStateRegistry.maxDisputeGameFinalityDelaySeconds();
+        assertLt(lowDelay, highDelay);
+        address proxyAdminOwner = anchorStateRegistry.proxyAdminOwner();
+
+        // Start from the low delay.
+        vm.prank(proxyAdminOwner);
+        anchorStateRegistry.setDisputeGameFinalityDelaySeconds(lowDelay);
+
+        // Resolve the game for the defender right now.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+
+        // Finalized under the low delay.
+        vm.warp(block.timestamp + lowDelay + 1);
+        assertTrue(anchorStateRegistry.isGameFinalized(gameProxy));
+
+        // Raise the delay; the same game is no longer finalized.
+        vm.prank(proxyAdminOwner);
+        anchorStateRegistry.setDisputeGameFinalityDelaySeconds(highDelay);
+        assertFalse(anchorStateRegistry.isGameFinalized(gameProxy));
     }
 }
 
@@ -915,9 +1167,10 @@ contract AnchorStateRegistry_IsGameFinalized_Test is AnchorStateRegistry_TestIni
         assertTrue(anchorStateRegistry.isGameFinalized(gameProxy));
     }
 
-    /// @notice Tests that isGameFinalized will return false if the game is not finalized.
+    /// @notice Tests that isGameFinalized will return false if the game resolved within the
+    ///         finality delay.
     /// @param _resolvedAtTimestamp The resolvedAt timestamp to use for the test.
-    function testFuzz_isGameFinalized_isNotAirgapped_succeeds(uint256 _resolvedAtTimestamp) public {
+    function testFuzz_isGameFinalized_withinFinalityDelay_succeeds(uint256 _resolvedAtTimestamp) public {
         // Warp forward by disputeGameFinalityDelaySeconds.
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
 
@@ -928,6 +1181,10 @@ contract AnchorStateRegistry_IsGameFinalized_Test is AnchorStateRegistry_TestIni
 
         // Mock the resolvedAt timestamp.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(_resolvedAtTimestamp));
+
+        // Mock the status to be DEFENDER_WINS so that only the finality delay keeps the game
+        // from being finalized.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
 
         // Game should not be finalized.
         assertFalse(anchorStateRegistry.isGameFinalized(gameProxy));
@@ -943,6 +1200,32 @@ contract AnchorStateRegistry_IsGameFinalized_Test is AnchorStateRegistry_TestIni
 
         // Game should not be finalized.
         assertFalse(anchorStateRegistry.isGameFinalized(gameProxy));
+    }
+
+    /// @notice Tests that isGameFinalized will return false if the finality delay is zero, as it
+    ///         is when a proxy is upgraded to this implementation without calling `initialize`,
+    ///         and that setting the delay again restores finalization.
+    function test_isGameFinalized_zeroFinalityDelay_succeeds() public {
+        uint256 delay = anchorStateRegistry.disputeGameFinalityDelaySeconds();
+
+        // Resolve the game for the defender and warp past the delay.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+        vm.warp(block.timestamp + delay + 1);
+        assertTrue(anchorStateRegistry.isGameFinalized(gameProxy));
+
+        // Clear the delay.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("AnchorStateRegistry", "disputeGameFinalityDelaySeconds");
+        vm.store(address(anchorStateRegistry), bytes32(slot.slot), bytes32(0));
+        assertEq(anchorStateRegistry.disputeGameFinalityDelaySeconds(), 0);
+
+        // Game should not be finalized.
+        assertFalse(anchorStateRegistry.isGameFinalized(gameProxy));
+
+        // Setting the delay again restores finalization.
+        vm.prank(anchorStateRegistry.proxyAdminOwner());
+        anchorStateRegistry.setDisputeGameFinalityDelaySeconds(delay);
+        assertTrue(anchorStateRegistry.isGameFinalized(gameProxy));
     }
 }
 
@@ -1042,9 +1325,10 @@ contract AnchorStateRegistry_IsGameClaimValid_Test is AnchorStateRegistry_TestIn
         assertFalse(anchorStateRegistry.isGameClaimValid(gameProxy));
     }
 
-    /// @notice Tests that isGameClaimValid will return false if the game is not airgapped.
+    /// @notice Tests that isGameClaimValid will return false if the game resolved within the
+    ///         finality delay.
     /// @param _resolvedAtTimestamp The resolvedAt timestamp to use for the test.
-    function testFuzz_isGameClaimValid_notAirgapped_succeeds(uint256 _resolvedAtTimestamp) public {
+    function testFuzz_isGameClaimValid_withinFinalityDelay_succeeds(uint256 _resolvedAtTimestamp) public {
         // Warp forward by disputeGameFinalityDelaySeconds.
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
 
@@ -1053,8 +1337,15 @@ contract AnchorStateRegistry_IsGameClaimValid_Test is AnchorStateRegistry_TestIn
             _resolvedAtTimestamp, block.timestamp - optimismPortal2.disputeGameFinalityDelaySeconds(), block.timestamp
         );
 
+        // Mock that the game was respected.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
+
         // Mock the resolvedAt timestamp.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(_resolvedAtTimestamp));
+
+        // Mock the status to be DEFENDER_WINS so that only the finality delay keeps the claim
+        // from being valid.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
 
         // Claim should not be valid.
         assertFalse(anchorStateRegistry.isGameClaimValid(gameProxy));
@@ -1067,6 +1358,24 @@ contract AnchorStateRegistry_IsGameClaimValid_Test is AnchorStateRegistry_TestIn
         superchainConfig.pause(address(0));
 
         // Game should not be valid.
+        assertFalse(anchorStateRegistry.isGameClaimValid(gameProxy));
+    }
+
+    /// @notice Tests that isGameClaimValid will return false if the finality delay is zero, as it
+    ///         is when a proxy is upgraded to this implementation without calling `initialize`.
+    function test_isGameClaimValid_zeroFinalityDelay_succeeds() public {
+        // Mock a respected game resolved for the defender and warp past the delay.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.wasRespectedGameTypeWhenCreated, ()), abi.encode(true));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+        vm.warp(block.timestamp + anchorStateRegistry.disputeGameFinalityDelaySeconds() + 1);
+        assertTrue(anchorStateRegistry.isGameClaimValid(gameProxy));
+
+        // Clear the delay.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("AnchorStateRegistry", "disputeGameFinalityDelaySeconds");
+        vm.store(address(anchorStateRegistry), bytes32(slot.slot), bytes32(0));
+
+        // Claim should not be valid.
         assertFalse(anchorStateRegistry.isGameClaimValid(gameProxy));
     }
 }
@@ -1383,8 +1692,6 @@ abstract contract AnchorStateRegistry_ZkDisputeGame_TestInit is AnchorStateRegis
     function setUp() public virtual override {
         super.setUp();
 
-        skipIfDevFeatureDisabled(DevFeatures.ZK_DISPUTE_GAME);
-
         // Register ZK game implementation and set it as the respected game type.
         setupZKDisputeGame(
             ZKDisputeGameParams({
@@ -1395,13 +1702,11 @@ abstract contract AnchorStateRegistry_ZkDisputeGame_TestInit is AnchorStateRegis
             })
         );
 
-        // Get anchor state to pick a valid l2SequenceNumber.
         (, uint256 anchorL2SeqNum) = anchorStateRegistry.getAnchorRoot();
         zkL2SequenceNumber = anchorL2SeqNum + 2000;
 
-        // Create a ZK game via the factory.
-        Claim rootClaim_ = changeClaimStatus(Claim.wrap(keccak256("zkRootClaim")), VMStatuses.INVALID);
-        bytes memory extraData_ = abi.encodePacked(zkL2SequenceNumber, type(uint32).max);
+        (bytes memory extraData_, Claim rootClaim_) =
+            _makeZKExtraDataAndClaim(type(uint32).max, uint64(zkL2SequenceNumber), keccak256("zkOutputRoot"));
 
         address proposer = makeAddr("zkProposer");
         vm.deal(proposer, 1 ether);

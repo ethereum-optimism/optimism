@@ -2,9 +2,7 @@ mod actor;
 pub use actor::{DerivationActor, DerivationError};
 
 mod delegated;
-pub use delegated::{
-    DelegateDerivationActor, DerivationDelegateClient, DerivationDelegateClientError,
-};
+pub use delegated::{DelegateDerivationActor, SyncStatusSource};
 
 mod engine_client;
 pub use engine_client::{DerivationEngineClient, QueuedDerivationEngineClient};

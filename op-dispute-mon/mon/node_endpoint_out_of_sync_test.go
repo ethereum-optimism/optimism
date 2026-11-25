@@ -5,21 +5,21 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCheckNodeEndpointOutOfSync_NoOutOfSync(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x11}}, NodeEndpointOutOfSyncCount: 0},
 		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, NodeEndpointOutOfSyncCount: 0},
 		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x33}}, NodeEndpointOutOfSyncCount: 0},
 	}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointOutOfSyncMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointOutOfSync(games)
@@ -28,7 +28,7 @@ func TestCheckNodeEndpointOutOfSync_NoOutOfSync(t *testing.T) {
 }
 
 func TestCheckNodeEndpointOutOfSync_SingleGameOutOfSync(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointOutOfSyncCount: 5,
@@ -40,7 +40,7 @@ func TestCheckNodeEndpointOutOfSync_SingleGameOutOfSync(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointOutOfSyncMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointOutOfSync(games)
@@ -49,7 +49,7 @@ func TestCheckNodeEndpointOutOfSync_SingleGameOutOfSync(t *testing.T) {
 }
 
 func TestCheckNodeEndpointOutOfSync_MultipleGamesOutOfSync(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointOutOfSyncCount: 3,
@@ -65,7 +65,7 @@ func TestCheckNodeEndpointOutOfSync_MultipleGamesOutOfSync(t *testing.T) {
 	}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointOutOfSyncMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointOutOfSync(games)
@@ -75,7 +75,7 @@ func TestCheckNodeEndpointOutOfSync_MultipleGamesOutOfSync(t *testing.T) {
 }
 
 func TestCheckNodeEndpointOutOfSync_MixedGamesWithAndWithoutOutOfSync(t *testing.T) {
-	games := []*types.EnrichedGameData{
+	games := []*types.CommonGameData{
 		{
 			GameMetadata:               gameTypes.GameMetadata{Proxy: common.Address{0x11}},
 			NodeEndpointOutOfSyncCount: 0,
@@ -95,7 +95,7 @@ func TestCheckNodeEndpointOutOfSync_MixedGamesWithAndWithoutOutOfSync(t *testing
 	}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointOutOfSyncMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointOutOfSync(games)
@@ -105,10 +105,10 @@ func TestCheckNodeEndpointOutOfSync_MixedGamesWithAndWithoutOutOfSync(t *testing
 }
 
 func TestCheckNodeEndpointOutOfSync_EmptyGamesList(t *testing.T) {
-	games := []*types.EnrichedGameData{}
+	games := []*types.CommonGameData{}
 
 	metrics := &stubNodeEndpointOutOfSyncMetrics{}
-	logger := testlog.Logger(t, log.LvlDebug)
+	logger := testlog.Logger(t, log.LevelDebug)
 	monitor := NewNodeEndpointOutOfSyncMonitor(logger, metrics)
 
 	monitor.CheckNodeEndpointOutOfSync(games)

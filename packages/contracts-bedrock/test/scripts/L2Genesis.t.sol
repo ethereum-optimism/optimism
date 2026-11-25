@@ -7,13 +7,22 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Scripts
 import { L2Genesis } from "scripts/L2Genesis.s.sol";
-import { LATEST_FORK } from "scripts/libraries/Config.sol";
+import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
+import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
+import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
+import { IL2DevFeatureFlags } from "interfaces/L2/IL2DevFeatureFlags.sol";
+import { IChainConfig } from "interfaces/L2/IChainConfig.sol";
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
 import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
@@ -48,6 +57,10 @@ abstract contract L2Genesis_TestInit is Test {
         assertEq(
             IL2ProxyAdmin(proxyAdminImpl).owner(), address(0), "ProxyAdmin implementation owner should match expected"
         );
+
+        // The proxy admin owner must not leak into the genesis state dump. The pranked `create`
+        // calls in setEAS() and setGovernanceToken() bump its nonce, which L2Genesis must reset.
+        assertEq(vm.getNonce(input.opChainProxyAdminOwner), 0, "ProxyAdmin owner nonce should be reset to zero");
     }
 
     function testPredeploys() internal view {
@@ -66,11 +79,9 @@ abstract contract L2Genesis_TestInit is Test {
             assertEq(Predeploys.PROXY_ADMIN, EIP1967Helper.getAdmin(addr));
 
             // If it's not a supported predeploy, skip next checks.
-            if (
-                !Predeploys.isSupportedPredeploy(
+            if (!Predeploys.isSupportedPredeploy(
                     addr, uint256(LATEST_FORK), input.useCustomGasToken, input.useInterop, input.devFeatureBitmap
-                )
-            ) {
+                )) {
                 continue;
             }
 
@@ -165,6 +176,87 @@ abstract contract L2Genesis_TestInit is Test {
         assertGt(Predeploys.LIQUIDITY_CONTROLLER.code.length, 0);
         assertGt(Predeploys.NATIVE_ASSET_LIQUIDITY.code.length, 0);
     }
+
+    /// @notice Runs genesis and asserts the L2CM deploy path produced the correct state.
+    function runGenesisAndAssertL2CM() internal {
+        genesis.run(input);
+
+        assertL2CMProxyImplementations();
+        assertL2CMInitializedStorage();
+        assertNoTemporaryL2CMResidue(genesis.temporaryL2CMAddress());
+    }
+
+    /// @notice Mirrors L2Genesis._isGenesisInteropEnabled for the current input.
+    function isGenesisInteropEnabled() internal view returns (bool) {
+        return input.useInterop && input.fork >= uint256(Fork.LAGOON);
+    }
+
+    /// @notice Asserts every upgradeable proxy points at its code-namespace implementation (or is
+    ///         untouched when gated off), and that the admin was restored to the canonical ProxyAdmin.
+    function assertL2CMProxyImplementations() internal view {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        bool isInterop = isGenesisInteropEnabled();
+
+        for (uint256 i = 0; i < records.length; i++) {
+            address proxy = records[i].proxy;
+            string memory name = Predeploys.implName(records[i]);
+            bool disabledCGT = records[i].isCustomGasToken && !input.useCustomGasToken;
+            bool disabledInterop = records[i].isInterop && !isInterop;
+
+            assertEq(EIP1967Helper.getAdmin(proxy), Predeploys.PROXY_ADMIN, string.concat(name, " admin mismatch"));
+
+            if (disabledCGT || disabledInterop) {
+                assertEq(
+                    EIP1967Helper.getImplementation(proxy), address(0), string.concat(name, " impl should be unset")
+                );
+                continue;
+            }
+
+            address expectedImpl = Predeploys.predeployToCodeNamespace(proxy);
+            assertEq(EIP1967Helper.getImplementation(proxy), expectedImpl, string.concat(name, " impl mismatch"));
+            assertGt(expectedImpl.code.length, 0, string.concat(name, " impl missing code"));
+        }
+    }
+
+    /// @notice Asserts the initialized storage matches the prior (direct-init) genesis behavior.
+    function assertL2CMInitializedStorage() internal view {
+        assertEq(
+            address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger()),
+            input.l1CrossDomainMessengerProxy,
+            "L2CrossDomainMessenger otherMessenger mismatch"
+        );
+        assertEq(
+            address(IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge()),
+            input.l1StandardBridgeProxy,
+            "L2StandardBridge otherBridge mismatch"
+        );
+        assertEq(
+            address(IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge()),
+            input.l1ERC721BridgeProxy,
+            "L2ERC721Bridge otherBridge mismatch"
+        );
+
+        // Reuses the prior genesis assertions for factories and fee vaults.
+        testFactories();
+        testVaults();
+
+        assertEq(
+            IL2DevFeatureFlags(Predeploys.L2_DEV_FEATURE_FLAGS).devFeatureBitmap(),
+            input.devFeatureBitmap,
+            "L2DevFeatureFlags bitmap mismatch"
+        );
+
+        if (input.useCustomGasToken) {
+            testCGT();
+        }
+    }
+
+    /// @notice Asserts the throwaway L2ContractsManager left no residue in the genesis state.
+    function assertNoTemporaryL2CMResidue(address _temporaryL2CM) internal view {
+        assertEq(_temporaryL2CM.code.length, 0, "temporary L2CM code residue");
+        assertEq(vm.getNonce(_temporaryL2CM), 0, "temporary L2CM nonce residue");
+        assertEq(_temporaryL2CM.balance, 0, "temporary L2CM balance residue");
+    }
 }
 
 /// @title L2Genesis_Run_Test
@@ -202,12 +294,14 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
             gasPayingTokenSymbol: "",
             nativeAssetLiquidityAmount: type(uint248).max,
             liquidityControllerOwner: address(0x000000000000000000000000000000000000000d),
-            devFeatureBitmap: bytes32(0)
+            devFeatureBitmap: bytes32(0),
+            l2ToL2MessageExpiryPeriod: 0,
+            settlementChainID: 0
         });
     }
 
     function test_run_succeeds() external {
-        genesis.run(input);
+        runGenesisAndAssertL2CM();
 
         testProxyAdmin();
         testPredeploys();
@@ -220,13 +314,73 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     /// @notice Helper function to configure input for interop enabled tests.
     function _setInputInteropEnabled() internal {
         input.useInterop = true;
-        input.devFeatureBitmap = bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP);
     }
 
     /// @notice Asserts that the interop predeploys are present in genesis.
     function testInterop() internal view {
         assertGt(Predeploys.CROSS_L2_INBOX.code.length, 0, "CrossL2Inbox must have code");
         assertGt(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER.code.length, 0, "L2ToL2CrossDomainMessenger must have code");
+    }
+
+    /// @notice Tests that genesis initializes the messenger with the production expiry period of
+    ///         8 days when the input sets none.
+    function test_run_defaultL2ToL2MessageExpiryPeriod_succeeds() external {
+        _setInputInteropEnabled();
+        genesis.run(input);
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), 691200);
+        assertEq(
+            IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(),
+            Constants.L2_TO_L2_MESSAGE_EXPIRY_PERIOD
+        );
+    }
+
+    /// @notice Tests that genesis initializes the messenger with the expiry period the input sets.
+    function testFuzz_run_l2ToL2MessageExpiryPeriod_succeeds(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 1, 365 days);
+        _setInputInteropEnabled();
+        input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
+        genesis.run(input);
+        assertEq(IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiryPeriod(), _expiryPeriod);
+    }
+
+    /// @notice Tests that genesis refuses an expiry period above 365 days.
+    function testFuzz_run_l2ToL2MessageExpiryPeriodTooLong_reverts(uint256 _expiryPeriod) external {
+        _expiryPeriod = bound(_expiryPeriod, 365 days + 1, type(uint256).max);
+        _setInputInteropEnabled();
+        input.l2ToL2MessageExpiryPeriod = _expiryPeriod;
+        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
+        genesis.run(input);
+    }
+
+    /// @notice Tests that genesis installs the ChainConfig predeploy with the settlement chain ID
+    ///         from the input when the OP_PRIVATE dev feature is on.
+    function testFuzz_run_opPrivateChainConfig_succeeds(uint256 _settlementChainId) external {
+        input.devFeatureBitmap |= DevFeatures.OP_PRIVATE;
+        input.settlementChainID = _settlementChainId;
+        genesis.run(input);
+        assertEq(IChainConfig(Predeploys.CHAIN_CONFIG).settlementChainId(), _settlementChainId, "settlement chain ID");
+        assertEq(
+            EIP1967Helper.getImplementation(Predeploys.CHAIN_CONFIG),
+            Predeploys.predeployToCodeNamespace(Predeploys.CHAIN_CONFIG),
+            "implementation"
+        );
+    }
+
+    /// @notice Tests that genesis leaves the ChainConfig predeploy out when the OP_PRIVATE dev
+    ///         feature is off.
+    function test_run_opPrivateDisabledNoChainConfig_succeeds() external {
+        genesis.run(input);
+        assertEq(EIP1967Helper.getImplementation(Predeploys.CHAIN_CONFIG), address(0), "implementation");
+        assertEq(Predeploys.predeployToCodeNamespace(Predeploys.CHAIN_CONFIG).code.length, 0, "code");
+    }
+
+    /// @notice Tests that genesis refuses a settlement chain ID when the OP_PRIVATE dev feature is
+    ///         off, instead of ignoring it.
+    function testFuzz_run_settlementChainIdWithoutOpPrivate_reverts(uint256 _settlementChainId) external {
+        _settlementChainId = bound(_settlementChainId, 1, type(uint256).max);
+        input.settlementChainID = _settlementChainId;
+        vm.expectRevert("L2Genesis: settlement chain ID needs the OP_PRIVATE devFeature bit");
+        genesis.run(input);
     }
 
     /// @notice Tests that the run function succeeds when interop is enabled.
@@ -254,7 +408,7 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
     /// @dev Tests that LiquidityController and NativeAssetLiquidity are deployed.
     function test_run_cgt_succeeds() external {
         _setInputCGTEnabled();
-        genesis.run(input);
+        runGenesisAndAssertL2CM();
 
         testProxyAdmin();
         testPredeploys();
@@ -297,10 +451,11 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         genesis.run(input);
     }
 
-    /// @notice Tests that enabling l2cm succeeds.
-    function test_run_l2cm_succeeds() external {
-        input.devFeatureBitmap |= DevFeatures.L2CM;
-        genesis.run(input);
+    /// @notice Tests the L2CM genesis path with interop predeploys active at genesis.
+    function test_run_l2cmInteropAtGenesis_succeeds() external {
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.LAGOON);
+        runGenesisAndAssertL2CM();
 
         testProxyAdmin();
         testPredeploys();
@@ -308,21 +463,94 @@ contract L2Genesis_Run_Test is L2Genesis_TestInit {
         testGovernance();
         testFactories();
         testForks();
+        testInterop();
     }
 
-    /// @notice Tests that run reverts when useInterop is true but the OPTIMISM_PORTAL_INTEROP dev bit is not set.
-    function test_run_useInteropWithoutDevBit_reverts() external {
-        input.useInterop = true;
-        // devFeatureBitmap left at 0 — OPTIMISM_PORTAL_INTEROP bit not set
-        vm.expectRevert("L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree");
+    /// @notice Tests that L2CM skips interop predeploys when interop is scheduled after genesis.
+    function test_run_l2cmInteropScheduledNotActive_succeeds() external {
+        uint256 snap = vm.snapshotState();
+        for (uint256 f = uint256(Fork.DELTA); f < uint256(Fork.LAGOON); f++) {
+            // `f` is a stack local so it survives the revert; `input` is reset and rebuilt each iteration.
+            input.fork = f;
+            _setInputInteropEnabled();
+            runGenesisAndAssertL2CM();
+
+            assertEq(
+                IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+                false,
+                "INTEROP runtime flag must not be set at genesis when fork < LAGOON"
+            );
+
+            vm.revertToState(snap);
+        }
+    }
+
+    /// @notice Tests the L2CM genesis path with both CGT and interop active.
+    function test_run_l2cmCgtAndInteropAtGenesis_succeeds() external {
+        _setInputCGTEnabled();
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.LAGOON);
+        runGenesisAndAssertL2CM();
+
+        testProxyAdmin();
+        testPredeploys();
+        testVaults();
+        testGovernance();
+        testFactories();
+        testForks();
+        testCGT();
+        testInterop();
+    }
+
+    /// @notice Tests that run refuses a messenger expiry period override when interop is not active
+    ///         at genesis, where it would have no effect.
+    function testFuzz_run_l2ToL2MessageExpiryPeriodWithoutInterop_reverts(uint256 _period) external {
+        _period = bound(_period, 1, type(uint256).max);
+        input.l2ToL2MessageExpiryPeriod = _period;
+        vm.expectRevert("L2Genesis: expiry period override needs interop at genesis");
         genesis.run(input);
     }
 
-    /// @notice Tests that run reverts when the OPTIMISM_PORTAL_INTEROP dev bit is set but useInterop is false.
-    function test_run_devBitWithoutUseInterop_reverts() external {
+    /// @notice Tests that when interop is scheduled for a later fork (genesis fork < LAGOON),
+    ///         the runtime INTEROP feature flag on L1Block is NOT set at genesis. The flag will
+    ///         instead be flipped at the activation block by op-node's setFeature deposit wrapper.
+    function test_setL1Block_interopScheduledNotActive_succeeds() external {
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.ISTHMUS);
+        genesis.run(input);
+
+        assertEq(
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+            false,
+            "INTEROP runtime flag must not be set at genesis when fork < LAGOON"
+        );
+    }
+
+    /// @notice Tests that when a chain is born at or beyond the Lagoon fork, the runtime INTEROP
+    ///         feature flag on L1Block IS set at genesis.
+    function test_setL1Block_interopAtGenesis_succeeds() external {
+        _setInputInteropEnabled();
+        input.fork = uint256(Fork.LAGOON);
+        genesis.run(input);
+
+        assertEq(
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+            true,
+            "INTEROP runtime flag must be set at genesis when fork >= LAGOON"
+        );
+    }
+
+    /// @notice Sanity check: with useInterop disabled and fork < LAGOON, the runtime INTEROP flag
+    ///         is unset.
+    function test_setL1Block_interopDisabled_succeeds() external {
         input.useInterop = false;
-        input.devFeatureBitmap = bytes32(DevFeatures.OPTIMISM_PORTAL_INTEROP);
-        vm.expectRevert("L2Genesis: useInterop and OPTIMISM_PORTAL_INTEROP devFeature bit must agree");
+        input.fork = uint256(Fork.ISTHMUS);
         genesis.run(input);
+
+        assertEq(
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isFeatureEnabled(Features.INTEROP),
+            false,
+            "INTEROP runtime flag must not be set when useInterop is false"
+        );
     }
 }

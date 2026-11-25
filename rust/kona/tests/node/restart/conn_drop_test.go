@@ -1,12 +1,16 @@
 package node_restart
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	node_utils "github.com/ethereum-optimism/optimism/rust/kona/tests/node/utils"
 )
 
@@ -24,7 +28,7 @@ func TestConnDropSync(gt *testing.T) {
 	// Ensure that the nodes are advancing.
 	var preCheckFuns []dsl.CheckFunc
 	for _, node := range out.L2CLNodes() {
-		preCheckFuns = append(preCheckFuns, node.AdvancedFn(types.LocalSafe, 20, 100), node.AdvancedFn(types.LocalUnsafe, 20, 100))
+		preCheckFuns = append(preCheckFuns, node.AdvancedFn(safety.LocalSafe, 20, 100), node.AdvancedFn(safety.LocalUnsafe, 20, 100))
 	}
 	dsl.CheckAll(t, preCheckFuns...)
 
@@ -36,46 +40,39 @@ func TestConnDropSync(gt *testing.T) {
 
 		node.DisconnectPeer(&sequencer)
 
-		// Ensure that the node is no longer connected to the sequencer
+		// Ensure that the node is no longer connected to the sequencer.
+		// The sequencer drops the connection only once the node's close reaches it, which can be
+		// after `DisconnectPeer` returns, so wait for it.
+		node.WaitForPeerDisconnected(&sequencer)
 		t.Logf("node %s is disconnected from sequencer %s", clName, sequencer.Escape().Name())
-		seqPeers := sequencer.Peers()
-		for _, peer := range seqPeers.Peers {
-			t.Require().NotEqual(peer.PeerID, node.PeerInfo().PeerID, "expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().Name())
-		}
 
+		// The node itself has dropped the connection by the time `DisconnectPeer` returns.
 		peers := node.Peers()
 		for _, peer := range peers.Peers {
 			t.Require().NotEqual(peer.PeerID, sequencer.PeerInfo().PeerID, "expected node %s to be disconnected from sequencer %s", clName, sequencer.Escape().Name())
 		}
 
-		currentUnsafeHead := node.ChainSyncStatus(node.ChainID(), types.LocalUnsafe)
+		currentUnsafeHead := node.ChainSyncStatus(node.ChainID(), safety.LocalUnsafe)
 
-		endSignal := make(chan struct{})
-
-		safeHeads := node_utils.GetKonaWsAsync(t, &node, "safe_head", endSignal)
-		unsafeHeads := node_utils.GetKonaWsAsync(t, &node, "unsafe_head", endSignal)
-
-		// Ensures that....
-		// - the node's safe head is advancing and eventually catches up with the unsafe head
-		// - the node's unsafe head is NOT advancing during this time
+		// Derivation may catch up while gossip is disconnected; the unsafe head must
+		// stay at its captured block until that block becomes safe.
 		check := func() error {
-		outer_loop:
-			for {
-				select {
-				case safeHead := <-safeHeads:
-					t.Logf("node %s safe head is advancing", clName)
-					if safeHead.Number >= currentUnsafeHead.Number {
-						t.Logf("node %s safe head caught up with unsafe head", clName)
-						break outer_loop
-					}
-				case unsafeHead := <-unsafeHeads:
-					return fmt.Errorf("node %s unsafe head is advancing: %d", clName, unsafeHead.Number)
+			ctx, cancel := context.WithTimeout(t.Ctx(), 4*time.Minute)
+			defer cancel()
+			return wait.For(ctx, time.Second, func() (bool, error) {
+				status, err := node.Escape().RollupAPI().SyncStatus(ctx)
+				if err != nil {
+					t.Logf("node %s sync status unavailable: %v", clName, err)
+					return false, nil
 				}
-			}
-
-			endSignal <- struct{}{}
-
-			return nil
+				if status.SafeL2.Number >= currentUnsafeHead.Number {
+					return true, nil
+				}
+				if status.UnsafeL2.ID() != currentUnsafeHead {
+					return false, fmt.Errorf("node %s unsafe head advanced before safe caught up: %s", clName, status.UnsafeL2.ID())
+				}
+				return false, nil
+			})
 		}
 
 		// Check that...
@@ -83,10 +80,10 @@ func TestConnDropSync(gt *testing.T) {
 		// - the node's unsafe head is advancing (through consolidation)
 		// - the node's safe head's number is catching up with the unsafe head's number
 		// - the node's unsafe head is strictly lagging behind the sequencer's unsafe head
-		postDisconnectCheckFuns = append(postDisconnectCheckFuns, node.AdvancedFn(types.LocalSafe, 50, 200), node.AdvancedFn(types.LocalUnsafe, 50, 200), check)
+		postDisconnectCheckFuns = append(postDisconnectCheckFuns, node.AdvancedFn(safety.LocalSafe, 50, 200), node.AdvancedFn(safety.LocalUnsafe, 50, 200), check)
 	}
 
-	postDisconnectCheckFuns = append(postDisconnectCheckFuns, sequencer.AdvancedFn(types.LocalUnsafe, 50, 200))
+	postDisconnectCheckFuns = append(postDisconnectCheckFuns, sequencer.AdvancedFn(safety.LocalUnsafe, 50, 200))
 
 	dsl.CheckAll(t, postDisconnectCheckFuns...)
 
@@ -113,7 +110,7 @@ func TestConnDropSync(gt *testing.T) {
 		t.Require().True(found, "expected node %s to be connected to reference node %s", clName, sequencer.Escape().Name())
 
 		// Check that the node is resyncing with the unsafe head network
-		postReconnectCheckFuns = append(postReconnectCheckFuns, node_utils.MatchedWithinRange(t, node, sequencer, 3, types.LocalSafe, 50), node.AdvancedFn(types.LocalUnsafe, 50, 100), node_utils.MatchedWithinRange(t, node, sequencer, 3, types.LocalUnsafe, 100))
+		postReconnectCheckFuns = append(postReconnectCheckFuns, node_utils.MatchedWithinRange(t, node, sequencer, 3, safety.LocalSafe, 50), node.AdvancedFn(safety.LocalUnsafe, 50, 100), node_utils.MatchedWithinRange(t, node, sequencer, 3, safety.LocalUnsafe, 100))
 	}
 
 	dsl.CheckAll(t, postReconnectCheckFuns...)

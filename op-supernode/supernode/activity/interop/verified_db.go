@@ -256,6 +256,9 @@ func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {
 	defer v.mu.Unlock()
 
 	var deleted bool
+	var nextFirstTimestamp uint64
+	var nextLastTimestamp uint64
+	var nextInitialized bool
 
 	err := v.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketName)
@@ -269,17 +272,23 @@ func (v *VerifiedDB) Rewind(timestamp uint64) (bool, error) {
 			}
 			deleted = true
 		}
+		firstKey, _ := c.First()
+		lastKey, _ := c.Last()
+		if len(firstKey) == u64Len && len(lastKey) == u64Len {
+			nextFirstTimestamp = binary.BigEndian.Uint64(firstKey)
+			nextLastTimestamp = binary.BigEndian.Uint64(lastKey)
+			nextInitialized = true
+		}
 		return nil
 	})
 	if err != nil {
 		return false, fmt.Errorf("failed to rewind verifiedDB: %w", err)
 	}
 
-	// Update state
 	if deleted {
-		if err := v.initTimestampBounds(); err != nil {
-			return deleted, fmt.Errorf("failed to reinitialize timestamp bounds after rewind: %w", err)
-		}
+		v.firstTimestamp = nextFirstTimestamp
+		v.lastTimestamp = nextLastTimestamp
+		v.initialized = nextInitialized
 	}
 
 	return deleted, nil

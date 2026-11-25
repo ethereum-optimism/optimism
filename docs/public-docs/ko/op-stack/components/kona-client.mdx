@@ -1,0 +1,73 @@
+---
+title: kona-client
+description: OP Stack 결함 증명 프로그램인 kona-client의 정식 허브입니다. kona-client가 하는 일, 운영 주체, 그리고 가이드, 릴리스, 소스, 사양의 위치를 안내합니다.
+diataxis: explanation
+---
+
+kona-client는 OP Stack의 결함 증명(fault proof) 프로그램입니다.
+[Kona](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona) 프로젝트의 일부로 빌드되는
+Rust 프로그램으로, 분쟁 대상인 output root를 결함 증명 VM 내부에서 검증할 수 있도록 L2 상태
+전이를 실행합니다.
+
+## 개요
+
+kona-client는 L1 데이터로부터 L2 체인의 분쟁 구간을 파생하고, 해당 블록을 재실행한 뒤, 그
+결과를 주장된 L2 output root와 비교합니다. 네트워크 접근 없이 샌드박스에서 실행됩니다.
+kona-client가 사용하는 모든 체인 데이터(L1 헤더, 트랜잭션, 영수증, blob, L2 상태)는 동반 호스트
+프로세스인 [kona-host](/ko/op-stack/components/kona-host)가 제공하는 preimage oracle ABI를 통해
+전달됩니다. kona-client는 동일한 입력이 동일한 출력뿐 아니라 동일한 실행 트레이스를 생성하도록
+만들어졌습니다.
+
+이 결정성이 결함 분쟁을 해결 가능하게 만듭니다. 분쟁 게임(dispute game)을 위해 kona-client는
+빅엔디언 64비트 MIPS(MIPS64) ELF 바이너리로 컴파일되어 [cannon](/ko/op-stack/components/cannon)
+FPVM 내부에서 실행됩니다. 이 조합은 `CANNON_KONA` 분쟁 게임(게임 유형 8)을 뒷받침하며, 이는
+[Upgrade 19](/ko/notices/archive/upgrade-19) 이후 무허가 결함 증명에서 인정되는(respected) 게임
+유형입니다. 모든 정직한 참여자가 동일한 실행 트레이스를 계산하므로, 분쟁을 이분 탐색하여 단일
+MIPS 명령어까지 좁히고 그 하나의 명령어를 L1에서 증명할 수 있습니다.
+
+kona-client는 레거시 `CANNON`(게임 유형 0) 및 `PERMISSIONED_CANNON`(게임 유형 1) 게임의 기반이었던
+Go 결함 증명 프로그램 op-program을 계승했습니다. op-program은 지원이 종료되었으며
+([op-geth 및 op-program 지원 종료](/ko/notices/archive/op-geth-deprecation) 참조), 현재 유지 관리되는
+결함 증명 프로그램은 kona 바이너리입니다.
+
+**운영 주체:** 프로덕션에서는 아무도 직접 호출하지 않습니다.
+[op-challenger](/ko/op-stack/fault-proofs/challenger)는 결함 분쟁이 실행 트레이스 단계에 도달하면
+cannon을 실행하고, cannon은 체인의 절대 prestate가 커밋하는 kona-client ELF를 실행합니다. 체인
+운영자는 결함 증명을 구성할 때 해당 prestate를 고정하며, 개발자는 테스트를 위해 kona-host를 통해
+kona-client를 네이티브로 실행할 수도 있습니다.
+
+## 시작하기
+
+*   [절대 prestate 및 preimage 파일 생성](/ko/chain-operators/tutorials/absolute-prestate):
+    특정 kona-client 빌드에 대한 온체인 커밋먼트인 절대 prestate를 빌드하고 검증합니다.
+    op-challenger는 분쟁 시점에 이 prestate의 preimage를 실행합니다.
+
+## 사용 방법 가이드
+
+*   [사용자 지정 kona-client 절대 prestate 생성](/ko/chain-operators/tutorials/kona-custom-prestate):
+    공개 Superchain Registry에 아직 등록되지 않은 체인 구성을 포함하는 kona-client를 빌드합니다.
+*   [Kona Proofs로 전환](/ko/chain-operators/guides/features/switching-to-kona-proofs):
+    기존 체인의 인정되는 게임 유형을 Kona 기반 결함 증명으로 전환합니다.
+*   [결함 증명 challenger 실행](/ko/use-cases/run-a-fault-proof-challenger):
+    prestate 선택부터 구성 및 모니터링까지, kona-client를 실행하는 op-challenger 배포를
+    구축합니다.
+
+## 구성 및 플래그 레퍼런스
+
+*   kona-client에는 구성 레퍼런스 페이지와 운영자용 플래그가 없습니다. 입력값(L1 head, 분쟁 대상
+    output root, 체인 구성)은
+    [결함 증명 프로그램 사양](https://specs.optimism.io/fault-proof/index.html#fault-proof-program)에
+    정의된 대로 preimage oracle을 통해 부트스트랩 데이터로 전달됩니다.
+
+## 릴리스
+
+*   [kona-client 릴리스 이력](/ko/releases/kona-client)
+
+## 소스 및 사양 링크
+
+*   Optimism 모노레포의 [소스: `rust/kona/bin/client`](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/bin/client).
+*   [결함 증명 프로그램 개발](/ko/op-stack/fault-proofs/kona/fpp-dev/intro): kona-client와 같은
+    결함 증명 프로그램이 어떻게 구성되고(prologue, execution, epilogue) Kona SDK 위에서 빌드되는지
+    설명합니다.
+*   [결함 증명 프로그램 사양](https://specs.optimism.io/fault-proof/index.html#fault-proof-program):
+    프로그램의 prologue, main content, epilogue에 대한 규범적 정의입니다.

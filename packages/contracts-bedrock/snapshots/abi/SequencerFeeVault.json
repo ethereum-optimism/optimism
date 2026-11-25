@@ -170,6 +170,24 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_newRecipient",
+        "type": "address"
+      },
+      {
+        "internalType": "enum Types.WithdrawalNetwork",
+        "name": "_newWithdrawalNetwork",
+        "type": "uint8"
+      }
+    ],
+    "name": "setWithdrawalRoute",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "totalProcessed",
     "outputs": [

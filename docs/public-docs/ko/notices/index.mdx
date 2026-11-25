@@ -1,0 +1,64 @@
+---
+title: "네트워크 공지"
+sidebarTitle: "개요"
+description: "OP Stack 운영자를 위한 진행 중인 업그레이드 공지, 지원 중단, 네트워크 변경 안내입니다."
+---
+
+{/*
+  MAINTENANCE: Keep this page in sync with the "Network Notices" group in docs.json.
+  When a notice is activated: add a card here (under the matching heading) AND add
+  the page to the matching docs.json nav subgroup.
+  When a notice is archived: remove its card here AND move the page under
+  notices/archive/, then follow RETENTION below.
+  Notices are transient operator action items. The permanent record of every
+  network upgrade lives in the hardfork registry
+  (/op-stack/protocol/network-upgrades) — when archiving an upgrade notice,
+  check that the registry page for its hardfork is up to date.
+
+  RETENTION: a notice leaves the sidebar when its deadline passes. Archived
+  notices are not listed in docs.json; they live on at their existing URLs and
+  are browsable from the archive index (notices/archive/index.mdx), which is
+  the Archive entry in this tab. Archiving a notice means: add a row to that
+  index, set the page's date: frontmatter, and add the page to
+  scripts/lint/nav-allowlist.json so the nav validator accepts it.
+  A notice leaves the archive index only when nothing links to it AND the
+  hardfork registry (or its contract upgrades table) carries the same facts.
+  Until both are true the page stays at its existing URL: over twenty live
+  pages link into the archive, so deleting or moving a page breaks them.
+*/}
+
+공지는 애플리케이션 개발자, 노드 운영자, 체인 운영자를 위한 기한이 정해진 조치 항목으로, 예정된
+네트워크 업그레이드, 지원 중단, 운영 변경 사항을 다룹니다. 각 하드포크는
+[하드포크 레지스트리](/ko/op-stack/protocol/network-upgrades)에도 영구 항목이 있으며,
+여기에는 활성화 시점, 기준 사양, 최소 구성 요소 버전이 기록됩니다.
+컨트랙트 전용 업그레이드는 레지스트리의
+[컨트랙트 업그레이드 표](/ko/op-stack/protocol/network-upgrades#contract-upgrades)에 나열됩니다.
+공지는 활성화 이후 보관 처리되지만, 레지스트리 페이지는 영구적으로 유지됩니다.
+
+## 네트워크 업그레이드
+
+<CardGroup cols={1}>
+  <Card title="Upgrade 21" href="/ko/notices/upgrade-21" icon="circle-info" horizontal>
+    L1 컨트랙트 업그레이드: 보관(custody) 및 일시 중지 식별자로서의 ETHLockbox, 그리고 상호운용성(interop) 컨트랙트 변경 사항
+  </Card>
+  <Card title="Interop 활성화 준비" href="/ko/notices/interop-prep" icon="circle-info" horizontal>
+    OP Mainnet 및 Unichain의 interop 활성화 준비
+  </Card>
+</CardGroup>
+
+## 운영
+
+<CardGroup cols={1}>
+  <Card title="특화된 노드 토폴로지" href="/ko/notices/specialized-node-topology" icon="circle-info" horizontal>
+    Supernode 및 Light CL 노드 토폴로지에 대한 안내
+  </Card>
+  <Card title="Subblocks: 200 ms 간격 및 페이로드 변경" href="/ko/notices/subblocks" icon="circle-info" horizontal>
+    OP Sepolia 및 OP Mainnet의 200 ms subblock 간격과 0으로 설정되는 4개의 스트림 페이로드 필드
+  </Card>
+  <Card title="op-reth storage v1 지원 중단" href="/ko/notices/op-reth-storage-v1-deprecation" icon="circle-info" horizontal>
+    op-reth storage v1은 2027년 1월 26일에 지원이 종료됩니다. 기존 datadir을 storage v2로 마이그레이션하세요
+  </Card>
+  <Card title="Preconfirmation 아키텍처 전환" href="/ko/notices/preconfirmation-architecture-transition" icon="circle-info" horizontal>
+    OP Labs는 Flashblocks 스택에 대한 지원을 종료합니다. 지원되는 경로는 Subblocks입니다
+  </Card>
+</CardGroup>

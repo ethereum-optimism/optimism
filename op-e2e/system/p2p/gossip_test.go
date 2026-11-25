@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
@@ -20,13 +19,13 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
+// TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 op-reth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 func TestSystemMockP2P(t *testing.T) {
 	t.Skipf("skipping due to high flakiness")
@@ -81,8 +80,8 @@ func TestSystemMockP2P(t *testing.T) {
 
 	require.NoError(t, rollupClient.StartSequencer(context.Background(), sys.L2GenesisCfg.ToBlock().Hash()))
 
-	l2Seq := sys.NodeClient("sequencer")
-	l2Verif := sys.NodeClient("verifier")
+	l2Seq := sys.NodeSourceClient("sequencer")
+	l2Verif := sys.NodeSourceClient("verifier")
 
 	// Transactor Account
 	ethPrivKey := cfg.Secrets.Alice
@@ -122,7 +121,6 @@ func TestSystemDenseTopology(t *testing.T) {
 			SequencerConfDepth: 0,
 			SequencerEnabled:   false,
 		},
-		InteropConfig:       &interop.Config{},
 		L1EpochPollInterval: time.Second * 4,
 	}
 	cfg.Nodes["verifier3"] = &rollupNode.Config{
@@ -131,7 +129,6 @@ func TestSystemDenseTopology(t *testing.T) {
 			SequencerConfDepth: 0,
 			SequencerEnabled:   false,
 		},
-		InteropConfig:       &interop.Config{},
 		L1EpochPollInterval: time.Second * 4,
 	}
 	cfg.Loggers["verifier2"] = testlog.Logger(t, log.LevelInfo).New("role", "verifier")
@@ -176,10 +173,10 @@ func TestSystemDenseTopology(t *testing.T) {
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 
-	l2Seq := sys.NodeClient("sequencer")
-	l2Verif := sys.NodeClient("verifier")
-	l2Verif2 := sys.NodeClient("verifier2")
-	l2Verif3 := sys.NodeClient("verifier3")
+	l2Seq := sys.NodeSourceClient("sequencer")
+	l2Verif := sys.NodeSourceClient("verifier")
+	l2Verif2 := sys.NodeSourceClient("verifier2")
+	l2Verif3 := sys.NodeSourceClient("verifier3")
 
 	// Transactor Account
 	ethPrivKey := cfg.Secrets.Alice

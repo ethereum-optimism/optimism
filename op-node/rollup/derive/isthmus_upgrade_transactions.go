@@ -4,9 +4,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -46,7 +46,7 @@ func IsthmusNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns := make([]hexutil.Bytes, 0, 8)
 
 	// Deploy L1 Block transaction
-	deployL1BlockTransaction, err := types.NewTx(&types.DepositTx{
+	deployL1BlockTransaction, err := (&optypes.DepositTx{
 		SourceHash:          deployIsthmusL1BlockSource.SourceHash(),
 		From:                L1BlockIsthmusDeployerAddress,
 		To:                  nil,
@@ -64,7 +64,7 @@ func IsthmusNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns = append(upgradeTxns, deployL1BlockTransaction)
 
 	// Deploy Gas Price Oracle transaction
-	deployGasPriceOracle, err := types.NewTx(&types.DepositTx{
+	deployGasPriceOracle, err := (&optypes.DepositTx{
 		SourceHash:          deployIsthmusGasPriceOracleSource.SourceHash(),
 		From:                GasPriceOracleIsthmusDeployerAddress,
 		To:                  nil,
@@ -82,7 +82,7 @@ func IsthmusNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns = append(upgradeTxns, deployGasPriceOracle)
 
 	// Deploy Operator Fee vault transaction
-	deployOperatorFeeVault, err := types.NewTx(&types.DepositTx{
+	deployOperatorFeeVault, err := (&optypes.DepositTx{
 		SourceHash:          deployOperatorFeeVaultSource.SourceHash(),
 		From:                OperatorFeeVaultDeployerAddress,
 		To:                  nil,
@@ -100,7 +100,7 @@ func IsthmusNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns = append(upgradeTxns, deployOperatorFeeVault)
 
 	// Deploy L1 Block Proxy upgrade transaction
-	updateL1BlockProxy, err := types.NewTx(&types.DepositTx{
+	updateL1BlockProxy, err := (&optypes.DepositTx{
 		SourceHash:          updateIsthmusL1BlockProxySource.SourceHash(),
 		From:                common.Address{},
 		To:                  &predeploys.L1BlockAddr,
@@ -118,7 +118,7 @@ func IsthmusNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns = append(upgradeTxns, updateL1BlockProxy)
 
 	// Deploy Gas Price Oracle Proxy upgrade transaction
-	updateGasPriceOracleProxy, err := types.NewTx(&types.DepositTx{
+	updateGasPriceOracleProxy, err := (&optypes.DepositTx{
 		SourceHash:          updateIsthmusGasPriceOracleSource.SourceHash(),
 		From:                common.Address{},
 		To:                  &predeploys.GasPriceOracleAddr,
@@ -136,7 +136,7 @@ func IsthmusNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns = append(upgradeTxns, updateGasPriceOracleProxy)
 
 	// Deploy Operator Fee Vault Proxy upgrade transaction
-	updateOperatorFeeVaultProxy, err := types.NewTx(&types.DepositTx{
+	updateOperatorFeeVaultProxy, err := (&optypes.DepositTx{
 		SourceHash:          updateOperatorFeeVaultSource.SourceHash(),
 		From:                common.Address{},
 		To:                  &predeploys.OperatorFeeVaultAddr,
@@ -154,7 +154,7 @@ func IsthmusNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns = append(upgradeTxns, updateOperatorFeeVaultProxy)
 
 	// Enable Isthmus transaction
-	enableIsthmus, err := types.NewTx(&types.DepositTx{
+	enableIsthmus, err := (&optypes.DepositTx{
 		SourceHash:          enableIsthmusSource.SourceHash(),
 		From:                L1InfoDepositerAddress,
 		To:                  &predeploys.GasPriceOracleAddr,
@@ -171,7 +171,7 @@ func IsthmusNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 
 	upgradeTxns = append(upgradeTxns, enableIsthmus)
 
-	deployHistoricalBlockHashesContract, err := types.NewTx(&types.DepositTx{
+	deployHistoricalBlockHashesContract, err := (&optypes.DepositTx{
 		SourceHash:          blockHashDeployerSource.SourceHash(),
 		From:                predeploys.EIP2935ContractDeployer,
 		To:                  nil,

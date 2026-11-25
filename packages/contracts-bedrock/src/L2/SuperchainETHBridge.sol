@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Unauthorized, ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SafeSend } from "src/universal/SafeSend.sol";
 
@@ -20,6 +21,16 @@ contract SuperchainETHBridge is ISemver {
     /// SuperchainETHBridge.
     error InvalidCrossDomainSender();
 
+    /// @notice Thrown when sending ETH from the L2ToL2CrossDomainMessenger.
+    error SuperchainETHBridge_SenderIsMessenger();
+
+    /// @notice Thrown when refunding a send whose message has not expired, or that the caller did
+    ///         not send.
+    error SuperchainETHBridge_MessageNotExpired();
+
+    /// @notice Thrown when refunding a send that was already refunded.
+    error SuperchainETHBridge_AlreadyRefunded();
+
     /// @notice Emitted when ETH is sent from one chain to another.
     /// @param from          Address of the sender.
     /// @param to            Address of the recipient.
@@ -34,16 +45,30 @@ contract SuperchainETHBridge is ISemver {
     /// @param source        Chain ID of the source chain.
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
 
-    /// @notice Semantic version.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @notice Emitted when the ETH of an expired send is returned to its sender.
+    /// @param from        Address that sent the ETH, and got it back.
+    /// @param amount      Amount of ETH returned.
+    /// @param messageHash Hash of the expired message.
+    event RefundETH(address indexed from, uint256 amount, bytes32 indexed messageHash);
 
-    /// @notice Sends ETH to some target address on another chain.
+    /// @notice Semantic version.
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
+
+    /// @notice Mapping of message hashes to whether the ETH of that send was refunded.
+    mapping(bytes32 => bool) public refunded;
+
+    /// @notice Sends ETH to some target address on another chain. Reverts if the caller is the
+    ///         L2ToL2CrossDomainMessenger, which could never spend a refund. A send made through
+    ///         the L2CrossDomainMessenger cannot be refunded to its sender on L1 either: a refund
+    ///         would go to that messenger and stay there. So a sender on L1 should deposit through
+    ///         the portal and send from its own address, or use a contract on L2.
     /// @param _to       Address to send ETH to.
     /// @param _chainId  Chain ID of the destination chain.
     /// @return msgHash_ Hash of the message sent.
     function sendETH(address _to, uint256 _chainId) external payable returns (bytes32 msgHash_) {
         if (_to == address(0)) revert ZeroAddress();
+        if (msg.sender == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert SuperchainETHBridge_SenderIsMessenger();
 
         // NOTE: 'burn' will soon change to 'deposit'.
         IETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: msg.value }();
@@ -76,5 +101,38 @@ contract SuperchainETHBridge is ISemver {
         new SafeSend{ value: _amount }(payable(_to));
 
         emit RelayETH(_from, _to, _amount, source);
+    }
+
+    /// @notice Returns the ETH of a send whose message expired: its destination never relayed it,
+    ///         and now never can. The ETH goes to the sender, which must be the caller. The
+    ///         arguments are those of the send's message.
+    /// @param _destination Chain ID of the destination chain of the send.
+    /// @param _nonce       Nonce of the send's message.
+    /// @param _to          Address the ETH was sent to.
+    /// @param _amount      Amount of ETH sent.
+    function refundETH(uint256 _destination, uint256 _nonce, address _to, uint256 _amount) external {
+        bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessage({
+            _destination: _destination,
+            _source: block.chainid,
+            _nonce: _nonce,
+            _sender: address(this),
+            _target: address(this),
+            _message: abi.encodeCall(this.relayETH, (msg.sender, _to, _amount))
+        });
+
+        if (!IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).expiredMessages(messageHash)) {
+            revert SuperchainETHBridge_MessageNotExpired();
+        }
+        if (refunded[messageHash]) revert SuperchainETHBridge_AlreadyRefunded();
+
+        refunded[messageHash] = true;
+
+        // NOTE: 'mint' will soon change to 'withdraw'.
+        IETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(_amount);
+
+        // This is a forced ETH send back to the sender, the sender should NOT expect to be called.
+        new SafeSend{ value: _amount }(payable(msg.sender));
+
+        emit RefundETH(msg.sender, _amount, messageHash);
     }
 }

@@ -1,0 +1,47 @@
+---
+title: 분석 도구
+description: OP Mainnet에 대한 분석 데이터를 수집하고 맞춤 설정을 구성하는 데 사용할 수 있는 플랫폼에 대해 알아봅니다.
+diataxis: reference
+---
+이 가이드는 OP Mainnet에 대한 분석 데이터를 수집하고 맞춤 설정을 구성하는 데 사용할 수 있는 플랫폼을 소개합니다.
+
+## Blocknative
+
+[Blocknative](https://www.blocknative.com/)를 사용하면 Ethereum L1에 제출된 OP Stack 배치를 [디코딩](http://docs.blocknative.com/ethernow/batch-decoder-api)하고 [분석](https://docs.blocknative.com/blocknative-data-archive/blob-archive)할 수 있습니다. 공개 API를 통해 또는 [Ethernow Explorer](http://ethernow.xyz)를 통해 시각적으로, 온체인 확인 여부와 관계없이 모든 배치의 데이터를 검사, 분석, 디코딩, 다운로드할 수 있습니다. 다양한 리소스에 대한 링크는 다음과 같습니다.
+
+*   [Batch Decoding API](http://docs.blocknative.com/ethernow/batch-decoder-api): OP Stack 배치 트랜잭션을 사람이 읽을 수 있는 JSON 형식으로 디코딩합니다.
+*   [Blob Archive API](https://docs.blocknative.com/blocknative-data-archive/blob-archive): OP Stack Blob의 버전 해시(versioned hash)를 입력하면 blob 데이터를 받을 수 있습니다(4096 epoch의 저장 기간이 지난 후에도 가능).
+*   [Mempool Archive](https://docs.blocknative.com/blocknative-data-archive/mempool-archive): Ethereum mempool에 있었던 모든 OP Stack 트랜잭션을 분석하여 감지 시간, 대기 시간, gas 등을 확인합니다.
+*   [Ethernow Explorer](http://ethernow.xyz): 트랜잭션과 배치가 mempool에 들어가 블록으로 정리되는 과정을 시각적으로 확인합니다. 이 필터를 사용하면 OP Stack 배치가 mempool에 들어가 온체인에 기록되는 과정을 볼 수 있습니다.
+
+## Tenderly
+
+[Tenderly](https://tenderly.co/?mtm_campaign=ext-docs&mtm_kwd=optimism)는 OP 기반 체인을 위한 포괄적인 모니터링 및 보안 솔루션을 제공하여, 잠재적인 문제를 실시간으로 파악하고 선제적으로 대응할 수 있도록 지원합니다.
+
+*   지갑을 모니터링하고 트랜잭션 및 컨트랙트 이벤트에 대한 실시간 알림을 설정하도록 [Tenderly Alerts](https://docs.tenderly.co/alerts/intro-to-alerts?mtm_campaign=ext-docs&mtm_kwd=optimism)를 구성합니다. 알림은 외부 webhook, PagerDuty 또는 Telegram, Slack과 같은 채팅 앱으로 전달됩니다.
+*   [Developer Explorer](https://docs.tenderly.co/developer-explorer?mtm_campaign=ext-docs&mtm_kwd=optimism)를 사용하여 트랜잭션 실행을 높은 수준의 세부 정보로 모니터링하고 분석합니다.
+*   [Web3 Actions](https://docs.tenderly.co/web3-actions/intro-to-web3-actions?mtm_campaign=ext-docs&mtm_kwd=optimism)를 사용하여 사전 정의된 대응을 자동화하고 보안과 사용자 경험을 개선합니다.
+*   [Simulation RPC](https://docs.tenderly.co/simulations/single-simulations?mtm_campaign=ext-docs&mtm_kwd=optimism#simulate-via-rpc)를 통합하여 예상 자산 변동, 정확한 gas 사용량, 발생하는 이벤트 등 트랜잭션 결과를 예측합니다.
+
+## Dune Analytics
+
+[Dune Analytics](https://dune.com)를 사용하면 누구나 OP 체인(OP Mainnet, Base, Zora 사용 가능)에 대한 정보를 보여주는 대시보드를 만들 수 있습니다. 자세한 내용은 [Dune Docs](https://dune.com/docs/)를 참조하십시오.
+커뮤니티에서 만든 OP 체인 대시보드 목록은 [여기](https://dune.com/browse/dashboards?q=tags%3Aop%2Coptimism%2Csuperchain\&order=trending\&time_range=24h)에서 확인하거나, 직접 대시보드를 [만들 수](https://docs.dune.com/#queries) 있습니다.
+
+OP 체인에서 앱을 구축하는 개발자를 위해 Dune의 개발자 플랫폼인 [Sim](https://sim.dune.com/)은 [Sim APIs](https://docs.sim.dune.com/)를 통한 실시간 온체인 데이터 접근과 [Sim IDX](https://docs.sim.dune.com/idx)를 통한 맞춤 인덱싱을 제공합니다.
+
+지금까지 저희가 가장 좋아하는 대시보드는 다음과 같습니다.
+
+*   [OP Chains / Superchain - L2 Activity, Chain Economics](https://dune.com/oplabspbc/op-stack-chains-l1-activity)
+*   [OP Chains / Superchain - Popular Apps & Project Usage Trends](https://dune.com/oplabspbc/superchain-op-chains-apps-and-project-usage-trends)
+*   [By OP Chain - L2/L1 Chain Economics](https://dune.com/oplabspbc/optimism-l2-l1-economics)
+*   [OP Token House Delegates](https://dune.com/optimismfnd/optimism-op-token-house)
+*   [Superchain NFTs](https://dune.com/oplabspbc/superchain-nfts)
+
+## 추가 도구 및 리소스
+
+OP Mainnet 분석 및 개발을 위한 추가 도구와 리소스는 다음과 같습니다.
+
+*   L2 사용량 및 비교: [growthepie](https://www.growthepie.xyz/)
+*   OP Analytics(인센티브 추적, 헬퍼 함수, 공개 분석): [GitHub의 OP Analytics](https://github.com/ethereum-optimism/op-analytics)
+*   NumbaNERDs에 기여하기: [GitHub Issues](https://github.com/ethereum-optimism/op-analytics/issues)

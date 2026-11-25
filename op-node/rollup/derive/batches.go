@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type BatchWithL1InclusionBlock struct {
@@ -171,29 +172,43 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 	}
 
 	isIsthmus := cfg.IsIsthmus(batch.Timestamp)
+	isSDM := cfg.IsSDM(batch.Timestamp)
 
 	// We can do this check earlier, but it's a more intensive one, so we do this last.
 	for i, txBytes := range batch.Transactions {
-		if len(txBytes) == 0 {
-			log.Warn("transaction data must not be empty, but found empty tx", "tx_index", i)
-			return BatchDrop
-		}
-		if txBytes[0] == types.DepositTxType {
-			log.Warn("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", i)
-			return BatchDrop
-		}
-		if !isIsthmus && txBytes[0] == types.SetCodeTxType {
-			log.Warn("sequencers may not embed any SetCode transactions before Isthmus", "tx_index", i)
-			return BatchDrop
+		if validity := checkSequencerTxData(log, i, txBytes, isIsthmus, isSDM); validity != BatchAccept {
+			return validity
 		}
 	}
 
 	return BatchAccept
 }
 
-// checkSpanBatchPrefix performs the span batch prefix rules for Holocene.
-// Next to the validity, it also returns the parent L2 block as determined during the checks for
-// further consumption.
+func checkSequencerTxData(log log.Logger, txIndex int, txBytes []byte, isIsthmus, isSDM bool) BatchValidity {
+	if len(txBytes) == 0 {
+		log.Warn("transaction data must not be empty, but found empty tx", "tx_index", txIndex)
+		return BatchDrop
+	}
+	switch txBytes[0] {
+	case optypes.DepositTxType:
+		log.Warn("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", txIndex)
+		return BatchDrop
+	case types.SetCodeTxType:
+		if !isIsthmus {
+			log.Warn("sequencers may not embed any SetCode transactions before Isthmus", "tx_index", txIndex)
+			return BatchDrop
+		}
+	case optypes.PostExecTxType:
+		if !isSDM {
+			log.Warn("sequencers may not embed any PostExec transactions before SDM", "tx_index", txIndex)
+			return BatchDrop
+		}
+	}
+	return BatchAccept
+}
+
+// checkSpanBatchPrefix performs the span batch prefix rules shared by the legacy full checks and
+// the Holocene checks. It also returns the parent L2 block determined during validation.
 func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
 	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
 ) (BatchValidity, eth.L2BlockRef) {
@@ -257,7 +272,8 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 		parentBlock, err = l2Fetcher.L2BlockRefByNumber(ctx, parentNum)
 		if err != nil {
 			log.Warn("failed to fetch L2 block", "number", parentNum, "err", err)
-			// unable to validate the batch for now. retry later.
+			// Unable to validate the batch right now. Only the pre-Holocene BatchQueue retains
+			// the batch for a retry; the Holocene BatchStage has already consumed it and skips it.
 			return BatchUndecided, eth.L2BlockRef{}
 		}
 	}
@@ -301,6 +317,18 @@ func checkSpanBatchPrefix(ctx context.Context, cfg *rollup.Config, log log.Logge
 		return BatchDrop, parentBlock
 	}
 	return BatchAccept, parentBlock
+}
+
+// checkSpanBatchHolocene validates the span batch prefix followed by its overlap with the safe
+// chain. Holocene validates batches as they are loaded, so the legacy full checks are not run.
+func checkSpanBatchHolocene(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef,
+	batch *SpanBatch, l1InclusionBlock eth.L1BlockRef, l2Fetcher SafeBlockFetcher,
+) BatchValidity {
+	prefixValidity, parentBlock := checkSpanBatchPrefix(ctx, cfg, log, l1Blocks, l2SafeHead, batch, l1InclusionBlock, l2Fetcher)
+	if prefixValidity != BatchAccept {
+		return prefixValidity
+	}
+	return checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher)
 }
 
 // checkSpanBatch checks the full SpanBatch semantic validation rules on a syntactically-correct
@@ -382,64 +410,73 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 		}
 
 		isIsthmus := cfg.IsIsthmus(blockTimestamp)
+		isSDM := cfg.IsSDM(blockTimestamp)
 		for i, txBytes := range batch.GetBlockTransactions(i) {
-			if len(txBytes) == 0 {
-				log.Warn("transaction data must not be empty, but found empty tx", "tx_index", i)
-				return BatchDrop
-			}
-			if txBytes[0] == types.DepositTxType {
-				log.Warn("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", i)
-				return BatchDrop
-			}
-			if !isIsthmus && txBytes[0] == types.SetCodeTxType {
-				log.Warn("sequencers may not embed any SetCode transactions before Isthmus", "tx_index", i)
-				return BatchDrop
+			if validity := checkSequencerTxData(log, i, txBytes, isIsthmus, isSDM); validity != BatchAccept {
+				return validity
 			}
 		}
 	}
 
-	parentNum := parentBlock.Number
 	nextTimestamp := l2SafeHead.Time + cfg.BlockTime
 	// Check overlapped blocks
 	if batch.GetTimestamp() < nextTimestamp {
-		for i := uint64(0); i < l2SafeHead.Number-parentNum; i++ {
-			safeBlockNum := parentNum + i + 1
-			safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, safeBlockNum)
-			if err != nil {
-				log.Warn("failed to fetch L2 block payload", "number", safeBlockNum, "err", err)
-				// unable to validate the batch for now. retry later.
-				return BatchUndecided
-			}
-			safeBlockTxs := safeBlockPayload.ExecutionPayload.Transactions
-			batchTxs := batch.GetBlockTransactions(int(i))
-			// execution payload has deposit TXs, but batch does not.
-			depositCount := 0
-			for _, tx := range safeBlockTxs {
-				if tx[0] == types.DepositTxType {
-					depositCount++
-				}
-			}
-			if len(safeBlockTxs)-depositCount != len(batchTxs) {
-				log.Warn("overlapped block's tx count does not match", "safeBlockTxs", len(safeBlockTxs), "batchTxs", len(batchTxs))
-				return BatchDrop
-			}
-			for j := 0; j < len(batchTxs); j++ {
-				if !bytes.Equal(safeBlockTxs[j+depositCount], batchTxs[j]) {
-					log.Warn("overlapped block's transaction does not match")
-					return BatchDrop
-				}
-			}
-			safeBlockRef, err := PayloadToBlockRef(cfg, safeBlockPayload.ExecutionPayload)
-			if err != nil {
-				log.Error("failed to extract L2BlockRef from execution payload", "hash", safeBlockPayload.ExecutionPayload.BlockHash, "err", err)
-				return BatchDrop
-			}
-			if safeBlockRef.L1Origin.Number != batch.GetBlockEpochNum(int(i)) {
-				log.Warn("overlapped block's L1 origin number does not match")
-				return BatchDrop
-			}
+		if validity := checkSpanBatchOverlap(ctx, cfg, log, batch, parentBlock, l2SafeHead, l2Fetcher); validity != BatchAccept {
+			return validity
 		}
 	}
 
+	return BatchAccept
+}
+
+// checkSpanBatchOverlap validates the portion of a span batch that overlaps the safe chain: every
+// overlapped element's transactions and L1 origin must match the canonical block at the same
+// height. A batch whose overlap disagrees with the safe chain — possible since interop block
+// replacement — describes a different history and is dropped as a whole, so that its elements
+// past the safe head cannot be applied. The prefix rules must have accepted the batch first:
+// parentBlock must be the prefix-determined parent (an ancestor of, or equal to, l2SafeHead), and
+// the batch must extend past the safe head. Returns BatchUndecided if a payload cannot be fetched.
+func checkSpanBatchOverlap(ctx context.Context, cfg *rollup.Config, log log.Logger, batch *SpanBatch,
+	parentBlock, l2SafeHead eth.L2BlockRef, l2Fetcher SafeBlockFetcher,
+) BatchValidity {
+	parentNum := parentBlock.Number
+	for i := uint64(0); i < l2SafeHead.Number-parentNum; i++ {
+		safeBlockNum := parentNum + i + 1
+		safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, safeBlockNum)
+		if err != nil {
+			log.Warn("failed to fetch L2 block payload", "number", safeBlockNum, "err", err)
+			// Unable to validate the batch right now. Only the pre-Holocene BatchQueue retains
+			// the batch for a retry; the Holocene BatchStage has already consumed it and skips it.
+			return BatchUndecided
+		}
+		safeBlockTxs := safeBlockPayload.ExecutionPayload.Transactions
+		batchTxs := batch.GetBlockTransactions(int(i))
+		// execution payload has deposit TXs, but batch does not.
+		depositCount := 0
+		for _, tx := range safeBlockTxs {
+			if optypes.IsDepositTxBytes(tx) {
+				depositCount++
+			}
+		}
+		if len(safeBlockTxs)-depositCount != len(batchTxs) {
+			log.Warn("overlapped block's tx count does not match", "safeBlockTxs", len(safeBlockTxs), "batchTxs", len(batchTxs))
+			return BatchDrop
+		}
+		for j := 0; j < len(batchTxs); j++ {
+			if !bytes.Equal(safeBlockTxs[j+depositCount], batchTxs[j]) {
+				log.Warn("overlapped block's transaction does not match")
+				return BatchDrop
+			}
+		}
+		safeBlockRef, err := PayloadToBlockRef(cfg, safeBlockPayload.ExecutionPayload)
+		if err != nil {
+			log.Error("failed to extract L2BlockRef from execution payload", "hash", safeBlockPayload.ExecutionPayload.BlockHash, "err", err)
+			return BatchDrop
+		}
+		if safeBlockRef.L1Origin.Number != batch.GetBlockEpochNum(int(i)) {
+			log.Warn("overlapped block's L1 origin number does not match")
+			return BatchDrop
+		}
+	}
 	return BatchAccept
 }

@@ -7,9 +7,9 @@ import (
 	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var errUnknownGame = errors.New("unknown game")
@@ -134,11 +134,14 @@ func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, bl
 		if err != nil {
 			return nil, fmt.Errorf("failed to create game player: %w", err)
 		}
-		if err := player.ValidatePrestate(ctx); err != nil {
-			if !c.allowInvalidPrestate || !errors.Is(err, types.ErrInvalidPrestate) {
-				return nil, fmt.Errorf("failed to validate prestate: %w", err)
+		// Resolved games are never acted on, and the data to validate an old game's prestate may no longer exist.
+		if player.Status() == types.GameStatusInProgress {
+			if err := player.ValidatePrestate(ctx); err != nil {
+				if !c.allowInvalidPrestate || !errors.Is(err, types.ErrInvalidPrestate) {
+					return nil, fmt.Errorf("failed to validate prestate: %w", err)
+				}
+				c.logger.Error("Invalid prestate", "game", game.Proxy, "err", err)
 			}
-			c.logger.Error("Invalid prestate", "game", game.Proxy, "err", err)
 		}
 		state.player = player
 		state.status = player.Status()

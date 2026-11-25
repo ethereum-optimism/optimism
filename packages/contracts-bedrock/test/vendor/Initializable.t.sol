@@ -12,10 +12,10 @@ import { Process } from "scripts/libraries/Process.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -109,7 +109,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "DelayedWETHImpl",
                 target: EIP1967Helper.getImplementation(address(delayedWeth)),
-                initCalldata: abi.encodeCall(delayedWeth.initialize, (ISystemConfig(address(0))))
+                initCalldata: abi.encodeCall(
+                    delayedWeth.initialize, (IETHLockbox(payable(address(0))), delayedWeth.delay())
+                )
             })
         );
         // DelayedWETHProxy
@@ -117,17 +119,26 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "DelayedWETHProxy",
                 target: address(delayedWeth),
-                initCalldata: abi.encodeCall(delayedWeth.initialize, (ISystemConfig(address(0))))
+                initCalldata: abi.encodeCall(
+                    delayedWeth.initialize, (IETHLockbox(payable(address(0))), delayedWeth.delay())
+                )
             })
         );
 
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (deploy.cfg().useInterop()) {
             contracts.push(
                 InitializeableContract({
                     name: "OptimismPortal2Impl",
                     target: EIP1967Helper.getImplementation(address(optimismPortal2)),
                     initCalldata: abi.encodeCall(
-                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, ethLockbox)
+                        optimismPortal2.initialize,
+                        (
+                            systemConfig,
+                            anchorStateRegistry,
+                            ethLockbox,
+                            optimismPortal2.proofMaturityDelaySeconds(),
+                            IBridgeHook(address(0))
+                        )
                     )
                 })
             );
@@ -137,7 +148,14 @@ contract Initializer_Test is CommonTest {
                     name: "OptimismPortal2Proxy",
                     target: address(optimismPortal2),
                     initCalldata: abi.encodeCall(
-                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, ethLockbox)
+                        optimismPortal2.initialize,
+                        (
+                            systemConfig,
+                            anchorStateRegistry,
+                            ethLockbox,
+                            optimismPortal2.proofMaturityDelaySeconds(),
+                            IBridgeHook(address(0))
+                        )
                     )
                 })
             );
@@ -147,7 +165,14 @@ contract Initializer_Test is CommonTest {
                     name: "OptimismPortal2Impl",
                     target: EIP1967Helper.getImplementation(address(optimismPortal2)),
                     initCalldata: abi.encodeCall(
-                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, IETHLockbox(address(0)))
+                        optimismPortal2.initialize,
+                        (
+                            systemConfig,
+                            anchorStateRegistry,
+                            IETHLockbox(address(0)),
+                            optimismPortal2.proofMaturityDelaySeconds(),
+                            IBridgeHook(address(0))
+                        )
                     )
                 })
             );
@@ -157,7 +182,14 @@ contract Initializer_Test is CommonTest {
                     name: "OptimismPortal2Proxy",
                     target: address(optimismPortal2),
                     initCalldata: abi.encodeCall(
-                        optimismPortal2.initialize, (systemConfig, anchorStateRegistry, IETHLockbox(address(0)))
+                        optimismPortal2.initialize,
+                        (
+                            systemConfig,
+                            anchorStateRegistry,
+                            IETHLockbox(address(0)),
+                            optimismPortal2.proofMaturityDelaySeconds(),
+                            IBridgeHook(address(0))
+                        )
                     )
                 })
             );
@@ -185,7 +217,6 @@ contract Initializer_Test is CommonTest {
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
                         }),
-                        address(0),
                         ISystemConfig.Addresses({
                             l1CrossDomainMessenger: address(0),
                             l1ERC721Bridge: address(0),
@@ -223,7 +254,6 @@ contract Initializer_Test is CommonTest {
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
                         }),
-                        address(0),
                         ISystemConfig.Addresses({
                             l1CrossDomainMessenger: address(0),
                             l1ERC721Bridge: address(0),
@@ -311,10 +341,11 @@ contract Initializer_Test is CommonTest {
                 initCalldata: abi.encodeCall(
                     IAnchorStateRegistry.initialize,
                     (
-                        ISystemConfig(address(0)),
+                        IETHLockbox(payable(address(0))),
                         IDisputeGameFactory(address(0)),
                         Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
-                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType())),
+                        deploy.cfg().disputeGameFinalityDelaySeconds()
                     )
                 )
             })
@@ -327,10 +358,11 @@ contract Initializer_Test is CommonTest {
                 initCalldata: abi.encodeCall(
                     IAnchorStateRegistry.initialize,
                     (
-                        ISystemConfig(address(0)),
+                        IETHLockbox(payable(address(0))),
                         IDisputeGameFactory(address(0)),
                         Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
-                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType())),
+                        deploy.cfg().disputeGameFinalityDelaySeconds()
                     )
                 )
             })
@@ -341,7 +373,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "ETHLockboxImpl",
                 target: EIP1967Helper.getImplementation(address(ethLockbox)),
-                initCalldata: abi.encodeCall(ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0)))
+                initCalldata: abi.encodeCall(
+                    ethLockbox.initialize, (ISuperchainConfig(address(0)), new IOptimismPortal2[](0))
+                )
             })
         );
 
@@ -350,7 +384,9 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "ETHLockboxProxy",
                 target: address(ethLockbox),
-                initCalldata: abi.encodeCall(ethLockbox.initialize, (ISystemConfig(address(0)), new IOptimismPortal2[](0)))
+                initCalldata: abi.encodeCall(
+                    ethLockbox.initialize, (ISuperchainConfig(address(0)), new IOptimismPortal2[](0))
+                )
             })
         );
     }
@@ -377,6 +413,8 @@ contract Initializer_Test is CommonTest {
         excludes[j++] = "src/dispute/zk/ZKDisputeGame.sol";
         // L2 contract initialization is tested in Predeploys.t.sol
         excludes[j++] = "src/L2/*";
+        // ComplianceModule is deployed by its own script, not the standard deployment script.
+        excludes[j++] = "src/compliance/*";
 
         // Get all contract names in the src directory, minus the excluded contracts.
         string[] memory contractNames = ForgeArtifacts.getContractNames("src/*", excludes);

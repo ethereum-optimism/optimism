@@ -19,12 +19,12 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	e2ehelpers "github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
@@ -33,6 +33,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
 type L1Bindings struct {
@@ -79,8 +81,11 @@ func NewL2Bindings(t Testing, l2Cl *ethclient.Client, proofCl withdrawals.ProofC
 // BasicUserEnv provides access to the eth RPC, signer, and contract bindings for a single ethereum layer.
 // This environment can be shared between different BasicUser instances.
 type BasicUserEnv[B any] struct {
-	EthCl  *ethclient.Client
-	Signer types.Signer
+	EthCl *ethclient.Client
+	// Receipts reads the receipts of the layer: on L2 the engine's SourceClient, which keeps their
+	// OP fields, and on L1 txplan.FromGethReceipts(EthCl).
+	Receipts txplan.ReceiptGetter
+	Signer   types.Signer
 
 	AddressCorpora []common.Address
 
@@ -218,6 +223,14 @@ func (s *BasicUser[B]) ActSetGasFeeCap(feeCap *big.Int) Action {
 	}
 }
 
+// ActSetTxNonce pins the nonce for the next MakeTransaction/ActMakeTx,
+// bypassing PendingNonceAt for callers that need a deterministic sequence.
+func (s *BasicUser[B]) ActSetTxNonce(nonce uint64) Action {
+	return func(t Testing) {
+		s.txOpts.Nonce = new(big.Int).SetUint64(nonce)
+	}
+}
+
 func (s *BasicUser[B]) ActRandomTxData(t Testing) {
 	t.Helper()
 	dataLen := s.rng.Intn(128_000)
@@ -245,10 +258,10 @@ func (s *BasicUser[B]) TxValue() *big.Int {
 	return big.NewInt(0)
 }
 
-func (s *BasicUser[B]) LastTxReceipt(t Testing) *types.Receipt {
+func (s *BasicUser[B]) LastTxReceipt(t Testing) *optypes.Receipt {
 	t.Helper()
 	require.NotEqual(t, s.lastTxHash, common.Hash{}, "must send tx before getting last receipt")
-	receipt, err := s.env.EthCl.TransactionReceipt(t.Ctx(), s.lastTxHash)
+	receipt, err := s.env.Receipts.TransactionReceipt(t.Ctx(), s.lastTxHash)
 	require.NoError(t, err)
 	return receipt
 }
@@ -298,9 +311,9 @@ func (s *BasicUser[B]) ActCheckReceiptStatusOfLastTx(success bool) func(t Testin
 	}
 }
 
-func (s *BasicUser[B]) CheckReceipt(t Testing, success bool, txHash common.Hash) *types.Receipt {
+func (s *BasicUser[B]) CheckReceipt(t Testing, success bool, txHash common.Hash) *optypes.Receipt {
 	t.Helper()
-	receipt, err := s.env.EthCl.TransactionReceipt(t.Ctx(), txHash)
+	receipt, err := s.env.Receipts.TransactionReceipt(t.Ctx(), txHash)
 	if receipt != nil && err == nil {
 		expected := types.ReceiptStatusFailed
 		if success {
@@ -421,8 +434,7 @@ func (s *CrossLayerUser) CheckDepositTx(t Testing, l1TxHash common.Hash, index i
 		require.Less(t, index, len(depositReceipt.Logs), "must have enough logs in receipt")
 		reconstructedDep, err := derive.UnmarshalDepositLogEvent(depositReceipt.Logs[index])
 		require.NoError(t, err, "Could not reconstruct L2 Deposit")
-		l2Tx := types.NewTx(reconstructedDep)
-		s.L2.CheckReceipt(t, l2Success, l2Tx.Hash())
+		s.L2.CheckReceipt(t, l2Success, reconstructedDep.Hash())
 	}
 }
 
@@ -430,27 +442,26 @@ func (s *CrossLayerUser) Address() common.Address {
 	return s.L1.address
 }
 
-func (s *CrossLayerUser) GetLastDepositL2Receipt(t Testing) (*types.Receipt, error) {
+func (s *CrossLayerUser) GetLastDepositL2Receipt(t Testing) (*optypes.Receipt, error) {
 	depositL1Receipt := s.L1.CheckReceipt(t, true, s.lastL1DepositTxHash)
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(depositL1Receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
-	l2Tx := types.NewTx(reconstructedDep)
-	return s.L2.CheckReceipt(t, true, l2Tx.Hash()), nil
+	return s.L2.CheckReceipt(t, true, reconstructedDep.Hash()), nil
 }
 
 func (s *CrossLayerUser) getLastWithdrawalParams(t Testing) (*withdrawals.ProvenWithdrawalParameters, error) {
 	receipt := s.L2.CheckReceipt(t, true, s.lastL2WithdrawalTxHash)
-	l2WithdrawalBlock, err := s.L2.env.EthCl.BlockByNumber(t.Ctx(), receipt.BlockNumber)
+	l2WithdrawalBlock, err := s.L2.env.EthCl.HeaderByNumber(t.Ctx(), receipt.BlockNumber)
 	require.NoError(t, err)
 
 	latestGame, err := withdrawals.FindLatestGame(t.Ctx(), &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)
 	require.NoError(t, err)
 	l2OutputBlockNr := new(big.Int).SetBytes(latestGame.ExtraData[0:32])
-	l2OutputBlock, err := s.L2.env.EthCl.BlockByNumber(t.Ctx(), l2OutputBlockNr)
+	l2OutputBlock, err := s.L2.env.EthCl.HeaderByNumber(t.Ctx(), l2OutputBlockNr)
 	require.NoError(t, err)
 
-	if l2OutputBlock.NumberU64() < l2WithdrawalBlock.NumberU64() {
-		return nil, fmt.Errorf("the latest L2 output is %d and is not past L2 block %d that includes the withdrawal yet, no withdrawal can be proved yet", l2OutputBlock.NumberU64(), l2WithdrawalBlock.NumberU64())
+	if l2OutputBlock.Number.Cmp(l2WithdrawalBlock.Number) < 0 {
+		return nil, fmt.Errorf("the latest L2 output is %d and is not past L2 block %d that includes the withdrawal yet, no withdrawal can be proved yet", l2OutputBlock.Number, l2WithdrawalBlock.Number)
 	}
 
 	params, err := e2ehelpers.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, &s.L1.env.Bindings.DisputeGameFactory.DisputeGameFactoryCaller, &s.L1.env.Bindings.OptimismPortal2.OptimismPortal2Caller)

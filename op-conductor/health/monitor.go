@@ -7,19 +7,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-conductor/client"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var (
 	ErrSequencerNotHealthy         = errors.New("sequencer is not healthy")
 	ErrSequencerConnectionDown     = errors.New("cannot connect to sequencer rpc endpoints")
-	ErrSupervisorConnectionDown    = errors.New("cannot connect to supervisor rpc endpoint")
 	ErrRollupBoostConnectionDown   = errors.New("cannot connect to rollup boost rpc endpoints")
 	ErrRollupBoostPartiallyHealthy = errors.New("rollup boost is partially healthy, meaning that rbuilder is not healthy but the execution client is healthy")
 	ErrRollupBoostNotHealthy       = errors.New("rollup boost is not healthy")
@@ -40,13 +37,12 @@ type HealthMonitor interface {
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
 // rollupBoostHealthChecker is an optional health checker for rollup-boost (either standard or next client).
-func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rollupBoostHealthChecker client.RollupBoostHealthChecker, elP2pClient client.ElP2PClient, minElP2pPeers uint64, rollupBoostToleratePartialHealthinessToleranceLimit uint64, rollupBoostToleratePartialHealthinessToleranceIntervalSeconds uint64) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, node dial.RollupClientInterface, p2p apis.P2PClient, rollupBoostHealthChecker client.RollupBoostHealthChecker, elP2pClient client.ElP2PClient, minElP2pPeers uint64, rollupBoostToleratePartialHealthinessToleranceLimit uint64, rollupBoostToleratePartialHealthinessToleranceIntervalSeconds uint64) HealthMonitor {
 	hm := &SequencerHealthMonitor{
 		log:                      log,
 		metrics:                  metrics,
 		interval:                 interval,
 		healthUpdateCh:           make(chan error),
-		rollupCfg:                rollupCfg,
 		unsafeInterval:           unsafeInterval,
 		safeEnabled:              safeEnabled,
 		safeInterval:             safeInterval,
@@ -54,7 +50,6 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 		timeProviderFn:           currentTimeProvider,
 		node:                     node,
 		p2p:                      p2p,
-		supervisor:               supervisor,
 		rollupBoostHealthChecker: rollupBoostHealthChecker,
 	}
 
@@ -90,7 +85,6 @@ type SequencerHealthMonitor struct {
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 
-	rollupCfg          *rollup.Config
 	unsafeInterval     uint64
 	safeEnabled        bool
 	safeInterval       uint64
@@ -104,7 +98,6 @@ type SequencerHealthMonitor struct {
 
 	node                                          dial.RollupClientInterface
 	p2p                                           apis.P2PClient
-	supervisor                                    SupervisorHealthAPI
 	rollupBoostHealthChecker                      client.RollupBoostHealthChecker
 	elP2p                                         *ElP2pHealthMonitor
 	rollupBoostPartialHealthinessToleranceLimit   uint64
@@ -225,14 +218,7 @@ func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error
 		hm.log.Error("health monitor failed to get sync status", "err", err)
 		return ErrSequencerConnectionDown
 	}
-
-	if hm.supervisor != nil {
-		_, err := hm.supervisor.SyncStatus(ctx)
-		if err != nil {
-			hm.log.Error("health monitor failed to get supervisor sync status", "err", err)
-			return ErrSupervisorConnectionDown
-		}
-	}
+	hm.metrics.RecordNodeUnsafeHead(status.UnsafeL2.Number)
 
 	now := hm.timeProviderFn()
 

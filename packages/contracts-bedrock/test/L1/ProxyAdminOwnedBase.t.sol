@@ -244,9 +244,7 @@ contract ProxyAdminOwnedBase_assertOnlyProxyAdminOrProxyAdminOwner_Test is Proxy
     /// @notice Tests that the assertOnlyProxyAdminOrProxyAdminOwner function reverts if the caller
     ///         is not the ProxyAdmin or the ProxyAdmin owner.
     /// @param _sender The address of the sender to test.
-    function test_assertOnlyProxyAdminOrProxyAdminOwner_notProxyAdminOrProxyAdminOwner_reverts(address _sender)
-        public
-    {
+    function test_assertOnlyProxyAdminOrProxyAdminOwner_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
         vm.prank(_sender);

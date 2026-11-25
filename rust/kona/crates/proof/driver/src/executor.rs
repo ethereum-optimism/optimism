@@ -31,6 +31,12 @@ pub trait Executor {
     /// execution failures, including transaction-level errors and state issues.
     type Error: Error;
 
+    /// The receipt type produced by this executor.
+    ///
+    /// Threaded through to [`BlockBuildingOutcome`] so non-OP chains that produce different
+    /// receipt envelopes (e.g. Celo's CIP-64 receipt) can carry their type out of the driver.
+    type Receipt;
+
     /// Waits for the executor to be ready for block execution.
     ///
     /// This method blocks until the executor has completed any necessary
@@ -67,6 +73,11 @@ pub trait Executor {
     /// * `Ok(BlockBuildingOutcome)` - Successful execution result with the built block
     /// * `Err(Self::Error)` - Execution failure with detailed error information
     ///
+    /// # Contract
+    /// The seal on the returned outcome's header must be the header's true hash: the driver
+    /// takes it as-is (for the safe-head cursor and the derived
+    /// [`L2BlockInfo`](kona_protocol::L2BlockInfo)) without recomputing it.
+    ///
     /// # Errors
     /// This method can fail due to:
     /// - Invalid transactions in the payload
@@ -80,7 +91,13 @@ pub trait Executor {
     async fn execute_payload(
         &mut self,
         attributes: OpPayloadAttributes,
-    ) -> Result<BlockBuildingOutcome, Self::Error>;
+    ) -> Result<BlockBuildingOutcome<Self::Receipt>, Self::Error>;
+
+    /// Whether an execution error proves the derived payload invalid.
+    ///
+    /// Only such errors permit the driver to replace the payload with a deposit-only block.
+    /// Missing state, provider failures, and internal errors must not invalidate a channel.
+    fn is_invalid_payload_error(error: &Self::Error) -> bool;
 
     /// Computes the output root for the most recently executed block.
     ///

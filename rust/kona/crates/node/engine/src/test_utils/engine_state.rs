@@ -7,10 +7,10 @@ use kona_protocol::{BlockInfo, L2BlockInfo};
 #[derive(Debug)]
 pub struct TestEngineStateBuilder {
     unsafe_head: L2BlockInfo,
-    cross_unsafe_head: Option<L2BlockInfo>,
     local_safe_head: Option<L2BlockInfo>,
     safe_head: Option<L2BlockInfo>,
     finalized_head: Option<L2BlockInfo>,
+    el_applied_last_forkchoice: bool,
     el_sync_finished: bool,
 }
 
@@ -31,10 +31,10 @@ impl TestEngineStateBuilder {
 
         Self {
             unsafe_head: genesis,
-            cross_unsafe_head: None,
             local_safe_head: None,
             safe_head: None,
             finalized_head: None,
+            el_applied_last_forkchoice: true,
             el_sync_finished: true,
         }
     }
@@ -42,13 +42,6 @@ impl TestEngineStateBuilder {
     /// Sets the unsafe head
     pub const fn with_unsafe_head(mut self, block: L2BlockInfo) -> Self {
         self.unsafe_head = block;
-        self
-    }
-
-    /// Sets the cross-unsafe head
-    #[allow(dead_code)]
-    pub const fn with_cross_unsafe_head(mut self, block: L2BlockInfo) -> Self {
-        self.cross_unsafe_head = Some(block);
         self
     }
 
@@ -64,10 +57,19 @@ impl TestEngineStateBuilder {
         self
     }
 
-    /// Sets whether EL sync is finished
+    /// Sets whether EL sync is finished. An execution layer still syncing has not applied the last
+    /// forkchoice either, so this sets both flags.
     #[allow(dead_code)]
     pub const fn with_el_sync_finished(mut self, finished: bool) -> Self {
+        self.el_applied_last_forkchoice = finished;
         self.el_sync_finished = finished;
+        self
+    }
+
+    /// Sets whether the execution layer applied the last forkchoice update.
+    #[allow(dead_code)]
+    pub const fn with_el_applied_last_forkchoice(mut self, applied: bool) -> Self {
+        self.el_applied_last_forkchoice = applied;
         self
     }
 
@@ -78,12 +80,12 @@ impl TestEngineStateBuilder {
         // Set unsafe head (required)
         state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
             unsafe_head: Some(self.unsafe_head),
-            cross_unsafe_head: Some(self.cross_unsafe_head.unwrap_or(self.unsafe_head)),
             local_safe_head: Some(self.local_safe_head.unwrap_or(self.unsafe_head)),
             safe_head: Some(self.safe_head.unwrap_or(self.unsafe_head)),
             finalized_head: Some(self.finalized_head.unwrap_or(self.unsafe_head)),
         });
 
+        state.el_applied_last_forkchoice = self.el_applied_last_forkchoice;
         state.el_sync_finished = self.el_sync_finished;
         state
     }

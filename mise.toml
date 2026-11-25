@@ -1,29 +1,45 @@
 [tools]
 
 # Core dependencies
-bun = "1.2.5"
-go = "1.24.13"
+bun = "1.4.4"
+go = "1.26.10"
 golangci-lint = "2.8.0"
 gotestsum = "1.12.3"
-mockery = "2.53.3"
+mockery = "2.53.6"
 rust = [
-  { version = "1.94.0", components = "clippy,rustfmt,llvm-tools-preview", targets = "riscv32imac-unknown-none-elf,wasm32-unknown-unknown,wasm32-wasip1" },
-  { version = "nightly-2026-02-20", components = "rustfmt" },
+  { version = "1.99.1", components = "clippy,rustfmt,llvm-tools", targets = "riscv32imac-unknown-none-elf,wasm32-unknown-unknown,wasm32-wasip1" },
+  { version = "nightly-2026-10-31", components = "rustfmt,clippy" },
 ]
 python = "3.12.13"
-uv = "0.5.5"
+uv = "0.13.5"
 jq = "1.7.1"
 yq = "4.44.5"
+# Used by ops/scripts/todo-checker.sh. Pinned here rather than apt-installed in
+# the todo-issues job so the check rides the mise cache instead of depending on
+# an Ubuntu mirror being reachable.
+ripgrep = "15.2.0"
 shellcheck = "0.10.0"
 shfmt = "3.11.0"
 direnv = "2.35.0"
 just = "1.46.0"
 make = "4.4.1"
 
-svm-rs = "0.5.19"
+svm-rs = "0.5.32"
+
+# Fast linker used for Rust link steps in CI (see .circleci rust-build). Linux
+# only: mold ships no macOS build, so gate on os to keep `mise install` green on
+# developer Macs. Pinned here so CI's linker version is fixed and reproducible.
+mold = { version = "2.41.0", os = ["linux"] }
+
+# Required to build the Rust workspace: prost-build (via sp1-prover-types)
+# shells out to protoc and fails the build if it is absent.
+protoc = "35.1"
 
 # Rust tooling
-"github:nextest-rs/nextest" = { version = "0.9.132", version_prefix = "cargo-nextest-", bin = "cargo-nextest" }
+"github:crate-ci/cargo-release" = { version = "1.1.7" }
+
+"github:nextest-rs/nextest" = { version = "0.9.149", version_prefix = "cargo-nextest-", bin = "cargo-nextest" }
+"github:succinctlabs/sp1" = { version = "6.10.0", version_prefix = "v", bin = "cargo-prove" }
 "github:EmbarkStudios/cargo-deny" = "0.19.4"
 "github:ggwpez/zepter" = { version = "1.88.0", version_prefix = "v" }
 "github:crate-ci/typos" = { version = "1.45.1", version_prefix = "v" }
@@ -34,32 +50,28 @@ svm-rs = "0.5.19"
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
-"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.16.4" # Osaka testnet release.
+"go:github.com/ethereum/go-ethereum/cmd/geth" = "1.17.10"
 
 # Python dependencies
 "pipx:slither-analyzer" = "0.10.2"
-"pipx:semgrep" = "1.137.0"
+"pipx:semgrep" = "1.182.1"
 "pipx:md_toc" = "9.0.0"
 
 # Foundry dependencies
 # Foundry is a special case because it supplies multiple binaries at the same
 # GitHub release, so we need to use the aliasing trick to get mise to not error
-# The git ref here should be on the `stable` branch.
-# Updated to use the specific nightly build
-forge = "1.2.3"
-cast = "1.2.3"
-anvil = "1.2.3"
+forge = "1.8.7"
+cast = "1.8.7"
+anvil = "1.8.7"
 
 # Other dependencies
-codecov-uploader = "0.8.0"
-goreleaser-pro = "2.11.2"
 git-cliff = "2.12.0"
 
 # Fake dependencies
 # Put things here if you need to track versions of tools or projects that can't
 # actually be managed by mise (yet). Make sure that anything you put in here is
 # also found inside of disabled_tools or mise will try to install it.
-kontrol = "1.0.90"
+kontrol = "1.0.255"
 binary_signer = "1.0.4"
 
 [tool_alias]
@@ -67,8 +79,6 @@ forge = "github:foundry-rs/foundry[bin=forge,version_prefix=v]"
 cast = "github:foundry-rs/foundry[bin=cast,version_prefix=v]"
 anvil = "github:foundry-rs/foundry[bin=anvil,version_prefix=v]"
 just = "github:casey/just"
-codecov-uploader = "github:codecov/uploader[version_prefix=v]"
-goreleaser-pro = "github:goreleaser/goreleaser-pro[bin=goreleaser,version_prefix=v]"
 gotestsum = "github:gotestyourself/gotestsum[version_prefix=v]"
 mockery = "github:vektra/mockery[version_prefix=v]"
 svm-rs = "github:alloy-rs/svm-rs[bin=svm,version_prefix=v]"

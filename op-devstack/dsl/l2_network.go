@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -155,10 +157,11 @@ func (n *L2Network) PrintChain() {
 				return err
 			}
 
-			_, l2Txs, err := l2_el.EthClient().InfoAndTxsByHash(n.ctx, ref.Hash)
+			l2Payload, err := l2_el.L2EthClient().PayloadByHash(n.ctx, ref.Hash)
 			if err != nil {
 				return err
 			}
+			l2Txs := l2Payload.ExecutionPayload.Transactions
 
 			_, txs, err := l1_el.EthClient().InfoAndTxsByHash(n.ctx, ref.L1Origin.Hash)
 			if err != nil {
@@ -197,7 +200,6 @@ func (n *L2Network) PrintChain() {
 	entries = append(entries, fmt.Sprintf("Safe L1:         %s", syncStatus.SafeL1))
 	entries = append(entries, fmt.Sprintf("Unsafe L2:       %s", syncStatus.UnsafeL2))
 	entries = append(entries, fmt.Sprintf("Local-Safe L2:   %s", syncStatus.LocalSafeL2))
-	entries = append(entries, fmt.Sprintf("Cross-Unsafe L2: %s", syncStatus.CrossUnsafeL2))
 	entries = append(entries, fmt.Sprintf("Cross-Safe L2:   %s", syncStatus.SafeL2))
 
 	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID())
@@ -293,6 +295,57 @@ func (n *L2Network) DepositContractAddr() common.Address {
 }
 
 func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channelFrames map[derive.ChannelID][]derive.Frame, l2Txs map[common.Address][]*ethtypes.Transaction) {
+	channels, channelFrames, l2Txs, _ = n.deriveData(blocks)
+	return
+}
+
+// WaitForBatchTransaction waits for and returns the first transaction to this network's batch
+// inbox included after the given L1 block number, along with its L1 inclusion block.
+// Transactions are matched by batch-inbox recipient; the sender is not checked.
+func (n *L2Network) WaitForBatchTransaction(afterL1Block uint64) (*ethtypes.Transaction, eth.BlockInfo) {
+	ctx, cancel := context.WithTimeout(n.ctx, 2*DefaultTimeout)
+	defer cancel()
+
+	l1Client := n.PrimaryL1EL().EthClient()
+	batchInbox := n.inner.RollupConfig().BatchInboxAddress
+	nextBlock := afterL1Block + 1
+	var batchTx *ethtypes.Transaction
+	var inclusionBlock eth.BlockInfo
+	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
+		head, err := l1Client.InfoByLabel(ctx, eth.Unsafe)
+		if err != nil {
+			n.log.Debug("Failed to get L1 unsafe head while waiting for batch transaction", "chain", n.ChainID(), "err", err)
+			return false, nil
+		}
+		for nextBlock <= head.NumberU64() {
+			info, txs, err := l1Client.InfoAndTxsByNumber(ctx, nextBlock)
+			if err != nil {
+				n.log.Debug("Failed to get L1 block while waiting for batch transaction", "chain", n.ChainID(), "l1_block", nextBlock, "err", err)
+				return false, nil
+			}
+			for _, tx := range txs {
+				if tx.To() != nil && *tx.To() == batchInbox {
+					batchTx = tx
+					inclusionBlock = info
+					n.log.Info("Batch transaction found", "chain", n.ChainID(), "l1_block", nextBlock, "tx", tx.Hash())
+					return true, nil
+				}
+			}
+			nextBlock++
+		}
+		return false, nil
+	})
+	n.require.NoError(err, "Expected a batch transaction after L1 block %d (scanned through %d)", afterL1Block, nextBlock-1)
+	return batchTx, inclusionBlock
+}
+
+// DeriveSpanBatches monitors upcoming L1 blocks and returns the span batches submitted in them.
+func (n *L2Network) DeriveSpanBatches(blocks int) []*derive.SpanBatch {
+	_, _, _, spanBatches := n.deriveData(blocks)
+	return spanBatches
+}
+
+func (n *L2Network) deriveData(blocks int) (channels []derive.ChannelID, channelFrames map[derive.ChannelID][]derive.Frame, l2Txs map[common.Address][]*ethtypes.Transaction, spanBatches []*derive.SpanBatch) {
 	l := n.log
 	ctx := n.ctx
 
@@ -302,6 +355,20 @@ func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channel
 
 	rollupCfg := n.inner.RollupConfig()
 	batchInboxAddr := rollupCfg.BatchInboxAddress
+	signer := ethtypes.LatestSignerForChainID(rollupCfg.L2ChainID)
+	// addUserTx records a batched transaction under its sender. A batch never carries deposits;
+	// from Lagoon it can carry a post-exec tx, which has no sender and which go-ethereum cannot
+	// decode, so it is left out.
+	addUserTx := func(txData []byte) {
+		if optypes.IsPostExecTxBytes(txData) {
+			return
+		}
+		var tx ethtypes.Transaction
+		n.require.NoError(tx.UnmarshalBinary(txData))
+		fromAddr, err := signer.Sender(&tx)
+		n.require.NoError(err)
+		l2Txs[fromAddr] = append(l2Txs[fromAddr], &tx)
+	}
 
 	l1EC := n.PrimaryL1EL().EthClient()
 
@@ -490,23 +557,11 @@ func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channel
 				}
 
 				for _, txData := range singularBatch.Transactions {
-					var tx ethtypes.Transaction
-					n.require.NoError(tx.UnmarshalBinary(txData))
-
-					signer := ethtypes.LatestSignerForChainID(rollupCfg.L2ChainID)
-					fromAddr, err := signer.Sender(&tx)
-					n.require.NoError(err)
-
-					l2Txs[fromAddr] = append(l2Txs[fromAddr], &tx)
+					addUserTx(txData)
 				}
 
 			} else if batchType == derive.SpanBatchType {
-				spanBatch, err := derive.DeriveSpanBatch(
-					batchData,
-					rollupCfg.BlockTime,
-					rollupCfg.Genesis.L2Time,
-					rollupCfg.L2ChainID,
-				)
+				spanBatch, err := derive.DeriveSpanBatch(batchData, rollupCfg)
 				if err != nil {
 					l.Warn("Failed to decode span batch",
 						"channelID", channelID.String(),
@@ -515,6 +570,7 @@ func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channel
 					continue
 				}
 
+				spanBatches = append(spanBatches, spanBatch)
 				for blockIdx, batchElement := range spanBatch.Batches {
 					l.Debug("L2 block in span batch",
 						"channelID", channelID.String(),
@@ -525,14 +581,7 @@ func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channel
 						"txCount", len(batchElement.Transactions))
 
 					for _, txData := range batchElement.Transactions {
-						var tx ethtypes.Transaction
-						n.require.NoError(tx.UnmarshalBinary(txData))
-
-						signer := ethtypes.LatestSignerForChainID(rollupCfg.L2ChainID)
-						fromAddr, err := signer.Sender(&tx)
-						n.require.NoError(err)
-
-						l2Txs[fromAddr] = append(l2Txs[fromAddr], &tx)
+						addUserTx(txData)
 					}
 				}
 			} else {
@@ -548,5 +597,5 @@ func (n *L2Network) DeriveData(blocks int) (channels []derive.ChannelID, channel
 			"totalBatches", batchCount)
 	}
 
-	return channels, channelFrames, l2Txs
+	return channels, channelFrames, l2Txs, spanBatches
 }

@@ -3,6 +3,7 @@ package presets
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	gn "github.com/ethereum/go-ethereum/node"
@@ -16,16 +17,30 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+// rpcCallTimeout bounds each call of the RPC clients that presets give tests. It is longer than the
+// client default because op-node serves some calls from its driver loop, which can wait several
+// seconds on a disk sync when a CI host's disk is busy.
+const rpcCallTimeout = 30 * time.Second
+
+// rpcOpts returns the options of the RPC clients that presets give tests, followed by extra.
+func rpcOpts(extra ...client.RPCOption) []client.RPCOption {
+	return append([]client.RPCOption{
+		client.WithLazyDial(),
+		client.WithCallTimeout(rpcCallTimeout),
+		client.WithBatchCallTimeout(rpcCallTimeout),
+	}, extra...)
+}
+
 func newL1ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string) *l1ELFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
-	return newPresetL1ELNode(t, name, chainID, rpcCl)
+	return newPresetL1ELNode(t, name, chainID, rpcCl, userRPC)
 }
 
 func newL1CLFrontend(t devtest.T, name string, chainID eth.ChainID, beaconHTTPAddr string, lifecycle ...stack.Lifecycle) *l1CLFrontend {
 	beaconCl := client.NewBasicHTTPClient(beaconHTTPAddr, t.Logger())
-	l1CL := newPresetL1CLNode(t, name, chainID, beaconCl)
+	l1CL := newPresetL1CLNode(t, name, chainID, beaconHTTPAddr, beaconCl)
 	if len(lifecycle) > 0 {
 		l1CL.lifecycle = lifecycle[0]
 	}
@@ -33,7 +48,7 @@ func newL1CLFrontend(t devtest.T, name string, chainID eth.ChainID, beaconHTTPAd
 }
 
 func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, engineRPC string, jwtPath string, rollupCfg *rollup.Config, lifecycle ...stack.Lifecycle) *l2ELFrontend {
-	userRPCCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
+	userRPCCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(userRPCCl.Close)
 	jwtSecret := readJWTSecret(t, jwtPath)
@@ -41,14 +56,19 @@ func newL2ELFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC stri
 		t.Ctx(),
 		t.Logger(),
 		engineRPC,
-		client.WithLazyDial(),
-		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))),
+		rpcOpts(client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))))...,
 	)
 	t.Require().NoError(err)
 	t.Cleanup(engineRPCCl.Close)
-	l2EL := newPresetL2ELNode(t, name, chainID, userRPCCl, engineRPCCl, rollupCfg)
+	l2EL := newPresetL2ELNode(t, name, chainID, userRPCCl, userRPC, engineRPCCl, rollupCfg)
 	if len(lifecycle) > 0 {
 		l2EL.lifecycle = lifecycle[0]
+		if control, ok := lifecycle[0].(stack.ControlledLifecycle); ok {
+			l2EL.control = control
+		}
+		if wipeable, ok := lifecycle[0].(stack.Wipeable); ok {
+			l2EL.wipeable = wipeable
+		}
 	}
 	return l2EL
 }
@@ -66,92 +86,47 @@ func readJWTSecret(t devtest.T, jwtPath string) [32]byte {
 }
 
 func newL2CLFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, node sysgo.L2CLNode) *l2CLFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
-	interopEndpoint, interopJWT := node.InteropRPC()
-	l2CL := newPresetL2CLNode(t, name, chainID, rpcCl, userRPC, interopEndpoint, interopJWT)
+	_ = node // node accessed for lifecycle below
+	l2CL := newPresetL2CLNode(t, name, chainID, rpcCl, userRPC)
 	if lifecycle, ok := any(node).(stack.Lifecycle); ok {
 		l2CL.lifecycle = lifecycle
+	}
+	if control, ok := any(node).(stack.ControlledLifecycle); ok {
+		l2CL.control = control
 	}
 	return l2CL
 }
 
 func newL2BatcherFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndpoint string) *l2BatcherFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), rpcEndpoint, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), rpcEndpoint, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
 	return newPresetL2Batcher(t, name, chainID, rpcCl)
 }
 
-func newOPRBuilderFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, flashblocksWSURL string, updateRuleSet func(string) error, rollupCfg *rollup.Config, lifecycle ...stack.Lifecycle) *oprBuilderFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
+func newSupernodeFrontend(t devtest.T, name string, userRPC string, control ...stack.ControlledLifecycle) *supernodeFrontend {
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
-
-	t.Require().NotEmpty(flashblocksWSURL, "missing flashblocks ws url for %s", name)
-	wsCl, err := client.DialWS(t.Ctx(), client.WSConfig{
-		URL: flashblocksWSURL,
-		Log: t.Logger(),
-	})
-	t.Require().NoError(err)
-
-	oprb := newPresetOPRBuilderNode(t, name, chainID, rpcCl, rollupCfg, wsCl, updateRuleSet)
-	if len(lifecycle) > 0 {
-		oprb.lifecycle = lifecycle[0]
+	supernode := newPresetSupernode(t, name, userRPC, rpcCl)
+	if len(control) > 0 {
+		supernode.control = control[0]
 	}
-	return oprb
+	return supernode
 }
 
-func newRollupBoostFrontend(t devtest.T, name string, chainID eth.ChainID, userRPC string, flashblocksWSURL string, rollupCfg *rollup.Config, lifecycle ...stack.Lifecycle) *rollupBoostFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
-	t.Require().NoError(err)
-	t.Cleanup(rpcCl.Close)
-
-	t.Require().NotEmpty(flashblocksWSURL, "missing flashblocks ws url for %s", name)
-	wsCl, err := client.DialWS(t.Ctx(), client.WSConfig{
-		URL: flashblocksWSURL,
-		Log: t.Logger(),
-	})
-	t.Require().NoError(err)
-
-	rollupBoost := newPresetRollupBoostNode(t, name, chainID, rpcCl, rollupCfg, wsCl)
-	if len(lifecycle) > 0 {
-		rollupBoost.lifecycle = lifecycle[0]
-	}
-	return rollupBoost
-}
-
-func newSupervisorFrontend(t devtest.T, name string, userRPC string, lifecycle ...stack.Lifecycle) *supervisorFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
-	t.Require().NoError(err)
-	t.Cleanup(rpcCl.Close)
-	supervisor := newPresetSupervisor(t, name, rpcCl)
-	if len(lifecycle) > 0 {
-		supervisor.lifecycle = lifecycle[0]
-	}
-	return supervisor
-}
-
-func newSupernodeFrontend(t devtest.T, name string, userRPC string) *supernodeFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), userRPC, client.WithLazyDial())
-	t.Require().NoError(err)
-	t.Cleanup(rpcCl.Close)
-	return newPresetSupernode(t, name, rpcCl)
-}
-
-func newConductorFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndpoint string) *conductorFrontend {
+func newConductorFrontend(t devtest.T, name string, chainID eth.ChainID, rpcEndpoint string, consensusEndpoint string) *conductorFrontend {
 	rpcCl, err := rpc.DialContext(t.Ctx(), rpcEndpoint)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
-	return newPresetConductor(t, name, chainID, rpcCl)
+	return newPresetConductor(t, name, chainID, rpcCl, consensusEndpoint)
 }
 
 func newTestSequencerFrontend(t devtest.T, name string, adminRPC string, controlRPCs map[eth.ChainID]string, jwtSecret [32]byte) *testSequencerFrontend {
-	opts := []client.RPCOption{
-		client.WithLazyDial(),
-		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))),
-	}
+	opts := rpcOpts(client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(jwtSecret))))
 
 	adminRPCCl, err := client.NewRPC(t.Ctx(), t.Logger(), adminRPC, opts...)
 	t.Require().NoError(err)
@@ -168,7 +143,7 @@ func newTestSequencerFrontend(t devtest.T, name string, adminRPC string, control
 }
 
 func newSyncTesterFrontend(t devtest.T, name string, chainID eth.ChainID, syncTesterRPC string) *syncTesterFrontend {
-	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), syncTesterRPC, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(t.Ctx(), t.Logger(), syncTesterRPC, rpcOpts()...)
 	t.Require().NoError(err)
 	t.Cleanup(rpcCl.Close)
 	return newPresetSyncTester(t, name, chainID, syncTesterRPC, rpcCl)

@@ -13,11 +13,13 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopsmoke"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -25,12 +27,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -101,7 +103,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name), cliCtx.Bool(interopFlag.Name))
 	}
 	app.Commands = []*cli.Command{
-		smokeCommand(),
+		interopsmoke.Command(envPrefix),
 	}
 	return app.RunContext(ctx, args)
 }
@@ -143,14 +145,12 @@ func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string, interop bool
 }
 
 func newLogger(ctx context.Context, stderr io.Writer) log.Logger {
-	logHandler := oplog.NewLogHandler(stderr, oplog.DefaultCLIConfig())
+	logHandler := logcli.NewLogHandler(stderr, logcli.DefaultCLIConfig())
 	logHandler = logfilter.WrapFilterHandler(logHandler)
 	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
 	logHandler = logfilter.WrapContextHandler(logHandler)
-	logger := log.NewLogger(logHandler)
-	oplog.SetGlobalLogHandler(logHandler)
-	logger.SetContext(ctx)
-	return logger
+	logcli.SetGlobalLogHandler(logHandler)
+	return log.NewLogger(logHandler).WithContext(ctx)
 }
 
 func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
@@ -164,7 +164,9 @@ func newMinimalSystem(t *testingT) (sys *presets.Minimal, err error) {
 			panic(recovered)
 		}
 	}()
-	return presets.NewMinimal(t), nil
+	// op-up exposes a lightweight devnet; it does not need dispute-game helpers,
+	// and go-tests-short does not build kona-host for the challenger.
+	return presets.NewMinimalNoFaultProofs(t), nil
 }
 
 func newSupernodeInteropSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop, err error) {
@@ -182,7 +184,7 @@ func newSupernodeInteropSystem(t *testingT) (sys *presets.TwoL2SupernodeInterop,
 	// (SuperchainETHBridge, ETHLiquidity) get properly initialized.
 	const interopDelay = uint64(2)
 	return presets.NewTwoL2SupernodeInterop(t, interopDelay,
-		presets.WithSuggestedInteropActivationOffset(interopDelay),
+		presets.WithSuggestedLagoonActivationOffset(interopDelay),
 	), nil
 }
 
@@ -264,7 +266,7 @@ func logInterop(ctx context.Context, stderr io.Writer, sys *presets.TwoL2Superno
 	var lastSafeTS, lastLocalSafeTS uint64
 	lastSafe := make(map[string]uint64)
 	lastLocalSafe := make(map[string]uint64)
-	lastCrossUnsafe := make(map[string]uint64)
+	lastUnsafe := make(map[string]uint64)
 
 	for {
 		select {
@@ -292,10 +294,9 @@ func logInterop(ctx context.Context, stderr io.Writer, sys *presets.TwoL2Superno
 			for chainID, cs := range status.Chains {
 				id := chainID.String()
 
-				// Cross-unsafe progression
-				if cs.CrossUnsafeL2.Number != lastCrossUnsafe[id] && cs.CrossUnsafeL2.Number > 0 {
-					fmt.Fprintf(stderr, "[interop] Chain %s cross-unsafe: #%d\n", id, cs.CrossUnsafeL2.Number)
-					lastCrossUnsafe[id] = cs.CrossUnsafeL2.Number
+				if cs.UnsafeL2.Number != lastUnsafe[id] && cs.UnsafeL2.Number > 0 {
+					fmt.Fprintf(stderr, "[interop] Chain %s unsafe: #%d\n", id, cs.UnsafeL2.Number)
+					lastUnsafe[id] = cs.UnsafeL2.Number
 				}
 
 				// Local-safe progression
@@ -638,7 +639,17 @@ func (t *testingT) Skipped() bool {
 
 // TempDir implements devtest.T.
 func (t *testingT) TempDir() string {
-	dir, err := os.MkdirTemp(t.state.tempRoot, "op-up-*")
+	return t.TempDirWithPrefix("op-up")
+}
+
+// TempDirWithPrefix implements devtest.T.
+func (t *testingT) TempDirWithPrefix(prefix string) string {
+	prefix = strings.NewReplacer("/", "-", "\\", "-", " ", "-", "_", "-").Replace(strings.TrimSpace(prefix))
+	prefix = strings.Trim(prefix, "-")
+	if prefix == "" {
+		prefix = "op-up"
+	}
+	dir, err := os.MkdirTemp(t.state.tempRoot, prefix+"-*")
 	if err != nil {
 		t.failf("failed to create temp dir: %v", err)
 	}
@@ -657,8 +668,7 @@ func (t *testingT) Tracer() trace.Tracer {
 
 // WithCtx implements devtest.T.
 func (t *testingT) WithCtx(ctx context.Context) devtest.T {
-	logger := t.logger.New()
-	logger.SetContext(ctx)
+	logger := t.logger.WithContext(ctx)
 	out := &testingT{
 		state:  t.state,
 		ctx:    ctx,

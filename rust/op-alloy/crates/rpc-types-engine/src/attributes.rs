@@ -2,7 +2,6 @@
 
 use alloc::vec::Vec;
 use alloy_eips::{
-    Decodable2718,
     eip1559::BaseFeeParams,
     eip2718::{Eip2718Result, WithEncoded},
 };
@@ -10,8 +9,8 @@ use alloy_primitives::{B64, B256, Bytes, keccak256};
 use alloy_rlp::{Encodable, Result};
 use alloy_rpc_types_engine::{PayloadAttributes, PayloadId};
 use op_alloy_consensus::{
-    EIP1559ParamError, OpTxEnvelope, decode_eip_1559_params, encode_holocene_extra_data,
-    encode_jovian_extra_data,
+    EIP1559ParamError, OpTxEnvelope, decode_2718_canonical, decode_eip_1559_params,
+    encode_holocene_extra_data, encode_jovian_extra_data,
 };
 use sha2::Digest;
 
@@ -152,14 +151,7 @@ impl OpPayloadAttributes {
     ///
     /// This iterator will be empty if there are no transactions in the attributes.
     pub fn decoded_transactions(&self) -> impl Iterator<Item = Eip2718Result<OpTxEnvelope>> + '_ {
-        self.transactions.iter().flatten().map(|tx_bytes| {
-            let mut buf = tx_bytes.as_ref();
-            let tx = OpTxEnvelope::decode_2718(&mut buf).map_err(alloy_rlp::Error::from)?;
-            if !buf.is_empty() {
-                return Err(alloy_rlp::Error::UnexpectedLength.into());
-            }
-            Ok(tx)
-        })
+        self.transactions.iter().flatten().map(|tx_bytes| decode_2718_canonical(tx_bytes))
     }
 
     /// Returns iterator over decoded transactions with their original encoded bytes.
@@ -242,6 +234,7 @@ mod test {
                 withdrawals: Some([].into()),
                 parent_beacon_block_root: b256!("0x8fe0193b9bf83cb7e5a08538e494fecc23046aab9a497af3704f4afdae3250ff").into(),
                 slot_number: Default::default(),
+                target_gas_limit: None,
             },
             transactions: Some([bytes!("7ef8f8a0dc19cfa777d90980e4875d0a548a881baaa3f83f14d1bc0d3038bc329350e54194deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e20000f424000000000000000000000000300000000670d6d890000000000000125000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000014bf9181db6e381d4384bbf69c48b0ee0eed23c6ca26143c6d2544f9d39997a590000000000000000000000007f83d659683caf2767fd3c720981d51f5bc365bc")].into()),
             no_tx_pool: None,
@@ -276,6 +269,7 @@ mod test {
                 withdrawals: Some([].into()),
                 parent_beacon_block_root: b256!("0x8fe0193b9bf83cb7e5a08538e494fecc23046aab9a497af3704f4afdae3250ff").into(),
                 slot_number: Default::default(),
+                target_gas_limit: None,
             },
             transactions: Some([bytes!("7ef8f8a0dc19cfa777d90980e4875d0a548a881baaa3f83f14d1bc0d3038bc329350e54194deaddeaddeaddeaddeaddeaddeaddeaddead00019442000000000000000000000000000000000000158080830f424080b8a4440a5e20000f424000000000000000000000000300000000670d6d890000000000000125000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000014bf9181db6e381d4384bbf69c48b0ee0eed23c6ca26143c6d2544f9d39997a590000000000000000000000007f83d659683caf2767fd3c720981d51f5bc365bc")].into()),
             no_tx_pool: None,
@@ -305,6 +299,7 @@ mod test {
                 withdrawals: Default::default(),
                 parent_beacon_block_root: Some(B256::ZERO),
                 slot_number: Default::default(),
+                target_gas_limit: None,
             },
             transactions: Some(vec![b"hello".to_vec().into()]),
             no_tx_pool: Some(true),
@@ -329,6 +324,7 @@ mod test {
                 withdrawals: Default::default(),
                 parent_beacon_block_root: Some(B256::ZERO),
                 slot_number: Default::default(),
+                target_gas_limit: None,
             },
             transactions: Some(vec![b"hello".to_vec().into()]),
             no_tx_pool: Some(true),
@@ -371,6 +367,7 @@ mod test {
                 withdrawals: Default::default(),
                 parent_beacon_block_root: Some(B256::ZERO),
                 slot_number: Default::default(),
+                target_gas_limit: None,
             },
             transactions: Some(vec![b"hello".to_vec().into()]),
             no_tx_pool: Some(true),
@@ -395,6 +392,7 @@ mod test {
                 withdrawals: Default::default(),
                 parent_beacon_block_root: Some(B256::ZERO),
                 slot_number: Default::default(),
+                target_gas_limit: None,
             },
             transactions: Some(vec![b"hello".to_vec().into()]),
             no_tx_pool: Some(true),
@@ -473,5 +471,30 @@ mod test {
         let val = serde_json::to_value(&attributes).unwrap();
         let round_trip: OpPayloadAttributes = serde_json::from_value(val).unwrap();
         assert_eq!(attributes, round_trip);
+    }
+
+    /// A legacy transaction with a `0x00` type tag decodes but does not re-encode to the same
+    /// bytes. It must be rejected, not silently canonicalised.
+    #[test]
+    fn decoded_transactions_reject_non_canonical_encoding() {
+        use alloy_consensus::SignableTransaction;
+        use alloy_eips::Encodable2718;
+        let legacy = alloy_consensus::TxLegacy {
+            chain_id: Some(10),
+            nonce: 1,
+            gas_limit: 21_000,
+            gas_price: 2,
+            to: Address::ZERO.into(),
+            value: Default::default(),
+            input: Default::default(),
+        }
+        .into_signed(alloy_primitives::Signature::test_signature())
+        .encoded_2718();
+        let mut tagged = vec![0x00];
+        tagged.extend_from_slice(&legacy);
+
+        let attrs =
+            OpPayloadAttributes { transactions: Some(vec![tagged.into()]), ..Default::default() };
+        attrs.decoded_transactions().next().unwrap().unwrap_err();
     }
 }

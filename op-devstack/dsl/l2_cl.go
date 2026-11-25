@@ -4,18 +4,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
+
+// errNoChainHeadForLevel is returned for safety levels that name no chain head, either
+// because the level classifies individual messages (safety.CrossUnsafe) or because it is
+// not a level at all.
+var errNoChainHeadForLevel = errors.New("no chain head for safety level")
 
 // L2CLNode wraps a stack.L2CLNode interface for DSL operations
 type L2CLNode struct {
@@ -47,7 +57,7 @@ func (cl *L2CLNode) Escape() stack.L2CLNode {
 }
 
 func (cl *L2CLNode) SafeL2BlockRef() eth.L2BlockRef {
-	return cl.HeadBlockRef(types.CrossSafe)
+	return cl.HeadBlockRef(safety.CrossSafe)
 }
 
 func (cl *L2CLNode) Start() {
@@ -85,7 +95,7 @@ func (cl *L2CLNode) StartSequencer() {
 	var err error
 loop:
 	for range maxAttempts {
-		unsafe := cl.HeadBlockRef(types.LocalUnsafe)
+		unsafe := cl.HeadBlockRef(safety.LocalUnsafe)
 		cl.log.Info("Continue sequencing with consensus node (op-node)", "chain", cl.ChainID(), "unsafe", unsafe)
 		err = cl.inner.RollupAPI().StartSequencer(cl.ctx, unsafe.Hash)
 		if err == nil {
@@ -135,6 +145,62 @@ func (cl *L2CLNode) SetSequencerRecoverMode(b bool) error {
 	return cl.inner.RollupAPI().SetRecoverMode(cl.ctx, b)
 }
 
+// OverrideLeader disables the node's conductor interactions so its sequencer
+// can run in non-HA mode during disaster recovery. The override cannot be
+// cleared through the node's admin API.
+func (cl *L2CLNode) OverrideLeader() {
+	err := cl.inner.RollupAPI().OverrideLeader(cl.ctx)
+	cl.require.NoError(err, "Expected to be able to override conductor leadership on the node")
+	cl.log.Info("Overrode conductor leadership on node", "chain", cl.ChainID())
+}
+
+// StartSequencerAt starts sequencing from the given unsafe-head hash.
+func (cl *L2CLNode) StartSequencerAt(head common.Hash) error {
+	return cl.inner.RollupAPI().StartSequencer(cl.ctx, head)
+}
+
+// sequencerActive fetches the sequencer active-state and returns the RPC
+// error, if any. Internal callers in retry/eventually loops use this so a
+// transient RPC timeout counts as a retry rather than an instant FailNow.
+func (cl *L2CLNode) sequencerActive() (bool, error) {
+	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
+	defer cancel()
+	return cl.inner.RollupAPI().SequencerActive(ctx)
+}
+
+// SequencerActive reports whether this node's sequencer is active.
+func (cl *L2CLNode) SequencerActive() bool {
+	active, err := cl.sequencerActive()
+	cl.require.NoError(err, "Failed to fetch sequencer active status")
+	return active
+}
+
+// AwaitSequencerActive waits until this node's sequencer is active.
+func (cl *L2CLNode) AwaitSequencerActive() {
+	cl.awaitSequencerActive(true)
+}
+
+// AwaitSequencerInactive waits until this node's sequencer is inactive.
+func (cl *L2CLNode) AwaitSequencerInactive() {
+	cl.awaitSequencerActive(false)
+}
+
+func (cl *L2CLNode) awaitSequencerActive(want bool) {
+	err := retry.Do0(cl.ctx, conductorSettleAttempts, retry.Fixed(2*time.Second), func() error {
+		active, err := cl.sequencerActive()
+		if err != nil {
+			return err
+		}
+		if active != want {
+			cl.log.Info("Waiting for sequencer active-state", "node", cl, "want", want, "current", active)
+			return fmt.Errorf("sequencer of %s active is %v, want %v", cl, active, want)
+		}
+		return nil
+	})
+	cl.require.NoErrorf(err, "sequencer of %s never reached active=%v", cl, want)
+	cl.log.Info("Sequencer reached active-state", "node", cl, "active", want)
+}
+
 // syncStatus fetches the L2CL sync status and returns the RPC error, if any.
 // Internal callers in retry/eventually loops use this so a transient RPC timeout
 // counts as a retry rather than an instant FailNow.
@@ -150,31 +216,42 @@ func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {
 	return syncStatus
 }
 
+// OutputAtBlock returns the output response for a block number.
+func (cl *L2CLNode) OutputAtBlock(blockNumber uint64) *eth.OutputResponse {
+	output, err := cl.inner.RollupAPI().OutputAtBlock(cl.ctx, blockNumber)
+	cl.require.NoError(err, "failed to fetch output at block %d", blockNumber)
+	return output
+}
+
 // headBlockRef is the error-returning variant of HeadBlockRef, for use inside
 // retry/eventually loops.
-func (cl *L2CLNode) headBlockRef(lvl types.SafetyLevel) (eth.L2BlockRef, error) {
+func (cl *L2CLNode) headBlockRef(lvl safety.Level) (eth.L2BlockRef, error) {
 	syncStatus, err := cl.syncStatus()
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
+	return syncStatusHead(syncStatus, lvl)
+}
+
+// syncStatusHead picks the chain head of the given safety level out of a sync status.
+// Levels that do not label a chain head are rejected.
+func syncStatusHead(syncStatus *eth.SyncStatus, lvl safety.Level) (eth.L2BlockRef, error) {
 	switch lvl {
-	case types.Finalized:
+	case safety.Finalized:
 		return syncStatus.FinalizedL2, nil
-	case types.CrossSafe:
+	case safety.CrossSafe:
 		return syncStatus.SafeL2, nil
-	case types.LocalSafe:
+	case safety.LocalSafe:
 		return syncStatus.LocalSafeL2, nil
-	case types.CrossUnsafe:
-		return syncStatus.CrossUnsafeL2, nil
-	case types.LocalUnsafe:
+	case safety.LocalUnsafe:
 		return syncStatus.UnsafeL2, nil
 	default:
-		return eth.L2BlockRef{}, fmt.Errorf("invalid safety level: %v", lvl)
+		return eth.L2BlockRef{}, fmt.Errorf("%w: %v", errNoChainHeadForLevel, lvl)
 	}
 }
 
 // HeadBlockRef fetches L2CL sync status and returns block ref with given safety level
-func (cl *L2CLNode) HeadBlockRef(lvl types.SafetyLevel) eth.L2BlockRef {
+func (cl *L2CLNode) HeadBlockRef(lvl safety.Level) eth.L2BlockRef {
 	blockRef, err := cl.headBlockRef(lvl)
 	cl.require.NoError(err)
 	return blockRef
@@ -201,16 +278,28 @@ func (cl *L2CLNode) AwaitMinL1Processed(minL1 uint64) {
 
 // AdvancedFn returns a lambda that checks the L2CL chain head with given safety level advanced more than delta block number
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) AdvancedFn(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) AdvancedFn(lvl safety.Level, delta uint64, attempts int) CheckFunc {
 	return func() error {
-		initial := cl.HeadBlockRef(lvl)
+		var initial eth.L2BlockRef
+		if err := retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				head, err := cl.headBlockRef(lvl)
+				if err != nil {
+					cl.log.Warn("SyncStatus RPC failed; will retry", "err", err)
+					return err
+				}
+				initial = head
+				return nil
+			}); err != nil {
+			return err
+		}
 		target := initial.Number + delta
 		cl.log.Info("Expecting chain to advance", "name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "delta", delta)
 		return cl.ReachedFn(lvl, target, attempts)()
 	}
 }
 
-func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc {
+func (cl *L2CLNode) NotAdvancedFn(lvl safety.Level, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "target", initial.Number)
@@ -218,7 +307,9 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 		var lastErr error
 		successes := 0
 		for range attempts {
-			time.Sleep(2 * time.Second)
+			if err := clock.SystemClock.SleepCtx(cl.ctx, 2*time.Second); err != nil { // nosemgrep: flake-sleep-in-test -- asserting absence of progress; no chain event to wait on
+				return err
+			}
 			head, err := cl.headBlockRef(lvl)
 			if err != nil {
 				lastErr = err
@@ -242,7 +333,7 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 
 // awaitSafeHeadsStalled waits until every node's safe head has stopped advancing
 // for at least 10 seconds.
-func (cl *L2CLNode) WaitForStall(lvl types.SafetyLevel) {
+func (cl *L2CLNode) WaitForStall(lvl safety.Level) {
 	var last eth.BlockID
 	var stableSince time.Time
 	cl.require.Eventuallyf(func() bool {
@@ -266,7 +357,7 @@ func (cl *L2CLNode) WaitForStall(lvl types.SafetyLevel) {
 
 // ReachedFn returns a lambda that checks the L2CL chain head with given safety level reaches the target block number
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) ReachedFn(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) ReachedFn(lvl safety.Level, target uint64, attempts int) CheckFunc {
 	return func() error {
 		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "target", target)
 		logger.Info("Expecting chain to reach")
@@ -287,9 +378,37 @@ func (cl *L2CLNode) ReachedFn(lvl types.SafetyLevel, target uint64, attempts int
 	}
 }
 
+// ReachedWithProgressFn waits for the head at lvl to reach target, but instead
+// of a fixed attempt budget it distinguishes a self-recovering slowdown from a
+// genuinely stuck pipeline. It succeeds as soon as lvl reaches target. It fails
+// when either:
+//   - progressLvl (a strictly more-live head, e.g. LocalUnsafe) has not advanced
+//     for stallTimeout — the node is genuinely wedged, not merely slow; or
+//   - the overall maxWait elapses.
+//
+// This is the "reach a target" analogue of MatchedWithProgressFn. Use it for a
+// catch-up wait whose target head is gated by a pipeline that can transiently
+// stall under load (e.g. CrossSafe catching up after interop resumes, where the
+// EL can be briefly starved) without masking a permanent hang: as long as the
+// chain keeps producing blocks the budget stays generous, but a chain that stops
+// advancing entirely fails fast. Polls every 2s.
+func (cl *L2CLNode) ReachedWithProgressFn(lvl, progressLvl safety.Level, target uint64, maxWait, stallTimeout time.Duration) CheckFunc {
+	return func() error {
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "progress_label", progressLvl, "target", target)
+		headNum := func(l safety.Level) func() (uint64, error) {
+			return func() (uint64, error) {
+				ref, err := cl.headBlockRef(l)
+				return ref.Number, err
+			}
+		}
+		return awaitHeadWithProgress(cl.ctx, logger, headNum(lvl), headNum(progressLvl), target, maxWait, stallTimeout,
+			fmt.Sprintf("expected head to advance: %s", lvl), progressLvl.String())
+	}
+}
+
 // ReachedRefFn is same as Reached, but has an additional check to ensure that the block referenced is not reorged
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) ReachedRefFn(lvl types.SafetyLevel, target eth.BlockID, attempts int) CheckFunc {
+func (cl *L2CLNode) ReachedRefFn(lvl safety.Level, target eth.BlockID, attempts int) CheckFunc {
 	return func() error {
 		err := cl.ReachedFn(lvl, target.Number, attempts)()
 		if err != nil {
@@ -308,9 +427,63 @@ func (cl *L2CLNode) ReachedRefFn(lvl types.SafetyLevel, target eth.BlockID, atte
 	}
 }
 
+// ReachedTimeWithoutRegressionFn waits for the head's block timestamp to reach
+// targetTime, failing on any regression. Requires a non-zero baseline behind
+// targetTime so a regression to genesis isn't vacuous (0 >= 0). Polls every
+// 100ms; deadline is targetTime + 5min.
+//
+// Uses an explicit ticker/deadline loop and returns errors through the
+// CheckFunc contract. require.Eventuallyf would call FailNow inside the
+// dsl.CheckAll worker goroutine, which is not safe.
+func (cl *L2CLNode) ReachedTimeWithoutRegressionFn(lvl safety.Level, targetTime uint64) CheckFunc {
+	return func() error {
+		initial, err := cl.headBlockRef(lvl)
+		if err != nil {
+			return fmt.Errorf("read initial %s head: %w", lvl, err)
+		}
+		if initial.Number == 0 {
+			return fmt.Errorf("initial %s head is at genesis; cannot detect regression below zero — wait for the head to advance past genesis before snapshotting", lvl)
+		}
+		if initial.Time >= targetTime {
+			return fmt.Errorf("initial %s head time %d already at or past target %d; nothing to observe across the boundary", lvl, initial.Time, targetTime)
+		}
+		const buffer = 5 * time.Minute
+		deadline := time.Unix(int64(targetTime), 0).Add(buffer)
+		logger := cl.log.With("name", cl.inner.Name(), "chain", cl.ChainID(), "label", lvl, "initial", initial.Number, "initial_time", initial.Time, "target_time", targetTime, "deadline", deadline)
+		logger.Info("Watching head for regression until target time reached")
+
+		ctx, cancel := context.WithDeadline(cl.ctx, deadline)
+		defer cancel()
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			head, err := cl.headBlockRef(lvl)
+			if err != nil {
+				logger.Warn("SyncStatus RPC failed; will retry", "err", err)
+			} else {
+				if head.Number < initial.Number {
+					return fmt.Errorf("%s head regressed: was %d (%s, t=%d), observed %d (%s, t=%d)",
+						lvl, initial.Number, initial.Hash, initial.Time, head.Number, head.Hash, head.Time)
+				}
+				if head.Time >= targetTime {
+					return nil
+				}
+				logger.Info("Chain sync status", "current", head.Number, "current_time", head.Time)
+			}
+
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("%s head did not reach target time %d (initial=%d): %w", lvl, targetTime, initial.Number, ctx.Err())
+			case <-ticker.C:
+			}
+		}
+	}
+}
+
 // RewindedFn returns a lambda that checks the L2CL chain head with given safety level rewinded more than the delta block number
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) RewindedFn(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) RewindedFn(lvl safety.Level, delta uint64, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		cl.require.GreaterOrEqual(initial.Number, delta, "cannot rewind before genesis")
@@ -335,40 +508,40 @@ func (cl *L2CLNode) RewindedFn(lvl types.SafetyLevel, delta uint64, attempts int
 	}
 }
 
-func (cl *L2CLNode) Advanced(lvl types.SafetyLevel, delta uint64, attempts int) {
+func (cl *L2CLNode) Advanced(lvl safety.Level, delta uint64, attempts int) {
 	cl.require.NoError(cl.AdvancedFn(lvl, delta, attempts)())
 }
 
 func (cl *L2CLNode) AdvancedUnsafe(delta uint64, attempts int) {
-	cl.Advanced(types.LocalUnsafe, delta, attempts)
+	cl.Advanced(safety.LocalUnsafe, delta, attempts)
 }
 
-func (cl *L2CLNode) NotAdvanced(lvl types.SafetyLevel, attempts int) {
+func (cl *L2CLNode) NotAdvanced(lvl safety.Level, attempts int) {
 	cl.require.NoError(cl.NotAdvancedFn(lvl, attempts)())
 }
 
 func (cl *L2CLNode) NotAdvancedUnsafe(attempts int) {
-	cl.NotAdvanced(types.LocalUnsafe, attempts)
+	cl.NotAdvanced(safety.LocalUnsafe, attempts)
 }
 
-func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) {
+func (cl *L2CLNode) Reached(lvl safety.Level, target uint64, attempts int) {
 	cl.require.NoError(cl.ReachedFn(lvl, target, attempts)())
 }
 
 func (cl *L2CLNode) ReachedUnsafe(target uint64, attempts int) {
-	cl.Reached(types.LocalUnsafe, target, attempts)
+	cl.Reached(safety.LocalUnsafe, target, attempts)
 }
 
-func (cl *L2CLNode) ReachedRef(lvl types.SafetyLevel, target eth.BlockID, attempts int) {
+func (cl *L2CLNode) ReachedRef(lvl safety.Level, target eth.BlockID, attempts int) {
 	cl.require.NoError(cl.ReachedRefFn(lvl, target, attempts)())
 }
 
-func (cl *L2CLNode) Rewinded(lvl types.SafetyLevel, delta uint64, attempts int) {
+func (cl *L2CLNode) Rewinded(lvl safety.Level, delta uint64, attempts int) {
 	cl.require.NoError(cl.RewindedFn(lvl, delta, attempts)())
 }
 
 // ChainSyncStatus satisfies that the L2CLNode can provide sync status per chain
-func (cl *L2CLNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
+func (cl *L2CLNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID {
 	cl.require.Equal(chainID, cl.inner.ChainID(), "chain ID mismatch")
 	return cl.HeadBlockRef(lvl).ID()
 }
@@ -382,8 +555,22 @@ func (cl *L2CLNode) ChainBlockID(chainID eth.ChainID, number uint64) (eth.BlockI
 	return ref.ID(), nil
 }
 
+// SafeHeadAtL1Block asks the node which L2 safe head it had reached as of the given L1 block. A
+// "not found" answer is returned as safedb.ErrNotFound; any other error is returned as is.
+func (cl *L2CLNode) SafeHeadAtL1Block(l1BlockNum uint64) (*eth.SafeHeadResponse, error) {
+	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
+	defer cancel()
+	return cl.inner.RollupAPI().SafeHeadAtL1Block(ctx, l1BlockNum)
+}
+
+// SafeHeadRecordAtL1Block returns the safe head recorded at or before the given L1 block, or nil
+// when the SafeDB has no record there. Any other error fails the test.
+func (cl *L2CLNode) SafeHeadRecordAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
+	return cl.safeHeadAtL1Block(l1BlockNum)
+}
+
 func (cl *L2CLNode) safeHeadAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
-	resp, err := cl.inner.RollupAPI().SafeHeadAtL1Block(cl.ctx, l1BlockNum)
+	resp, err := cl.SafeHeadAtL1Block(l1BlockNum)
 	if errors.Is(err, safedb.ErrNotFound) {
 		return nil
 	}
@@ -393,34 +580,42 @@ func (cl *L2CLNode) safeHeadAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
 
 // LaggedFn returns a lambda that checks the L2CL chain head with given safety level is lagged with the reference chain sync status provider
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) LaggedFn(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int, allowMatch bool) CheckFunc {
+func (cl *L2CLNode) LaggedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int, allowMatch bool) CheckFunc {
 	return LaggedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts, allowMatch)
 }
 
 // MatchedFn returns a lambda that checks the L2CLNode head with given safety level is matched with the refNode chain sync status provider
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
+func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return MatchedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
-func (cl *L2CLNode) InSyncFn(other SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
+// MatchedWithProgressFn returns a lambda that waits for cl's matchLvl head to
+// match refNode's matchLvl head while requiring cl to keep making progress on
+// progressLvl. See MatchedWithProgressFn in check.go for the precise semantics.
+// Composable with other lambdas to wait in parallel.
+func (cl *L2CLNode) MatchedWithProgressFn(refNode SyncStatusProvider, matchLvl, progressLvl safety.Level, maxWait, stallTimeout time.Duration) CheckFunc {
+	return MatchedWithProgressFn(cl, refNode, cl.log, cl.ctx, matchLvl, progressLvl, cl.ChainID(), maxWait, stallTimeout)
+}
+
+func (cl *L2CLNode) InSyncFn(other SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return InSyncFn(cl, other, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
-func (cl *L2CLNode) Lagged(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int, allowMatch bool) {
+func (cl *L2CLNode) Lagged(refNode SyncStatusProvider, lvl safety.Level, attempts int, allowMatch bool) {
 	cl.require.NoError(cl.LaggedFn(refNode, lvl, attempts, allowMatch)())
 }
 
-func (cl *L2CLNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
+func (cl *L2CLNode) Matched(refNode SyncStatusProvider, lvl safety.Level, attempts int) {
 	cl.require.NoError(cl.MatchedFn(refNode, lvl, attempts)())
 }
 
-func (cl *L2CLNode) InSync(other SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
+func (cl *L2CLNode) InSync(other SyncStatusProvider, lvl safety.Level, attempts int) {
 	cl.require.NoError(cl.InSyncFn(other, lvl, attempts)())
 }
 
 func (cl *L2CLNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
-	cl.Matched(refNode, types.LocalUnsafe, attempts)
+	cl.Matched(refNode, safety.LocalUnsafe, attempts)
 }
 
 func (cl *L2CLNode) PeerInfo() *apis.PeerInfo {
@@ -484,12 +679,19 @@ func (cl *L2CLNode) IsP2PConnected(peer *L2CLNode) {
 	cl.require.NoError(err, "peer not connected")
 }
 
+// WaitForPeerDisconnected waits until peer no longer lists cl among its peers.
 func (cl *L2CLNode) WaitForPeerDisconnected(peer *L2CLNode) {
-	myInfo := cl.PeerInfo()
-	strategy := &retry.ExponentialStrategy{Min: 10 * time.Second, Max: 30 * time.Second, MaxJitter: 250 * time.Millisecond}
+	peer.WaitForPeerIDDropped(cl.PeerInfo().PeerID)
+}
+
+// WaitForPeerIDDropped waits until cl no longer lists id among its peers.
+// Unlike WaitForPeerDisconnected, it queries only cl, so it works after the peer has stopped.
+func (cl *L2CLNode) WaitForPeerIDDropped(id peer.ID) {
+	// A disconnection shows up in the peer list within moments, so poll it quickly.
+	strategy := &retry.ExponentialStrategy{Min: 1 * time.Second, Max: 10 * time.Second, MaxJitter: 250 * time.Millisecond}
 	err := retry.Do0(cl.ctx, 5, strategy, func() error {
-		for _, p := range peer.Peers().Peers {
-			if p.PeerID == myInfo.PeerID {
+		for _, p := range cl.Peers().Peers {
+			if p.PeerID == id {
 				return errors.New("peer still connected")
 			}
 		}
@@ -506,6 +708,16 @@ func WithMinRequiredL2Block(blockNum uint64) func(opts *safeHeadDbMatchOpts) {
 	return func(opts *safeHeadDbMatchOpts) {
 		opts.minRequiredL2Block = &blockNum
 	}
+}
+
+// SafeHeadDBFloor returns the oldest L2 safe-head block number recorded in this node's safe head
+// db. Prefer this over the live safe head when capturing a no-truncation baseline: the live safe
+// head advances per L2 block while the db resolves per L1 origin, so a live sample may not be
+// satisfiable by the db even without truncation.
+func (cl *L2CLNode) SafeHeadDBFloor() uint64 {
+	l1Block := cl.SyncStatus().CurrentL1.Number
+	cl.AwaitMinL1Processed(l1Block) // Ensure this block is fully processed before reading the safe head db
+	return safeHeadDBFloor(cl.t, l1Block, cl)
 }
 
 func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode, args ...func(opts *safeHeadDbMatchOpts)) {
@@ -549,7 +761,7 @@ func (cl *L2CLNode) PostUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 	cl.require.NoErrorf(err, "failed to post unsafe payload via admin API: target %d", payload.ExecutionPayload.BlockNumber)
 }
 
-func (cl *L2CLNode) Reset(lvl types.SafetyLevel, target eth.L2BlockRef) {
+func (cl *L2CLNode) Reset(lvl safety.Level, target eth.L2BlockRef) {
 	cl.require.NoError(retry.Do0(cl.ctx, 5, &retry.FixedStrategy{Dur: 2 * time.Second},
 		func() error {
 			res := cl.HeadBlockRef(lvl)
@@ -579,11 +791,11 @@ func (cl *L2CLNode) AppendUnsafePayloadUntilTip(verEL, seqEL *L2ELNode, maxAttem
 }
 
 func (cl *L2CLNode) UnsafeHead() *BlockRefResult {
-	return &BlockRefResult{T: cl.t, BlockRef: cl.HeadBlockRef(types.LocalUnsafe)}
+	return &BlockRefResult{T: cl.t, BlockRef: cl.HeadBlockRef(safety.LocalUnsafe)}
 }
 
 func (cl *L2CLNode) SafeHead() *BlockRefResult {
-	return &BlockRefResult{T: cl.t, BlockRef: cl.HeadBlockRef(types.CrossSafe)}
+	return &BlockRefResult{T: cl.t, BlockRef: cl.HeadBlockRef(safety.CrossSafe)}
 }
 
 func (cl *L2CLNode) CurrentL1MatchedFn(refNode *L2CLNode, attempts int) CheckFunc {
@@ -599,5 +811,28 @@ func (cl *L2CLNode) CurrentL1MatchedFn(refNode *L2CLNode, attempts int) CheckFun
 				cl.log.Info("Chain sync status", "currentL1", currentL1.Number, "ref", ref)
 				return fmt.Errorf("expected currentL1 to match")
 			})
+	}
+}
+
+func (cl *L2CLNode) LocalGameInputs(agreedBlock, claimBlock uint64) *utils.LocalGameInputs {
+	cl.Reached(safety.LocalSafe, claimBlock, 60)
+
+	rollupAPI := cl.Escape().RollupAPI()
+
+	agreedOutput, err := rollupAPI.OutputAtBlock(cl.ctx, agreedBlock)
+	cl.require.NoError(err, "fetch output at agreed block %d", agreedBlock)
+
+	claimedOutput, err := rollupAPI.OutputAtBlock(cl.ctx, claimBlock)
+	cl.require.NoError(err, "fetch output at claim block %d", claimBlock)
+
+	syncStatus, err := rollupAPI.SyncStatus(cl.ctx)
+	cl.require.NoError(err, "fetch L2 sync status")
+
+	return &utils.LocalGameInputs{
+		L1Head:           syncStatus.CurrentL1.Hash,
+		L2Head:           agreedOutput.BlockRef.Hash,
+		L2OutputRoot:     common.Hash(agreedOutput.OutputRoot),
+		L2Claim:          common.Hash(claimedOutput.OutputRoot),
+		L2SequenceNumber: new(big.Int).SetUint64(claimBlock),
 	}
 }

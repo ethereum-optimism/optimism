@@ -68,6 +68,7 @@ func TestCLIVerify(t *testing.T) {
 		"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 		"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 		"--challenger", challenger.Hex(),
+		"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
 	}, nil)
 
 	var implsOutput opcm.DeployImplementationsOutput
@@ -119,7 +120,7 @@ func TestCLIVerify(t *testing.T) {
 	})
 
 	t.Run("auto-verify with bootstrap", func(t *testing.T) {
-		// Test the --verify flag by deploying a fresh set to a new output file
+		// Test default verification by deploying a fresh set to a new output file.
 		autoVerifyOutputFile := filepath.Join(workDir, "bootstrap_superchain_autoverify.json")
 
 		output := runner.ExpectSuccessWithNetwork(t, []string{
@@ -127,7 +128,6 @@ func TestCLIVerify(t *testing.T) {
 			"--outfile", autoVerifyOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--verify",
 			"--verifier", "blockscout",
 			"--verifier-url", mockServer + "/api",
 		}, nil)

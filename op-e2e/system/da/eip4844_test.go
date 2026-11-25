@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,12 +32,13 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params/forks"
 )
 
-// Update to Prague if L1 changes to Prague and we need more blobs in multi-blob tests.
-var maxBlobsPerBlock = params.DefaultCancunBlobConfig.Max
+// maxBlobsPerTx is the number of blobs the multi-blob tests put in one transaction: Osaka caps a
+// transaction at 6 blobs (EIP-7594), the Cancun maximum per block.
+var maxBlobsPerTx = params.DefaultCancunBlobConfig.Max
 
 // TestSystem4844E2E* run the SystemE2E test with 4844 enabled on L1, and active on the rollup in
 // the op-batcher and verifier.  It submits a txpool-blocking transaction before running
@@ -63,9 +65,9 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 
 	var maxL1TxSize int
 	if multiBlob {
-		cfg.BatcherTargetNumFrames = maxBlobsPerBlock
+		cfg.BatcherTargetNumFrames = maxBlobsPerTx
 		cfg.BatcherUseMaxTxSizeForBlobs = true
-		// leads to maxBlobsPerBlock blobs for an L2 block with a user tx with 400 random bytes
+		// leads to maxBlobsPerTx blobs for an L2 block with a user tx with 400 random bytes
 		// while all other L2 blocks take 1 blob (deposit tx)
 		maxL1TxSize = derive.FrameV0OverHeadSize + 100
 		cfg.BatcherMaxL1TxSizeBytes = uint64(maxL1TxSize)
@@ -124,7 +126,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	require.NoError(t, err)
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
-	helpers.SendDepositTx(t, cfg, l1Client, l2Verif, opts, nil)
+	helpers.SendDepositTx(t, cfg, l1Client, sys.NodeSourceClient("verifier"), opts, nil)
 
 	// Confirm balance
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 20*time.Second)
@@ -136,33 +138,33 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
 
 	// Submit TX to L2 sequencer node
-	receipt := helpers.SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *helpers.TxOpts) {
+	receipt := helpers.SendL2Tx(t, cfg, sys.NodeSourceClient("sequencer"), ethPrivKey, func(opts *helpers.TxOpts) {
 		opts.Value = big.NewInt(1_000_000_000)
 		opts.Nonce = 1 // Already have deposit
 		opts.ToAddr = &common.Address{0xff, 0xff}
-		// put some random data in the tx to make it fill up maxBlobsPerBlock blobs (multi-blob case)
+		// put some random data in the tx to make it fill up maxBlobsPerTx blobs (multi-blob case)
 		opts.Data = testutils.RandomData(rand.New(rand.NewSource(420)), 400)
-		opts.Gas, err = core.IntrinsicGas(opts.Data, nil, nil, false, true, true, false)
+		opts.Gas, err = core.IntrinsicGas(opts.Data, nil, nil, common.Address{}, &common.Address{}, nil, params.Rules{IsHomestead: true, IsIstanbul: true})
 		require.NoError(t, err)
-		opts.VerifyOnClients(l2Verif)
+		opts.VerifyOnClients(sys.NodeSourceClient("verifier"))
 	})
 
 	// Verify blocks match after batch submission on verifiers and sequencers
-	verifBlock, err := l2Verif.BlockByNumber(context.Background(), receipt.BlockNumber)
+	verifBlock, err := l2Verif.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, verifBlock.Hash(), receipt.BlockHash, "must be same block")
-	seqBlock, err := l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
+	seqBlock, err := l2Seq.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "must be same block")
-	require.Equal(t, verifBlock.NumberU64(), seqBlock.NumberU64(), "Verifier and sequencer blocks not the same after including a batch tx")
-	require.Equal(t, verifBlock.ParentHash(), seqBlock.ParentHash(), "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
+	require.Equal(t, verifBlock.Number, seqBlock.Number, "Verifier and sequencer blocks not the same after including a batch tx")
+	require.Equal(t, verifBlock.ParentHash, seqBlock.ParentHash, "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
 	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
 
 	rollupClient := sys.RollupClient("sequencer")
 	// basic check that sync status works
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
 	require.NoError(t, err)
-	require.LessOrEqual(t, seqBlock.NumberU64(), seqStatus.UnsafeL2.Number)
+	require.LessOrEqual(t, bigs.Uint64Strict(seqBlock.Number), seqStatus.UnsafeL2.Number)
 	// basic check that version endpoint works
 	seqVersion, err := rollupClient.Version(context.Background())
 	require.NoError(t, err)
@@ -177,7 +179,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	}, time.Second*20, time.Second, "expected L2 to be batch-submitted and labeled as safe")
 
 	// check that the L2 tx is still canonical
-	seqBlock, err = l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
+	seqBlock, err = l2Seq.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, seqBlock.Hash(), receipt.BlockHash, "receipt block must match canonical block at tx inclusion height")
 
@@ -218,19 +220,19 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	if !multiBlob {
 		require.NotZero(t, numBlobs, "single-blob: expected to find L1 blob tx")
 	} else {
-		require.Equal(t, maxBlobsPerBlock, numBlobs, fmt.Sprintf("multi-blob: expected to find L1 blob tx with %d blobs", maxBlobsPerBlock))
+		require.Equal(t, maxBlobsPerTx, numBlobs, fmt.Sprintf("multi-blob: expected to find L1 blob tx with %d blobs", maxBlobsPerTx))
 		// blob tx should have filled up all but last blob
 		bcl := sys.L1BeaconHTTPClient()
 		blobs, err := bcl.BeaconBlobs(context.Background(), sys.L1Slot(blobBlock.Time()), blobTx.BlobHashes())
 		require.NoError(t, err)
-		require.Len(t, blobs.Data, maxBlobsPerBlock)
-		for i := 0; i < maxBlobsPerBlock-1; i++ {
+		require.Len(t, blobs.Data, maxBlobsPerTx)
+		for i := 0; i < maxBlobsPerTx-1; i++ {
 			data, err := blobs.Data[i].ToData()
 			require.NoError(t, err)
 			assert.Len(t, data, maxL1TxSize, "blob %d should be full", i)
 		}
 		// last blob should only be partially filled
-		data, err := blobs.Data[maxBlobsPerBlock-1].ToData()
+		data, err := blobs.Data[maxBlobsPerTx-1].ToData()
 		require.NoError(t, err)
 		require.Less(t, len(data), maxL1TxSize)
 	}
@@ -239,34 +241,42 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 // TestBatcherAutoDA tests that the batcher with Auto data availability type
 // correctly chooses the cheaper Ethereum-DA type (calldata or blobs).
 // The L1 chain is set up with a genesis block that has an excess blob gas that leads
-// to a slightly higher blob base fee than 16x the regular base fee.
-// So in the first few L1 blocks, calldata will be cheaper than blobs.
-// We then send a couple of expensive Deposit transactions, which drives up the
-// gas price. The L1 blob gas limit is set to a low value to speed up this process.
+// to a blob base fee more than 41 times the base fee plus tip, above the ~40x at which blobs
+// become cheaper under Pectra. So in the first few L1 blocks, calldata will be cheaper than
+// blobs. While the batcher posts calldata, the blob base fee falls faster than the base fee,
+// which the deposit transactions sent meanwhile keep up, until blobs are cheaper again.
 func TestBatcherAutoDA(t *testing.T) {
 	op_e2e.InitParallel(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 
 	// System setup
 	cfg := e2esys.HoloceneSystemConfig(t, new(hexutil.Uint64))
-	cfg.DeployConfig.L1PragueTimeOffset = new(hexutil.Uint64) // activate prague to get higher calldata cost
+	// The L1 runs Osaka: the test relies on Prague's higher calldata cost, and the fee numbers below
+	// on Prague's blob parameters, which Osaka keeps and BPO1 replaces.
+	cfg.DeployConfig.DisableL1ForksAfter(forks.Osaka)
 	cfg.DataAvailabilityType = batcherFlags.AutoType
 	// We set the genesis fee values and block gas limit such that calldata txs are initially cheaper,
 	// but then manipulate the fee markets over the coming L1 blocks such that blobs become cheaper again.
-	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(3000))
-	// The following excess blob gas leads to a blob base fee >41 times higher than the base fee at genesis,
-	// so the batcher starts with calldata (equilibrium is ~16x or ~40x under Pectra).
+	// The batcher compares the blob base fee with base fee + tip. The L1 suggests a tip of at least
+	// its miner gas price, 0.001 gwei in go-ethereum, so the base fee is 1 gwei to keep the tip
+	// negligible and the fee ratio driven by the two fee markets.
+	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(params.GWei))
+	// The following excess blob gas leads to a blob base fee >41 times higher than the base fee + tip,
+	// so the batcher starts with calldata (equilibrium is ~16x or ~40x under Pectra): with Prague's
+	// update fraction of 5,007,716 it is a blob base fee of e^(938*131,072/5,007,716) = 4.59e10 wei
+	// at genesis, about 46 times the base fee.
 	cfg.DeployConfig.L1GenesisBlockExcessBlobGas = (*hexutil.Uint64)(u64Ptr(
-		452 * params.BlobTxBlobGasPerBlob))
+		938 * params.BlobTxBlobGasPerBlob))
 	cfg.DeployConfig.L1GenesisBlockBlobGasUsed = (*hexutil.Uint64)(u64Ptr(0))
 	cfg.DeployConfig.L1GenesisBlockGasLimit = 2_500_000
-	cfg.BatcherTargetNumFrames = maxBlobsPerBlock
+	cfg.BatcherTargetNumFrames = maxBlobsPerTx
 	cfg.DisableProposer = true // disable L2 output submission for this test
 	cfg.DisableTxForwarder = true
 	cfg.DisableBatcher = true // disable batcher because we start it manually later
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
+	// The deadline starts after the setup, which may build the package's genesis allocs.
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
@@ -293,7 +303,7 @@ func TestBatcherAutoDA(t *testing.T) {
 	requireEventualBatcherTxType := func(txType uint8, timeout time.Duration, strict bool) {
 		var foundOtherTxType bool
 		require.Eventually(t, func() bool {
-			b, err := l1Client.BlockByNumber(ctx, nil)
+			b, err := l1Client.BlockByNumber(ctx, nil) //nolint:forbidigo // L1: looks for the batcher's transaction type
 			require.NoError(t, err)
 			for _, tx := range b.Transactions() {
 				if tx.To() == nil || tx.To().Cmp(cfg.DeployConfig.BatchInboxAddress) != 0 {
@@ -315,9 +325,9 @@ func TestBatcherAutoDA(t *testing.T) {
 	// impact the markets before we query the feeRatio. Therefore
 	// the L1GenesisBlockExcessBlobGas above is tuned so that
 	// the feeRatio remains above 41.0 even after the market begins to
-	// change:
-	// initially:     feeRatio = 43.67449956483899
-	// after block 3: feeRatio = 42.65440079562407 (using geth.WaitForBlock(big.NewInt(3), l1Client))
+	// change: it is about 45.9 at genesis, and each empty block lowers the base fee by 12.5% and
+	// the blob base fee by 14.5%, so the assertion holds for up to four empty blocks before the
+	// first query (about 41.8 after four, 40.8 after five).
 
 	_, _, _, feeRatio := mustGetFees()
 	require.Greater(t, feeRatio, 41.0, "expected feeRatio to be greater than 41 (calldata should be cheaper, even with Pectra)")
@@ -351,9 +361,9 @@ func TestBatcherAutoDA(t *testing.T) {
 		t.Logf("Tx confirmed[%d]: L1 block num: %v, gas used: %d", i, rec.BlockNumber, rec.GasUsed)
 		if rec.BlockNumber.Int64() > int64(blockNum) {
 			blockNum = int(rec.BlockNumber.Int64())
-			block, err := l1Client.BlockByNumber(ctx, rec.BlockNumber)
+			header, err := l1Client.HeaderByNumber(ctx, rec.BlockNumber)
 			require.NoError(t, err)
-			t.Logf("gas used %d/%d", block.GasUsed(), block.GasLimit())
+			t.Logf("gas used %d/%d", header.GasUsed, header.GasLimit)
 			_, _, _, feeRatio = mustGetFees()
 			if feeRatio < 16.0 {
 				break

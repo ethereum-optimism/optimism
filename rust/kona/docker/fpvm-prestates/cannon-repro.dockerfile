@@ -9,9 +9,11 @@
 #              Build Cannon from local monorepo                #
 ################################################################
 
-FROM golang:1.24.13-alpine3.22 AS cannon-build
+FROM golang:1.26.4-alpine3.22 AS cannon-build
 
-RUN apk add --no-cache bash just
+# apk has no built-in download retry; loop so a transient CDN drop doesn't flake CI (~5 min budget).
+# Retrying the identical apk add does not affect the reproducible cannon/prestate output.
+RUN n=0; until apk add --no-cache bash just; do n=$((n+1)); [ "$n" -ge 15 ] && exit 1; echo "apk add retry $n/15 in 20s" >&2; sleep 20; done
 
 COPY go.mod go.sum /app/
 COPY cannon/ /app/cannon/
@@ -24,17 +26,15 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     cd /app/cannon && just cannon
 
 ################################################################
-#    Build kona-client ELF + generate prestate                 #
+#    Build kona-client ELFs + generate prestates                #
 ################################################################
 
 FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon-builder:v2.0.0 AS kona-build-env
 SHELL ["/bin/bash", "-c"]
 
-ARG VARIANT=kona-client
-
 # --- Layer 1: mise + pinned toolchains ---
 # mise's rust plugin bootstraps rustup at a pinned version and installs
-# every rust entry from mise.toml (stable 1.94 + the dated nightly).
+# every rust entry from mise.toml (stable 1.95 + the dated nightly).
 # All artifacts come from pinned sources — no `curl | sh` from an
 # unpinned URL in the reproducible build path.
 COPY ops/scripts/install_mise.sh /tmp/install_mise.sh
@@ -53,9 +53,9 @@ RUN mise trust && mise install rust go just jq
 
 # Rustup's cargo/rustc proxies go ahead of mise shims on PATH. Any
 # cargo call then resolves to the rustup proxy directly and respects
-# RUSTUP_TOOLCHAIN (set by build-kona-client-elf). If it went through
+# RUSTUP_TOOLCHAIN (set by build-kona-client-elfs). If it went through
 # the mise shim instead, mise would re-set RUSTUP_TOOLCHAIN to the
-# active rust from mise.toml (stable 1.94) and build the wrong
+# active rust from mise.toml (stable 1.95) and build the wrong
 # toolchain into the prestate.
 ENV PATH="/root/.cargo/bin:/root/.local/share/mise/shims:${PATH}"
 ENV MISE_GLOBAL_CONFIG_FILE="/app/mise.toml"
@@ -74,9 +74,14 @@ COPY rust/op-alloy/ /app/rust/op-alloy/
 COPY rust/alloy-op-evm/ /app/rust/alloy-op-evm/
 COPY rust/alloy-op-hardforks/ /app/rust/alloy-op-hardforks/
 COPY rust/op-revm/ /app/rust/op-revm/
-# op-reth is a workspace member but not a kona-client dependency.
-# We need its Cargo.toml files so the workspace resolves.
+COPY rust/op-version/ /app/rust/op-version/
+# op-reth, revm-ee-tests, op-reth-test-engine, and lokahi are workspace
+# members but not kona-client dependencies. We need their Cargo.toml files so
+# the workspace resolves.
 COPY rust/op-reth/ /app/rust/op-reth/
+COPY rust/revm-ee-tests/ /app/rust/revm-ee-tests/
+COPY rust/op-reth-test-engine/ /app/rust/op-reth-test-engine/
+COPY rust/lokahi/ /app/rust/lokahi/
 
 # kona-hardforks build.rs walks ancestors of CARGO_MANIFEST_DIR for
 # op-core/nuts/bundles. Stage the bundles at /app/op-core so the walk
@@ -91,37 +96,33 @@ ARG KONA_CUSTOM_CONFIGS=false
 COPY --from=kona-custom-configs / /usr/local/kona-custom-configs
 ENV KONA_CUSTOM_CONFIGS=${KONA_CUSTOM_CONFIGS}
 
-# --- Layer 5: Build kona-client ELF ---
-# build-kona-client-elf sets CARGO_BUILD_TARGET to the corrected target spec
-# from the source tree, overriding cannon-builder's baked-in spec.
+# --- Layer 5: Build the kona-client ELFs ---
+# Its own stage so `build-kona-env` (`--target kona-build-env`, used by
+# lint-cannon and build-cannon-client) stops before this build. Those recipes
+# build in `docker run` and never read /app/elf.
+FROM kona-build-env AS kona-client-elfs
+# build-kona-client-elfs sets CARGO_BUILD_TARGET to the corrected target spec
+# from the source tree, overriding cannon-builder's baked-in spec. Every
+# variant is built in one cargo invocation so the shared dependency graph is
+# compiled once; stage-kona-client-elfs then lifts the ELFs out of the target
+# cache mount, which does not outlive this layer.
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/rust/target \
     cd /app/rust && \
     if [ "$KONA_CUSTOM_CONFIGS" = "true" ]; then \
       export KONA_CUSTOM_CONFIGS_DIR=/usr/local/kona-custom-configs; \
     fi && \
-    just build-kona-client-elf ${VARIANT} && \
-    cp /app/rust/target/mips64-unknown-none/release-client-lto/${VARIANT} /app/kona-elf
+    just build-kona-client-elfs && \
+    just stage-kona-client-elfs /app/elf
 
 ################################################################
-#   Generate prestate                                          #
+#   Generate prestates                                          #
 ################################################################
 
-FROM kona-build-env AS prestate-build
+FROM kona-client-elfs AS prestate-build
 
 COPY --from=cannon-build /app/cannon/bin/cannon /app/cannon
-RUN /app/cannon load-elf \
-      --path=/app/kona-elf \
-      --out=/app/prestate.bin.gz \
-      --type multithreaded64-5 && \
-    /app/cannon run \
-      --proof-at "=0" \
-      --stop-at "=1" \
-      --input /app/prestate.bin.gz \
-      --meta /app/meta.json \
-      --proof-fmt "/app/%d.json" \
-      --output "" && \
-    mv /app/0.json /app/prestate-proof.json
+RUN cd /app/rust && just generate-kona-prestates /app/cannon /app/elf /app/out
 
 ################################################################
 #                       Export Artifacts                       #
@@ -129,6 +130,6 @@ RUN /app/cannon load-elf \
 
 FROM scratch AS export-stage
 
-COPY --from=prestate-build /app/prestate.bin.gz .
-COPY --from=prestate-build /app/prestate-proof.json .
-COPY --from=prestate-build /app/meta.json .
+# One directory per variant, named as the justfile's KONA_PRESTATE_VARIANTS
+# says, so `--output rust/kona` lands them where every consumer expects.
+COPY --from=prestate-build /app/out/ .

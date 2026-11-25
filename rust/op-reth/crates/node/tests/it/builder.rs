@@ -4,10 +4,10 @@ use alloy_op_evm::{
     OpEvmContext, OpTxError,
     post_exec::{
         PostExecEvmFactoryAdapter, PostExecEvmFactoryHooks, PostExecExecutedTx, PostExecTxContext,
+        RevertToCheckpointError,
     },
 };
 use alloy_primitives::{Bytes, address};
-use core::marker::PhantomData;
 use op_revm::{OpHaltReason, OpSpecId, precompiles::OpPrecompiles};
 use reth_db::test_utils::create_test_rw_db;
 use reth_evm::{Database, Evm, EvmEnv, EvmFactory, precompiles::PrecompilesMap};
@@ -16,14 +16,14 @@ use reth_node_builder::{
     BuilderContext, FullNodeTypes, Node, NodeBuilder, NodeConfig, NodeTypes,
     components::ExecutorBuilder,
 };
-use reth_optimism_chainspec::{BASE_MAINNET, OP_SEPOLIA, OpChainSpec};
-use reth_optimism_evm::{OpBlockExecutorFactory, OpEvm, OpEvmFactory, OpRethReceiptBuilder, OpTx};
+use reth_optimism_chainspec::{OP_MAINNET, OP_SEPOLIA, OpChainSpec};
+use reth_optimism_evm::{OpBlockExecutorFactory, OpEvm, OpEvmFactory, OpTx};
 use reth_optimism_node::{OpEvmConfig, OpExecutorBuilder, OpNode, args::RollupArgs};
 use reth_optimism_primitives::OpPrimitives;
 use reth_provider::providers::BlockchainProvider;
 use revm::{
     Inspector,
-    context::{BlockEnv, ContextTr},
+    context::{BlockEnv, ContextTr, DBErrorMarker},
     context_interface::result::EVMError,
     inspector::NoOpInspector,
     interpreter::interpreter::EthInterpreter,
@@ -34,7 +34,7 @@ use std::sync::OnceLock;
 #[test]
 fn test_basic_setup() {
     // parse CLI -> config
-    let config = NodeConfig::new(BASE_MAINNET.clone());
+    let config = NodeConfig::new(OP_MAINNET.clone());
     let db = create_test_rw_db();
     let args = RollupArgs::default();
     let op_node = OpNode::new(args);
@@ -58,22 +58,6 @@ fn test_basic_setup() {
 
             Ok(())
         })
-        .check_launch();
-}
-
-// Launch-plumbing coverage for the SDM CLI/config flag: the node builder should still compose
-// when the experimental override is enabled.
-#[test]
-fn test_basic_setup_with_sdm_enabled_flag() {
-    let config = NodeConfig::new(BASE_MAINNET.clone());
-    let db = create_test_rw_db();
-    let args = RollupArgs { sdm_enabled: true, ..Default::default() };
-    let op_node = OpNode::new(args);
-    let _builder = NodeBuilder::new(config)
-        .with_database(db)
-        .with_types_and_provider::<OpNode, BlockchainProvider<NodeTypesWithDBAdapter<OpNode, _>>>()
-        .with_components(op_node.components())
-        .with_add_ons(op_node.add_ons())
         .check_launch();
 }
 
@@ -112,8 +96,7 @@ fn test_setup_custom_precompiles() {
             OpEvm<DB, I, Self::Precompiles, OpTx>;
         type Context<DB: Database> = OpEvmContext<DB>;
         type Tx = OpTx;
-        type Error<DBError: core::error::Error + Send + Sync + 'static> =
-            EVMError<DBError, OpTxError>;
+        type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
         type HaltReason = OpHaltReason;
         type Spec = OpSpecId;
         type BlockEnv = BlockEnv;
@@ -148,6 +131,8 @@ fn test_setup_custom_precompiles() {
     }
 
     impl PostExecEvmFactoryHooks for UniEvmFactory {
+        type Checkpoint = ();
+
         fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
         where
             DB: Database,
@@ -163,6 +148,25 @@ fn test_setup_custom_precompiles() {
         {
             evm.take_last_post_exec_tx_result()
         }
+
+        fn refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>) -> Self::Checkpoint
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.refund_checkpoint()
+        }
+
+        fn revert_refund_checkpoint<DB, I>(
+            evm: &mut Self::Evm<DB, I>,
+            checkpoint: Self::Checkpoint,
+        ) -> Result<(), RevertToCheckpointError>
+        where
+            DB: Database,
+            I: Inspector<Self::Context<DB>>,
+        {
+            evm.revert_refund_checkpoint(checkpoint)
+        }
     }
 
     /// Unichain executor builder.
@@ -177,27 +181,18 @@ fn test_setup_custom_precompiles() {
     where
         Node: FullNodeTypes<Types: NodeTypes<ChainSpec = OpChainSpec, Primitives = OpPrimitives>>,
     {
-        type EVM = OpEvmConfig<
-            OpChainSpec,
-            <Node::Types as NodeTypes>::Primitives,
-            OpRethReceiptBuilder,
-            PostExecEvmFactoryAdapter<UniEvmFactory>,
-        >;
+        type EVM = OpEvmConfig<PostExecEvmFactoryAdapter<UniEvmFactory>>;
 
         async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
-            let OpEvmConfig { executor_factory, block_assembler, sdm_enabled, _pd: _ } =
+            let OpEvmConfig { executor_factory, block_assembler } =
                 OpExecutorBuilder::default().build_evm(ctx).await?;
             let uni_executor_factory = OpBlockExecutorFactory::new(
                 *executor_factory.receipt_builder(),
                 ctx.chain_spec(),
                 PostExecEvmFactoryAdapter::new(UniEvmFactory),
             );
-            let uni_evm_config = OpEvmConfig {
-                executor_factory: uni_executor_factory,
-                block_assembler,
-                sdm_enabled,
-                _pd: PhantomData,
-            };
+            let uni_evm_config =
+                OpEvmConfig { executor_factory: uni_executor_factory, block_assembler };
             Ok(uni_evm_config)
         }
     }

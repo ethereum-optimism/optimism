@@ -2,7 +2,7 @@ package mon
 
 import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type NodeEndpointErrorsMetrics interface {
@@ -21,7 +21,7 @@ func NewNodeEndpointErrorsMonitor(logger log.Logger, metrics NodeEndpointErrorsM
 	}
 }
 
-func (m *NodeEndpointErrorsMonitor) CheckNodeEndpointErrors(games []*types.EnrichedGameData) {
+func (m *NodeEndpointErrorsMonitor) CheckNodeEndpointErrors(games []*types.CommonGameData) {
 	// Use a set to track unique endpoint errors across all games
 	uniqueEndpointErrors := make(map[string]bool)
 

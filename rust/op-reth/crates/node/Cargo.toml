@@ -1,6 +1,6 @@
 [package]
 name = "reth-optimism-node"
-version = "1.11.3"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -15,6 +15,7 @@ workspace = true
 reth-chainspec.workspace = true
 ## ensure secp256k1 recovery with rayon support is activated
 reth-primitives-traits = { workspace = true, features = ["secp256k1", "rayon"] }
+reth-basic-payload-builder.workspace = true
 reth-payload-builder.workspace = true
 reth-consensus.workspace = true
 reth-node-api.workspace = true
@@ -31,8 +32,12 @@ reth-node-core.workspace = true
 reth-rpc-engine-api.workspace = true
 
 reth-rpc-api.workspace = true
+reth-rpc-builder.workspace = true
 reth-db.workspace = true
 reth-db-api.workspace = true
+reth-chain-state.workspace = true
+reth-metrics.workspace = true
+metrics.workspace = true
 
 # op-reth
 reth-optimism-payload-builder.workspace = true
@@ -74,12 +79,9 @@ tokio.workspace = true
 
 # misc
 clap.workspace = true
-serde.workspace = true
 eyre.workspace = true
 url.workspace = true
-humantime.workspace = true
 futures-util.workspace = true
-tracing.workspace = true
 
 # test-utils dependencies
 reth-e2e-test-utils = { workspace = true, optional = true }
@@ -89,21 +91,29 @@ serde_json = { workspace = true, optional = true }
 [dev-dependencies]
 reth-optimism-node = { workspace = true, features = ["test-utils"] }
 reth-db = { workspace = true, features = ["test-utils"] }
+reth-db-common.workspace = true
 reth-node-builder = { workspace = true, features = ["test-utils"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
-reth-tasks.workspace = true
-reth-payload-util.workspace = true
 reth-revm = { workspace = true, features = ["std"] }
 reth-rpc.workspace = true
+reth-rpc-eth-api.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-stages-types.workspace = true
+reth-storage-overlay.workspace = true
 reth-trie-db.workspace = true
 
 alloy-network.workspace = true
 alloy-op-evm.workspace = true
 alloy-op-hardforks.workspace = true
+alloy-rlp.workspace = true
+alloy-rpc-types-trace.workspace = true
 alloy-rpc-types-admin.workspace = true
+alloy-signer-local.workspace = true
 futures.workspace = true
+jsonrpsee.workspace = true
+metrics-util = { workspace = true, features = ["debugging"] }
+# Fatal-signal handler in tests/it/crash_backtrace.rs.
+libc.workspace = true
 op-alloy-network.workspace = true
 
 [features]
@@ -132,6 +142,8 @@ test-utils = [
 	"serde_json",
 	"reth-node-builder/test-utils",
 	"reth-chainspec/test-utils",
+	# `utils.rs` builds OP Sepolia / OP Mainnet specs, which live behind this feature.
+	"reth-optimism-chainspec/superchain-configs",
 	"reth-consensus/test-utils",
 	"reth-evm/test-utils",
 	"reth-network/test-utils",
@@ -148,7 +160,9 @@ test-utils = [
 	"reth-stages-types/test-utils",
 	"reth-db-api/test-utils",
 	"reth-tasks/test-utils",
-	"reth-optimism-exex/test-utils"
+	"reth-optimism-exex/test-utils",
+	"reth-optimism-trie/test-utils",
+	"reth-chain-state/test-utils"
 ]
 reth-codec = ["reth-optimism-primitives/reth-codec"]
 

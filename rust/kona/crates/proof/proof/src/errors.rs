@@ -5,6 +5,7 @@
 //! context about failures during proof generation and data retrieval.
 
 use alloc::string::{String, ToString};
+use alloy_primitives::B256;
 use kona_derive::{PipelineError, PipelineErrorKind};
 use kona_mpt::{OrderedListWalkerError, TrieNodeError};
 use kona_preimage::errors::PreimageOracleError;
@@ -102,6 +103,10 @@ pub enum OracleProviderError {
     /// * `0` - The unknown chain ID that was encountered
     #[error("Unknown chain ID: {0}")]
     UnknownChainId(u64),
+    /// Output-root preimage carries an unrecognized version word.
+    /// Only `OutputVersionV0` (the zero word) is currently defined.
+    #[error("Unknown L2 output version: {0}")]
+    UnknownOutputVersion(B256),
 }
 
 impl From<OracleProviderError> for PipelineErrorKind {

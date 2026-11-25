@@ -1,7 +1,10 @@
 ---
 title: Fee vault operations
 description: How to configure, monitor, and withdraw from fee vaults on your OP Stack chain.
+diataxis: how-to
 ---
+
+import FeeVaultAddresses from "/snippets/fee-vault-addresses.mdx"
 
 This guide covers the operational aspects of managing fee vaults on your OP Stack chain. For a conceptual overview of how fee vaults work, see [Fee vaults](/op-stack/transactions/fee-vaults).
 
@@ -13,12 +16,7 @@ This guide covers the operational aspects of managing fee vaults on your OP Stac
 
 ## Fee vault addresses
 
-| Vault | Address |
-|-------|---------|
-| `SequencerFeeVault` | `0x4200000000000000000000000000000000000011` |
-| `BaseFeeVault` | `0x4200000000000000000000000000000000000019` |
-| `L1FeeVault` | `0x420000000000000000000000000000000000001A` |
-| `OperatorFeeVault` | `0x420000000000000000000000000000000000001B` |
+<FeeVaultAddresses />
 
 ## Checking vault state
 
@@ -43,7 +41,7 @@ cast call $VAULT "minWithdrawalAmount()" --rpc-url $L2_RPC
 # Withdrawal network (0 = L1, 1 = L2)
 cast call $VAULT "withdrawalNetwork()" --rpc-url $L2_RPC
 
-# Total ETH withdrawn historically
+# Total native token withdrawn historically
 cast call $VAULT "totalProcessed()" --rpc-url $L2_RPC
 ```
 
@@ -72,6 +70,10 @@ cast send --rpc-url $L2_RPC --private-key $PK \
 ```
 
 ### Set withdrawal network
+
+<Warning>
+On CGT chains, fee vaults must withdraw to L2 (`withdrawalNetwork = 1`) with an L2 recipient. Deployment rejects L1 for CGT chains, but `setWithdrawalNetwork` does not: setting it to 0 after deployment makes nonzero `withdraw()` calls revert, because `L2ToL1MessagePasser` rejects native token value on CGT chains.
+</Warning>
 
 ```bash
 # 0 = L1, 1 = L2

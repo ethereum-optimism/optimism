@@ -2,7 +2,6 @@ package multithreaded
 
 import (
 	"bytes"
-	"debug/elf"
 	"encoding/json"
 	"testing"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
 func setWitnessField(witness StateWitness, fieldOffset int, fieldData []byte) {
@@ -100,12 +98,12 @@ func TestState_EncodeWitness(t *testing.T) {
 	}
 }
 
-func TestState_JSONCodec(t *testing.T) {
-	elfProgram, err := elf.Open("../../testdata/go-1-24/bin/hello.64.elf")
-	require.NoError(t, err, "open ELF file")
-	state, err := program.LoadELF(elfProgram, CreateInitialState)
-	require.NoError(t, err, "load ELF into state")
-	// Set a few additional fields
+func codecTestState(t *testing.T) *State {
+	t.Helper()
+	mem := memory.NewMemory()
+	mem.AllocPage(0)
+	state := CreateEmptyState()
+	state.Memory = mem
 	state.PreimageKey = crypto.Keccak256Hash([]byte{1, 2, 3, 4})
 	state.PreimageOffset = 4
 	state.Heap = 555
@@ -114,6 +112,11 @@ func TestState_JSONCodec(t *testing.T) {
 	state.Exited = true
 	state.ExitCode = 2
 	state.LastHint = []byte{11, 12, 13}
+	return state
+}
+
+func TestState_JSONCodec(t *testing.T) {
+	state := codecTestState(t)
 
 	stateJSON, err := json.Marshal(state)
 	require.NoError(t, err)
@@ -138,22 +141,10 @@ func TestState_JSONCodec(t *testing.T) {
 }
 
 func TestState_Binary(t *testing.T) {
-	elfProgram, err := elf.Open("../../testdata/go-1-24/bin/hello.64.elf")
-	require.NoError(t, err, "open ELF file")
-	state, err := program.LoadELF(elfProgram, CreateInitialState)
-	require.NoError(t, err, "load ELF into state")
-	// Set a few additional fields
-	state.PreimageKey = crypto.Keccak256Hash([]byte{1, 2, 3, 4})
-	state.PreimageOffset = 4
-	state.Heap = 555
-	state.Step = 99_999
-	state.StepsSinceLastContextSwitch = 123
-	state.Exited = true
-	state.ExitCode = 2
-	state.LastHint = []byte{11, 12, 13}
+	state := codecTestState(t)
 
 	buf := new(bytes.Buffer)
-	err = state.Serialize(buf)
+	err := state.Serialize(buf)
 	require.NoError(t, err)
 
 	newState := new(State)

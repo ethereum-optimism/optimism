@@ -1,6 +1,6 @@
 //! Raw Span Batch Payload
 
-use super::MAX_SPAN_BATCH_ELEMENTS;
+use super::{MAX_SPAN_BATCH_ELEMENTS, varint::read_uvarint};
 use crate::{SpanBatchBits, SpanBatchError, SpanBatchTransactions, SpanDecodingError};
 use alloc::vec::Vec;
 use alloy_primitives::bytes;
@@ -50,8 +50,8 @@ impl SpanBatchPayload {
 
     /// Decode a block count from a reader.
     pub fn decode_block_count(&mut self, r: &mut &[u8]) -> Result<(), SpanBatchError> {
-        let (block_count, remaining) = unsigned_varint::decode::u64(r)
-            .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::BlockCount))?;
+        let (block_count, remaining) =
+            read_uvarint(r).ok_or(SpanBatchError::Decoding(SpanDecodingError::BlockCount))?;
         // The number of transactions in a single L2 block cannot be greater than
         // [MAX_SPAN_BATCH_ELEMENTS].
         if block_count > MAX_SPAN_BATCH_ELEMENTS {
@@ -72,8 +72,8 @@ impl SpanBatchPayload {
         let mut block_tx_counts = Vec::with_capacity(self.block_count as usize);
 
         for _ in 0..self.block_count {
-            let (block_tx_count, remaining) = unsigned_varint::decode::u64(r)
-                .map_err(|_| SpanBatchError::Decoding(SpanDecodingError::BlockTxCounts))?;
+            let (block_tx_count, remaining) = read_uvarint(r)
+                .ok_or(SpanBatchError::Decoding(SpanDecodingError::BlockTxCounts))?;
 
             // The number of transactions in a single L2 block cannot be greater than
             // [MAX_SPAN_BATCH_ELEMENTS].
@@ -193,5 +193,46 @@ mod tests {
         }
         payload.decode_block_tx_counts(&mut r.as_slice()).unwrap();
         assert_eq!(payload.block_tx_counts, vec![2, 2]);
+    }
+
+    // Conformance vectors for the accept-set documented in `batch::varint`.
+
+    #[test]
+    fn test_decode_block_count_non_minimal() {
+        let mut payload = SpanBatchPayload::default();
+        // `1` with a redundant trailing zero byte; the minimal form is `[0x01]`.
+        let buf = [0x81, 0x00];
+        let mut r = buf.as_slice();
+        payload.decode_block_count(&mut r).unwrap();
+        assert_eq!(payload.block_count, 1);
+        assert!(r.is_empty(), "both bytes must be consumed");
+    }
+
+    #[test]
+    fn test_decode_block_count_overflow_ten_byte_terminator() {
+        let mut payload = SpanBatchPayload::default();
+        // The tenth byte terminates the varint but sets bits above 63.
+        let buf = [0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02];
+        let err = payload.decode_block_count(&mut buf.as_slice()).unwrap_err();
+        assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::BlockCount));
+    }
+
+    #[test]
+    fn test_decode_block_tx_counts_non_minimal() {
+        let mut payload = SpanBatchPayload { block_count: 2, ..Default::default() };
+        // `1` and `2`, both with a redundant trailing zero byte.
+        let buf = [0x81, 0x00, 0x82, 0x00];
+        let mut r = buf.as_slice();
+        payload.decode_block_tx_counts(&mut r).unwrap();
+        assert_eq!(payload.block_tx_counts, vec![1, 2]);
+        assert!(r.is_empty(), "all four bytes must be consumed");
+    }
+
+    #[test]
+    fn test_decode_block_tx_counts_overflow_ten_byte_terminator() {
+        let mut payload = SpanBatchPayload { block_count: 1, ..Default::default() };
+        let buf = [0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02];
+        let err = payload.decode_block_tx_counts(&mut buf.as_slice()).unwrap_err();
+        assert_eq!(err, SpanBatchError::Decoding(SpanDecodingError::BlockTxCounts));
     }
 }

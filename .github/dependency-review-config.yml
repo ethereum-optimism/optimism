@@ -1,0 +1,10 @@
+# Dependency Review exceptions for this repo.
+# Owned by @ethereum-optimism/cloud-security (see CODEOWNERS). fail-on-severity is
+# enforced centrally in the factory reusable workflow and cannot be weakened here.
+#
+# To waive a specific advisory a PR would otherwise be blocked on, add its GHSA id
+# under allow-ghsas with a justification, e.g.:
+#
+# allow-ghsas:
+#   - GHSA-xxxx-xxxx-xxxx  # <package> — why safe · owner · review-by 2026-Qx · <ticket>
+allow-ghsas: []

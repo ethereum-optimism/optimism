@@ -23,6 +23,11 @@ var OverridableForks = append(forks.From(forks.Canyon), forks.AllOpt...)
 
 func OverrideName(f forks.Name) string { return "override." + string(f) }
 
+// KeepKarstUpgradeGasOverrideName overrides the keep_karst_upgrade_gas rollup-config flag. It is a
+// behavioral bool rather than a fork activation time, so it is registered separately from the
+// per-fork timestamp overrides above.
+const KeepKarstUpgradeGasOverrideName = "override.keep-karst-upgrade-gas"
+
 func OverrideEnvVar(envPrefix string, fork forks.Name) []string {
 	return opservice.PrefixEnvVar(envPrefix, "OVERRIDE_"+strings.ToUpper(string(fork)))
 }
@@ -45,6 +50,13 @@ func CLIOverrideFlags(envPrefix string, category string) []cli.Flag {
 				Category: category,
 			})
 	}
+	flags = append(flags,
+		&cli.BoolFlag{
+			Name:     KeepKarstUpgradeGasOverrideName,
+			Usage:    "Manually set keep_karst_upgrade_gas, overriding the bundled setting. When true, the Karst activation block's one-time upgrade gas is kept on every later block (for chains that activated Karst with the leak baked into their history).",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_KEEP_KARST_UPGRADE_GAS"),
+			Category: category,
+		})
 	return flags
 }
 

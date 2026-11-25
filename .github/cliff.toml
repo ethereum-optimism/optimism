@@ -43,7 +43,9 @@ body = """
     {% if previous.version %}
       **Full Changelog**: {{ self::remote_url() }}/compare/{{ previous.version }}...{{ version }}
     {% endif %}
+    {%- if version is not starting_with("op-contracts/") %}
     🚢 Docker Image: https://us-docker.pkg.dev/oplabs-tools-artifacts/images/{{ version | replace(from="/", to=":") }}
+    {%- endif %}
 {% else -%}
   {% raw %}\n{% endraw %}
 {% endif %}

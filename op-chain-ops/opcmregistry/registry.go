@@ -20,9 +20,9 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
@@ -342,9 +342,13 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 		return nil, err
 	}
 
+	return opcmsFromVersions(chainID, versions), nil
+}
+
+func opcmsFromVersions(chainID uint64, versions Versions) []OPCMInfo {
 	var opcms []OPCMInfo
 
-	for _, versionConfig := range versions {
+	for releaseTag, versionConfig := range versions {
 		if versionConfig.OPContractsManager == nil {
 			continue
 		}
@@ -352,7 +356,10 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 			continue
 		}
 
-		releaseVersion := versionConfig.OPContractsManager.Version
+		releaseVersion, err := releaseVersionFromTag(releaseTag)
+		if err != nil {
+			continue
+		}
 
 		// Skip prerelease versions (rc, beta, alpha, etc.)
 		sv, err := ParseSemver(releaseVersion)
@@ -387,7 +394,15 @@ func GetOPCMsForChain(chainID uint64) ([]OPCMInfo, error) {
 		}
 	}
 
-	return result, nil
+	return result
+}
+
+func releaseVersionFromTag(releaseTag string) (string, error) {
+	const prefix = "op-contracts/v"
+	if strings.HasPrefix(releaseTag, prefix) {
+		return strings.TrimPrefix(releaseTag, prefix), nil
+	}
+	return "", fmt.Errorf("invalid release tag: %s", releaseTag)
 }
 
 // FilterOPCMsByReleaseVersion filters OPCMs to only include those with release version > lastVersion.
@@ -409,86 +424,6 @@ func FilterOPCMsByReleaseVersion(opcms []OPCMInfo, lastVersion string) ([]OPCMIn
 			continue
 		}
 		if sv.Compare(lastSV) > 0 {
-			result = append(result, opcm)
-		}
-	}
-
-	return result, nil
-}
-
-// OPCMVersionQuerier is a function that queries the OPCM contract's version() on-chain.
-// It takes an OPCM address and returns the OPCM semver string (e.g., "6.0.0", "7.0.0").
-type OPCMVersionQuerier func(addr common.Address) (string, error)
-
-// ResolvedOPCM contains an OPCM with its on-chain version resolved via opcm.version().
-type ResolvedOPCM struct {
-	Address     common.Address
-	OPCMVersion Semver // The actual OPCM semver from opcm.version() (e.g., "7.0.0")
-}
-
-// GetResolvedOPCMs fetches OPCM addresses from the registry, queries their OPCM versions
-// on-chain using the provided querier, filters to only include stable versions >= 6.x.x,
-// and returns them sorted by OPCM version ascending.
-// Prerelease versions (e.g., rc, beta) are excluded.
-func GetResolvedOPCMs(chainID uint64, queryOPCMVersion OPCMVersionQuerier) ([]ResolvedOPCM, error) {
-	registryOPCMs, err := GetOPCMsForChain(chainID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get OPCMs from registry: %w", err)
-	}
-
-	var resolved []ResolvedOPCM
-	for _, opcm := range registryOPCMs {
-		opcmVersion, err := queryOPCMVersion(opcm.Address)
-		if err != nil {
-			// Skip OPCMs we can't query
-			continue
-		}
-
-		sv, err := ParseSemver(opcmVersion)
-		if err != nil {
-			// Skip OPCMs with invalid versions
-			continue
-		}
-
-		// Skip prerelease versions (rc, beta, alpha, etc.)
-		if sv.IsPrerelease() {
-			continue
-		}
-
-		// Only include versions >= 6.x.x (V1 OPCMs start at 6.x.x)
-		if sv.Major < 6 {
-			continue
-		}
-
-		resolved = append(resolved, ResolvedOPCM{
-			Address:     opcm.Address,
-			OPCMVersion: sv,
-		})
-	}
-
-	// Sort by OPCM version ascending
-	sort.Slice(resolved, func(i, j int) bool {
-		return resolved[i].OPCMVersion.Compare(resolved[j].OPCMVersion) < 0
-	})
-
-	return resolved, nil
-}
-
-// FilterByLastUsedOPCMVersion filters resolved OPCMs to only include those with OPCM version > lastVersion.
-// If lastVersion is empty, returns all OPCMs.
-func FilterByLastUsedOPCMVersion(opcms []ResolvedOPCM, lastVersion string) ([]ResolvedOPCM, error) {
-	if lastVersion == "" {
-		return opcms, nil
-	}
-
-	lastSV, err := ParseSemver(lastVersion)
-	if err != nil {
-		return nil, fmt.Errorf("invalid lastVersion: %w", err)
-	}
-
-	var result []ResolvedOPCM
-	for _, opcm := range opcms {
-		if opcm.OPCMVersion.Compare(lastSV) > 0 {
 			result = append(result, opcm)
 		}
 	}

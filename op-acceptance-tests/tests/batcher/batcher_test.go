@@ -14,7 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -68,7 +69,7 @@ func TestBatcherFullChannelsAfterDowntime(gt *testing.T) {
 			sequenceBlockWithL1Origin(t, ts_L2, parent, l1Origin, cathrine, alice, nonce)
 			nonce++
 
-			parent = sys.L2CL.HeadBlockRef(types.LocalUnsafe).Hash
+			parent = sys.L2CL.HeadBlockRef(safety.LocalUnsafe).Hash
 
 			sys.L2EL.WaitForPendingNonceMatch(cathrine.Address(), nonce, 10, 1*time.Second)
 

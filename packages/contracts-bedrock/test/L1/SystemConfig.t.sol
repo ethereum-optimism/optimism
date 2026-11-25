@@ -3,9 +3,12 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
+import { VmSafe } from "forge-std/Vm.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -17,6 +20,7 @@ import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 /// @title SystemConfig Test Init
 /// @notice Reusable test initialization for SystemConfig tests.
@@ -25,7 +29,6 @@ abstract contract SystemConfig_TestInit is CommonTest {
 
     bytes32 public constant EXAMPLE_FEATURE = "EXAMPLE_FEATURE";
 
-    address batchInbox;
     address owner;
     bytes32 batcherHash;
     uint64 gasLimit;
@@ -37,7 +40,6 @@ abstract contract SystemConfig_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        batchInbox = deploy.cfg().batchInboxAddress();
         owner = deploy.cfg().finalSystemOwner();
         basefeeScalar = deploy.cfg().basefeeScalar();
         blobbasefeeScalar = deploy.cfg().blobbasefeeScalar();
@@ -81,7 +83,6 @@ contract SystemConfig_Constructor_Test is SystemConfig_TestInit {
         assertEq(actual.systemTxMaxGas, 0);
         assertEq(actual.maximumBaseFee, 0);
         assertEq(impl.startBlock(), type(uint256).max);
-        assertEq(address(impl.batchInbox()), address(0));
         // Check addresses
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
         assertEq(address(impl.l1ERC721Bridge()), address(0));
@@ -128,7 +129,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         // Depends on start block being set to 0 in `initialize`
         uint256 cfgStartBlock = deploy.cfg().systemConfigStartBlock();
         assertEq(systemConfig.startBlock(), (cfgStartBlock == 0 ? block.number : cfgStartBlock));
-        assertEq(address(systemConfig.batchInbox()), address(batchInbox));
 
         // Check address getters both for the single contract getter and the struct getter
         ISystemConfig.Addresses memory addrs = systemConfig.getAddresses();
@@ -143,6 +143,40 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         assertEq(address(systemConfig.optimismMintableERC20Factory()), address(optimismMintableERC20Factory));
         assertEq(addrs.optimismMintableERC20Factory, address(optimismMintableERC20Factory));
         assertNotEq(systemConfig.l2ChainId(), 0);
+    }
+
+    /// @notice Tests that initialization clears legacy state.
+    function test_initialize_clearsLegacyState_succeeds() external {
+        bytes32 batchInboxSlot = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+        StorageSlot memory overheadSlot = ForgeArtifacts.getSlot("SystemConfig", "overhead");
+
+        // Seed the values so a no-op `initialize` cannot pass this test.
+        vm.store(address(systemConfig), batchInboxSlot, bytes32(uint256(uint160(address(0xbadbad)))));
+        vm.store(address(systemConfig), bytes32(overheadSlot.slot), bytes32(uint256(2100)));
+        assertEq(vm.load(address(systemConfig), batchInboxSlot), bytes32(uint256(uint160(address(0xbadbad)))));
+        assertEq(systemConfig.overhead(), 2100);
+
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        ISystemConfig.Addresses memory addresses = systemConfig.getAddresses();
+        uint256 l2ChainId = systemConfig.l2ChainId();
+        ISuperchainConfig superchainConfig = systemConfig.superchainConfig();
+        address admin = address(uint160(uint256(vm.load(address(systemConfig), Constants.PROXY_OWNER_ADDRESS))));
+        vm.prank(admin);
+        systemConfig.initialize({
+            _owner: owner,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
+            _batcherHash: batcherHash,
+            _gasLimit: gasLimit,
+            _unsafeBlockSigner: unsafeBlockSigner,
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _addresses: addresses,
+            _l2ChainId: l2ChainId,
+            _superchainConfig: superchainConfig
+        });
+
+        assertEq(vm.load(address(systemConfig), batchInboxSlot), bytes32(0));
+        assertEq(systemConfig.overhead(), 0);
     }
 
     /// @notice Tests that initialization reverts if the gas limit is too low.
@@ -164,7 +198,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
             _gasLimit: minimumGasLimit - 1,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -222,7 +255,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
             _gasLimit: minimumGasLimit - 1,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -258,7 +290,6 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -274,8 +305,8 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
         assertEq(systemConfig.startBlock(), block.number);
     }
 
-    /// @notice Tests that startBlock is not updated when it's not zero.
-    function test_startBlock_update_fails() external {
+    /// @notice Tests that initialization preserves a non-zero start block.
+    function test_initialize_preservesStartBlock_succeeds() external {
         // Wipe out the initialized slot so the proxy can be initialized again
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
         // Set slot startBlock to non-zero value 1
@@ -291,7 +322,6 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -366,36 +396,6 @@ contract SystemConfig_SetBatcherHash_Test is SystemConfig_TestInit {
     }
 }
 
-/// @title SystemConfig_SetGasConfig_Test
-/// @notice Test contract for SystemConfig `setGasConfig` function.
-contract SystemConfig_SetGasConfig_Test is SystemConfig_TestInit {
-    /// @notice Tests that `setGasConfig` reverts if the caller is not the owner.
-    function test_setGasConfig_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setGasConfig(0, 0);
-    }
-
-    /// @notice Ensures that `setGasConfig` reverts if version byte is set.
-    function test_setGasConfig_badValues_reverts() external {
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: scalar exceeds max.");
-        systemConfig.setGasConfig({ _overhead: 0, _scalar: type(uint256).max });
-    }
-
-    /// @notice Tests that `setGasConfig` updates the overhead and scalar successfully.
-    function testFuzz_setGasConfig_succeeds(uint256 newOverhead, uint256 newScalar) external {
-        // always zero out most significant byte
-        newScalar = (newScalar << 16) >> 16;
-        vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(newOverhead, newScalar));
-
-        vm.prank(systemConfig.owner());
-        systemConfig.setGasConfig(newOverhead, newScalar);
-        assertEq(systemConfig.overhead(), newOverhead);
-        assertEq(systemConfig.scalar(), newScalar);
-    }
-}
-
 /// @title SystemConfig_SetGasConfigEcotone_Test
 /// @notice Test contract for SystemConfig `setGasConfigEcotone` function.
 contract SystemConfig_SetGasConfigEcotone_Test is SystemConfig_TestInit {
@@ -406,17 +406,22 @@ contract SystemConfig_SetGasConfigEcotone_Test is SystemConfig_TestInit {
     }
 
     function testFuzz_setGasConfigEcotone_succeeds(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external {
+        // Seed `overhead` so the event assertion proves the emitted zero is hardcoded, not read.
+        StorageSlot memory overheadSlot = ForgeArtifacts.getSlot("SystemConfig", "overhead");
+        vm.store(address(systemConfig), bytes32(overheadSlot.slot), bytes32(uint256(2100)));
+
         bytes32 encoded =
             ffi.encodeScalarEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
 
         vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(systemConfig.overhead(), encoded));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(uint256(0), encoded));
 
         vm.prank(systemConfig.owner());
         systemConfig.setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
         assertEq(systemConfig.basefeeScalar(), _basefeeScalar);
         assertEq(systemConfig.blobbasefeeScalar(), _blobbasefeeScalar);
         assertEq(systemConfig.scalar(), uint256(encoded));
+        assertEq(systemConfig.overhead(), 2100);
 
         (uint32 basefeeScalar, uint32 blobbbasefeeScalar) = ffi.decodeScalarEcotone(encoded);
         assertEq(uint256(basefeeScalar), uint256(_basefeeScalar));
@@ -608,7 +613,6 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
             _gasLimit: gasLimit,
             _unsafeBlockSigner: address(0),
             _config: config,
-            _batchInbox: address(0),
             _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -645,27 +649,18 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
         assertTrue(systemConfig.paused());
     }
 
-    /// @notice Tests that `paused()` returns true when OptimismPortal identifier is paused and
-    ///         the ETH_LOCKBOX feature is disabled.
+    /// @notice Tests that `paused()` ignores the legacy portal pause key.
     function test_paused_optimismPortalIdentifier_succeeds() external {
-        skipIfSysFeatureEnabled(Features.ETH_LOCKBOX);
-
-        // Initially not paused
         assertFalse(systemConfig.paused());
 
-        // Pause the system with OptimismPortal identifier
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(optimismPortal2));
 
-        // Verify paused state
-        assertTrue(systemConfig.paused());
+        assertFalse(systemConfig.paused());
     }
 
-    /// @notice Tests that `paused()` returns true when ETHLockbox identifier is paused and
-    ///         ETH_LOCKBOX feature is enabled.
+    /// @notice Tests that `paused()` uses the ETHLockbox.
     function test_paused_ethLockboxIdentifier_succeeds() external {
-        skipIfSysFeatureDisabled(Features.ETH_LOCKBOX);
-
         // Initially not paused
         assertFalse(systemConfig.paused());
 
@@ -681,10 +676,10 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
     function test_paused_bothPausesActive_succeeds() external {
         assertFalse(systemConfig.paused());
 
-        // Pause both globally and with identifier
+        // Pause globally and by lockbox.
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(0));
-        superchainConfig.pause(address(optimismPortal2));
+        superchainConfig.pause(address(ethLockbox));
         vm.stopPrank();
 
         // Verify paused state
@@ -713,6 +708,8 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
 /// @title SystemConfig_SetFeature_Test
 /// @notice Test contract for SystemConfig `setFeature` function.
 contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
+    using stdStorage for StdStorage;
+
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
     /// @notice Tests that `setFeature` reverts if the caller is not ProxyAdmin or ProxyAdmin owner.
@@ -807,68 +804,61 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
         systemConfig.setFeature("EXAMPLE FEATURE", false);
     }
 
-    /// @notice Tests that disabling ETH_LOCKBOX reverts if the OptimismPortal has a non-zero
-    ///         ETHLockbox configured.
-    function test_setFeature_ethLockboxDisableWhileConfigured_reverts() external {
+    /// @notice Tests that ETH_LOCKBOX cannot be disabled.
+    function test_setFeature_ethLockboxDisable_reverts() external {
         address proxyAdmin = address(systemConfig.proxyAdmin());
-
-        // Ensure ETH_LOCKBOX is enabled first (no pause active in fresh setup).
-        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            vm.prank(proxyAdmin);
-            systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-            assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-        }
-
-        // Force the portal to have a configured ETHLockbox address.
-        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "ethLockbox");
-        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(uint256(uint160(address(1)))));
-
-        // Disabling should revert due to safety check while lockbox is configured.
+        stdstore.target(address(systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.ETH_LOCKBOX)
+            .checked_write(true);
         vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         vm.prank(proxyAdmin);
         systemConfig.setFeature(Features.ETH_LOCKBOX, false);
     }
 
-    /// @notice Tests that enabling ETH_LOCKBOX while the system is paused (global) reverts.
-    function test_setFeature_ethLockboxEnableWhilePaused_reverts() external {
+    /// @notice Tests that INTEROP cannot be disabled by either authorized caller.
+    /// @param _byOwner Whether to call as the ProxyAdmin owner instead of the ProxyAdmin.
+    function testFuzz_setFeature_interopDisable_reverts(bool _byOwner) external {
+        address caller = _byOwner ? systemConfig.proxyAdminOwner() : address(systemConfig.proxyAdmin());
+        stdstore.target(address(systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.INTEROP)
+            .checked_write(true);
+        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
+        vm.prank(caller);
+        systemConfig.setFeature(Features.INTEROP, false);
+    }
+
+    /// @notice Tests that a global pause does not block ETHLockbox activation.
+    function test_setFeature_ethLockboxEnableWhileGloballyPaused_succeeds() external {
         address proxyAdmin = address(systemConfig.proxyAdmin());
+        stdstore.target(address(systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.ETH_LOCKBOX)
+            .checked_write(false);
 
-        // Ensure ETH_LOCKBOX is enabled first (no pause active in fresh setup).
-        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            vm.prank(proxyAdmin);
-            systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-            assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-        }
-
-        // Pause globally.
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(0));
 
-        // Enabling while paused should revert.
+        vm.prank(proxyAdmin);
+        systemConfig.setFeature(Features.ETH_LOCKBOX, true);
+        assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
+        assertTrue(systemConfig.paused());
+    }
+
+    /// @notice Tests that a portal-scoped pause blocks ETHLockbox activation.
+    function test_setFeature_ethLockboxEnableWhilePortalPaused_reverts() external {
+        address proxyAdmin = address(systemConfig.proxyAdmin());
+        stdstore.target(address(systemConfig))
+            .sig("isFeatureEnabled(bytes32)")
+            .with_key(Features.ETH_LOCKBOX)
+            .checked_write(false);
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(optimismPortal2));
+
         vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
         vm.prank(proxyAdmin);
         systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-    }
-
-    /// @notice Tests that disabling ETH_LOCKBOX while the system is paused (global) reverts.
-    function test_setFeature_ethLockboxDisableWhilePaused_reverts() external {
-        address proxyAdmin = address(systemConfig.proxyAdmin());
-
-        // Ensure ETH_LOCKBOX is enabled first.
-        if (!systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            vm.prank(proxyAdmin);
-            systemConfig.setFeature(Features.ETH_LOCKBOX, true);
-            assertTrue(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-        }
-
-        // Pause globally.
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause(address(0));
-
-        // Disabling while paused should revert.
-        vm.expectRevert(ISystemConfig.SystemConfig_InvalidFeatureState.selector);
-        vm.prank(proxyAdmin);
-        systemConfig.setFeature(Features.ETH_LOCKBOX, false);
     }
 }
 
@@ -878,8 +868,10 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
     /// @notice Tests that `isFeatureEnabled` returns false for unset features.
     /// @param _feature The feature to check.
     function testFuzz_isFeatureEnabled_unsetFeature_succeeds(bytes32 _feature) external {
-        if (_feature == Features.ETH_LOCKBOX && systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX)) {
-            // Needs to be anything but ETH_LOCKBOX because we can't turn that feature off if it's on.
+        if (
+            (_feature == Features.ETH_LOCKBOX || _feature == Features.INTEROP)
+                && systemConfig.isFeatureEnabled(_feature)
+        ) {
             vm.skip(true);
         }
 
@@ -887,12 +879,6 @@ contract SystemConfig_IsFeatureEnabled_Test is SystemConfig_TestInit {
         if (systemConfig.isFeatureEnabled(Features.CUSTOM_GAS_TOKEN)) {
             vm.prank(address(systemConfig.proxyAdmin()));
             systemConfig.setFeature(Features.CUSTOM_GAS_TOKEN, false);
-        }
-
-        // Normalize INTEROP to avoid environment-dependent state
-        if (systemConfig.isFeatureEnabled(Features.INTEROP)) {
-            vm.prank(address(systemConfig.proxyAdmin()));
-            systemConfig.setFeature(Features.INTEROP, false);
         }
 
         assertFalse(systemConfig.isFeatureEnabled(_feature));
@@ -1006,5 +992,292 @@ contract SystemConfig_LastUsedOPCM_Test is SystemConfig_TestInit {
 
         // Verify that the lastUsedOPCMVersion matches the OPCM V2 version
         assertEq(systemConfig.lastUsedOPCMVersion(), opcmV2.version());
+    }
+}
+
+/// @title SystemConfig_SetPrivateConfig_Test
+/// @notice Test contract for SystemConfig `setPrivateConfig` function.
+contract SystemConfig_SetPrivateConfig_Test is SystemConfig_TestInit {
+    /// @notice Number of members of the `UpdateType` enum.
+    uint8 internal constant NUM_UPDATE_TYPES = uint8(type(ISystemConfig.UpdateType).max) + 1;
+
+    /// @notice Topic 0 of `PrivateConfigUpdate`.
+    bytes32 internal constant PRIVATE_CONFIG_UPDATE_TOPIC =
+        keccak256("PrivateConfigUpdate(uint256,uint256,uint8,bytes)");
+
+    /// @notice Topic 0 of `ConfigUpdate`, which stock nodes read.
+    bytes32 internal constant CONFIG_UPDATE_TOPIC = keccak256("ConfigUpdate(uint256,uint8,bytes)");
+
+    /// @notice Base storage slot of `privateConfig`, as in `snapshots/storageLayout/SystemConfig.json`.
+    uint256 internal constant PRIVATE_CONFIG_SLOT = 110;
+
+    /// @notice Returns the storage slot of `privateConfig[_chainId][_updateType]`.
+    /// @param _chainId Chain ID of the entry.
+    /// @param _type Update type of the entry.
+    /// @return The storage slot.
+    function _entrySlot(uint256 _chainId, ISystemConfig.UpdateType _type) internal pure returns (bytes32) {
+        bytes32 outer = keccak256(abi.encode(_chainId, PRIVATE_CONFIG_SLOT));
+        return keccak256(abi.encode(uint256(_type), outer));
+    }
+
+    /// @notice Returns a valid `UpdateType` for a fuzzed value.
+    /// @param _seed Fuzzed value.
+    /// @return The `UpdateType`.
+    function _updateType(uint8 _seed) internal pure returns (ISystemConfig.UpdateType) {
+        return ISystemConfig.UpdateType(_seed % NUM_UPDATE_TYPES);
+    }
+
+    /// @notice Tests that `setPrivateConfig` reverts if the caller is not the owner.
+    function testFuzz_setPrivateConfig_notOwner_reverts(
+        address _sender,
+        uint256 _chainId,
+        uint8 _type,
+        bytes calldata _data
+    )
+        external
+    {
+        vm.assume(_sender != systemConfig.owner());
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(_sender);
+        systemConfig.setPrivateConfig(_chainId, _updateType(_type), _data);
+    }
+
+    /// @notice Tests that `setPrivateConfig` stores the data and emits exactly one
+    ///         `PrivateConfigUpdate` log and no `ConfigUpdate` log.
+    function testFuzz_setPrivateConfig_succeeds(uint256 _chainId, uint8 _type, bytes calldata _data) external {
+        ISystemConfig.UpdateType updateType = _updateType(_type);
+        assertEq(systemConfig.privateConfig(_chainId, updateType), bytes(""));
+
+        vm.recordLogs();
+        vm.prank(systemConfig.owner());
+        systemConfig.setPrivateConfig(_chainId, updateType, _data);
+
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].emitter, address(systemConfig));
+        assertEq(logs[0].topics.length, 4);
+        assertEq(logs[0].topics[0], PRIVATE_CONFIG_UPDATE_TOPIC);
+        assertNotEq(logs[0].topics[0], CONFIG_UPDATE_TOPIC);
+        assertEq(logs[0].topics[1], bytes32(systemConfig.VERSION()));
+        assertEq(logs[0].topics[2], bytes32(_chainId));
+        assertEq(logs[0].topics[3], bytes32(uint256(updateType)));
+        assertEq(logs[0].data, abi.encode(_data));
+        assertEq(systemConfig.privateConfig(_chainId, updateType), _data);
+    }
+
+    /// @notice Tests that `setPrivateConfig` overwrites existing data.
+    function testFuzz_setPrivateConfig_overwrite_succeeds(
+        uint256 _chainId,
+        uint8 _type,
+        bytes calldata _a,
+        bytes calldata _b
+    )
+        external
+    {
+        ISystemConfig.UpdateType updateType = _updateType(_type);
+        vm.startPrank(systemConfig.owner());
+        systemConfig.setPrivateConfig(_chainId, updateType, _a);
+        systemConfig.setPrivateConfig(_chainId, updateType, _b);
+        vm.stopPrank();
+        assertEq(systemConfig.privateConfig(_chainId, updateType), _b);
+    }
+
+    /// @notice Tests that data for different chain IDs and update types is stored separately.
+    function testFuzz_setPrivateConfig_separateEntries_succeeds(
+        uint256 _chainId,
+        uint8 _type,
+        bytes calldata _data
+    )
+        external
+    {
+        vm.assume(_data.length > 0);
+        ISystemConfig.UpdateType updateType = _updateType(_type);
+        ISystemConfig.UpdateType otherType = ISystemConfig.UpdateType((uint8(updateType) + 1) % NUM_UPDATE_TYPES);
+        uint256 otherChainId;
+        unchecked {
+            otherChainId = _chainId + 1;
+        }
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setPrivateConfig(_chainId, updateType, _data);
+
+        assertEq(systemConfig.privateConfig(_chainId, updateType), _data);
+        assertEq(systemConfig.privateConfig(otherChainId, updateType), bytes(""));
+        assertEq(systemConfig.privateConfig(_chainId, otherType), bytes(""));
+    }
+
+    /// @notice Returns this chain's own configuration as set by the stock setters.
+    /// @return The encoded configuration.
+    function _ownConfig() internal view returns (bytes memory) {
+        return bytes.concat(
+            abi.encode(
+                systemConfig.unsafeBlockSigner(),
+                systemConfig.batcherHash(),
+                systemConfig.scalar(),
+                systemConfig.basefeeScalar(),
+                systemConfig.blobbasefeeScalar(),
+                systemConfig.gasLimit()
+            ),
+            abi.encode(
+                systemConfig.eip1559Denominator(),
+                systemConfig.eip1559Elasticity(),
+                systemConfig.operatorFeeScalar(),
+                systemConfig.operatorFeeConstant(),
+                systemConfig.minBaseFee(),
+                systemConfig.daFootprintGasScalar()
+            )
+        );
+    }
+
+    /// @notice Tests that `setPrivateConfig` leaves this chain's own configuration unchanged,
+    ///         and that data encoded as in `ConfigUpdate` reads back.
+    function test_setPrivateConfig_ownConfigUnchanged_succeeds() external {
+        uint256 chainId = 1337;
+        bytes memory ownConfig = _ownConfig();
+
+        vm.recordLogs();
+        vm.startPrank(systemConfig.owner());
+        systemConfig.setPrivateConfig(
+            chainId, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(address(0xabcd))
+        );
+        systemConfig.setPrivateConfig(
+            chainId, ISystemConfig.UpdateType.EIP_1559_PARAMS, abi.encode(uint256(250) << 32 | uint64(6))
+        );
+        systemConfig.setPrivateConfig(chainId, ISystemConfig.UpdateType.MIN_BASE_FEE, abi.encode(uint64(7)));
+        systemConfig.setPrivateConfig(chainId, ISystemConfig.UpdateType.GAS_LIMIT, abi.encode(uint64(60_000_000)));
+        vm.stopPrank();
+
+        // Only PrivateConfigUpdate logs were emitted.
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 4);
+        for (uint256 i = 0; i < logs.length; i++) {
+            assertEq(logs[i].topics[0], PRIVATE_CONFIG_UPDATE_TOPIC);
+        }
+
+        // This chain's own configuration is unchanged.
+        assertEq(_ownConfig(), ownConfig);
+
+        // The private chain's configuration reads back with the ConfigUpdate encodings.
+        assertEq(
+            abi.decode(systemConfig.privateConfig(chainId, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER), (address)),
+            address(0xabcd)
+        );
+        uint256 params =
+            abi.decode(systemConfig.privateConfig(chainId, ISystemConfig.UpdateType.EIP_1559_PARAMS), (uint256));
+        assertEq(uint32(params >> 32), 250);
+        assertEq(uint32(params), 6);
+        assertEq(abi.decode(systemConfig.privateConfig(chainId, ISystemConfig.UpdateType.MIN_BASE_FEE), (uint64)), 7);
+        assertEq(
+            abi.decode(systemConfig.privateConfig(chainId, ISystemConfig.UpdateType.GAS_LIMIT), (uint64)), 60_000_000
+        );
+    }
+
+    /// @notice Tests that `privateConfig` entries live at the storage slots that off-chain
+    ///         readers derive. The literal slots are pinned so readers can check their derivation.
+    function test_setPrivateConfig_storageSlot_succeeds() external {
+        assertEq(ForgeArtifacts.getSlot("SystemConfig", "privateConfig").slot, PRIVATE_CONFIG_SLOT);
+
+        bytes32 outer = keccak256(abi.encode(uint256(1337), PRIVATE_CONFIG_SLOT));
+        assertEq(outer, 0x1034e9e1669a95aba7621ce5b39dc0037f4fa3bb70012d4971fc8e322a0e7f4c);
+        bytes32 entry = keccak256(abi.encode(uint256(ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER), outer));
+        assertEq(entry, 0xacf9df9fdc764ece4c3bd4b37fdff5cafefd1ccf2c99b0b321c6675ad01c547d);
+        assertEq(_entrySlot(1337, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER), entry);
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setPrivateConfig(1337, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(address(0xdEaD)));
+
+        // The value is 32 bytes, so it uses the long `bytes` encoding: the entry slot holds
+        // `length * 2 + 1` and the data starts at `keccak256(entry)`.
+        assertEq(vm.load(address(systemConfig), entry), bytes32(uint256(0x41)));
+        bytes32 dataSlot = keccak256(abi.encode(entry));
+        assertEq(dataSlot, 0xb2ff57daa4ed3d4f68f6702f06ec6ed298f25bd7ff6659af16d52ad241bf7697);
+        assertEq(vm.load(address(systemConfig), dataSlot), bytes32(uint256(uint160(address(0xdEaD)))));
+    }
+
+    /// @notice Tests that `setPrivateConfig` and `privateConfig` revert for an update type that
+    ///         is not a member of `UpdateType`.
+    function test_setPrivateConfig_updateTypeOutOfRange_reverts() external {
+        // `abi.encodeCall` cannot encode an out-of-range enum value, so encode the arguments raw.
+        vm.prank(systemConfig.owner());
+        (bool success,) = address(systemConfig)
+            .call(
+                bytes.concat(
+                    ISystemConfig.setPrivateConfig.selector,
+                    abi.encode(uint256(1337), uint256(NUM_UPDATE_TYPES), hex"01")
+                )
+            );
+        assertFalse(success);
+
+        (success,) = address(systemConfig)
+            .staticcall(
+                bytes.concat(ISystemConfig.privateConfig.selector, abi.encode(uint256(1337), uint256(NUM_UPDATE_TYPES)))
+            );
+        assertFalse(success);
+    }
+
+    /// @notice Tests that overwriting a long value with empty bytes clears the entry slot and
+    ///         all of the old data slots.
+    function test_setPrivateConfig_clearLongValue_succeeds() external {
+        ISystemConfig.UpdateType updateType = ISystemConfig.UpdateType.GAS_LIMIT;
+        bytes32 entry = _entrySlot(1337, updateType);
+        bytes32 dataSlot = keccak256(abi.encode(entry));
+
+        bytes memory value = new bytes(100);
+        for (uint256 i = 0; i < value.length; i++) {
+            value[i] = bytes1(uint8(i + 1));
+        }
+
+        vm.startPrank(systemConfig.owner());
+        systemConfig.setPrivateConfig(1337, updateType, value);
+        assertEq(vm.load(address(systemConfig), entry), bytes32(uint256(100 * 2 + 1)));
+        for (uint256 i = 0; i < 4; i++) {
+            assertNotEq(vm.load(address(systemConfig), bytes32(uint256(dataSlot) + i)), bytes32(0));
+        }
+
+        systemConfig.setPrivateConfig(1337, updateType, bytes(""));
+        vm.stopPrank();
+
+        assertEq(systemConfig.privateConfig(1337, updateType), bytes(""));
+        assertEq(vm.load(address(systemConfig), entry), bytes32(0));
+        for (uint256 i = 0; i < 4; i++) {
+            assertEq(vm.load(address(systemConfig), bytes32(uint256(dataSlot) + i)), bytes32(0));
+        }
+    }
+
+    /// @notice Tests that `privateConfig` entries survive an upgrade to a new implementation.
+    function test_setPrivateConfig_survivesUpgrade_succeeds() external {
+        bytes memory value = abi.encode(address(0xdEaD));
+        vm.prank(systemConfig.owner());
+        systemConfig.setPrivateConfig(1337, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, value);
+
+        address newImpl = DeployUtils.create1({
+            _name: "SystemConfig",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
+        });
+
+        // Wipe out the initialized slot so the proxy can be initialized again, as in an upgrade.
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+
+        bytes memory initializeCall = abi.encodeCall(
+            ISystemConfig.initialize,
+            (
+                systemConfig.owner(),
+                systemConfig.basefeeScalar(),
+                systemConfig.blobbasefeeScalar(),
+                systemConfig.batcherHash(),
+                systemConfig.gasLimit(),
+                systemConfig.unsafeBlockSigner(),
+                systemConfig.resourceConfig(),
+                systemConfig.getAddresses(),
+                systemConfig.l2ChainId(),
+                systemConfig.superchainConfig()
+            )
+        );
+        IProxyAdmin admin = systemConfig.proxyAdmin();
+        vm.prank(admin.owner());
+        admin.upgradeAndCall(payable(address(systemConfig)), newImpl, initializeCall);
+
+        assertEq(EIP1967Helper.getImplementation(address(systemConfig)), newImpl);
+        assertEq(systemConfig.privateConfig(1337, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER), value);
     }
 }

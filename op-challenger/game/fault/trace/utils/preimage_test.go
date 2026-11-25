@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"testing"
 
-	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
@@ -15,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/kvstore"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-program/client/l1"
-	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
+	"github.com/ethereum-optimism/optimism/op-service/kzg"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -81,7 +80,7 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 	indices := []uint64{0, 1, 24, 2222, 4095}
 	for _, fieldIndex := range indices {
 		elementData := blob[fieldIndex<<5 : (fieldIndex+1)<<5]
-		zPoint := l1.RootsOfUnity[fieldIndex].Bytes()
+		zPoint := kzg.RootsOfUnity[fieldIndex].Bytes()
 		kzgProof, claim, err := kzg4844.ComputeProof(&blob, zPoint)
 		require.NoError(t, err)
 		elementDataWithLengthPrefix := make([]byte, len(elementData)+lengthPrefixSize)
@@ -152,7 +151,7 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 			loader := NewPreimageLoader(func() (PreimageSource, error) {
 				return kv, nil
 			})
-			storeBlob(t, kv, gokzg4844.KZGCommitment(commitment), gokzg4844.Blob(blob))
+			storeBlob(t, kv, commitment, blob)
 			actual, err := loader.LoadPreimage(proof)
 			require.NoError(t, err)
 
@@ -206,7 +205,7 @@ func TestPreimageLoader_PrecompilePreimage(t *testing.T) {
 	})
 }
 
-func storeBlob(t *testing.T, kv kvstore.KV, commitment gokzg4844.KZGCommitment, blob gokzg4844.Blob) {
+func storeBlob(t *testing.T, kv kvstore.KV, commitment kzg4844.Commitment, blob kzg4844.Blob) {
 	// Pre-store versioned hash preimage (commitment)
 	key := preimage.Sha256Key(sha256.Sum256(commitment[:]))
 	err := kv.Put(key.PreimageKey(), commitment[:])
@@ -216,7 +215,7 @@ func storeBlob(t *testing.T, kv kvstore.KV, commitment gokzg4844.KZGCommitment, 
 	blobKeyBuf := make([]byte, 80)
 	copy(blobKeyBuf[:48], commitment[:])
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		root := l1.RootsOfUnity[i].Bytes()
+		root := kzg.RootsOfUnity[i].Bytes()
 		copy(blobKeyBuf[48:], root[:])
 		feKey := crypto.Keccak256Hash(blobKeyBuf)
 		err := kv.Put(preimage.Keccak256Key(feKey).PreimageKey(), blobKeyBuf)

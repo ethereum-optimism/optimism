@@ -3,8 +3,6 @@ package log
 import (
 	"log/slog"
 	"sync"
-
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type Writer struct {
@@ -13,20 +11,20 @@ type Writer struct {
 	pending []byte
 }
 
-func NewWriter(l log.Logger, lvl slog.Level) *Writer {
+func NewWriter(l Logger, lvl slog.Level) *Writer {
 	var logMethod func(str string, ctx ...any)
 	switch lvl {
-	case log.LevelTrace:
+	case LevelTrace:
 		logMethod = l.Trace
-	case log.LevelDebug:
+	case LevelDebug:
 		logMethod = l.Debug
-	case log.LevelInfo:
+	case LevelInfo:
 		logMethod = l.Info
-	case log.LevelWarn:
+	case LevelWarn:
 		logMethod = l.Warn
-	case log.LevelError:
+	case LevelError:
 		logMethod = l.Error
-	case log.LevelCrit:
+	case LevelCrit:
 		logMethod = l.Crit
 	default:
 		// Cast lvl to int to avoid trying to convert it to a string which will fail for unknown types

@@ -2,26 +2,25 @@ package sysgo
 
 import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
 
-func newSingleChainInteropWorldNoSupervisor(t devtest.T, keys devkeys.Keys, cfg PresetConfig) singleChainRuntimeWorld {
+func newSingleChainInteropWorldNoSupernode(t devtest.T, keys devkeys.Keys, cfg PresetConfig, startL1 func(*L1Network) (*L1Geth, *L1CLNode)) singleChainRuntimeWorld {
 	cfg.DeployerOptions = append([]DeployerOption{
-		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+		WithUseInterop(),
 	}, cfg.DeployerOptions...)
-	l1Net, l2Net, depSet, fullCfgSet := buildSingleChainWorldWithInterop(t, keys, true, cfg.LocalContractArtifactsPath, cfg.DeployerOptions...)
+	migration, l1Net, l2Net, depSet := buildSingleChainWorld(t, keys, true, cfg.LocalContractArtifactsPath, genesisAnchorGameType(cfg), startL1, cfg.DeployerOptions...)
 	return singleChainRuntimeWorld{
-		L1Network: l1Net,
-		L2Network: l2Net,
-		Interop: &SingleChainInteropSupport{
-			DependencySet: depSet,
-			FullConfigSet: fullCfgSet,
-		},
+		L1Network:     l1Net,
+		L2Network:     l2Net,
+		Migration:     migration,
+		DependencySet: depSet,
+		Interop:       &SingleChainInteropSupport{Migration: migration, DependencySet: depSet},
 	}
 }
 
-func startSingleChainInteropPrimaryNoSupervisor(
+func startSingleChainInteropPrimaryNoSupernode(
 	t devtest.T,
 	keys devkeys.Keys,
 	world singleChainRuntimeWorld,
@@ -30,35 +29,66 @@ func startSingleChainInteropPrimaryNoSupervisor(
 	jwtPath string,
 	jwtSecret [32]byte,
 	cfg PresetConfig,
+	sequencerCLKind MixedL2CLKind,
 ) singleChainPrimaryRuntime {
 	t.Require().NotNil(world.Interop, "single-chain interop runtime requires interop support")
 
-	sequencerIdentity := NewELNodeIdentity(0)
-	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, sequencerIdentity)
-	l2CL := startL2CLNode(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-		Key:            "sequencer",
-		IsSequencer:    true,
-		NoDiscovery:    true,
-		EnableReqResp:  true,
-		UseReqResp:     true,
-		DependencySet:  world.Interop.DependencySet,
-		L2FollowSource: "",
-		L2CLOptions:    cfg.GlobalL2CLOptions,
-	})
+	l2EL := startSequencerEL(t, world.L2Network, jwtPath, jwtSecret, ResolveMixedL2ELOpts(t)...)
+	l2CL := startL2CLForKey(t, keys, world.L1Network, world.L2Network, l1EL, l1CL, l2EL, jwtSecret, sequencerCLKind, "sequencer", "sequencer", true, "", world.Interop.dependencySet(), cfg.GlobalL2CLOptions)
 	return singleChainPrimaryRuntime{
 		EL: l2EL,
 		CL: l2CL,
 	}
 }
 
-// NewMinimalInteropNoSupervisorRuntime constructs the single-chain interop world
-// without supervisor wiring.
-func NewMinimalInteropNoSupervisorRuntime(t devtest.T) *SingleChainRuntime {
+// NewMinimalInteropNoSupernodeRuntime constructs the single-chain interop world
+// without supernode wiring.
+func NewMinimalInteropNoSupernodeRuntime(t devtest.T) *SingleChainRuntime {
 	return newSingleChainRuntimeWithConfig(t, PresetConfig{}, singleChainRuntimeSpec{
-		BuildWorld:      newSingleChainInteropWorldNoSupervisor,
-		StartPrimary:    startSingleChainInteropPrimaryNoSupervisor,
+		BuildWorld:      newSingleChainInteropWorldNoSupernode,
+		SequencerCLKind: ResolveMixedL2CLKind(t),
+		StartPrimary:    startSingleChainInteropPrimaryNoSupernode,
+
 		StartBatcher:    true,
-		StartProposer:   true,
 		StartChallenger: false,
+		StartProposer:   true,
+	})
+}
+
+// NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig constructs a single-chain
+// interop world with no supernode, running an op-challenger that plays super-cannon-kona
+// games sourcing super roots directly from the sequencer CL's superroot_atTimestamp endpoint.
+// The sequencer CL enables its safe DB (required by superroot_atTimestamp).
+func NewSingleChainInteropNoSupernodeSuperRootRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
+	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.SuperCannonKonaGameType)
+	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:      newSingleChainInteropWorldNoSupernode,
+		SequencerCLKind: ResolveMixedL2CLKind(t),
+		StartPrimary:    startDefaultSingleChainPrimary,
+
+		StartBatcher:    true,
+		StartChallenger: true,
+		StartProposer:   false,
+	})
+}
+
+// NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig constructs a single-chain interop
+// world with no supernode, running an op-challenger that plays ZK dispute games sourcing super
+// roots directly from the sequencer CL's superroot_atTimestamp endpoint. The sequencer CL enables
+// its safe DB (required by superroot_atTimestamp).
+func NewSingleChainInteropNoSupernodeZKDisputeRuntimeWithConfig(t devtest.T, cfg PresetConfig) *SingleChainRuntime {
+	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)
+	// ZK games resolve only after the challenge/prove windows elapse, so time travel is required.
+	cfg.EnableTimeTravel = true
+	cfg.AddedGameTypes = append(cfg.AddedGameTypes, gameTypes.ZKDisputeGameType)
+	return newSingleChainRuntimeWithConfig(t, cfg, singleChainRuntimeSpec{
+		BuildWorld:      newSingleChainInteropWorldNoSupernode,
+		SequencerCLKind: ResolveMixedL2CLKind(t),
+		StartPrimary:    startDefaultSingleChainPrimary,
+
+		StartBatcher:    true,
+		StartChallenger: true,
+		StartProposer:   false,
 	})
 }

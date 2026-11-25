@@ -6,6 +6,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-reth-op = { workspace = true, features = ["node", "tasks"] }
+reth-op = { workspace = true, features = ["node", "tasks", "superchain-configs"] }
 
 eyre.workspace = true

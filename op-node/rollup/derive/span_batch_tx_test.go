@@ -5,8 +5,10 @@ import (
 	"math/rand"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +33,7 @@ func TestSpanBatchTxConvert(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(0x1331 + i)))
 			chainID := big.NewInt(rng.Int63n(1000))
-			signer := types.NewIsthmusSigner(chainID)
+			signer := types.NewPragueSigner(chainID)
 			if !testCase.protected {
 				signer = types.HomesteadSigner{}
 			}
@@ -43,13 +45,11 @@ func TestSpanBatchTxConvert(t *testing.T) {
 				sbtx, err := newSpanBatchTx(tx)
 				require.NoError(t, err)
 
-				tx2, err := sbtx.convertToFullTx(tx.Nonce(), tx.Gas(), tx.To(), chainID, v, r, s)
+				tx2Encoded, err := sbtx.convertToFullTx(tx.Nonce(), tx.Gas(), tx.To(), chainID, v, r, s)
 				require.NoError(t, err)
 
-				// compare after marshal because we only need inner field of transaction
+				// compare against the canonical encoding because we only care about the inner fields
 				txEncoded, err := tx.MarshalBinary()
-				require.NoError(t, err)
-				tx2Encoded, err := tx2.MarshalBinary()
 				require.NoError(t, err)
 
 				assert.Equal(t, txEncoded, tx2Encoded)
@@ -71,7 +71,7 @@ func TestSpanBatchTxRoundTrip(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(0x1332 + i)))
 			chainID := big.NewInt(rng.Int63n(1000))
-			signer := types.NewIsthmusSigner(chainID)
+			signer := types.NewPragueSigner(chainID)
 			if !testCase.protected {
 				signer = types.HomesteadSigner{}
 			}
@@ -95,14 +95,55 @@ func TestSpanBatchTxRoundTrip(t *testing.T) {
 	}
 }
 
+// testPostExecTx returns the post-exec tx of TestPostExecTxHashGoldenVector in op-core/types.
+func testPostExecTx() *optypes.PostExecTx {
+	data, err := rlp.EncodeToBytes(&optypes.PostExecPayload{
+		Version:          optypes.PostExecPayloadVersion,
+		BlockNumber:      42,
+		GasRefundEntries: []optypes.SDMGasEntry{{Index: 3, GasRefund: 7}},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return &optypes.PostExecTx{Data: data}
+}
+
+func TestSpanBatchTxPostExecConvert(t *testing.T) {
+	raw, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+	sbtx := &spanBatchTx{inner: &spanBatchPostExecTxData{Data: testPostExecTx().Data}}
+
+	// Deliberately pass non-canonical tx envelope fields. PostExec reconstruction
+	// must ignore them and preserve only the opaque payload bytes.
+	encoded, err := sbtx.convertToFullTx(123, 456, nil, big.NewInt(901), big.NewInt(1), big.NewInt(2), big.NewInt(3))
+	require.NoError(t, err)
+	require.Equal(t, raw, encoded)
+}
+
+func TestSpanBatchTxPostExecRoundTrip(t *testing.T) {
+	raw, err := testPostExecTx().MarshalBinary()
+	require.NoError(t, err)
+	sbtx := &spanBatchTx{inner: &spanBatchPostExecTxData{Data: testPostExecTx().Data}}
+
+	// A post-exec tx has no envelope fields to strip, so its span batch tx data is
+	// its canonical encoding.
+	sbtxEncoded, err := sbtx.MarshalBinary()
+	require.NoError(t, err)
+	require.Equal(t, raw, sbtxEncoded)
+
+	var sbtx2 spanBatchTx
+	err = sbtx2.UnmarshalBinary(sbtxEncoded)
+	require.NoError(t, err)
+	require.Equal(t, sbtx, &sbtx2)
+}
+
 type spanBatchDummyTxData struct{}
 
-func (txData *spanBatchDummyTxData) txType() byte { return types.DepositTxType }
+func (txData *spanBatchDummyTxData) txType() byte { return optypes.DepositTxType }
 
 func TestSpanBatchTxInvalidTxType(t *testing.T) {
-	// span batch never contain deposit tx
-	depositTx := types.NewTx(&types.DepositTx{})
-	_, err := newSpanBatchTx(depositTx)
+	// span batch never contain blob tx
+	_, err := newSpanBatchTx(types.NewTx(&types.BlobTx{}))
 	require.ErrorContains(t, err, "invalid tx type")
 
 	var sbtx spanBatchTx

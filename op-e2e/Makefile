@@ -1,4 +1,4 @@
-DEPRECATED_TARGETS := test test-ws test-actions test-http test-cannon test-fault-proofs cannon-prestates pre-test clean fuzz
+DEPRECATED_TARGETS := test test-ws test-actions test-http test-cannon test-fault-proofs pre-test clean fuzz
 
 include ../justfiles/deprecated.mk
 

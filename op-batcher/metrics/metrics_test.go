@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	metricstest "github.com/ethereum-optimism/optimism/op-service/metrics/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +21,7 @@ func TestThrottleMetrics(t *testing.T) {
 	metrics.RecordThrottleIntensity(37.4, config.QuadraticControllerType)
 
 	// Get the metrics checker to verify recorded values
-	c := opmetrics.NewMetricChecker(t, metrics.Registry())
+	c := metricstest.NewMetricChecker(t, metrics.Registry())
 
 	prefix := "op_batcher_test_"
 

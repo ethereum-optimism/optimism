@@ -1,0 +1,707 @@
+//! Contains the [`RollupNode`] implementation.
+use crate::{
+    ConductorClient, DelegateDerivationActor, DerivationActor, DerivationActorRequest,
+    DerivationError, EngineActor, EngineActorRequest, EngineConfig, L1OriginSelector,
+    L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler,
+    NodeActor, NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
+    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
+    RpcActor, SequencerActor, SequencerConfig, SignedPayload, SignerActor, SystemClock,
+    actors::{
+        BlockStream, OriginPrefetcher, OriginPreparation, PreparedAttributesProvider,
+        PreparedOriginProvider, QueuedUnsafePayloadGossipClient,
+    },
+    service::{BufferImportedBlocks, middleware::RpcObservabilityLayer},
+};
+use alloy_eips::BlockNumHash;
+use alloy_primitives::Address;
+use backon::{ExponentialBuilder, Retryable};
+use jsonrpsee::{
+    RpcModule,
+    http_client::{HttpClient, HttpClientBuilder},
+    server::{
+        Server, ServerConfig,
+        middleware::{http::ProxyGetRequestLayer, rpc::RpcServiceBuilder},
+    },
+};
+use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
+use kona_engine::{Engine, EngineQueryClient, EngineState};
+use kona_genesis::{L1ChainConfig, RollupConfig};
+use kona_interop::DependencySet;
+use kona_protocol::{BlockInfo, L2BlockInfo};
+use kona_providers_alloy::{
+    AlloyChainProvider, AlloyChainProviderError, AlloyL2ChainProvider, BlockLabel,
+    BufferedAlloyL2ChainProvider, OnlineBeaconClient, OnlineBlobProvider, OnlinePipeline,
+};
+use kona_providers_local::BufferedL2Provider;
+use kona_rpc::{
+    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, L1WatcherQueries, OpP2PApiServer,
+    P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminCommand,
+    SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
+};
+use kona_safedb::SafeDb;
+use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use std::{sync::Arc, time::Duration};
+use tokio::sync::{mpsc, watch};
+use tokio_util::sync::CancellationToken;
+use url::Url;
+
+const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
+/// Timeout for each `optimism_syncStatus` request to the derivation delegate.
+const DERIVATION_DELEGATE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+/// How many recently imported blocks to keep for the local L2 lookups.
+///
+/// Every lookup served from here is for the block being built on top of, which the engine recorded
+/// one step earlier. The size absorbs what lands in between — gossiped unsafe blocks keep
+/// arriving, and on a sequencer the two builders ask about different heads.
+pub(in crate::service) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
+
+const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
+
+/// The configuration for the L1 chain.
+#[derive(Debug, Clone)]
+pub struct L1Config {
+    /// The L1 chain configuration.
+    pub chain_config: Arc<L1ChainConfig>,
+    /// The L1 beacon client.
+    pub beacon_client: OnlineBeaconClient,
+    /// The node's L1 client. Every component holds a clone, so all share its caches and trust
+    /// setting.
+    pub provider: AlloyChainProvider,
+    /// How often the L1 finalized block is polled.
+    pub epoch_poll_interval: Duration,
+}
+
+/// The standard implementation of the [`RollupNode`] service, using the governance approved OP
+/// Stack configuration of components.
+#[derive(Debug)]
+pub struct RollupNode {
+    /// The application version reported by the RPC server.
+    pub(crate) version: String,
+    /// The rollup configuration.
+    pub(crate) config: Arc<RollupConfig>,
+    /// The L1 configuration.
+    pub(crate) l1_config: L1Config,
+    /// The [`EngineConfig`] for the node.
+    pub(crate) engine_config: EngineConfig,
+    /// The [`RpcBuilder`] for the node.
+    pub(crate) rpc_builder: Option<RpcBuilder>,
+    /// The P2P [`NetworkConfig`] for the node.
+    pub(crate) p2p_config: NetworkConfig,
+    /// The [`SequencerConfig`] for the node.
+    pub(crate) sequencer_config: SequencerConfig,
+    /// The L2 CL RPC to delegate derivation to. It must expose `optimism_syncStatus`.
+    pub(crate) derivation_delegate_url: Option<Url>,
+    /// Blocks the engine has imported, shared with the derivation providers so they can be read
+    /// locally instead of fetched back from the execution layer.
+    pub(crate) l2_block_buffer: BufferedL2Provider,
+    /// The interop dependency set for this chain.
+    /// Mirrors op-node's `--interop.dependency-set`.
+    /// [`StatefulAttributesBuilder`] constructor panics otherwise.
+    pub(crate) dependency_set: Option<Arc<DependencySet>>,
+    /// Records the safe head reached as of each L1 block. Disabled unless configured.
+    pub(crate) safe_db: Option<Arc<dyn SafeDb>>,
+    /// L1 confirmation depth for online derivation, independent of sequencing.
+    pub(crate) verifier_l1_confs: u64,
+}
+
+/// A RollupNode-level derivation actor wrapper.
+///
+/// This type selects the concrete derivation actor implementation
+/// based on `RollupNode` configuration.
+///
+/// It is not intended to be generic or reusable outside the
+/// `RollupNode` wiring logic.
+enum ConfiguredDerivationActor {
+    Delegate(
+        Box<DelegateDerivationActor<QueuedDerivationEngineClient, HttpClient, AlloyChainProvider>>,
+    ),
+    Normal(Box<DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>>),
+}
+
+#[async_trait::async_trait]
+impl NodeActor for ConfiguredDerivationActor
+where
+    DelegateDerivationActor<QueuedDerivationEngineClient, HttpClient, AlloyChainProvider>:
+        NodeActor<Error = DerivationError>,
+    DerivationActor<QueuedDerivationEngineClient, OnlinePipeline>:
+        NodeActor<Error = DerivationError>,
+{
+    type Error = DerivationError;
+
+    async fn step(&mut self) -> Result<(), Self::Error> {
+        match self {
+            Self::Delegate(a) => a.step().await,
+            Self::Normal(a) => a.step().await,
+        }
+    }
+}
+
+/// Concrete type of the engine actor used by `RollupNode`.
+type ConfiguredEngineActor = EngineActor<QueuedEngineDerivationClient>;
+
+/// Concrete type of the sequencer actor used by `RollupNode`.
+type ConfiguredSequencerActor = SequencerActor<
+    StatefulAttributesBuilder<PreparedAttributesProvider, BufferedAlloyL2ChainProvider>,
+    ConductorClient,
+    L1OriginSelector<PreparedOriginProvider>,
+    QueuedSequencerEngineClient,
+    QueuedUnsafePayloadGossipClient,
+>;
+
+/// Optional sequencing actors, constructed together with their shared preparation channel.
+struct ConfiguredSequencer {
+    actor: ConfiguredSequencerActor,
+    prefetcher: OriginPrefetcher<crate::DelayedL1OriginSelectorProvider, AlloyChainProvider>,
+}
+
+impl RollupNode {
+    /// The mode of operation for the node.
+    const fn mode(&self) -> NodeMode {
+        self.engine_config.mode
+    }
+
+    /// Creates a network builder for the node whose gossip validation follows
+    /// `unsafe_block_signer`.
+    fn network_builder(&self, unsafe_block_signer: watch::Receiver<Address>) -> NetworkBuilder {
+        NetworkBuilder::from(self.p2p_config.clone()).with_unsafe_block_signer(unsafe_block_signer)
+    }
+
+    /// Returns an rpc builder for the node.
+    fn rpc_builder(&self) -> Option<RpcBuilder> {
+        self.rpc_builder.clone()
+    }
+
+    /// Returns the L2 provider that derivation reads from: the engine, behind the buffer of
+    /// blocks the engine has imported. Each call returns its own block cache over the node's one
+    /// engine connection.
+    fn l2_derivation_provider(&self) -> BufferedAlloyL2ChainProvider {
+        BufferedAlloyL2ChainProvider::new(
+            self.l2_block_buffer.clone(),
+            AlloyL2ChainProvider::new(
+                self.engine_config.provider.clone(),
+                self.config.clone(),
+                DERIVATION_PROVIDER_CACHE_SIZE,
+            ),
+        )
+    }
+
+    /// Returns the attributes builder for the node.
+    fn create_attributes_builder(
+        &self,
+        l1_derivation_provider: PreparedAttributesProvider,
+    ) -> StatefulAttributesBuilder<PreparedAttributesProvider, BufferedAlloyL2ChainProvider> {
+        StatefulAttributesBuilder::new(
+            self.config.clone(),
+            self.l1_config.chain_config.clone(),
+            self.l2_derivation_provider(),
+            l1_derivation_provider,
+            self.dependency_set.clone(),
+        )
+    }
+
+    async fn create_pipeline(
+        &self,
+        l1_head: watch::Receiver<Option<BlockInfo>>,
+    ) -> Result<OnlinePipeline, BlobProviderError> {
+        let l1_derivation_provider = self
+            .l1_config
+            .provider
+            .clone()
+            .with_confirmation_depth(self.verifier_l1_confs, l1_head);
+
+        Ok(OnlinePipeline::new_polled(
+            self.config.clone(),
+            self.l1_config.chain_config.clone(),
+            OnlineBlobProvider::init(self.l1_config.beacon_client.clone()).await?,
+            l1_derivation_provider,
+            self.l2_derivation_provider(),
+            self.dependency_set.clone(),
+        ))
+    }
+
+    /// Builds the engine actor and returns the read-only L2 client and state watch used by RPC.
+    fn build_engine_actor(
+        &self,
+        engine_request_rx: mpsc::Receiver<EngineActorRequest>,
+        derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
+        unsafe_head_tx: watch::Sender<L2BlockInfo>,
+    ) -> (ConfiguredEngineActor, EngineQueryClient, watch::Receiver<EngineState>) {
+        // Share engine state with RPC without routing reads through the actor.
+        let engine_state = EngineState::default();
+        let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
+        let engine = Engine::new(engine_state, engine_state_tx);
+
+        let engine_client = Arc::new(
+            self.engine_config.clone().build_engine_client(self.l1_config.provider.clone()),
+        );
+
+        // unsafe_head_tx is only meaningful in sequencer mode; validators ignore it.
+        let unsafe_head_tx_opt = self.mode().is_sequencer().then_some(unsafe_head_tx);
+
+        let actor = EngineActor::new(
+            engine_client.clone(),
+            self.config.clone(),
+            QueuedEngineDerivationClient::new(derivation_actor_request_tx),
+            engine,
+            unsafe_head_tx_opt,
+            engine_request_rx,
+            Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
+        );
+
+        (actor, engine_client.query_client(), engine_state_rx)
+    }
+
+    /// Constructs the delegate derivation actor when a derivation delegate URL is set, and the
+    /// standard one otherwise.
+    async fn build_derivation_actor(
+        &self,
+        engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
+        derivation_actor_request_rx: mpsc::Receiver<DerivationActorRequest>,
+        derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
+        engine_state_rx: watch::Receiver<EngineState>,
+        l1_head: watch::Receiver<Option<BlockInfo>>,
+    ) -> Result<ConfiguredDerivationActor, String> {
+        if let Some(url) = &self.derivation_delegate_url {
+            let derivation_delegate = build_derivation_delegate_client(url)?;
+            // The delegate's reported L1 blocks are checked against our own L1 view.
+            Ok(ConfiguredDerivationActor::Delegate(Box::new(DelegateDerivationActor::new(
+                QueuedDerivationEngineClient { engine_actor_request_tx },
+                derivation_actor_request_rx,
+                derivation_delegate,
+                self.l1_config.provider.clone(),
+                derivation_origin_tx,
+                engine_state_rx,
+            ))))
+        } else {
+            let pipeline = self
+                .create_pipeline(l1_head)
+                .await
+                .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
+            let l1_block_zero = self.l1_block_zero().await?;
+            Ok(ConfiguredDerivationActor::Normal(Box::new(
+                DerivationActor::<_, OnlinePipeline>::new(
+                    QueuedDerivationEngineClient { engine_actor_request_tx },
+                    derivation_actor_request_rx,
+                    pipeline,
+                    self.safe_db.clone(),
+                    l1_block_zero,
+                    derivation_origin_tx,
+                ),
+            )))
+        }
+    }
+
+    /// Fetches L1 block zero only when `SafeDB` recording is enabled.
+    async fn l1_block_zero(&self) -> Result<BlockNumHash, String> {
+        if self.safe_db.is_none() {
+            return Ok(BlockNumHash::default());
+        }
+        let provider = &self.l1_config.provider;
+        debug!(target: "rollup_node", "Fetching L1 block zero for the safe head database");
+        let block = (|| async { provider.block_info_by_number(0).await })
+            .retry(ExponentialBuilder::default())
+            // A missing block zero is a misconfigured L1, which retrying cannot fix.
+            .when(|e| !matches!(e, AlloyChainProviderError::BlockNotFound(_)))
+            .notify(|e, delay| {
+                warn!(target: "rollup_node", %e, ?delay, "Failed to fetch L1 block zero; retrying")
+            })
+            .await
+            .map_err(|e| format!("Failed to fetch L1 block zero for the safe head db: {e}"))?;
+        let l1_block_zero = block.id();
+        info!(target: "rollup_node", l1_hash = %l1_block_zero.hash, "Anchoring the safe head db at L1 block zero");
+        Ok(l1_block_zero)
+    }
+
+    /// Builds the L1 watcher actor along with its head and finalized block streams.
+    ///
+    /// Unlike the other `build_*` helpers, this one returns `impl NodeActor` rather than a named
+    /// type alias: the block-stream type produced by [`BlockStream::new_as_stream`] is
+    /// `impl Stream`, so the resulting `L1WatcherActor` generic parameter cannot be written down.
+    /// Using `impl Trait` here is intentional; the macro consumer only requires `NodeActor`.
+    fn build_l1_watcher(
+        &self,
+        derivation_actor_request_tx: mpsc::Sender<DerivationActorRequest>,
+        signer_tx: watch::Sender<Address>,
+        derivation_origin_rx: watch::Receiver<Option<BlockInfo>>,
+        l1_query_rx: mpsc::Receiver<L1WatcherQueries>,
+        l1_head_updates_tx: watch::Sender<Option<BlockInfo>>,
+    ) -> impl NodeActor<Error = crate::L1WatcherActorError<BlockInfo>> + 'static {
+        let head_stream = BlockStream::new_as_stream(
+            self.l1_config.provider.clone(),
+            BlockLabel::Latest,
+            Duration::from_secs(HEAD_STREAM_POLL_INTERVAL),
+        );
+        let finalized_stream = BlockStream::new_as_stream(
+            self.l1_config.provider.clone(),
+            BlockLabel::Finalized,
+            self.l1_config.epoch_poll_interval,
+        );
+
+        let chain = L1WatcherChain::new(
+            self.config.clone(),
+            QueuedL1WatcherDerivationClient { derivation_actor_request_tx },
+            signer_tx,
+            derivation_origin_rx,
+            l1_query_rx,
+        );
+
+        L1WatcherActor::new(
+            self.l1_config.provider.clone(),
+            l1_head_updates_tx,
+            head_stream,
+            finalized_stream,
+            vec![chain],
+        )
+    }
+
+    /// Builds the signer actor when the node is in sequencer mode; otherwise returns `None`.
+    ///
+    /// A sequencer must have a block signer: its blocks are gossiped only once signed.
+    async fn build_signer_actor(
+        &self,
+        payloads_rx: mpsc::Receiver<OpExecutionPayloadEnvelope>,
+        signed_payload_tx: mpsc::Sender<SignedPayload>,
+        unsafe_block_signer: watch::Receiver<Address>,
+    ) -> Result<Option<SignerActor>, String> {
+        if !self.mode().is_sequencer() {
+            if self.p2p_config.gossip_signer.is_some() {
+                warn!(target: "rollup_node", "Ignoring the configured block signer: only a sequencer signs blocks");
+            }
+            return Ok(None);
+        }
+        let Some(signer) = self.p2p_config.gossip_signer.clone() else {
+            return Err("Sequencer mode requires a block signer: set --p2p.sequencer.key, \
+                 --p2p.sequencer.key.path, or --p2p.signer.endpoint with --p2p.signer.address"
+                .into());
+        };
+        let signer =
+            signer.start().await.map_err(|e| format!("Failed to start block signer: {e}"))?;
+        Ok(Some(SignerActor::new(
+            signer,
+            self.config.l2_chain_id.id(),
+            unsafe_block_signer,
+            payloads_rx,
+            signed_payload_tx,
+        )))
+    }
+
+    /// Builds the sequencer actor when the node is in sequencer mode; otherwise returns `None`.
+    fn build_sequencer(
+        &self,
+        engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
+        gossip_payload_tx: mpsc::Sender<OpExecutionPayloadEnvelope>,
+        unsafe_head_rx: watch::Receiver<L2BlockInfo>,
+        l1_head_updates_rx: watch::Receiver<Option<BlockInfo>>,
+        sequencer_admin_command_rx: mpsc::Receiver<SequencerAdminCommand>,
+    ) -> Result<Option<ConfiguredSequencer>, String> {
+        if !self.mode().is_sequencer() {
+            return Ok(None);
+        }
+
+        let OriginPreparation {
+            prefetcher,
+            origins: delayed_l1_provider,
+            attributes: attributes_provider,
+        } = OriginPreparation::new(
+            self.l1_config.provider.clone(),
+            l1_head_updates_rx,
+            self.sequencer_config.l1_conf_delay,
+        );
+        let delayed_origin_selector =
+            L1OriginSelector::new(self.config.clone(), delayed_l1_provider);
+
+        let conductor = self
+            .sequencer_config
+            .conductor_rpc_url
+            .clone()
+            .map(|url| ConductorClient::new_http(url, self.sequencer_config.conductor_rpc_timeout))
+            .transpose()
+            .map_err(|error| format!("Failed to build conductor HTTP client: {error}"))?;
+
+        let sequencer_engine_client =
+            QueuedSequencerEngineClient { engine_actor_request_tx, unsafe_head_rx };
+
+        let queued_gossip_client = QueuedUnsafePayloadGossipClient::new(gossip_payload_tx);
+
+        let actor = SequencerActor::new(
+            sequencer_admin_command_rx,
+            self.create_attributes_builder(attributes_provider),
+            conductor,
+            sequencer_engine_client,
+            self.sequencer_config.initially_active(),
+            self.sequencer_config.sequencer_recovery_mode,
+            delayed_origin_selector,
+            self.config.clone(),
+            queued_gossip_client,
+            Arc::new(SystemClock),
+        );
+        Ok(Some(ConfiguredSequencer { actor, prefetcher }))
+    }
+
+    /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
+    /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
+    async fn build_rpc_actor(
+        &self,
+        l2_query_client: EngineQueryClient,
+        engine_state_rx: watch::Receiver<EngineState>,
+        admin_rpc: AdminRpc,
+        p2p_rpc: P2pRpc,
+        l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
+    ) -> Result<Option<RpcActor>, String> {
+        let Some(config) = self.rpc_builder() else {
+            return Ok(None);
+        };
+
+        let mut modules = RpcModule::new(());
+        modules
+            .merge(HealthzApiServer::into_rpc(HealthzRpc::new(self.version.clone())))
+            .map_err(|e| format!("Failed to register healthz module: {e:?}"))?;
+        modules
+            .merge(p2p_rpc.into_rpc())
+            .map_err(|e| format!("Failed to register p2p module: {e:?}"))?;
+        // The admin API is always served: unless `--sequencer.start` is set, the sequencer boots
+        // stopped, and `admin_startSequencer` is the only way to start it.
+        modules
+            .merge(admin_rpc.into_rpc())
+            .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
+        modules
+            .merge(
+                RollupRpc::new(
+                    self.version.clone(),
+                    self.config.clone(),
+                    self.dependency_set.clone(),
+                    engine_state_rx.clone(),
+                    l2_query_client.clone(),
+                    l1_watcher_queries_tx.clone(),
+                    self.safe_db.clone(),
+                )
+                .into_rpc(),
+            )
+            .map_err(|e| format!("Failed to register rollup module: {e:?}"))?;
+        modules
+            .merge(
+                SuperRootRpc::new(
+                    l2_query_client,
+                    engine_state_rx,
+                    l1_watcher_queries_tx,
+                    self.config.clone(),
+                    self.safe_db.clone(),
+                )
+                .into_rpc(),
+            )
+            .map_err(|e| format!("Failed to register superroot module: {e:?}"))?;
+
+        let middleware = tower::ServiceBuilder::new()
+            .layer(
+                ProxyGetRequestLayer::new([("/healthz", "healthz")])
+                    .expect("Critical: Failed to build GET method proxy"),
+            )
+            .timeout(Duration::from_secs(2));
+        let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
+        let rpc_middleware = RpcServiceBuilder::new()
+            .layer(RpcObservabilityLayer::new(modules.method_names(), max_response_body_size));
+        let server = Server::builder()
+            .set_config(
+                ServerConfig::builder().max_response_body_size(max_response_body_size).build(),
+            )
+            .set_http_middleware(middleware)
+            .set_rpc_middleware(rpc_middleware)
+            .build(config.socket)
+            .await
+            .map_err(|e: std::io::Error| format!("Failed to launch rpc server: {e:?}"))?;
+
+        if let Ok(addr) = server.local_addr() {
+            info!(target: "rpc", addr = ?addr, "RPC server bound to address");
+        } else {
+            error!(target: "rpc", "Failed to get local address for RPC server");
+        }
+
+        Ok(Some(RpcActor::new(server.start(modules))))
+    }
+
+    /// Starts the rollup node service.
+    ///
+    /// The rollup node, in validator mode, listens to two sources of information to sync the L2
+    /// chain:
+    ///
+    /// 1. The data availability layer, with a watcher that listens for new updates. L2 inputs (L2
+    ///    transaction batches + deposits) are then derived from the DA layer.
+    /// 2. The L2 sequencer, which produces unsafe L2 blocks and sends them to the network over p2p
+    ///    gossip.
+    ///
+    /// From these two sources, the node imports `unsafe` blocks from the L2 sequencer, `safe`
+    /// blocks from the L2 derivation pipeline into the L2 execution layer via the Engine API,
+    /// and finalizes `safe` blocks that it has derived when L1 finalized block updates are
+    /// received.
+    ///
+    /// In sequencer mode, the node is responsible for producing unsafe L2 blocks and sending them
+    /// to the network over p2p gossip. The node also listens for L1 finalized block updates and
+    /// finalizes `safe` blocks that it has derived when L1 finalized block updates are
+    /// received.
+    ///
+    /// ## Shutdown
+    ///
+    /// Shutdown is unordered: when any actor exits (success, error, or panic) or an OS signal is
+    /// received, the umbrella cancellation token fires and all peer actors observe it on their
+    /// next `select!`. Actors may log channel-closed errors while peers are torn down
+    /// concurrently; this is expected and not a sign of an unclean exit.
+    pub async fn start(&self) -> Result<(), String> {
+        // Single umbrella cancellation token owned by the spawn_and_wait! macro.
+        let cancellation = CancellationToken::new();
+
+        // ─── cross-actor channels ───────────────────────────────────────────────────────────
+        // actor request channels
+        let (derivation_actor_request_tx, derivation_actor_request_rx) =
+            mpsc::channel::<DerivationActorRequest>(1024);
+        let (engine_actor_request_tx, engine_actor_request_rx) =
+            mpsc::channel::<EngineActorRequest>(1024);
+        let (l1_query_tx, l1_query_rx) = mpsc::channel::<L1WatcherQueries>(1024);
+        let (sequencer_admin_command_tx, sequencer_admin_command_rx) = mpsc::channel(1024);
+        // Network actor inbound channels
+        let (gossip_command_tx, gossip_command_rx) = mpsc::channel(1024);
+        let (admin_payload_tx, admin_payload_rx) =
+            mpsc::channel::<OpExecutionPayloadEnvelope>(1024);
+        // Unsafe payloads to gossip flow from the sequencer to the signer actor and on to the
+        // network actor. While signing stalls, a full sequencer queue pauses block production.
+        let (gossip_payload_tx, gossip_payload_rx) =
+            mpsc::channel::<OpExecutionPayloadEnvelope>(32);
+        let (signed_payload_tx, signed_payload_rx) = mpsc::channel::<SignedPayload>(16);
+        // watch channels
+        let (unsafe_head_tx, unsafe_head_rx) = watch::channel(L2BlockInfo::default());
+        // The unsafe block signer: the L1 watcher keeps it current from `SystemConfig`, starting
+        // from the value read at startup.
+        let (signer_tx, signer_rx) = watch::channel(self.p2p_config.unsafe_block_signer);
+        let (l1_head_updates_tx, l1_head_updates_rx) = watch::channel::<Option<BlockInfo>>(None);
+        // The L1 block that derivation has reached, which the L1 watcher serves as `current_l1`.
+        let (derivation_origin_tx, derivation_origin_rx) =
+            watch::channel::<Option<BlockInfo>>(None);
+
+        // ─── actor construction ─────────────────────────────────────────────────────────────
+        let (engine_actor, l2_query_client, engine_state_rx) = self.build_engine_actor(
+            engine_actor_request_rx,
+            derivation_actor_request_tx.clone(),
+            unsafe_head_tx,
+        );
+
+        let derivation = self
+            .build_derivation_actor(
+                engine_actor_request_tx.clone(),
+                derivation_actor_request_rx,
+                derivation_origin_tx,
+                engine_state_rx.clone(),
+                l1_head_updates_rx.clone(),
+            )
+            .await?;
+
+        // Start the block signer before the network, so a misconfigured or unreachable remote
+        // signer fails before the node binds its p2p ports.
+        let signer_actor = self
+            .build_signer_actor(gossip_payload_rx, signed_payload_tx, signer_rx.clone())
+            .await?;
+
+        // Build and start the libp2p swarm upstream of `NetworkActor::new` so the constructor
+        // stays sync.
+        let handler: NetworkHandler = self
+            .network_builder(signer_rx)
+            .build()
+            .map_err(|e| format!("Failed to build network: {e:?}"))?
+            .start()
+            .await
+            .map_err(|e| format!("Failed to start network: {e:?}"))?;
+
+        let discovery = handler.discovery.as_ref().map(|discovery| discovery.handler.clone());
+        let network = NetworkActor::new(
+            QueuedNetworkEngineClient { engine_actor_request_tx: engine_actor_request_tx.clone() },
+            handler,
+            gossip_command_rx,
+            admin_payload_rx,
+            signed_payload_rx,
+        );
+
+        let p2p_rpc = P2pRpc::new(
+            network.gossip_query_handle(),
+            discovery,
+            self.config.l2_chain_id.id(),
+            gossip_command_tx,
+        );
+
+        let l1_watcher = self.build_l1_watcher(
+            derivation_actor_request_tx,
+            signer_tx,
+            derivation_origin_rx,
+            l1_query_rx,
+            l1_head_updates_tx,
+        );
+
+        let sequencing = self.build_sequencer(
+            engine_actor_request_tx.clone(),
+            gossip_payload_tx,
+            unsafe_head_rx,
+            l1_head_updates_rx,
+            sequencer_admin_command_rx,
+        )?;
+        let sequencer_admin = sequencing.as_ref().map(|components| {
+            SequencerAdminHandle::new(
+                components.actor.admin_state_receiver(),
+                sequencer_admin_command_tx,
+            )
+        });
+        let (sequencer_actor, origin_prefetcher) = sequencing
+            .map(|components| (Some(components.actor), Some(components.prefetcher)))
+            .unwrap_or((None, None));
+
+        let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);
+        let rpc = self
+            .build_rpc_actor(l2_query_client, engine_state_rx, admin_rpc, p2p_rpc, l1_query_tx)
+            .await?;
+
+        crate::service::spawn_and_wait!(
+            cancellation,
+            actors = [
+                rpc,
+                sequencer_actor,
+                origin_prefetcher,
+                signer_actor,
+                Some(network),
+                Some(l1_watcher),
+                Some(derivation),
+                Some(engine_actor),
+            ]
+        );
+        Ok(())
+    }
+}
+
+/// Builds the HTTP client the delegate derivation actor polls for the delegate's sync status.
+///
+/// jsonrpsee accepts only `http` and `https` URLs, so any other scheme is a startup error.
+fn build_derivation_delegate_client(url: &Url) -> Result<HttpClient, String> {
+    HttpClientBuilder::default()
+        .request_timeout(DERIVATION_DELEGATE_REQUEST_TIMEOUT)
+        .build(url)
+        .map_err(|e| format!("Failed to build derivation delegate client: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case::http("http://localhost:9545", true)]
+    #[case::https("https://delegate.example.com", true)]
+    #[case::ws("ws://localhost:9545", false)]
+    #[case::wss("wss://delegate.example.com", false)]
+    fn derivation_delegate_client_rejects_non_http_schemes(
+        #[case] url: &str,
+        #[case] builds: bool,
+    ) {
+        let result = build_derivation_delegate_client(&url.parse().unwrap());
+        if builds {
+            assert!(result.is_ok(), "{url}: {:?}", result.err());
+        } else {
+            let err = result.expect_err(url);
+            assert!(err.contains("Failed to build derivation delegate client"), "{url}: {err}");
+        }
+    }
+}

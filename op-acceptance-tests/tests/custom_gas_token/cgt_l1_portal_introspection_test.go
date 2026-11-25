@@ -3,7 +3,6 @@ package custom_gas_token
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 
@@ -25,7 +24,7 @@ func TestCGT_L1PortalIntrospection(gt *testing.T) {
 	l1c := sys.L1EL.EthClient()
 	portal := sys.L2Chain.DepositContractAddr()
 
-	ctx, cancel := context.WithTimeout(t.Ctx(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Ctx(), cgtCallTimeout)
 	defer cancel()
 
 	// Portal exposes systemConfig() -> address

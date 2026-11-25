@@ -1,0 +1,28 @@
+---
+title: op-deployer 버전 관리 및 릴리스
+description: OP Deployer 릴리스를 찾을 수 있는 위치와 각 OP Deployer 버전이 지원하는 컨트랙트 릴리스의 대응 관계에 대한 레퍼런스입니다.
+diataxis: reference
+---
+
+## 최신 릴리스
+
+OP Deployer의 최신 버전은 항상 [릴리스](https://github.com/ethereum-optimism/optimism/releases?q=op-deployer&expanded=true)에서 확인할 수 있습니다. 다른 패키지를
+제외하려면 `op-deployer`로 검색하십시오.
+
+## 버전 관리
+
+`v0.0.11` 이후의 모든 릴리스에서 OP Deployer의 각 마이너 버전은 거버넌스가 승인한 스마트 컨트랙트의
+단일 릴리스를 지원합니다. 이전 버전의 컨트랙트를 배포하려면(위험할 수 있습니다!) 이전 버전의 OP Deployer를
+사용해야 합니다. 이 방식을 통해 스마트 컨트랙트 개발자는 `develop`에서 호환성을 깨는 변경을 할 수 있으며,
+동시에 신규 체인은 프로덕션 준비가 된 스마트 컨트랙트를 사용하여 배포 및 업그레이드할 수 있습니다.
+
+HTTPS 또는 file [locator](/ko/chain-operators/tools/op-deployer/reference/artifacts-locators)로 배포하는 경우, 배포 동작은
+컨트랙트의 태그와 일치합니다. 예를 들어 버전 `v0.2.0`이 `v2.0.0`을 지원한다면, 배포는 `op-contracts/v2.0.0`을
+배포하는 것처럼 동작합니다. 일반적으로 `unknown selector: <some hex>`와 같은 오류는 컨트랙트 artifact에 맞지 않는
+버전의 OP Deployer를 사용하고 있음을 의미합니다. 이 경우 동작하는 버전을 찾을 때까지 다른 버전을 시도해 보는
+것을 권장합니다. 이 워크플로는 프로덕션 체인에는 **권장되지 않습니다**.
+
+## 기여자 워크플로
+
+이전 OP Deployer 버전에 수정 사항을 백포트하고 새 컨트랙트 버전 지원을 추가하는 단계별 절차는
+[릴리스 워크플로](/ko/chain-operators/tools/op-deployer/usage/release-workflows)에 있습니다.

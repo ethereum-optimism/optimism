@@ -9,10 +9,15 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"time"
 
-	log2 "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
+
+// runCmdWaitDelay bounds how long cmd.Wait blocks after the context is cancelled
+// before its I/O is force-closed. It is a backstop for the case where a descendant
+// process still holds a stdout/stderr pipe open after the process group is killed.
+const runCmdWaitDelay = 10 * time.Second
 
 type SnapshotSelect func(logger log.Logger, dir string, absolutePreState string, i uint64, binary bool) (string, error)
 type CmdExecutor func(ctx context.Context, l log.Logger, binary string, args ...string) error
@@ -41,13 +46,23 @@ func PreimageDir(dir string) string {
 
 func RunCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	stdOut := log2.NewWriter(l, log.LevelInfo)
+	stdOut := log.NewWriter(l, log.LevelInfo)
 	defer stdOut.Close()
 	// Keep stdErr at info level because FPVM uses stderr for progress messages
-	stdErr := log2.NewWriter(l, log.LevelInfo)
+	stdErr := log.NewWriter(l, log.LevelInfo)
 	defer stdErr.Close()
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr
+
+	// The VM (cannon) spawns the oracle/preimage server as its own child process which
+	// inherits the VM's stdout/stderr pipes. exec.CommandContext only kills the direct
+	// child on cancellation, leaving the oracle server orphaned and still holding the
+	// pipe write ends open. cmd.Wait would then block forever waiting for EOF on those
+	// pipes. Kill the whole process group on cancellation and bound the wait so a wedged
+	// run is always torn down when the VM timeout fires.
+	setProcessGroup(cmd)
+	cmd.WaitDelay = runCmdWaitDelay
+
 	return cmd.Run()
 }
 

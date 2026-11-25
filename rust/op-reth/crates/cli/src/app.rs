@@ -1,6 +1,7 @@
-use crate::{Cli, Commands};
+use crate::{
+    Cli, Commands, chainspec::OpChainSpecParser, metrics::register_hardfork_activation_metrics,
+};
 use eyre::{Result, eyre};
-use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::launcher::Launcher;
 use reth_cli_runner::CliRunner;
 use reth_node_core::args::{OtlpInitStatus, OtlpLogsStatus};
@@ -8,27 +9,22 @@ use reth_node_metrics::recorder::install_prometheus_recorder;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_node::{OpExecutorProvider, OpNode};
-use reth_rpc_server_types::RpcModuleValidator;
-use reth_tracing::{FileWorkerGuard, Layers};
+use reth_rpc_server_types::{DefaultRpcModuleValidator, RpcModuleValidator};
+use reth_tracing::{Layers, TracingGuards};
 use std::{fmt, sync::Arc};
 use tracing::{info, warn};
 
 /// A wrapper around a parsed CLI that handles command execution.
 #[derive(Debug)]
-pub struct CliApp<Spec: ChainSpecParser, Ext: clap::Args + fmt::Debug, Rpc: RpcModuleValidator> {
-    cli: Cli<Spec, Ext, Rpc>,
+pub struct CliApp<Ext: clap::Args + fmt::Debug> {
+    cli: Cli<Ext>,
     runner: Option<CliRunner>,
     layers: Option<Layers>,
-    guard: Option<FileWorkerGuard>,
+    guard: Option<TracingGuards>,
 }
 
-impl<C, Ext, Rpc> CliApp<C, Ext, Rpc>
-where
-    C: ChainSpecParser<ChainSpec = OpChainSpec>,
-    Ext: clap::Args + fmt::Debug,
-    Rpc: RpcModuleValidator,
-{
-    pub(crate) fn new(cli: Cli<C, Ext, Rpc>) -> Self {
+impl<Ext: clap::Args + fmt::Debug> CliApp<Ext> {
+    pub(crate) fn new(cli: Cli<Ext>) -> Self {
         Self { cli, runner: None, layers: Some(Layers::new()), guard: None }
     }
 
@@ -51,7 +47,7 @@ where
     ///
     /// This accepts a closure that is used to launch the node via the
     /// [`NodeCommand`](reth_cli_commands::node::NodeCommand).
-    pub fn run(mut self, launcher: impl Launcher<C, Ext>) -> Result<()> {
+    pub fn run(mut self, launcher: impl Launcher<OpChainSpecParser, Ext>) -> Result<()> {
         let runner = match self.runner.take() {
             Some(runner) => runner,
             None => CliRunner::try_default_runtime()?,
@@ -68,6 +64,9 @@ where
 
         // Install the prometheus recorder to be sure to record all metrics
         install_prometheus_recorder();
+        if let Some(chain_spec) = self.cli.command.chain_spec() {
+            register_hardfork_activation_metrics(chain_spec);
+        }
 
         let components = |spec: Arc<OpChainSpec>| {
             (OpExecutorProvider::optimism(spec.clone()), Arc::new(OpBeaconConsensus::new(spec)))
@@ -75,12 +74,14 @@ where
 
         match self.cli.command {
             Commands::Node(command) => {
-                // Validate RPC modules using the configured validator
+                // Validate RPC modules using op-reth's default validator
                 if let Some(http_api) = &command.rpc.http_api {
-                    Rpc::validate_selection(http_api, "http.api").map_err(|e| eyre!("{e}"))?;
+                    DefaultRpcModuleValidator::validate_selection(http_api, "http.api")
+                        .map_err(|e| eyre!("{e}"))?;
                 }
                 if let Some(ws_api) = &command.rpc.ws_api {
-                    Rpc::validate_selection(ws_api, "ws.api").map_err(|e| eyre!("{e}"))?;
+                    DefaultRpcModuleValidator::validate_selection(ws_api, "ws.api")
+                        .map_err(|e| eyre!("{e}"))?;
                 }
 
                 runner.run_command_until_exit(|ctx| command.execute(ctx, launcher))
@@ -90,14 +91,6 @@ where
                 runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
             }
             Commands::InitState(command) => {
-                let runtime = runner.runtime();
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
-            }
-            Commands::ImportOp(command) => {
-                let runtime = runner.runtime();
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
-            }
-            Commands::ImportReceiptsOp(command) => {
                 let runtime = runner.runtime();
                 runner.run_blocking_until_ctrl_c(command.execute::<OpNode>(runtime))
             }
@@ -137,7 +130,7 @@ where
             let otlp_status = runner.block_on(self.cli.traces.init_otlp_tracing(&mut layers))?;
             let otlp_logs_status = runner.block_on(self.cli.traces.init_otlp_logs(&mut layers))?;
 
-            self.guard = self.cli.logs.init_tracing_with_layers(layers, false)?;
+            self.guard = Some(self.cli.logs.init_tracing_with_layers(layers, false)?);
             info!(target: "reth::cli", "Initialized tracing, debug log directory: {}", self.cli.logs.log_file_directory);
 
             match otlp_status {

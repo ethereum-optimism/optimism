@@ -3,14 +3,13 @@ package presets
 import (
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type Minimal struct {
@@ -29,10 +28,8 @@ type Minimal struct {
 
 	Wallet *dsl.HDWallet
 
-	FaucetL1 *dsl.Faucet
-	FaucetL2 *dsl.Faucet
-	FunderL1 *dsl.Funder
-	FunderL2 *dsl.Funder
+	FunderL1 *dsl.FunderEOA
+	FunderL2 *dsl.FunderEOA
 
 	// May be nil if not using sysgo
 	challengerConfig *challengerConfig.Config
@@ -49,12 +46,16 @@ func (m *Minimal) StandardBridge() *dsl.StandardBridge {
 }
 
 func (m *Minimal) DisputeGameFactory() *proofs.DisputeGameFactory {
-	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, m.challengerConfig)
+	return proofs.NewDisputeGameFactory(m.T, m.L1Network, m.L1EL.EthClient(), m.L2Chain.DisputeGameFactoryProxyAddr(), m.L2CL, m.L2EL, nil, nil, m.challengerConfig)
+}
+
+func (m *Minimal) AnchorStateRegistry() *dsl.AnchorStateRegistry {
+	return dsl.NewAnchorStateRegistry(m.T, m.L2Chain, m.L1EL)
 }
 
 func (m *Minimal) AdvanceTime(amount time.Duration) {
 	m.T.Require().NotNil(m.timeTravel, "attempting to advance time on incompatible system")
-	m.timeTravel.AdvanceTime(amount)
+	m.L1EL.AdvanceTime(m.timeTravel, amount, m.L1CL.BlockTime())
 }
 
 func (m *Minimal) proofValidationContext() (devtest.T, *dsl.L1ELNode, []*dsl.L2Network) {

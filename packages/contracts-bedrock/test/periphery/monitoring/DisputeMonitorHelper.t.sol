@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/setup/DisputeGameFactoryTestInit.sol";
 import { _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 // Contracts
@@ -371,9 +371,8 @@ contract DisputeMonitorHelper_Search_Test is DisputeMonitorHelper_TestInit {
                 // Different assertions for different cases.
                 if (
                     (direction == DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ && randomTimestamp < rangeStart)
-                        || (
-                            direction == DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ && randomTimestamp > rangeEnd
-                        )
+                        || (direction == DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ
+                            && randomTimestamp > rangeEnd)
                 ) {
                     // If we fall outside of the range, expect the max index representing that no
                     // valid game was found.

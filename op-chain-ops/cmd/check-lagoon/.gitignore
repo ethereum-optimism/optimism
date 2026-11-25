@@ -1,0 +1,5 @@
+# Local config files hold live secrets (account private key, filter JWT secrets).
+# Ignore every .toml in this directory except the checked-in example, so a config
+# under any name (config.toml, bridge.toml, ...) can't be committed by accident.
+*.toml
+!config.example.toml

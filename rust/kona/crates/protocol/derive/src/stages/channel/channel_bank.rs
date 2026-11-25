@@ -254,10 +254,6 @@ where
         self.channel_queue = VecDeque::with_capacity(10);
         Ok(())
     }
-
-    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
-        self.prev.provide_block(block).await
-    }
 }
 
 #[cfg(test)]

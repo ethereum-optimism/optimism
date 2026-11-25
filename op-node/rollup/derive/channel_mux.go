@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // ChannelMux multiplexes between different channel stages.
@@ -37,7 +37,6 @@ func NewChannelMux(log log.Logger, spec *rollup.ChainSpec, prev NextFrameProvide
 }
 
 func (c *ChannelMux) Reset(ctx context.Context, base eth.L1BlockRef, sysCfg eth.SystemConfig) error {
-	// TODO(12490): change to a switch over c.cfg.ActiveFork(base.Time)
 	switch {
 	default:
 		if _, ok := c.RawChannelProvider.(*ChannelBank); !ok {

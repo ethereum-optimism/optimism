@@ -6,8 +6,8 @@ This directory contains the OP Stack acceptance tests. They run against the in-p
 
 The supported execution path is:
 
-- `just` or `just acceptance-test-all`
-- `gotestsum -- go test ./op-acceptance-tests/tests/...`
+- `just` or `just acceptance-test`
+- `gotestsum -- go test ./tests/...`
 
 `devtest.T.MarkFlaky(...)` is used for tests that should downgrade failures to skips in the normal acceptance run. Set `DEVNET_FAIL_FLAKY_TESTS=true` to force those tests to fail normally. Acceptance runs also emit a `flaky-tests.txt` artifact in `op-acceptance-tests/logs/...` listing the current `MarkFlaky(...)` call sites.
 
@@ -32,23 +32,43 @@ just
 
 # Explicit alias
 just acceptance-test
-just acceptance-test-all
 ```
 
 ### Direct CLI Usage
 
 ```bash
-gotestsum --format testname --junitfile ./op-acceptance-tests/results/results.xml -- \
-  -count=1 -p 4 -parallel 4 -timeout 2h ./op-acceptance-tests/tests/...
+mkdir -p results
+gotestsum --format testname --junitfile ./results/results.xml -- \
+  -count=1 -p 4 -parallel 4 -timeout 30m ./tests/...
 ```
 
-The `just` wrapper computes defaults from available CPUs:
+The `just` wrapper runs each top-level test in its own `go test`, with these defaults:
 
-- package jobs: CPU count
-- in-package `t.Parallel`: half the CPU count
-- timeout: `2h`
+- tests at once: `8`
+- `t.Parallel` within a test's `go test`: `1`
+- per-test timeout: `30m`
 
 Override them with `ACCEPTANCE_TEST_JOBS`, `ACCEPTANCE_TEST_PARALLEL`, and `ACCEPTANCE_TEST_TIMEOUT`.
+
+### Kona-SP1 super-root coverage
+
+The canonical coverage tiers and proof-boundary definitions live in the
+[`rust/kona/sp1` README](../rust/kona/sp1/README.md#acceptance-coverage). The acceptance packages
+are:
+
+```bash
+# Required native-core coverage.
+RUST_JIT_BUILD=1 go test -count=1 -timeout=60m \
+  ./tests/interop/proofs/serial \
+  ./tests/interop/proofs-singlechain
+
+# Scheduled full-ELF coverage with the synthetic-chain test guest.
+(cd ../rust/kona/sp1 && just build-elfs-native test-config-fallback && just build-super-range-executor)
+KONA_SP1_ELF_DIR="$PWD/../rust/kona/sp1/elf" \
+KONA_SP1_SUPER_RANGE_ELF_EXECUTOR_PATH="$PWD/../rust/target/release/kona-sp1-super-range-executor" \
+RUST_JIT_BUILD=1 go test -count=1 -parallel=1 -timeout=120m \
+  ./tests/interop/proofs/sp1
+```
 
 ## Logging
 
@@ -62,7 +82,7 @@ When invoked with `go test`, devstack acceptance tests support configuring loggi
 Example:
 
 ```bash
-LOG_LEVEL=info go test -v ./op-acceptance-tests/tests/interop/sync/multisupervisor_interop/... -run TestL2CLAheadOfSupervisor
+LOG_LEVEL=info go test -v ./tests/interop/message/... -run TestInteropHappyTx
 ```
 
 ## Adding Tests

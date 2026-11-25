@@ -28,20 +28,13 @@ type Config struct {
 
 	// SequencerStopped is false when the sequencer should not be auto-sequencing at startup.
 	SequencerStopped bool `json:"sequencer_stopped"`
-
-	// SequencerMaxSafeLag is the maximum number of L2 blocks for restricting the distance between L2 safe and unsafe.
-	// Disabled if 0.
-	SequencerMaxSafeLag uint64 `json:"sequencer_max_safe_lag"`
 }
 
 func (c *Config) Start(ctx context.Context, id seqtypes.SequencerID, opts *work.ServiceOpts) (work.Sequencer, error) {
-
 	builder := opts.Services.Builder(c.Builder)
 	signer := opts.Services.Signer(c.Signer)
 	committer := opts.Services.Committer(c.Committer)
 	publisher := opts.Services.Publisher(c.Publisher)
-
-	// TODO(#14129) load persisted sequencer state (add config var for persistence path + use op-node persistence code)
 
 	seq := &Sequencer{
 		id: id,
@@ -57,11 +50,5 @@ func (c *Config) Start(ctx context.Context, id seqtypes.SequencerID, opts *work.
 		publisher: publisher,
 	}
 
-	// TODO(#14129) check persisted state, to determine if we should really start or stop
-	//if c.SequencerEnabled && !c.SequencerStopped {
-	//	if err := seq.forceStart(); err != nil {
-	//		return nil, fmt.Errorf("failed to start sequencer at startup phase: %w", err)
-	//	}
-	//}
 	return seq, nil
 }

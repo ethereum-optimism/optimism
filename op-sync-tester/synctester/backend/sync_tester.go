@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -16,15 +17,15 @@ import (
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/miner"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-core/eip1559"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/session"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
@@ -56,11 +57,14 @@ var _ frontend.EthBackend = (*SyncTester)(nil)
 
 func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, stCfg *config.SyncTesterEntry) (*SyncTester, error) {
 	logger = logger.New("syncTester", stID, "chain", stCfg.ChainID)
-	elClient, err := ethclient.Dial(stCfg.ELRPC.Value.RPC())
+	rpcClient, err := rpc.Dial(stCfg.ELRPC.Value.RPC())
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial EL client: %w", err)
 	}
-	elReader := NewELReader(elClient)
+	elReader, err := NewELReader(logger, client.NewBaseRPCClient(rpcClient))
+	if err != nil {
+		return nil, err
+	}
 	logger.Info("Initialized sync tester from config", "syncTester", stID)
 	return NewSyncTester(logger, m, stID, stCfg.ChainID, elReader), nil
 }
@@ -106,15 +110,21 @@ func (s *SyncTester) ListSessions(ctx context.Context) ([]string, error) {
 	return ids, nil
 }
 
-func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
-	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) ([]*types.Receipt, error) {
+// receiptBlockNumberOnly is the only receipt field the sync tester inspects before relaying
+// the EL's receipts unchanged.
+type receiptBlockNumberOnly struct {
+	BlockNumber hexutil.Uint64 `json:"blockNumber"`
+}
+
+func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (json.RawMessage, error) {
+	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (json.RawMessage, error) {
 		logger.Debug("GetBlockReceipts", "blockNrOrHash", blockNrOrHash)
 		number, isNumber := blockNrOrHash.Number()
 		var err error
-		var receipts []*types.Receipt
+		var raw json.RawMessage
 		if !isNumber {
 			// hash
-			receipts, err = s.elReader.GetBlockReceipts(ctx, blockNrOrHash)
+			raw, err = s.elReader.GetBlockReceiptsJSON(ctx, blockNrOrHash)
 			if err != nil {
 				return nil, err
 			}
@@ -123,22 +133,29 @@ func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.Blo
 			if target, err = s.checkBlockNumber(number, session, logger); err != nil {
 				return nil, err
 			}
-			receipts, err = s.elReader.GetBlockReceipts(ctx, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(target)))
+			raw, err = s.elReader.GetBlockReceiptsJSON(ctx, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(target)))
 			if err != nil {
 				return nil, err
 			}
 		}
-		if len(receipts) == 0 {
-			// Should never happen since every block except genesis has at least one deposit tx
-			logger.Warn("L2 Block has zero receipts", "blockNrHash", blockNrOrHash)
-			return nil, errors.New("no receipts")
+		var receipts []receiptBlockNumberOnly
+		if err := json.Unmarshal(raw, &receipts); err != nil {
+			return nil, err
 		}
-		target := bigs.Uint64Strict(receipts[0].BlockNumber)
+		if receipts == nil {
+			// The EL answers null for an unknown block.
+			return nil, ethereum.NotFound
+		}
+		if len(receipts) == 0 {
+			// Genesis legitimately has no receipts.
+			return raw, nil
+		}
+		target := uint64(receipts[0].BlockNumber)
 		if target > session.CurrentState.Latest {
 			logger.Warn("Requested block is ahead of sync tester state", "requested", target)
 			return nil, ethereum.NotFound
 		}
-		return receipts, nil
+		return raw, nil
 	})
 }
 
@@ -228,6 +245,7 @@ func (s *SyncTester) ExchangeCapabilities(ctx context.Context, _ []string) []str
 		"engine_getPayloadV2",
 		"engine_getPayloadV3",
 		"engine_getPayloadV4",
+		"engine_getPayloadV5",
 
 		// forkchoiceUpdated
 		"engine_forkchoiceUpdatedV1",
@@ -279,6 +297,19 @@ func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) 
 func (s *SyncTester) GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
 		logger.Debug("GetPayloadV4", "payloadID", payloadID)
+		if !payloadID.Is(engine.PayloadV3) {
+			return nil, engine.UnsupportedFork
+		}
+		return s.getPayload(session, logger, payloadID)
+	})
+}
+
+// GetPayloadV5 must be only called when Osaka (Karst) activated. The payload is built via
+// forkchoiceUpdatedV3 (which stays V3 through Osaka), so the payloadID carries the V3 marker;
+// only the getPayload method version bumps to V5 (the envelope is the V4-shaped one).
+func (s *SyncTester) GetPayloadV5(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+	return session.WithSession(s.sessMgr, ctx, s.log, func(session *eth.SyncTesterSession, logger log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
+		logger.Debug("GetPayloadV5", "payloadID", payloadID)
 		if !payloadID.Is(engine.PayloadV3) {
 			return nil, engine.UnsupportedFork
 		}
@@ -373,14 +404,18 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 		}
 	}
 	// Simulate head block hash check
-	candLatest, err := s.elReader.GetBlockByHash(ctx, state.HeadBlockHash)
+	candLatest, err := s.elReader.PayloadByHash(ctx, state.HeadBlockHash)
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 	// Spec: {payloadStatus: {status: SYNCING, latestValidHash: null, validationError: null}, payloadId: null} if forkchoiceState.headBlockHash references an unknown payload or a payload that can't be validated because requisite data for the validation is missing
 	if err != nil {
-		// Consider as sync error if read only EL interaction fails because we cannot validate
+		// Consider as sync error if read only EL interaction fails because we cannot validate.
+		// The read fails on an unverifiable block as well as an unknown one.
+		if !errors.Is(err, ethereum.NotFound) {
+			logger.Warn("Failed to read head block from read only EL", "hash", state.HeadBlockHash, "err", err)
+		}
 		return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, PayloadID: nil}, nil
 	}
-	candLatestNum := candLatest.NumberU64()
+	candLatestNum := uint64(candLatest.ExecutionPayload.BlockNumber)
 	if session.Validated < candLatestNum {
 		if !session.IsELSyncActive() {
 			// Let CL backfill via newPayload
@@ -402,7 +437,7 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, PayloadID: nil}, nil
 		default:
 			logger.Warn("EL Sync failure", "target", candLatestNum)
-			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, fmt.Errorf("EL Sync failure with target block %d:%s", candLatest.NumberU64(), candLatest.Hash())
+			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, fmt.Errorf("EL Sync failure with target block %d:%s", candLatestNum, candLatest.ExecutionPayload.BlockHash)
 		}
 	}
 	// Equivalent to SetCanonical
@@ -412,11 +447,11 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 	if state.FinalizedBlockHash != (common.Hash{}) {
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 		// Spec: MUST return -38002: Invalid forkchoice state error if the payload referenced by forkchoiceState.headBlockHash is VALID and a payload referenced by either forkchoiceState.finalizedBlockHash or forkchoiceState.safeBlockHash does not belong to the chain defined by forkchoiceState.headBlockHash.
-		candFinalized, err := s.elReader.GetBlockByHash(ctx, state.FinalizedBlockHash)
+		candFinalized, err := s.elReader.PayloadByHash(ctx, state.FinalizedBlockHash)
 		if err != nil {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("finalized block not available"))
 		}
-		finalizedNum := candFinalized.NumberU64()
+		finalizedNum := uint64(candFinalized.ExecutionPayload.BlockNumber)
 		if session.CurrentState.Latest < finalizedNum {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("finalized block not canonical"))
 		}
@@ -428,11 +463,11 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 	if state.SafeBlockHash != (common.Hash{}) {
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 		// Spec: MUST return -38002: Invalid forkchoice state error if the payload referenced by forkchoiceState.headBlockHash is VALID and a payload referenced by either forkchoiceState.finalizedBlockHash or forkchoiceState.safeBlockHash does not belong to the chain defined by forkchoiceState.headBlockHash.
-		candSafe, err := s.elReader.GetBlockByHash(ctx, state.SafeBlockHash)
+		candSafe, err := s.elReader.PayloadByHash(ctx, state.SafeBlockHash)
 		if err != nil {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("safe block not available"))
 		}
-		safeNum := candSafe.NumberU64()
+		safeNum := uint64(candSafe.ExecutionPayload.BlockNumber)
 		if session.CurrentState.Latest < safeNum {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidForkChoiceState.With(errors.New("safe block not canonical"))
 		}
@@ -444,60 +479,32 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 	if attr != nil {
 		// attr is the ingredient for the block built after the head block
 		// Query read only EL to fetch block which is desired to be produced from attr
-		newBlock, err := s.elReader.GetBlockByNumber(ctx, rpc.BlockNumber(int64(candLatestNum)+1))
+		payloadEnv, err := s.elReader.PayloadByNumber(ctx, candLatestNum+1)
 		if err != nil {
 			// Consider as sync error if read only EL interaction fails because we cannot validate
+			if !errors.Is(err, ethereum.NotFound) {
+				logger.Warn("Failed to read next block from read only EL", "number", candLatestNum+1, "err", err)
+			}
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, PayloadID: nil}, nil
 		}
 		// https://github.com/ethereum-optimism/specs/blob/510377c586d0cbede2d40402d2371fcadd5656a0/specs/protocol/jovian/exec-engine.md#minimum-base-fee-in-block-header
 		// Implicitly determine whether jovian is enabled by inspecting extraData from read only EL data
-		isJovian := eip1559.ValidateJovianExtraData(newBlock.Header().Extra) == nil
+		isJovian := eip1559.ValidateJovianExtraData(payloadEnv.ExecutionPayload.ExtraData) == nil
 		// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#eip-1559-parameters-in-block-header
 		// Implicitly determine whether holocene is enabled by inspecting extraData from read only EL data
 		isHolocene := true // holocene is always activated when jovian is activated
 		if !isJovian {
-			isHolocene = eip1559.ValidateHoloceneExtraData(newBlock.Header().Extra) == nil
+			isHolocene = eip1559.ValidateHoloceneExtraData(payloadEnv.ExecutionPayload.ExtraData) == nil
 		}
-		// Sanity check attr comparing with newBlock
-		if err := s.validateAttributesForBlock(attr, newBlock, isHolocene, isJovian); err != nil {
+		// Sanity check attr comparing with the block
+		if err := s.validateAttributesForBlock(attr, payloadEnv, isHolocene, isJovian); err != nil {
 			// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 			// Client software MUST respond to this method call in the following way: {error: {code: -38003, message: "Invalid payload attributes"}} if the payload is deemed VALID and forkchoiceState has been applied successfully, but no build process has been started due to invalid payloadAttributes.
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidPayloadAttributes.With(err)
 		}
-		// https://github.com/ethereum-optimism/specs/blob/7b39adb0bea3b0a56d6d3a7d61feef5c33e49b73/specs/protocol/isthmus/exec-engine.md#header-validity-rules
-		// Implicitly determine whether isthmus is enabled by inspecting withdrawalsRoot from read only EL data
-		isIsthmus := newBlock.WithdrawalsRoot() != nil && len(*newBlock.WithdrawalsRoot()) == 32
-		// Initialize payload args for sane payload ID
 		// All attr fields already sanity checked
-		args := miner.BuildPayloadArgs{
-			Parent:       state.HeadBlockHash,
-			Timestamp:    uint64(attr.Timestamp),
-			FeeRecipient: attr.SuggestedFeeRecipient,
-			Random:       common.Hash(attr.PrevRandao),
-			BeaconRoot:   attr.ParentBeaconBlockRoot,
-			NoTxPool:     attr.NoTxPool,
-			Transactions: newBlock.Transactions(),
-			GasLimit:     &newBlock.Header().GasLimit,
-			Version:      payloadVersion,
-		}
-		config := &params.ChainConfig{}
-		if isCanyon {
-			args.Withdrawals = *attr.Withdrawals
-			config.CanyonTime = new(uint64)
-		}
-		if isHolocene {
-			args.EIP1559Params = (*attr.EIP1559Params)[:]
-		}
-		if isIsthmus {
-			config.IsthmusTime = new(uint64)
-		}
-		payloadID := args.Id()
+		payloadID := computePayloadID(state.HeadBlockHash, attr, payloadVersion)
 		id = &payloadID
-		payloadEnv, err := eth.BlockAsPayloadEnv(newBlock, config)
-		if err != nil {
-			// The failure is from the EL processing so consider as a server error and make CL retry
-			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.GenericServerError.With(err)
-		}
 		// Store payload and payloadID. This will be processed using GetPayload engine API
 		logger.Debug("Store payload", "payloadID", payloadID)
 		session.Payloads[payloadID] = payloadEnv
@@ -505,6 +512,42 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 	// Spec: Client software MUST respond to this method call in the following way: {payloadStatus: {status: VALID, latestValidHash: forkchoiceState.headBlockHash, validationError: null}, payloadId: buildProcessId} if the payload is deemed VALID and the build process has begun
 	return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &state.HeadBlockHash}, PayloadID: id}, nil
+}
+
+// computePayloadID hashes the payload attributes like op-geth's BuildPayloadArgs.Id. The sync
+// tester serves engine_getPayload from its own store, so the ID only has to be deterministic.
+func computePayloadID(parent common.Hash, attr *eth.PayloadAttributes, version engine.PayloadVersion) engine.PayloadID {
+	// Writes to a hash never fail.
+	h := sha256.New()
+	h.Write(parent[:])
+	_ = binary.Write(h, binary.BigEndian, uint64(attr.Timestamp))
+	h.Write(attr.PrevRandao[:])
+	h.Write(attr.SuggestedFeeRecipient[:])
+	// Nil (pre-Canyon) withdrawals encode as an empty list, as in op-geth; op-reth skips them.
+	_ = rlp.Encode(h, attr.Withdrawals)
+	if attr.ParentBeaconBlockRoot != nil {
+		h.Write(attr.ParentBeaconBlockRoot[:])
+	}
+	if attr.NoTxPool || len(attr.Transactions) > 0 {
+		_ = binary.Write(h, binary.BigEndian, attr.NoTxPool)
+		_ = binary.Write(h, binary.BigEndian, uint64(len(attr.Transactions)))
+		for _, tx := range attr.Transactions {
+			h.Write(crypto.Keccak256(tx))
+		}
+	}
+	if attr.GasLimit != nil {
+		_ = binary.Write(h, binary.BigEndian, uint64(*attr.GasLimit))
+	}
+	if attr.EIP1559Params != nil {
+		h.Write(attr.EIP1559Params[:])
+	}
+	if attr.MinBaseFee != nil {
+		_ = binary.Write(h, binary.BigEndian, *attr.MinBaseFee)
+	}
+	var id engine.PayloadID
+	copy(id[:], h.Sum(nil))
+	id[0] = byte(version)
+	return id
 }
 
 // validateAttributesForBlock verifies that a given block matches the expected
@@ -522,37 +565,37 @@ func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTes
 //     the remaining 8 bytes must match the MinBaseFee parameter.
 //
 // Returns an error if any mismatch or invalid condition is found, otherwise nil.
-func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, block *types.Block, isHolocene, isJovian bool) error {
-	h := block.Header()
-	if h.Time != uint64(attr.Timestamp) {
-		return fmt.Errorf("timestamp mismatch: header=%d, attr=%d", h.Time, attr.Timestamp)
+func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, envelope *eth.ExecutionPayloadEnvelope, isHolocene, isJovian bool) error {
+	block := envelope.ExecutionPayload
+	if block.Timestamp != attr.Timestamp {
+		return fmt.Errorf("timestamp mismatch: header=%d, attr=%d", block.Timestamp, attr.Timestamp)
 	}
-	if h.MixDigest != common.Hash(attr.PrevRandao) {
-		return fmt.Errorf("prevRandao mismatch: header=%s, attr=%s", h.MixDigest, attr.PrevRandao)
+	if block.PrevRandao != attr.PrevRandao {
+		return fmt.Errorf("prevRandao mismatch: header=%s, attr=%s", block.PrevRandao, attr.PrevRandao)
 	}
-	if h.Coinbase != attr.SuggestedFeeRecipient {
-		return fmt.Errorf("coinbase mismatch: header=%s, attr=%s", h.Coinbase, attr.SuggestedFeeRecipient)
+	if block.FeeRecipient != attr.SuggestedFeeRecipient {
+		return fmt.Errorf("coinbase mismatch: header=%s, attr=%s", block.FeeRecipient, attr.SuggestedFeeRecipient)
 	}
 	if attr.Withdrawals != nil && len(*attr.Withdrawals) != 0 {
 		return errors.New("withdrawals must be nil or empty")
 	}
-	if (attr.ParentBeaconBlockRoot == nil) != (h.ParentBeaconRoot == nil) {
-		return fmt.Errorf("parentBeaconBlockRoot mismatch: attr=%v, header=%v", attr.ParentBeaconBlockRoot, h.ParentBeaconRoot)
+	// The block itself is served as the built payload, so attributes for a fork other than the
+	// block's would otherwise go unnoticed.
+	if (attr.Withdrawals == nil) != (block.Withdrawals == nil) {
+		return fmt.Errorf("withdrawals mismatch: attr has withdrawals %t, block has withdrawals %t", attr.Withdrawals != nil, block.Withdrawals != nil)
 	}
-	if h.ParentBeaconRoot != nil && (*attr.ParentBeaconBlockRoot).Cmp(*h.ParentBeaconRoot) != 0 {
-		return fmt.Errorf("parentBeaconBlockRoot mismatch: attr=%s, header=%s", *attr.ParentBeaconBlockRoot, *h.ParentBeaconRoot)
+	if (attr.ParentBeaconBlockRoot == nil) != (envelope.ParentBeaconBlockRoot == nil) {
+		return fmt.Errorf("parentBeaconBlockRoot mismatch: attr=%v, header=%v", attr.ParentBeaconBlockRoot, envelope.ParentBeaconBlockRoot)
+	}
+	if envelope.ParentBeaconBlockRoot != nil && *attr.ParentBeaconBlockRoot != *envelope.ParentBeaconBlockRoot {
+		return fmt.Errorf("parentBeaconBlockRoot mismatch: attr=%s, header=%s", *attr.ParentBeaconBlockRoot, *envelope.ParentBeaconBlockRoot)
 	}
 	// OP Stack additions
-	if len(attr.Transactions) != len(block.Transactions()) {
-		return fmt.Errorf("tx count mismatch: attr=%d, block=%d", len(attr.Transactions), len(block.Transactions()))
+	if len(attr.Transactions) != len(block.Transactions) {
+		return fmt.Errorf("tx count mismatch: attr=%d, block=%d", len(attr.Transactions), len(block.Transactions))
 	}
 	for idx := range len(attr.Transactions) {
-		blockTx := block.Transactions()[idx]
-		blockTxRaw, err := blockTx.MarshalBinary()
-		if err != nil {
-			return fmt.Errorf("failed to marshal block tx: %w", err)
-		}
-		if !bytes.Equal([]byte(attr.Transactions[idx]), blockTxRaw) {
+		if !bytes.Equal(attr.Transactions[idx], block.Transactions[idx]) {
 			return fmt.Errorf("tx mismatch: tx=%s, idx=%d", attr.Transactions[idx], idx)
 		}
 	}
@@ -560,8 +603,8 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 		// Sync Tester only supports verifier sync
 		return errors.New("txpool cannot be enabled yet")
 	}
-	if *attr.GasLimit != eth.Uint64Quantity(h.GasLimit) {
-		return fmt.Errorf("gaslimit mismatch: attr=%d, header=%d", *attr.GasLimit, h.GasLimit)
+	if *attr.GasLimit != block.GasLimit {
+		return fmt.Errorf("gaslimit mismatch: attr=%d, header=%d", *attr.GasLimit, block.GasLimit)
 	}
 	if isHolocene {
 		// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#encoding
@@ -579,8 +622,8 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 			// Cannot validate since EL will fall back to prior eip1559 constants
 			return nil
 		}
-		if !bytes.Equal(block.Extra()[1:1+8], (*attr.EIP1559Params)[:]) {
-			return fmt.Errorf("eip1559Params mismatch: %s != 0x%s", *attr.EIP1559Params, hex.EncodeToString(block.Extra()[1:]))
+		if !bytes.Equal(block.ExtraData[1:1+8], (*attr.EIP1559Params)[:]) {
+			return fmt.Errorf("eip1559Params mismatch: %s != 0x%s", *attr.EIP1559Params, hex.EncodeToString(block.ExtraData[1:]))
 		}
 	} else {
 		// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#payload-attributes-processing
@@ -595,7 +638,7 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 		if attr.MinBaseFee == nil {
 			return errors.New("jovian enabled but MinBaseFee nil")
 		}
-		minBaseFee := binary.BigEndian.Uint64(block.Extra()[1+8 : 1+8+8])
+		minBaseFee := binary.BigEndian.Uint64(block.ExtraData[1+8 : 1+8+8])
 		if minBaseFee != *attr.MinBaseFee {
 			return fmt.Errorf("MinBaseFee mismatch: %d != %d", *attr.MinBaseFee, minBaseFee)
 		}
@@ -641,33 +684,22 @@ func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPay
 	})
 }
 
-func (s *SyncTester) validatePayload(logger log.Logger, isCanyon, isIsthmus bool, block *types.Block, payload *eth.ExecutionPayload, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+func (s *SyncTester) validatePayload(logger log.Logger, isIsthmus bool, block *eth.ExecutionPayload, payload *eth.ExecutionPayload, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	// Already have the block locally or advance single block without setting the head
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#specification
 	// Spec: MUST return {status: INVALID, latestValidHash: null, validationError: errorMessage | null} if the blockHash validation has failed.
-	blockHash := block.Hash()
-	config := &params.ChainConfig{}
-	if isCanyon {
-		config.CanyonTime = new(uint64)
-	}
-	if isIsthmus {
-		config.IsthmusTime = new(uint64)
-	}
-	correctPayload, err := eth.BlockAsPayload(block, config)
-	if err != nil {
-		// The failure is from the EL processing so consider as a server error and make CL retry
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to convert block to payload", err))
-	}
+	blockHash := block.BlockHash
 	// Sanity check parent beacon block root and block hash by recomputation
 	if !isIsthmus {
-		// Depopulate withdrawal root field for block hash recomputation
+		// Depopulate withdrawal root field for block hash recomputation. The read only EL's
+		// payload carries none before Isthmus.
 		if payload.WithdrawalsRoot != nil {
 			logger.Warn("Isthmus disabled but withdrawal roots included in payload not nil", "root", payload.WithdrawalsRoot)
 		}
 		payload.WithdrawalsRoot = nil
 	}
-	// Check given payload matches the payload derived using the read only EL block
-	if err := correctPayload.CheckEqual(payload); err != nil {
+	// Check given payload matches the payload of the read only EL block
+	if err := block.CheckEqual(payload); err != nil {
 		// Consider as block hash validation error when payload mismatch
 		return s.newPayloadInvalid(fmt.Errorf("payload check mismatch: %w", err), nil), nil
 	}
@@ -744,7 +776,7 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 		}
 	}
 	// Look up canonical block for relay comparison
-	block, err := s.elReader.GetBlockByHash(ctx, payload.BlockHash)
+	blockEnv, err := s.elReader.PayloadByHash(ctx, payload.BlockHash)
 	if err != nil {
 		if !errors.Is(err, ethereum.NotFound) {
 			// Do not retry when error did not occur because of Not found error
@@ -759,7 +791,7 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 			// Handle case when context cancelled while waiting.
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(fmt.Errorf("context done: %w", ctx.Err()))
 		}
-		block, err = s.elReader.GetBlockByHash(ctx, payload.BlockHash)
+		blockEnv, err = s.elReader.PayloadByHash(ctx, payload.BlockHash)
 		if err != nil {
 			if errors.Is(err, ethereum.NotFound) {
 				return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("block not found after retry", err))
@@ -768,9 +800,10 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 		}
 		// Use block info fetched by retrying
 	}
+	block := blockEnv.ExecutionPayload
 	// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/derivation.md#building-individual-payload-attributes
 	// Implicitly determine whether canyon is enabled by inspecting withdrawals from read only EL data
-	isCanyon := block.Withdrawals() != nil
+	isCanyon := block.Withdrawals != nil
 	if isCanyon {
 		if payload.Withdrawals == nil {
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawals post-shanghai"))
@@ -780,11 +813,11 @@ func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSess
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil withdrawals pre-shanghai"))
 		}
 	}
-	blockHash := block.Hash()
-	blockNumber := block.NumberU64()
+	blockHash := block.BlockHash
+	blockNumber := uint64(block.BlockNumber)
 	// We only attempt to advance non-canonical view of the chain, following the read only EL
 	if blockNumber <= session.Validated+1 {
-		if status, err := s.validatePayload(logger, isCanyon, isIsthmus, block, payload, beaconRoot); status != nil {
+		if status, err := s.validatePayload(logger, isIsthmus, block, payload, beaconRoot); status != nil {
 			return status, err
 		}
 		if blockNumber == session.Validated+1 {

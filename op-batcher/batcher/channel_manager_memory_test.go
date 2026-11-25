@@ -1,16 +1,15 @@
 package batcher
 
 import (
-	"math/big"
 	"runtime"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,18 +94,18 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	runtime.ReadMemStats(&initialMem)
 
 	// Create the first block (genesis)
-	var prevBlock *types.Block
+	var prevBlock *eth.ExecutionPayload
 
 	// Add many blocks to create multiple channels
 	const numBlocks = 1000
 	for i := 0; i < numBlocks; i++ {
-		var block *types.Block
+		var block *eth.ExecutionPayload
 
 		if i == 0 {
-			block = newMiniL2BlockWithChainID(0, defaultTestRollupConfig.L2ChainID)
+			block = newMiniL2Payload(0, 0, common.Hash{}, 100, 0)
 		} else {
 			// Create a block with proper parent hash and transaction content
-			block = newMiniL2BlockWithChainIDNumberParentAndL1Information(5, defaultTestRollupConfig.L2ChainID, big.NewInt(int64(i)), prevBlock.Hash(), 100, 0)
+			block = newMiniL2Payload(5, uint64(i), prevBlock.BlockHash, 100, 0)
 		}
 
 		require.NoError(t, m.AddL2Block(block))
@@ -116,15 +115,15 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 		if i%100 == 0 {
 			// Ensure we have a channel
 			require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{
-				Hash:   block.Hash(),
-				Number: block.NumberU64(),
+				Hash:   block.BlockHash,
+				Number: uint64(block.BlockNumber),
 			}))
 
 			// Process blocks into channels
 			require.NoError(t, m.processBlocks())
 
 			// Try to get transaction data to fill channels
-			_, err := m.TxData(eth.BlockID{}, false, pubInfo{})
+			_, err := m.TxData(testL1Head(0), false, pubInfo{})
 			// It's okay if there's no data ready (io.EOF)
 			if err != nil && err.Error() != "EOF" {
 				require.NoError(t, err)
@@ -174,7 +173,7 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	require.Greater(t, len(m.blocks), 1, "Expected multiple blocks to be queued")
 	if len(m.blocks) > 1 {
 		for i := 1; i < len(m.blocks); i++ {
-			require.Equal(t, m.blocks[i-1].Hash(), m.blocks[i].ParentHash(),
+			require.Equal(t, m.blocks[i-1].Hash(), m.blocks[i].ParentHash,
 				"Block %d should have parent hash matching block %d", i, i-1)
 		}
 	}

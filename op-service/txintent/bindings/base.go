@@ -6,11 +6,11 @@ import (
 	"math/big"
 	"reflect"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -253,7 +253,7 @@ func CustomTypeToGoType(retTyp reflect.Type) reflect.Type {
 	switch retTyp {
 	case reflect.TypeOf(eth.ETH{}), reflect.TypeOf(eth.ChainID{}):
 		return reflect.TypeOf(big.NewInt(0))
-	case reflect.TypeOf(suptypes.Identifier{}):
+	case reflect.TypeOf(messages.Identifier{}):
 		return reflect.TypeOf(ABIIdentifier{})
 	default:
 		return retTyp
@@ -401,7 +401,7 @@ func CustomValueToABIValue(arg any) any {
 		value = v.ToBig()
 	case eth.ChainID:
 		value = v.ToBig()
-	case suptypes.Identifier:
+	case messages.Identifier:
 		identifier := ABIIdentifier{
 			Origin:      v.Origin,
 			BlockNumber: big.NewInt(int64(v.BlockNumber)),

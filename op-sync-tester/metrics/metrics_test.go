@@ -3,7 +3,7 @@ package metrics
 import (
 	"testing"
 
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	metricstest "github.com/ethereum-optimism/optimism/op-service/metrics/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +16,7 @@ func TestSyncTesterMetrics(t *testing.T) {
 	m.RecordInfo(version)
 	m.RecordUp()
 
-	c := opmetrics.NewMetricChecker(t, m.Registry())
+	c := metricstest.NewMetricChecker(t, m.Registry())
 
 	prefix := Namespace + "_default_"
 

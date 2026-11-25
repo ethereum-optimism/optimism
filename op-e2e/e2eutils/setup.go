@@ -1,26 +1,31 @@
 package e2eutils
 
 import (
+	"fmt"
 	"math/big"
 	"os"
 	"path"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/stretchr/testify/require"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var testingJWTSecret = [32]byte{123}
@@ -85,7 +90,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 // SetupData bundles the L1, L2, rollup and deployment configuration data: everything for a full test setup.
 type SetupData struct {
 	L1Cfg         *core.Genesis
-	L2Cfg         *core.Genesis
+	L2Cfg         *opgenesis.Genesis
 	RollupCfg     *rollup.Config
 	DependencySet depset.DependencySet
 	ChainSpec     *rollup.ChainSpec
@@ -99,6 +104,10 @@ type AllocParams struct {
 	L1Alloc          types.GenesisAlloc
 	L2Alloc          types.GenesisAlloc
 	PrefundTestUsers bool
+	// L2AllocIsFrozenPreForkState treats L2Alloc as authoritative for proxied predeploys
+	// by removing generated implementation accounts absent from it and clearing the generated
+	// implementation slot when the proxy itself is absent.
+	L2AllocIsFrozenPreForkState bool
 }
 
 var etherScalar = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
@@ -109,8 +118,11 @@ func Ether(v uint64) *big.Int {
 }
 
 func GetL2AllocsMode(dc *genesis.DeployConfig, t uint64) genesis.L2AllocsMode {
-	if fork := dc.InteropTime(t); fork != nil && *fork <= 0 {
-		return genesis.L2AllocsInterop
+	if fork := dc.LagoonTime(t); fork != nil && *fork <= 0 {
+		return genesis.L2AllocsLagoon
+	}
+	if fork := dc.KarstTime(t); fork != nil && *fork <= 0 {
+		return genesis.L2AllocsKarst
 	}
 	if fork := dc.JovianTime(t); fork != nil && *fork <= 0 {
 		return genesis.L2AllocsJovian
@@ -131,6 +143,53 @@ func GetL2AllocsMode(dc *genesis.DeployConfig, t uint64) genesis.L2AllocsMode {
 		return genesis.L2AllocsEcotone
 	}
 	return genesis.L2AllocsDelta
+}
+
+func removeGeneratedPredeployImplementations(generated, overlay types.GenesisAlloc) {
+	for _, predeploy := range predeploys.Predeploys {
+		if predeploy.ProxyDisabled {
+			continue
+		}
+		account, ok := generated[predeploy.Address]
+		if !ok {
+			continue
+		}
+		generatedImpl, hasImpl := account.Storage[genesis.ImplementationSlot]
+		if hasImpl && generatedImpl != (common.Hash{}) {
+			generatedImplAddr := common.BytesToAddress(generatedImpl.Bytes())
+			if _, ok := overlay[generatedImplAddr]; !ok {
+				delete(generated, generatedImplAddr)
+			}
+		}
+		if _, ok := overlay[predeploy.Address]; !ok {
+			delete(account.Storage, genesis.ImplementationSlot)
+		}
+	}
+}
+
+func validatePredeployImplementations(alloc types.GenesisAlloc) error {
+	for _, predeploy := range predeploys.Predeploys {
+		if predeploy.ProxyDisabled {
+			continue
+		}
+		account, ok := alloc[predeploy.Address]
+		if !ok {
+			continue
+		}
+		implHash := account.Storage[genesis.ImplementationSlot]
+		if implHash == (common.Hash{}) {
+			continue
+		}
+		implAddr := common.BytesToAddress(implHash.Bytes())
+		impl, ok := alloc[implAddr]
+		if !ok {
+			return fmt.Errorf("predeploy %s implementation %s missing from alloc", predeploy.Address, implAddr)
+		}
+		if len(impl.Code) == 0 {
+			return fmt.Errorf("predeploy %s implementation %s has no code", predeploy.Address, implAddr)
+		}
+	}
+	return nil
 }
 
 // Setup computes the testing setup configurations from deployment configuration and optional allocation parameters.
@@ -173,8 +232,14 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 			}
 		}
 	}
+	if alloc.L2AllocIsFrozenPreForkState {
+		removeGeneratedPredeployImplementations(l2Genesis.Alloc, alloc.L2Alloc)
+	}
 	for addr, val := range alloc.L2Alloc {
 		l2Genesis.Alloc[addr] = val
+	}
+	if alloc.L2AllocIsFrozenPreForkState {
+		require.NoError(t, validatePredeployImplementations(l2Genesis.Alloc))
 	}
 
 	var pcfg *rollup.AltDAConfig
@@ -187,6 +252,9 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		}
 	}
 
+	l2GenesisTime, err := deployConf.L2GenesisTime(l1Block.Time())
+	require.NoError(t, err, "failed to compute l2 genesis time")
+
 	rollupCfg := &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
@@ -197,7 +265,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 				Hash:   l2Genesis.ToBlock().Hash(),
 				Number: 0,
 			},
-			L2Time:       uint64(deployConf.L1GenesisBlockTimestamp),
+			L2Time:       l2GenesisTime,
 			SystemConfig: SystemConfigFromDeployConfig(deployConf),
 		},
 		BlockTime:              deployConf.L2BlockTime,
@@ -209,20 +277,21 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		BatchInboxAddress:      deployConf.BatchInboxAddress,
 		DepositContractAddress: deployConf.OptimismPortalProxy,
 		L1SystemConfigAddress:  deployConf.SystemConfigProxy,
-		RegolithTime:           deployConf.RegolithTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		CanyonTime:             deployConf.CanyonTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		DeltaTime:              deployConf.DeltaTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		EcotoneTime:            deployConf.EcotoneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		GraniteTime:            deployConf.GraniteTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		HoloceneTime:           deployConf.HoloceneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		PectraBlobScheduleTime: deployConf.PectraBlobScheduleTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		IsthmusTime:            deployConf.IsthmusTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		JovianTime:             deployConf.JovianTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		KarstTime:              deployConf.KarstTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		RegolithTime:           deployConf.RegolithTime(l2GenesisTime),
+		CanyonTime:             deployConf.CanyonTime(l2GenesisTime),
+		DeltaTime:              deployConf.DeltaTime(l2GenesisTime),
+		EcotoneTime:            deployConf.EcotoneTime(l2GenesisTime),
+		FjordTime:              deployConf.FjordTime(l2GenesisTime),
+		GraniteTime:            deployConf.GraniteTime(l2GenesisTime),
+		HoloceneTime:           deployConf.HoloceneTime(l2GenesisTime),
+		PectraBlobScheduleTime: deployConf.PectraBlobScheduleTime(l2GenesisTime),
+		IsthmusTime:            deployConf.IsthmusTime(l2GenesisTime),
+		JovianTime:             deployConf.JovianTime(l2GenesisTime),
+		KarstTime:              deployConf.KarstTime(l2GenesisTime),
+		LagoonTime:             deployConf.LagoonTime(l2GenesisTime),
+		KeepKarstUpgradeGas:    deployConf.KeepKarstUpgradeGas,
 		AltDAConfig:            pcfg,
-		ChainOpConfig: &params.OptimismConfig{
+		ChainOpConfig: &opparams.OptimismConfig{
 			EIP1559Elasticity:        deployConf.EIP1559Elasticity,
 			EIP1559Denominator:       deployConf.EIP1559Denominator,
 			EIP1559DenominatorCanyon: &deployConf.EIP1559DenominatorCanyon,
@@ -249,15 +318,28 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 	return deployConfig.GenesisSystemConfig()
 }
 
+// Environment variables read by ApplyDeployConfigForks. Setting one to "true" activates that L2 fork
+// and every earlier one at genesis.
+const (
+	EnvUseDelta    = "OP_E2E_USE_DELTA"
+	EnvUseEcotone  = "OP_E2E_USE_ECOTONE"
+	EnvUseFjord    = "OP_E2E_USE_FJORD"
+	EnvUseGranite  = "OP_E2E_USE_GRANITE"
+	EnvUseHolocene = "OP_E2E_USE_HOLOCENE"
+	EnvUseIsthmus  = "OP_E2E_USE_ISTHMUS"
+	EnvUseJovian   = "OP_E2E_USE_JOVIAN"
+	EnvUseKarst    = "OP_E2E_USE_KARST"
+)
+
 func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
-	isKarst := os.Getenv("OP_E2E_USE_KARST") == "true"
-	isJovian := isKarst || os.Getenv("OP_E2E_USE_JOVIAN") == "true"
-	isIsthmus := isJovian || os.Getenv("OP_E2E_USE_ISTHMUS") == "true"
-	isHolocene := isIsthmus || os.Getenv("OP_E2E_USE_HOLOCENE") == "true"
-	isGranite := isHolocene || os.Getenv("OP_E2E_USE_GRANITE") == "true"
-	isFjord := isGranite || os.Getenv("OP_E2E_USE_FJORD") == "true"
-	isEcotone := isFjord || os.Getenv("OP_E2E_USE_ECOTONE") == "true"
-	isDelta := isEcotone || os.Getenv("OP_E2E_USE_DELTA") == "true"
+	isKarst := os.Getenv(EnvUseKarst) == "true"
+	isJovian := isKarst || os.Getenv(EnvUseJovian) == "true"
+	isIsthmus := isJovian || os.Getenv(EnvUseIsthmus) == "true"
+	isHolocene := isIsthmus || os.Getenv(EnvUseHolocene) == "true"
+	isGranite := isHolocene || os.Getenv(EnvUseGranite) == "true"
+	isFjord := isGranite || os.Getenv(EnvUseFjord) == "true"
+	isEcotone := isFjord || os.Getenv(EnvUseEcotone) == "true"
+	isDelta := isEcotone || os.Getenv(EnvUseDelta) == "true"
 	if isDelta {
 		deployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
 	}
@@ -285,6 +367,19 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	// Canyon and lower is activated by default
 	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
-	// Activated by default, contracts depend on it
+	// The L1 forks up to BPO2 are active by default, with mainnet's blob parameters: the latest fork
+	// live or scheduled on Ethereum mainnet. Move the default up when mainnet schedules its next fork.
+	// A test that needs an older L1 calls DeployConfig.DisableL1ForksAfter. The contracts need Cancun, and
+	// cell-proof blob transactions Osaka.
 	deployConfig.L1CancunTimeOffset = new(hexutil.Uint64)
+	deployConfig.L1PragueTimeOffset = new(hexutil.Uint64)
+	deployConfig.L1OsakaTimeOffset = new(hexutil.Uint64)
+	deployConfig.L1BPO1TimeOffset = new(hexutil.Uint64)
+	deployConfig.L1BPO2TimeOffset = new(hexutil.Uint64)
+	deployConfig.L1BlobScheduleConfig = &params.BlobScheduleConfig{
+		Cancun: params.DefaultCancunBlobConfig,
+		Prague: params.DefaultPragueBlobConfig,
+		BPO1:   params.DefaultBPO1BlobConfig,
+		BPO2:   params.DefaultBPO2BlobConfig,
+	}
 }

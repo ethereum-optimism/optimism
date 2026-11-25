@@ -50,7 +50,6 @@ impl ChainList {
     derive(serde::Serialize, serde::Deserialize),
     serde(rename_all = "camelCase")
 )]
-#[cfg_attr(feature = "tabled", derive(tabled::Tabled))]
 pub struct Chain {
     /// The name of the chain.
     pub name: String,
@@ -59,27 +58,19 @@ pub struct Chain {
     /// Chain ID.
     pub chain_id: u64,
     /// List of RPC Endpoints.
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub rpc: Vec<String>,
     /// List of Explorer Endpoints.
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub explorers: Vec<String>,
-    /// The Superchain Level.
-    pub superchain_level: u64,
     /// Governed by Optimism flag.
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub governed_by_optimism: Option<bool>,
     /// The data availability type.
     pub data_availability_type: String,
     /// The Superchain Parent.
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub parent: SuperchainParent,
     /// The gas paying token.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub gas_paying_token: Option<String>,
     /// Fault Proofs information.
-    #[cfg_attr(feature = "tabled", tabled(skip))]
     pub fault_proofs: Option<FaultProofs>,
 }
 
@@ -98,12 +89,11 @@ pub struct SuperchainParent {
 }
 
 impl SuperchainParent {
-    /// Returns the chain id for the parent.
+    /// Returns the chain ID for the parent superchain.
     pub fn chain_id(&self) -> u64 {
         match self.chain.as_ref() {
             "mainnet" => 1,
-            "sepolia" => 11155111,
-            "sepolia-dev-0" => 11155421,
+            "sepolia" | "sepolia-devnet-2" => 11155111,
             _ => 10,
         }
     }
@@ -131,5 +121,11 @@ mod tests {
         let chains: Vec<Chain> = serde_json::from_str(chain_list).unwrap();
         let op_chain = chains.iter().find(|c| c.name == "OP Mainnet").unwrap();
         assert_eq!(op_chain.chain_id, 10);
+    }
+
+    #[test]
+    fn chain_id_for_sepolia_devnet_2() {
+        let parent = SuperchainParent { chain: "sepolia-devnet-2".into(), ..Default::default() };
+        assert_eq!(parent.chain_id(), 11155111);
     }
 }

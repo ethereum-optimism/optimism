@@ -2,8 +2,8 @@ package artifacts
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,28 +13,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/minio/sha256-simd"
-
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
-	testTarGzPath := filepath.Join("testdata", "test.tar.gz")
-	f, err := os.Open(testTarGzPath)
-	require.NoError(t, err)
-	defer f.Close()
+	data := archiveProject(t, writeProject(t), "gzip")
 
 	var callCount int32
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, err := io.Copy(w, f)
-		require.NoError(t, err)
-		// Seek to beginning of file for next request
-		_, err = f.Seek(0, 0)
-		require.NoError(t, err)
+		_, _ = w.Write(data)
 		atomic.AddInt32(&callCount, 1)
 	}))
 	defer ts.Close()
@@ -53,7 +44,7 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, fs)
 
-		info, err := fs.Stat("WETH98.sol/WETH98.json")
+		info, err := fs.Stat("A.sol/A.json")
 		require.NoError(t, err)
 		require.Greater(t, info.Size(), int64(0))
 	})
@@ -67,7 +58,7 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 	})
 
 	correctIntegrity := &hashIntegrityChecker{
-		hash: common.HexToHash("0x8171bd7ea902495701fecf396cdc9906273c8230205645a1293d5e27aea7ac9f"),
+		hash: common.Hash(sha256.Sum256(data)),
 	}
 
 	t.Run("ok integrity", func(t *testing.T) {
@@ -112,6 +103,64 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 		_, err = downloadHTTP(ctx, u, nil, correctIntegrity, testCacheDir)
 		require.ErrorContains(t, err, "integrity check failed")
 	})
+}
+
+func TestDownloadBundle(t *testing.T) {
+	ctx := context.Background()
+	cacheDir := t.TempDir()
+	l1Dir := writeProject(t)
+	l2Dir := writeProject(t)
+	writeFiles(t, l1Dir, map[string]string{"forge-artifacts/l1.json": `{}`})
+	writeFiles(t, l2Dir, map[string]string{"forge-artifacts/l2.json": `{}`})
+
+	bundle, err := DownloadBundle(
+		ctx,
+		MustNewFileLocator(l1Dir),
+		MustNewFileLocator(l2Dir),
+		nil,
+		cacheDir,
+	)
+	require.NoError(t, err)
+	_, err = bundle.L1.Stat("l1.json")
+	require.NoError(t, err)
+	_, err = bundle.L2.Stat("l2.json")
+	require.NoError(t, err)
+}
+
+func TestDownloadBundleSkipsRedundantDownloadForEqualLocators(t *testing.T) {
+	data := archiveProject(t, writeProject(t), "gzip")
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(data)
+	}))
+	defer ts.Close()
+
+	ctx := context.Background()
+	loc := MustNewLocatorFromURL(ts.URL)
+	cacheDir := t.TempDir()
+
+	bundle, err := DownloadBundle(ctx, loc, loc, nil, cacheDir)
+	require.NoError(t, err)
+	require.Equal(t, bundle.L1, bundle.L2)
+
+	// downloadHTTP extracts into a fresh op-deployer-artifacts-* dir on every call,
+	// even when the tarball itself is served from cache, so a second, redundant
+	// Download for L2 would show up as a second extraction directory here.
+	entries, err := filepath.Glob(filepath.Join(cacheDir, "op-deployer-artifacts-*"))
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "L2 should not be downloaded separately when its locator equals L1's")
+}
+
+func TestDownloadBundleLabelsFailures(t *testing.T) {
+	ctx := context.Background()
+	valid := MustNewFileLocator(writeProject(t))
+	unsupported := MustNewLocatorFromURL("ftp://example.invalid/artifacts")
+
+	_, err := DownloadBundle(ctx, unsupported, valid, nil, t.TempDir())
+	require.ErrorContains(t, err, "failed to download L1 artifacts")
+
+	_, err = DownloadBundle(ctx, valid, unsupported, nil, t.TempDir())
+	require.ErrorContains(t, err, "failed to download L2 artifacts")
 }
 
 func TestTarballExtractor_Extract(t *testing.T) {

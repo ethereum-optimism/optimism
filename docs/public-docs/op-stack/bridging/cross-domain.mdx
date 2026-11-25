@@ -1,60 +1,19 @@
 ---
 title: Cross-Domain Overview
-description: An overview of the lifecycle of an OP Stack cross-chain transaction, detailing the flow of transactions between Layer 2 and Layer 1.
+description: An overview of the lifecycle of an OP Stack cross-chain transaction, linking the detailed explainers for deposits, transaction flow, and withdrawals.
+diataxis: explanation
 ---
 
-<Warning>
-  This page is out of date.
-</Warning>
-This overview provides a detailed walkthrough of the lifecycle of cross-chain transactions, covering deposits, withdrawals, and transaction flows between L1 and L2. The diagram below illustrates the main components and steps involved.
+Cross-domain communication in the OP Stack involves moving assets and messages between L1 and L2. Key components, such as the Standard Bridge, the cross-domain messenger contracts, and the `OptimismPortal`, ensure these transactions are executed securely and transparently. This page summarizes the lifecycle of a cross-chain transaction in three flows and links the detailed explainer for each: deposit flow, transaction flow, and withdrawal flow.
 
-![Lifecycle of an OP Stack Crosschain Transaction.](/public/img/op-stack/protocol/op-cross-chain-txn.jpeg)
-_Figure 1: The Lifecycle of an OP Stack Crosschain Transaction_
+## Deposit flow
 
-Cross-domain communication in the OP Stack involves moving assets and messages between L1 and L2. Key components, such as bridges, messengers, and portals, ensure these transactions are executed securely and transparently. This page breaks down the lifecycle of a cross-chain transaction into three main flows: Deposit Flow, Transaction Flow (Tx Flow), and Withdrawal Flow.
+A *deposit* is any L2 transaction triggered by a transaction or event on L1. An L1 account or contract (often the L1 Standard Bridge) sends a message through the `L1CrossDomainMessenger`, which passes it to the `OptimismPortal` contract on L1. The portal emits a `TransactionDeposited` event, `op-node` derives a deposit transaction from that event, and the `L2CrossDomainMessenger` relays the call to its target on L2. For the step-by-step walkthrough, see [Deposit flow](/op-stack/bridging/deposit-flow).
 
-## Deposit Flow
+## Transaction flow
 
-Depositing assets from L1 to L2 follows a structured process that ensures funds are securely transferred and credited to the user's L2 account. The steps are as follows:
+Every L2 transaction has two requirements: its data must be written to L1 (done in compressed batches by `op-batcher`), and it must be executed by the execution client to update the L2 state, after which `op-proposer` posts a commitment to the resulting state to L1. For the step-by-step walkthrough, see [Transaction flow](/op-stack/transactions/transaction-flow); for when a transaction can be relied on as irreversible, see [Transaction finality](/op-stack/transactions/transaction-finality).
 
-1.  **User Initiation (L1 Standard Bridge):**
-  The user initiates a deposit by sending assets (e.g., ETH or tokens) to the L1 Standard Bridge contract. This contract receives the assets and prepares a message to relay to L2.
+## Withdrawal flow
 
-2.  **Message Relaying (L1 CrossDomain Messenger):**
-  The L1 Standard Bridge sends a message to the L1 CrossDomain Messenger, which is responsible for handling inter-layer communication. The messenger emits a `TransactionDeposited` event to signal the start of the deposit process.
-
-3.  **Processing on L2 (OptimismPortal):**
-  The message is received by the OptimismPortal on L2. Here, the deposited assets are held securely until the transaction is finalized. The portal initiates the deposit transaction, updating the user's balance on L2.
-
-4.  **Finalization (L2 CrossDomain Messenger):**
-  The L2 CrossDomain Messenger processes the deposit by updating the user's account balance and making the assets available for use on L2.
-
-## Transaction (Tx) Flow
-
-The transaction flow covers the steps involved in cross-domain message passing and state updates between L1 and L2:
-
-1.  **Message Queuing (L2ToL1MessagePasser):**
-During cross-layer communication, certain messages are queued for processing. The `L2ToL1MessagePasser` prepares these messages for state updates or withdrawals, ensuring they are available for proving and relaying.
-
-2.  **State Reading and Proving (L2OutputOracle):**
-The `L2OutputOracle` plays a critical role in validating state changes between L1 and L2. It reads the current state and submits a proposal using `proposeL2Output()`. This proposal includes information about queued messages or state changes that need to be relayed to L1.
-
-3.  **Message Relay (CrossDomain Messengers):**
-Messages are relayed between the L1 and L2 CrossDomain Messengers as part of transaction execution. This includes updating state or finalizing transactions on the target layer.
-
-
-## Withdrawal Flow
-
-Withdrawing assets from L2 back to L1 involves a multi-step process to ensure the transaction is validated and executed correctly:
-
-1.  **User Initiation (L2 Standard Bridge):**
-The withdrawal process starts when the user calls the `withdraw()` function on the L2 Standard Bridge, specifying the amount and asset to be withdrawn.
-
-2.  **Message Relay (L2 CrossDomain Messenger):**
-The L2 CrossDomain Messenger receives the withdrawal request and relays the message for processing. It may involve queuing the message in the `L2ToL1MessagePasser` for further steps.
-
-3.  **Proving and Finalization (L2OutputOracle):**
-The withdrawal message is proven using the `L2OutputOracle`, which submits a state output proving that the withdrawal is legitimate. This step involves reading the state and generating the required proofs during the proving time.
-
-4.  **Finalization (L1 CrossDomain Messenger and L1 Standard Bridge):**
-Once the withdrawal is proven, the message is finalized by the L1 CrossDomain Messenger. The L1 Standard Bridge completes the process by releasing the withdrawn assets to the user's L1 account.
+A *withdrawal* is a transaction sent from L2 back to L1. It requires three user transactions: a withdrawal initiating transaction on L2, recorded by the `L2ToL1MessagePasser`; a withdrawal proving transaction on L1, which proves the withdrawal against an output root; and, once the fault challenge period (7 days on mainnet, shorter on test networks) has passed, a withdrawal finalizing transaction on L1 that executes the withdrawal. For the step-by-step walkthrough, see [Withdrawal flow](/op-stack/bridging/withdrawal-flow).

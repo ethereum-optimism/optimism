@@ -8,22 +8,26 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
-// QueryFrontend handles supervisor query RPC methods
+// QueryFrontend handles interop query RPC methods.
 type QueryFrontend struct {
 	backend *Backend
 }
 
 // CheckAccessList validates interop executing messages
 func (f *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+	minSafety safety.Level, executingDescriptor messages.ExecutingDescriptor) error {
 
 	err := f.backend.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
 	if err != nil {
-		return &rpc.JsonError{
-			Code:    types.GetErrorCode(err),
+		return &jsonrpc.Error{
+			Code:    interop.GetErrorCode(err),
 			Message: err.Error(),
 		}
 	}
@@ -54,15 +58,20 @@ func (a *AdminFrontend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
 	return a.backend.FailsafeEnabled(), nil
 }
 
+// GetPassthroughEnabled returns whether passthrough mode is enabled.
+func (a *AdminFrontend) GetPassthroughEnabled(ctx context.Context) (bool, error) {
+	return a.backend.PassthroughEnabled(), nil
+}
+
 // SetFailsafeEnabled enables or disables failsafe mode
 func (a *AdminFrontend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
-	a.backend.SetFailsafeEnabled(enabled)
-	return nil
+	return a.backend.SetFailsafeEnabled(enabled)
 }
 
 // Rewind is not implemented. For cross-chain consistency, rewind would need to
 // coordinate across all chains to the same timestamp, which is complex.
-// Instead, wipe the filter's data directory and restart fresh.
+// Instead, delete the chain-* logs DB directories in the data directory and restart.
+// Keep failsafe.json, so a manual failsafe stays on.
 func (a *AdminFrontend) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
-	return errors.New("rewind not implemented: wipe the filter's data directory and restart instead")
+	return errors.New("rewind not implemented: delete the chain-* directories in the data directory and restart instead; keep failsafe.json so a manual failsafe stays on")
 }

@@ -22,7 +22,7 @@ func TestExecutePayloadSuccess(gt *testing.T) {
 	if err != nil {
 		gt.Fatal(err)
 	}
-	sys.L2ELValidatorNode().WaitForBlockNumber(seqHead.NumberU64())
+	utils.WaitForProofsStoreBlock(t, opRethELNode.Escape().L2EthClient(), seqHead.NumberU64())
 
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)
@@ -90,7 +90,7 @@ func TestExecutePayloadWithInvalidParentHash(gt *testing.T) {
 	if err != nil {
 		gt.Fatal(err)
 	}
-	sys.L2ELValidatorNode().WaitForBlockNumber(seqHead.NumberU64())
+	utils.WaitForProofsStoreBlock(t, opRethELNode.Escape().L2EthClient(), seqHead.NumberU64())
 
 	plannedTxOption := user.PlanTransfer(user.Address(), eth.OneWei)
 	plannedTx := txplan.NewPlannedTx(plannedTxOption)

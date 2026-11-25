@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
@@ -126,19 +126,20 @@ var (
 	}
 	SyncModeReqRespFlag = &cli.BoolFlag{
 		Name:     "syncmode.req-resp",
+		Usage:    "Deprecated, no-op flag. The Req/Resp CL P2P sync protocol has been removed; this is always disabled.",
 		Required: false,
 		Value:    false,
 		EnvVars:  prefixEnvVars("SYNCMODE_REQ_RESP"),
 		Category: RollupCategory,
+		Hidden:   true,
 	}
 	SyncModeOffsetELSafeFlag = &cli.DurationFlag{
 		Name: "syncmode.offset-el-safe",
 		Usage: "After execution-layer sync completes, set safe and finalized heads to this duration behind the synced tip " +
-			"(converted to L2 blocks via rollup block time using ceiling division). Default 0 (safe/finalized stay at the tip). " +
-			"Set to e.g. 168h to force derivation of the most recent 7 days of blocks before they are considered safe.",
+			"(converted to L2 blocks via rollup block time using ceiling division). Default 12h, matching the OP Mainnet sequencing window.",
 		EnvVars:  prefixEnvVars("SYNCMODE_OFFSET_EL_SAFE"),
 		Category: RollupCategory,
-		Value:    0,
+		Value:    12 * time.Hour,
 	}
 	RPCAdminPersistence = &cli.StringFlag{
 		Name:     "rpc.admin-state",
@@ -222,7 +223,7 @@ var (
 			openum.EnumString(engine.Kinds),
 		EnvVars: prefixEnvVars("L2_ENGINE_KIND"),
 		Value: func() *engine.Kind {
-			out := engine.Geth
+			out := engine.Reth
 			return &out
 		}(),
 		Category: RollupCategory,
@@ -265,13 +266,6 @@ var (
 		Name:     "sequencer.stopped",
 		Usage:    "Initialize the sequencer in a stopped state. The sequencer can be started using the admin_startSequencer RPC",
 		EnvVars:  prefixEnvVars("SEQUENCER_STOPPED"),
-		Category: SequencerCategory,
-	}
-	SequencerMaxSafeLagFlag = &cli.Uint64Flag{
-		Name:     "sequencer.max-safe-lag",
-		Usage:    "Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe. Disabled if 0.",
-		EnvVars:  prefixEnvVars("SEQUENCER_MAX_SAFE_LAG"),
-		Value:    0,
 		Category: SequencerCategory,
 	}
 	SequencerL1Confs = &cli.Uint64Flag{
@@ -414,33 +408,6 @@ var (
 		Category: SequencerCategory,
 	}
 	/* Interop flags, experimental. */
-	InteropRPCAddr = &cli.StringFlag{
-		Name: "interop.rpc.addr",
-		Usage: "Interop Websocket-only RPC listening address, for supervisor service to manage syncing of the op-node." +
-			"Applies only to Interop-enabled networks. Optional, disabled if left empty. " +
-			"Do not enable if you do not run a supervisor service.",
-		EnvVars:  prefixEnvVars("INTEROP_RPC_ADDR"),
-		Value:    "",
-		Category: InteropCategory,
-	}
-	InteropRPCPort = &cli.IntFlag{
-		Name: "interop.rpc.port",
-		Usage: "Interop RPC listening port, to serve supervisor syncing." +
-			"Applies only to Interop-enabled networks.",
-		EnvVars:  prefixEnvVars("INTEROP_RPC_PORT"),
-		Value:    9645, // Note: op-service/rpc/cli.go uses 8545 as the default.
-		Category: InteropCategory,
-	}
-	InteropJWTSecret = &cli.StringFlag{
-		Name: "interop.jwt-secret",
-		Usage: "Interop RPC server authentication. Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. " +
-			"A new key will be generated if the file is empty. " +
-			"Applies only to Interop-enabled networks.",
-		EnvVars:     prefixEnvVars("INTEROP_JWT_SECRET"),
-		Value:       "",
-		Destination: new(string),
-		Category:    InteropCategory,
-	}
 	InteropDependencySet = &cli.PathFlag{
 		Name:      "interop.dependency-set",
 		Usage:     "Dependency-set configuration, point at JSON file.",
@@ -451,7 +418,7 @@ var (
 
 	IgnoreMissingPectraBlobSchedule = &cli.BoolFlag{
 		Name: "ignore-missing-pectra-blob-schedule",
-		Usage: "Ignore missing pectra blob schedule fix for Sepolia and Holesky chains. Only set if you know what you are doing!" +
+		Usage: "Ignore missing pectra blob schedule fix for Sepolia chains. Only set if you know what you are doing!" +
 			"Ask your chain's operator for the correct Pectra blob schedule activation time and set it via the rollup.json config" +
 			"or use the --override.pectrablobschedule flag.",
 		EnvVars:  prefixEnvVars("IGNORE_MISSING_PECTRA_BLOB_SCHEDULE"),
@@ -482,7 +449,6 @@ var optionalFlags = []cli.Flag{
 	BeaconFetchAllSidecars,
 	BeaconSlotDurationOverride,
 	SyncModeFlag,
-	SyncModeReqRespFlag,
 	SyncModeOffsetELSafeFlag,
 	FetchWithdrawalRootFromState,
 	L1TrustRPC,
@@ -495,7 +461,6 @@ var optionalFlags = []cli.Flag{
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
-	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
 	SequencerRecoverMode,
 	SequencerSealingDurationFlag,
@@ -516,9 +481,7 @@ var optionalFlags = []cli.Flag{
 	L2EngineKind,
 	L2EngineRpcTimeout,
 	L2FollowSource,
-	InteropRPCAddr,
-	InteropRPCPort,
-	InteropJWTSecret,
+	L2FollowSourceRpcTimeout,
 	InteropDependencySet,
 	IgnoreMissingPectraBlobSchedule,
 	ExperimentalOPStackAPI,
@@ -530,6 +493,7 @@ var DeprecatedFlags = []cli.Flag{
 	BetaExtraNetworks,
 	BackupL2UnsafeSyncRPC,
 	BackupL2UnsafeSyncRPCTrustRPC,
+	SyncModeReqRespFlag,
 	// Deprecated P2P Flags are added at the init step
 }
 
@@ -537,15 +501,15 @@ var DeprecatedFlags = []cli.Flag{
 var Flags []cli.Flag
 
 var rpcDefaults = oprpc.CLIConfig{
-	ListenAddr:  "0.0.0.0", // TODO(#16487): Switch to 127.0.0.1
-	ListenPort:  9545,      // op-node defaults to a different port than ethereum EL (8545)
+	ListenAddr:  "0.0.0.0",
+	ListenPort:  9545, // op-node defaults to a different port than ethereum EL (8545)
 	EnableAdmin: false,
 }
 
 func init() {
 	DeprecatedFlags = append(DeprecatedFlags, deprecatedP2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, oplog.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
+	optionalFlags = append(optionalFlags, logcli.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, oprpc.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory, rpcDefaults)...)

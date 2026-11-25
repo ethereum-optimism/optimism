@@ -7,11 +7,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 // UserDeposits transforms the L2 block-height and L1 receipts into the transaction inputs for a full L2 block
-func UserDeposits(receipts []*types.Receipt, depositContractAddr common.Address) ([]*types.DepositTx, error) {
-	var out []*types.DepositTx
+func UserDeposits(receipts []*types.Receipt, depositContractAddr common.Address) ([]*optypes.DepositTx, error) {
+	var out []*optypes.DepositTx
 	var result error
 	for i, rec := range receipts {
 		if rec.Status != types.ReceiptStatusSuccessful {
@@ -39,7 +41,7 @@ func DeriveDeposits(receipts []*types.Receipt, depositContractAddr common.Addres
 	}
 	encodedTxs := make([]hexutil.Bytes, 0, len(userDeposits))
 	for i, tx := range userDeposits {
-		opaqueTx, err := types.NewTx(tx).MarshalBinary()
+		opaqueTx, err := tx.MarshalBinary()
 		if err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to encode user tx %d", i))
 		} else {

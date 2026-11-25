@@ -2,7 +2,7 @@ package mon
 
 import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type MixedSafetyMetrics interface {
@@ -21,7 +21,7 @@ func NewMixedSafetyMonitor(logger log.Logger, metrics MixedSafetyMetrics) *Mixed
 	}
 }
 
-func (m *MixedSafetyMonitor) CheckMixedSafety(games []*types.EnrichedGameData) {
+func (m *MixedSafetyMonitor) CheckMixedSafety(games []*types.CommonGameData) {
 	count := 0
 	for _, game := range games {
 		if game.HasMixedSafety() {

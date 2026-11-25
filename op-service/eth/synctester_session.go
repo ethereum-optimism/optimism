@@ -26,6 +26,8 @@ type FCUState struct {
 // needs to be emulated.
 type ELSyncPolicy interface {
 	ELSyncStatus(num uint64) ExecutePayloadStatus
+	// Reset returns the policy to its freshly-constructed state.
+	Reset()
 }
 
 type SyncTesterSession struct {
@@ -62,6 +64,9 @@ func (s *SyncTesterSession) ResetSession() {
 	s.CurrentState = s.InitialState
 	s.Validated = s.InitialState.Latest
 	s.Payloads = make(map[PayloadID]*ExecutionPayloadEnvelope)
+	if s.ELSyncPolicy != nil {
+		s.ELSyncPolicy.Reset()
+	}
 }
 
 func (s *SyncTesterSession) IsELSyncActive() bool {

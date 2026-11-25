@@ -9,10 +9,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
+	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
@@ -21,17 +22,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-node/superchain"
 	"github.com/ethereum-optimism/optimism/op-service/cliiface"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -50,7 +51,7 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		return nil, err
 	}
 
-	depSet, err := NewDependencySetFromCLI(ctx)
+	depSet, err := NewDependencySetFromCLI(ctx, eth.ChainIDFromBig(rollupConfig.L2ChainID))
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +96,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		DependencySet:               depSet,
 		Driver:                      *driverConfig,
 		Beacon:                      NewBeaconEndpointConfig(ctx),
-		InteropConfig:               NewSupervisorEndpointConfig(ctx),
 		RPC:                         rpc.ReadCLIConfig(ctx),
 		Metrics:                     opmetrics.ReadCLIConfig(ctx),
 		Pprof:                       oppprof.ReadCLIConfig(ctx),
@@ -135,14 +135,6 @@ func NewConfig(ctx cliiface.Context, log log.Logger) (*config.Config, error) {
 		return nil, err
 	}
 	return cfg, nil
-}
-
-func NewSupervisorEndpointConfig(ctx cliiface.Context) *interop.Config {
-	return &interop.Config{
-		RPCAddr:          ctx.String(flags.InteropRPCAddr.Name),
-		RPCPort:          ctx.Int(flags.InteropRPCPort.Name),
-		RPCJwtSecretPath: ctx.String(flags.InteropJWTSecret.Name),
-	}
 }
 
 func NewBeaconEndpointConfig(ctx cliiface.Context) config.L1BeaconEndpointSetup {
@@ -207,7 +199,6 @@ func NewDriverConfig(ctx cliiface.Context) *driver.Config {
 		SequencerConfDepth:       ctx.Uint64(flags.SequencerL1Confs.Name),
 		SequencerEnabled:         ctx.Bool(flags.SequencerEnabledFlag.Name),
 		SequencerStopped:         ctx.Bool(flags.SequencerStoppedFlag.Name),
-		SequencerMaxSafeLag:      ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
 		RecoverMode:              ctx.Bool(flags.SequencerRecoverMode.Name),
 		SequencerSealingDuration: ctx.Duration(flags.SequencerSealingDurationFlag.Name),
 	}
@@ -274,6 +265,9 @@ func applyOverrides(ctx cliiface.Context, rollupConfig *rollup.Config) {
 			rollupConfig.SetActivationTime(fork, &timestamp)
 		}
 	}
+	if ctx.IsSet(opflags.KeepKarstUpgradeGasOverrideName) {
+		rollupConfig.KeepKarstUpgradeGas = ctx.Bool(opflags.KeepKarstUpgradeGasOverrideName)
+	}
 }
 
 func NewL1ChainConfig(chainId *big.Int, ctx cliiface.Context, log log.Logger) (*params.ChainConfig, error) {
@@ -293,8 +287,7 @@ func NewL1ChainConfig(chainId *big.Int, ctx cliiface.Context, log log.Logger) (*
 	if cf.ChainID.Cmp(chainId) != 0 {
 		return nil, fmt.Errorf("l1 chain config chain ID mismatch: %v != %v", cf.ChainID, chainId)
 	}
-	if !cf.IsOptimism() && cf.BlobScheduleConfig == nil {
-		// No error if the chain config is an OP-Stack chain and doesn't have a blob schedule config
+	if cf.BlobScheduleConfig == nil {
 		return nil, fmt.Errorf("L1 chain config does not have a blob schedule config")
 	}
 	return cf, nil
@@ -302,6 +295,24 @@ func NewL1ChainConfig(chainId *big.Int, ctx cliiface.Context, log log.Logger) (*
 
 func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.ChainConfig, error) {
 	l1ChainConfigPath := ctx.String(flags.L1ChainConfig.Name)
+
+	// An OP Stack chain is not supported as L1. Its chain config, or its genesis file's .config,
+	// has an optimism key.
+	type opChainSpec struct {
+		Optimism *struct{}    `json:"optimism"`
+		Config   *opChainSpec `json:"config"`
+	}
+	spec, err := jsonutil.LoadJSON[opChainSpec](l1ChainConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read chain spec: %w", err)
+	}
+	if spec.Config != nil {
+		spec = spec.Config
+	}
+	if spec.Optimism != nil {
+		return nil, errors.New("the L1 chain config is that of an OP Stack chain, which is not supported as L1")
+	}
+
 	file, err := os.Open(l1ChainConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read chain spec: %w", err)
@@ -312,52 +323,68 @@ func NewL1ChainConfigFromCLI(log log.Logger, ctx cliiface.Context) (*params.Chai
 	var chainConfig params.ChainConfig
 	dec := json.NewDecoder(file)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&chainConfig); err == nil {
+	directErr := dec.Decode(&chainConfig)
+	if directErr == nil {
 		return &chainConfig, nil
 	}
 
 	// If that fails, try to load the config from the .config property.
 	// This should work if the provided file is a genesis file / chainspec
-	return jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
+	cfg, err := jsonutil.LoadJSONFieldStrict[params.ChainConfig](l1ChainConfigPath, "config")
+	if err != nil {
+		// Either decode can be the one that names the problem, e.g. an unknown key.
+		return nil, fmt.Errorf("failed to decode as a chain config (%w) and as a genesis file (%w)", directErr, err)
+	}
+	return cfg, nil
 }
 
-func NewDependencySetFromCLI(cli cliiface.Context) (depset.DependencySet, error) {
-	if !cli.IsSet(flags.InteropDependencySet.Name) {
-		return nil, nil
+// NewDependencySetFromCLI returns the dep set from --interop.dependency-set if
+// set, otherwise from the superchain-registry. An unknown chain yields
+// (nil, nil); config.Check then errors iff LagoonTime is set.
+func NewDependencySetFromCLI(cli cliiface.Context, chainID eth.ChainID) (depset.DependencySet, error) {
+	if cli.IsSet(flags.InteropDependencySet.Name) {
+		loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
+		return loader.LoadDependencySet()
 	}
-	loader := &depset.JSONDependencySetLoader{Path: cli.Path(flags.InteropDependencySet.Name)}
-	return loader.LoadDependencySet()
+	ds, err := superchain.LoadDependencySet(chainID)
+	if err != nil {
+		if errors.Is(err, registry.ErrUnknownChain) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("load dependency set from superchain-registry: %w", err)
+	}
+	return ds, nil
 }
 
 func NewSyncConfig(ctx cliiface.Context, log log.Logger) (*sync.Config, error) {
 	if ctx.IsSet(flags.L2EngineSyncEnabled.Name) && ctx.IsSet(flags.SyncModeFlag.Name) {
 		return nil, errors.New("cannot set both --l2.engine-sync and --syncmode at the same time")
-	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
+	}
+	if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
 		log.Error("l2.engine-sync is deprecated and will be removed in a future release. Use --syncmode=execution-layer instead.")
 	}
 	l2FollowSourceEndpoint := ctx.String(flags.L2FollowSource.Name)
-	rrSyncEnabled := ctx.Bool(flags.SyncModeReqRespFlag.Name)
-	// p2p.sync.req-resp=false && syncmode.req-resp=true is not allowed
-	if !ctx.Bool(flags.SyncReqRespName) && rrSyncEnabled {
-		return nil, errors.New("cannot set --p2p.sync.req-resp=false and --syncmode.req-resp=true at the same time")
-	}
 	mode, err := sync.StringToMode(ctx.String(flags.SyncModeFlag.Name))
 	if err != nil {
 		return nil, err
 	}
 	engineKind := engine.Kind(ctx.String(flags.L2EngineKind.Name))
+	offsetELSafe := ctx.Duration(flags.SyncModeOffsetELSafeFlag.Name)
 	cfg := &sync.Config{
 		SyncMode:                       mode,
-		SyncModeReqResp:                ctx.Bool(flags.SyncModeReqRespFlag.Name),
 		SkipSyncStartCheck:             ctx.Bool(flags.SkipSyncStartCheck.Name),
 		SupportsPostFinalizationELSync: engineKind.SupportsPostFinalizationELSync(),
 		L2FollowSourceEndpoint:         l2FollowSourceEndpoint,
 		// Sequencer needs a manual initial reset when follow source
 		NeedInitialResetEngine: ctx.Bool(flags.SequencerEnabledFlag.Name) && l2FollowSourceEndpoint != "",
-		OffsetELSafe:           ctx.Duration(flags.SyncModeOffsetELSafeFlag.Name),
+		OffsetELSafe:           offsetELSafe,
 	}
 	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
 		cfg.SyncMode = sync.ELSync
+	}
+	if cfg.OffsetELSafe > 0 && cfg.SyncMode != sync.ELSync {
+		log.Warn("syncmode.offset-el-safe is ineffective unless --syncmode=execution-layer; ignoring configured value", "syncmode", cfg.SyncMode.String(), "configured_offset", cfg.OffsetELSafe)
+		cfg.OffsetELSafe = 0
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err

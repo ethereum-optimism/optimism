@@ -1,0 +1,120 @@
+---
+title: "Content type: router/landing"
+description: The published contract for router and landing pages — purpose, tone, required components, title grammar, and a copy-paste template.
+diataxis: reference
+---
+
+A **router/landing page** exists to send readers somewhere else, fast. The
+site root routing four personas, a tab landing page, a goal-shortcut page —
+all are routers: pure navigation with a one-line promise per destination and
+nothing to read for its own sake.
+
+This page is the contract for the type. A new router is reviewed against it;
+cite the relevant section in review instead of re-arguing it.
+
+## Purpose
+
+*   Get every arriving reader onto the **right path in one decision**:
+    by persona (app developer, chain operator, node operator, protocol
+    learner) or by goal ("deploy a chain", "bridge an asset").
+*   Order destinations by audience size, not internal org structure — the
+    largest audience's path comes first.
+*   Stay small: a router that starts explaining or instructing has stopped
+    being a router.
+
+## Composition
+
+A pure router is the one composed type that carries **no `diataxis:` key**:
+it contains no documentation mode of its own to classify — it only routes
+into pages that do. It carries `content-type: router-landing` instead, so it
+remains machine-classifiable. The moment a page mixes routing with real
+explanatory or instructional content, it is no longer a router: classify it
+by what it teaches and move the routing into cards or a "next steps"
+section.
+
+See [Choose a content type](/op-stack/contribute/choose-a-content-type) for
+how the composed types relate to the `diataxis:` taxonomy.
+
+## Tone
+
+*   Second person, benefit-first: every destination is phrased as what the
+    reader will accomplish, not what the section contains ("Deploy your
+    first contract on an OP Stack chain", not "Documentation about
+    contracts").
+*   One line per destination. If a destination needs two sentences to
+    justify itself, the destination is wrong or the router is explaining.
+*   No marketing register. A router is wayfinding, not a pitch.
+
+## Required components
+
+Every router/landing page must have:
+
+1.  **Frontmatter**: `title`, `description`,
+    `content-type: router-landing`, and `last-reviewed: YYYY-MM-DD`
+    (routers are curated artifacts and enter the review sweep on merge).
+    No `diataxis:` key — see Composition. `mode: wide` is allowed where the
+    layout needs it.
+2.  **At most one short orienting paragraph** (or a hero block) before the
+    routes. No concepts, no history, no feature tour.
+3.  **Routes as `<Card>`/`<CardGroup>` blocks** (or an equivalent visually
+    scannable pattern), each with a title naming the reader or goal, an
+    `href`, and a one-line benefit.
+4.  **Full coverage of its audience split**: a persona router routes every
+    persona it claims; readers outside the split get a catch-all route
+    (search, glossary, or support).
+5.  **Resolving links only** — a router is a chain of links and nothing
+    else, so every link must resolve; dead routes are release blockers, not
+    cleanup.
+
+## Title grammar
+
+*   A **goal router** takes the goal as an imperative phrase in sentence
+    case: "Deploy the OP Stack".
+*   A **persona/section landing page** takes the audience or section's
+    plain name: "App developers".
+*   Never "Welcome", "Home", "Overview", "Getting started" as the full
+    title — the title should say where the reader is or what they came to
+    do.
+
+## Template
+
+Copy this template for a new router/landing page:
+
+```mdx
+---
+title: <Goal phrase or audience name>
+description: <One sentence naming who this page routes and to what.>
+content-type: router-landing
+last-reviewed: <YYYY-MM-DD>
+---
+
+<At most one short orienting paragraph: who this page serves and how to
+choose a path. Omit it entirely if the cards are self-evident.>
+
+<CardGroup cols={2}>
+  <Card title="<Persona or goal, largest audience first>" href="</path>">
+    <One line: what this reader will accomplish there.>
+  </Card>
+  <Card title="<Persona or goal>" href="</path>">
+    <One line: what this reader will accomplish there.>
+  </Card>
+  <Card title="<Persona or goal>" href="</path>">
+    <One line: what this reader will accomplish there.>
+  </Card>
+  <Card title="<Catch-all: everything else>" href="</path>">
+    <One line: where readers outside the split find their footing.>
+  </Card>
+</CardGroup>
+```
+
+## Exemplars
+
+*   The [site root](/) — today a single-persona landing page ("Deploy the
+    OP Stack"); its planned rewrite into a four-persona router is the
+    first page that must pass this spec.
+*   [The OP Stack](/op-stack/introduction/op-stack) — a hybrid worth
+    studying for the boundary: it routes with cards *and* explains, which
+    is why it is classified `diataxis: explanation`, not
+    `content-type: router-landing`.
+*   Cloudflare's [documentation content strategy](https://developers.cloudflare.com/style-guide/documentation-content-strategy/)
+    — the published-content-type pattern this contract follows.

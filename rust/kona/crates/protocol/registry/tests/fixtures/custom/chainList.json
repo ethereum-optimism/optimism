@@ -9,7 +9,6 @@
     "explorers": [
       "https://explorer.test1.com"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {
@@ -30,7 +29,6 @@
     "explorers": [
       "https://explorer.test2.com"
     ],
-    "superchainLevel": 0,
     "governedByOptimism": false,
     "dataAvailabilityType": "eth-da",
     "parent": {

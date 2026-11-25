@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -64,8 +65,8 @@ func TestBasicRPCReceiptsFetcher_Reuse(t *testing.T) {
 				txHash := el.Args[0].(common.Hash)
 				if response[txHash] {
 					// The IterativeBatchCall expects that the values are written
-					// to the fields of the allocated *types.Receipt.
-					**(el.Result.(**types.Receipt)) = *recMap[txHash]
+					// to the fields of the allocated receipt.
+					**(el.Result.(**optypes.Receipt)) = optypes.Receipt{Receipt: *recMap[txHash]}
 				} else {
 					err = errors.Join(err, fmt.Errorf("receipt[%d] error, hash %x", i, txHash))
 				}
@@ -91,7 +92,7 @@ func TestBasicRPCReceiptsFetcher_Reuse(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(recs)
 	for i, rec := range recs {
-		requireEqualReceipt(t, receipts[i], rec)
+		requireEqualReceipt(t, receipts[i], &rec.Receipt)
 	}
 	require.EqualValues(3, numCalls.Load())
 }
@@ -126,8 +127,8 @@ func TestBasicRPCReceiptsFetcher_Concurrency(t *testing.T) {
 					if el.Method == "eth_getTransactionReceipt" {
 						txHash := el.Args[0].(common.Hash)
 						// The IterativeBatchCall expects that the values are written
-						// to the fields of the allocated *types.Receipt.
-						**(el.Result.(**types.Receipt)) = *recMap[txHash]
+						// to the fields of the allocated receipt.
+						**(el.Result.(**optypes.Receipt)) = optypes.Receipt{Receipt: *recMap[txHash]}
 					}
 				}
 			}).
@@ -156,7 +157,7 @@ func runConcurrentFetchingTest(t *testing.T, rp ReceiptsProvider, numFetchers in
 
 	// start n fetchers
 	type fetchResult struct {
-		rs  types.Receipts
+		rs  optypes.Receipts
 		err error
 	}
 	fetchResults := make(chan fetchResult, numFetchers)
@@ -180,7 +181,7 @@ func runConcurrentFetchingTest(t *testing.T, rp ReceiptsProvider, numFetchers in
 			require.NoError(f.err)
 			require.Len(f.rs, len(receipts))
 			for j, r := range receipts {
-				requireEqualReceipt(t, r, f.rs[j])
+				requireEqualReceipt(t, r, &f.rs[j].Receipt)
 			}
 		case <-ctx.Done():
 			t.Fatal("Test timeout")

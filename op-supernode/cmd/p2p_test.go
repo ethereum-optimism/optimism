@@ -51,18 +51,26 @@ func TestWithNamespacedP2P_DefaultsListenPortsToZero(t *testing.T) {
 	require.Equal(t, uint(0), vcli.Uint(opnodeflags.ListenUDPPortName))
 }
 
-func TestWithNamespacedP2P_HonoursGlobalListenPorts(t *testing.T) {
-	// A global vn.all.* port collides at bind time when more than one chain is
-	// running, but the supernode honours it as configured -- test for
-	// completeness so a single-chain deployment can pin a fixed port.
+func TestWithNamespacedP2P_ErrorsOnNonZeroGlobalListenPorts(t *testing.T) {
 	vcli := newVCLI(t, []string{
 		"--" + flags.VNFlagGlobalPrefix + opnodeflags.ListenTCPPortName + "=9222",
 		"--" + flags.VNFlagGlobalPrefix + opnodeflags.ListenUDPPortName + "=9223",
 	})
+
+	err := withNamespacedP2P(vcli, t.TempDir(), fmt.Sprintf("%d", testChainID))
+	require.ErrorContains(t, err, "vn.all.p2p.listen.tcp cannot be non-zero")
+	require.ErrorContains(t, err, "vn.<chainID>.p2p.listen.tcp")
+}
+
+func TestWithNamespacedP2P_HonoursZeroGlobalListenPorts(t *testing.T) {
+	vcli := newVCLI(t, []string{
+		"--" + flags.VNFlagGlobalPrefix + opnodeflags.ListenTCPPortName + "=0",
+		"--" + flags.VNFlagGlobalPrefix + opnodeflags.ListenUDPPortName + "=0",
+	})
 	require.NoError(t, withNamespacedP2P(vcli, t.TempDir(), fmt.Sprintf("%d", testChainID)))
 
-	require.Equal(t, uint(9222), vcli.Uint(opnodeflags.ListenTCPPortName))
-	require.Equal(t, uint(9223), vcli.Uint(opnodeflags.ListenUDPPortName))
+	require.Equal(t, uint(0), vcli.Uint(opnodeflags.ListenTCPPortName))
+	require.Equal(t, uint(0), vcli.Uint(opnodeflags.ListenUDPPortName))
 }
 
 func TestWithNamespacedP2P_HonoursPerChainListenPorts(t *testing.T) {
@@ -78,10 +86,21 @@ func TestWithNamespacedP2P_HonoursPerChainListenPorts(t *testing.T) {
 	require.Equal(t, uint(9001), vcli.Uint(opnodeflags.ListenUDPPortName))
 }
 
-func TestWithNamespacedP2P_PerChainOverridesGlobal(t *testing.T) {
+func TestWithNamespacedP2P_ErrorsOnNonZeroGlobalListenPortEvenWhenPerChainIsSet(t *testing.T) {
 	tcpName := fmt.Sprintf("%s%d.%s", flags.VNFlagNamePrefix, testChainID, opnodeflags.ListenTCPPortName)
 	vcli := newVCLI(t, []string{
 		"--" + flags.VNFlagGlobalPrefix + opnodeflags.ListenTCPPortName + "=9222",
+		"--" + tcpName + "=9000",
+	})
+
+	err := withNamespacedP2P(vcli, t.TempDir(), fmt.Sprintf("%d", testChainID))
+	require.ErrorContains(t, err, "vn.all.p2p.listen.tcp cannot be non-zero")
+}
+
+func TestWithNamespacedP2P_PerChainOverridesGlobalZero(t *testing.T) {
+	tcpName := fmt.Sprintf("%s%d.%s", flags.VNFlagNamePrefix, testChainID, opnodeflags.ListenTCPPortName)
+	vcli := newVCLI(t, []string{
+		"--" + flags.VNFlagGlobalPrefix + opnodeflags.ListenTCPPortName + "=0",
 		"--" + tcpName + "=9000",
 	})
 	require.NoError(t, withNamespacedP2P(vcli, t.TempDir(), fmt.Sprintf("%d", testChainID)))
@@ -100,6 +119,31 @@ func TestWithNamespacedP2P_CreatesP2PDir(t *testing.T) {
 	info, err := os.Stat(expected)
 	require.NoError(t, err)
 	require.True(t, info.IsDir(), "expected p2p dir at %s", expected)
+}
+
+func TestWithNamespacedP2P_NamespacesPrivPathByDefault(t *testing.T) {
+	dataDir := t.TempDir()
+	ns := fmt.Sprintf("%d", testChainID)
+	vcli := newVCLI(t, nil)
+	require.NoError(t, withNamespacedP2P(vcli, dataDir, ns))
+
+	require.Equal(t,
+		filepath.Join(dataDir, ns, "p2p", "opnode_p2p_priv.txt"),
+		vcli.String(opnodeflags.P2PPrivPathName))
+}
+
+func TestWithNamespacedP2P_HonoursPerChainPrivPath(t *testing.T) {
+	privName := fmt.Sprintf("%s%d.%s", flags.VNFlagNamePrefix, testChainID, opnodeflags.P2PPrivPathName)
+	keyPath := fmt.Sprintf("/etc/op-supernode/p2p-node-key-%d.txt", testChainID)
+
+	flagSet := append(portFlags(), &cli.StringFlag{Name: privName})
+	ctx := newCtx(t, flagSet, []string{"--" + privName + "=" + keyPath})
+	vcli := flags.NewVirtualCLI(ctx, testChainID)
+
+	require.NoError(t, withNamespacedP2P(vcli, t.TempDir(), fmt.Sprintf("%d", testChainID)))
+
+	// Explicit per-chain path is honored, not clobbered by the namespaced default.
+	require.Equal(t, keyPath, vcli.String(opnodeflags.P2PPrivPathName))
 }
 
 func TestWithNoP2P_AlwaysForcesListenPortsToZero(t *testing.T) {

@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -23,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -54,11 +54,10 @@ type L1Replica struct {
 // NewL1Replica constructs a L1Replica starting at the given genesis.
 func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 	ethCfg := &ethconfig.Config{
-		NetworkId:                 bigs.Uint64Strict(genesis.Config.ChainID),
-		Genesis:                   genesis,
-		RollupDisableTxPoolGossip: true,
-		StateScheme:               rawdb.HashScheme,
-		NoPruning:                 true,
+		NetworkId:   bigs.Uint64Strict(genesis.Config.ChainID),
+		Genesis:     genesis,
+		StateScheme: rawdb.HashScheme,
+		NoPruning:   true,
 		BlobPool: blobpool.Config{
 			Datadir:   t.TempDir(),
 			Datacap:   blobpool.DefaultConfig.Datacap,

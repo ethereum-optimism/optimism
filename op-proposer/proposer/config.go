@@ -2,13 +2,14 @@ package proposer
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -16,20 +17,19 @@ import (
 )
 
 var (
-	ErrMissingRollupRpc     = errors.New("missing rollup rpc")
-	ErrMissingSupervisorRpc = errors.New("missing supervisor rpc or supernode rpc")
-	ErrMissingSource        = errors.New("missing proposal source rpc (rollup, supervisor, or supernode)")
-	ErrConflictingSource    = errors.New("must specify exactly one of rollup rpc, supervisor rpc, or supernode rpc")
+	ErrMissingRollupRpc    = errors.New("missing rollup rpc")
+	ErrMissingSuperRootRpc = errors.New("missing super root rpc")
+	ErrMissingSource       = errors.New("missing proposal source rpc (rollup or super root)")
+	ErrConflictingSource   = errors.New("must specify exactly one of rollup rpc or super root rpc")
+	ErrUnsupportedGameType = errors.New("unsupported game type")
 
-	// preInteropGameTypes are  game types that enforce having a rollup rpc.
-	// It is ok if this list isn't complete, unknown game types will allow either rollup or supervisor
-	// We just want to reduce foot-guns during the migration period
-	preInteropGameTypes = []uint32{0, 1, 2, 3, 6, 254, 255, 1337}
+	// outputRootGameTypes are the game types op-proposer proposes output roots for, read from a rollup RPC.
+	// PERMISSIONED_CANNON (1) is the guardian fallback of every CANNON_KONA (8) deployment, and FAST (254)
+	// is the e2e withdrawal game.
+	outputRootGameTypes = []uint32{1, 8, 254}
 
-	// postInteropGameTypes are game types that enforce having a supervisor rpc.
-	// It is ok if this list isn't complete, unknown game types will allow either rollup or supervisor
-	// We just want to reduce foot-guns during the migration period
-	postInteropGameTypes = []uint32{4, 5}
+	// superRootGameTypes are the game types op-proposer proposes super roots for, read from super root RPCs.
+	superRootGameTypes = []uint32{5, 9}
 )
 
 // CLIConfig is a well typed config that is parsed from the CLI params.
@@ -44,12 +44,9 @@ type CLIConfig struct {
 	// RollupRpc is the HTTP provider URL for the rollup node. A comma-separated list enables the active rollup provider.
 	RollupRpc string
 
-	// SupervisorRpcs is the list of HTTP provider URLs for supervisor nodes.
-	SupervisorRpcs []string
-
-	// SuperNodeRpcs is the list of HTTP provider URLs for supernode instances.
-	// Mutually exclusive with RollupRpc and SupervisorRpcs.
-	SuperNodeRpcs []string
+	// SuperRootRpcs is the list of HTTP provider URLs for super root RPC sources.
+	// Mutually exclusive with RollupRpc.
+	SuperRootRpcs []string
 
 	// PollInterval is the delay between periodic checks on whether it is time to load an output root and propose it.
 	PollInterval time.Duration
@@ -62,7 +59,7 @@ type CLIConfig struct {
 
 	RPCConfig oprpc.CLIConfig
 
-	LogConfig oplog.CLIConfig
+	LogConfig logcli.CLIConfig
 
 	MetricsConfig opmetrics.CLIConfig
 
@@ -107,31 +104,19 @@ func (c *CLIConfig) Check() error {
 	if c.ProposalInterval != 0 && c.DGFAddress == "" {
 		return errors.New("the `ProposalInterval` was provided but the `DisputeGameFactory` address was not set")
 	}
-	// Check for conflicting RPC sources - only one should be specified
-	sourceCount := 0
-	if c.RollupRpc != "" {
-		sourceCount++
+	usesSuperRoots := slices.Contains(superRootGameTypes, c.DisputeGameType)
+	if !usesSuperRoots && !slices.Contains(outputRootGameTypes, c.DisputeGameType) {
+		supported := slices.Sorted(slices.Values(slices.Concat(outputRootGameTypes, superRootGameTypes)))
+		return fmt.Errorf("%w %d: set --game-type (OP_PROPOSER_GAME_TYPE) to the chain's respected game type, one of %v", ErrUnsupportedGameType, c.DisputeGameType, supported)
 	}
-	if len(c.SupervisorRpcs) != 0 {
-		sourceCount++
-	}
-	if len(c.SuperNodeRpcs) != 0 {
-		sourceCount++
-	}
-	if sourceCount > 1 {
+	if c.RollupRpc != "" && len(c.SuperRootRpcs) != 0 {
 		return ErrConflictingSource
 	}
-	// Require rollup RPC for pre interop game types
-	if c.DGFAddress != "" && slices.Contains(preInteropGameTypes, c.DisputeGameType) && c.RollupRpc == "" {
+	if usesSuperRoots && len(c.SuperRootRpcs) == 0 {
+		return ErrMissingSuperRootRpc
+	}
+	if !usesSuperRoots && c.RollupRpc == "" {
 		return ErrMissingRollupRpc
-	}
-	// Require supervisor or supernode RPC for post interop game types
-	if c.DGFAddress != "" && slices.Contains(postInteropGameTypes, c.DisputeGameType) && len(c.SupervisorRpcs) == 0 && len(c.SuperNodeRpcs) == 0 {
-		return ErrMissingSupervisorRpc
-	}
-	// For unknown game types, allow any source, but require at least one.
-	if sourceCount == 0 {
-		return ErrMissingSource
 	}
 
 	return nil
@@ -142,13 +127,12 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 	return &CLIConfig{
 		L1EthRpc:                     ctx.String(flags.L1EthRpcFlag.Name),
 		RollupRpc:                    ctx.String(flags.RollupRpcFlag.Name),
-		SupervisorRpcs:               ctx.StringSlice(flags.SupervisorRpcsFlag.Name),
-		SuperNodeRpcs:                ctx.StringSlice(flags.SuperNodeRpcsFlag.Name),
+		SuperRootRpcs:                ctx.StringSlice(flags.SuperRootRpcsFlag.Name),
 		PollInterval:                 ctx.Duration(flags.PollIntervalFlag.Name),
 		TxMgrConfig:                  txmgr.ReadCLIConfig(ctx),
 		AllowNonFinalized:            ctx.Bool(flags.AllowNonFinalizedFlag.Name),
 		RPCConfig:                    oprpc.ReadCLIConfig(ctx),
-		LogConfig:                    oplog.ReadCLIConfig(ctx),
+		LogConfig:                    logcli.ReadCLIConfig(ctx),
 		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		DGFAddress:                   ctx.String(flags.DisputeGameFactoryAddressFlag.Name),

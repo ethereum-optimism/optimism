@@ -1,0 +1,59 @@
+---
+title: 결함 증명 보안
+description: 결함 증명 시스템(Fault Proofs System)의 보안 모델 변경 사항에 대해 알아봅니다.
+diataxis: explanation
+---
+
+<Info>
+  Optimism Governance가 승인한 결함 증명 컨트랙트의 소스 코드는 [여기](https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.5.0)에서 확인할 수 있습니다(`op-contracts/v1.5.0` 기준).
+</Info>
+
+이 페이지에서는 결함 증명(fault proof) 업그레이드 도입에 따른 OP Stack 보안 모델의 변경 사항을 자세히 설명합니다.
+결함 증명 업그레이드로 도입된 가장 중요한 변경 사항은 `OptimismPortal`이 허가형(permissioned) `L2OutputOracle` 대신 `DisputeGameFactory`를 참조하도록 수정된 것입니다.
+*   `DisputeGameFactory` 컨트랙트는 `FaultDisputeGame` 컨트랙트 인스턴스를 생성하며, 각 인스턴스는 특정 블록 번호에서의 OP Stack 체인 상태에 관한 제안의 호스트 역할을 합니다.
+*   `L2OutputOracle`과 달리 `DisputeGameFactory` 컨트랙트는 사용자가 허가 없이 "결함 분쟁 게임(fault dispute game)"을 진행할 수 있는 기능을 제공하며, 이 게임에서 제안의 정확성은 프로그래밍 방식으로 결정됩니다.
+
+## 보안 모델
+
+결함 증명은 여러 새로운 컴포넌트를 도입하는 대규모 컨트랙트 업그레이드입니다.
+이러한 새로운 컴포넌트의 상대적인 복잡성을 고려하여, FPM의 보안 접근 방식은 잠재적인 버그의 영향 범위를 쉽게 감사할 수 있는 매우 특정한 컨트랙트와 대체(fallback) 메커니즘으로 제한하는 것이었습니다.
+
+### 유효하지 않은 게임 결과 처리
+
+마련된 모든 보안 메커니즘은 일반적으로 `FaultDisputeGame` 컨트랙트가 유효하지 않은 게임 결과를 잘못 최종 확정할 가능성을 중심으로 합니다.
+이에는 두 가지 변형이 있습니다.
+
+1.  유효하지 않은 제안을 유효한 것으로 해결하여 잠재적으로 자금 도난으로 이어지는 경우
+2.  유효한 제안을 유효하지 않은 것으로 해결하여 활성성(liveness) 지연 또는 장애를 일으키는 경우
+
+두 경우 모두 정직한 challenger가 bond를 잃게 됩니다(`Guardian`이 개입하지 않는 한). 잠재적 영향은 `OptimismPortal` 및 `FaultDisputeGame` 컨트랙트 내에 여러 안전장치를 도입하여 관리됩니다.
+
+### `OptimismPortal` 내 안전장치
+
+`OptimismPortal` 컨트랙트에는 `Guardian`과 `SystemOwner` 역할이 협력하여 유효하지 않은 제안이 출금에 영향을 미치지 않도록 방지할 수 있는 다양한 보안 메커니즘이 포함되어 있습니다.
+
+*   `SystemOwner`는 `Guardian` 주소를 교체할 수 있습니다.
+*   `Guardian`은 기존 시스템에 있던 전역 일시 중지 메커니즘을 트리거할 수 있습니다.
+*   `Guardian`은 잘못 해결된 특정 `FaultDisputeGame` 컨트랙트를 "블랙리스트"에 등록할 수 있습니다.
+*   `Guardian`은 `FaultDisputeGame` 컨트랙트의 한 클래스 전체에 치명적인 버그가 발견된 경우 `FaultDisputeGame` 컨트랙트의 respected type을 변경할 수 있습니다. 원하는 경우 `Guardian`은 특정 역할만 제안을 제출하고 이의를 제기할 수 있도록 허용하는 `PermissionedDisputeGame` 컨트랙트로 되돌리는 것을 선택할 수도 있습니다.
+
+### `FaultDisputeGame` 내 안전장치
+
+`FaultDisputeGame` 컨트랙트는 `SystemOwner`가 관리하는 `DelayedWETH` 컨트랙트 내에 bond를 저장합니다. `DelayedWETH` 컨트랙트에서의 출금은 지연되므로, bond가 잘못 분배되는 상황에서 `SystemOwner`가 수동으로 복구할 수 있습니다. 이 지연은 `SystemOwner` 또는 `Guardian`이 잠재적인 보안 문제에 대응할 충분한 시간을 갖도록 OP Mainnet에서 7일로 설정되어 있습니다.
+
+### `DelayedWETH` 내 안전장치
+
+*   `SystemOwner`는 `Guardian` 주소를 교체할 수 있습니다.
+*   `SystemOwner`는 특정 `DisputeGame` 컨트랙트의 자금을 보류할 수 있습니다.
+*   문제가 너무 많은 `DisputeGame` 컨트랙트로 확대되어 특정 컨트랙트의 자금을 보류하는 것이 실행 불가능한 경우, `SystemOwner`는 `DelayedWETH` 컨트랙트에서 자금을 인출할 수 있습니다.
+*   `Guardian`은 전역 일시 중지 메커니즘을 트리거하여 WETH 출금을 중단할 수 있습니다.
+
+### 누적 보안 영향
+
+기존 시스템과 마찬가지로, 이러한 보안 기능의 누적 효과로 `Guardian` 역할은 신속한 대응 기능을 제공하며, `SystemOwner`는 자금 손실로 이어질 수 있는 모든 유형의 버그를 해결하기 위해 언제든지 개입할 수 있습니다.
+결함 증명 도입으로 보안 모델에서 가장 중요한 변경 사항은 `SystemOwner`가 보다 수동적인 역할을 맡을 수 있다는 점입니다. 유효하지 않은 제안은 일반적으로 결함 증명 시스템에서 거부되며, `Guardian`은 결함 증명 게임에 장애가 발생한 경우에만 안전장치 역할을 할 수 있습니다.
+
+## 다음 단계
+
+*   FP 시스템 컴포넌트와 이들이 함께 작동하여 Optimism 생태계의 탈중앙화를 강화하는 방식에 대한 개요는 [FP 컴포넌트](/ko/op-stack/fault-proofs/fp-components)를 참고하십시오.
+*   전체 FP 프로그램, FP 가상 머신, 분쟁 게임에 대한 자세한 정보는 [명세](https://specs.optimism.io/fault-proof/index.html?utm_source=op-docs&utm_medium=docs)를 참고하십시오.

@@ -1,9 +1,10 @@
 ---
 title: Deployment Pipeline
-description: Learn about the stages of the OP Deployer deployment pipeline.
+description: "Understand how OP Deployer's pipeline is architected: the intent and state files it consumes and produces, and what each deployment stage is responsible for."
+diataxis: explanation
 ---
 
-OP Deployer is architected as a pipeline where each stage is responsible for a single piece of the deployment process.
+This page explains how OP Deployer is architected: a pipeline in which each stage is responsible for a single piece of the deployment process.
 The pipeline consumes a configuration called an *intent* which describes the desired state of the chain, and
 produces a file called the *state* which describes the current state of the chain during and after the deployment.
 The steps of the pipeline are:

@@ -30,16 +30,16 @@
 //! Convert a sequence of flashblocks to a full execution payload:
 //!
 //! ```rust,ignore
-//! use op_alloy_rpc_types_engine::{OpExecutionData, OpFlashblockPayload};
+//! use op_alloy_rpc_types_engine::{OpFlashblockPayload, OpExecutionPayloadEnvelope};
 //!
 //! let flashblocks: Vec<OpFlashblockPayload> = vec![/* ... */];
-//! let execution_data = OpExecutionData::from_flashblocks(flashblocks)?;
+//! let execution_data = OpExecutionPayloadEnvelope::from_flashblocks(&flashblocks)?;
 //! # Ok::<(), op_alloy_rpc_types_engine::OpFlashblockError>(())
 //! ```
 //!
 //! ## Validation Rules
 //!
-//! The [`OpExecutionData::from_flashblocks`](crate::OpExecutionData::from_flashblocks) method
+//! The [`OpExecutionPayloadEnvelope::from_flashblocks`](crate::OpExecutionPayloadEnvelope::from_flashblocks) method
 //! performs comprehensive validation:
 //!
 //! - Indices must be sequential starting from 0

@@ -1,14 +1,43 @@
 use crate::{
-    CancellableContext, DerivationActorRequest, DerivationEngineClient, NodeActor,
-    actors::derivation::{DerivationDelegateClient, DerivationError},
+    DerivationActorRequest, DerivationEngineClient, NodeActor, actors::derivation::DerivationError,
 };
+use alloy_eips::BlockNumHash;
 use alloy_primitives::BlockHash;
 use async_trait::async_trait;
-use kona_protocol::{L2BlockInfo, SyncStatus};
-use kona_providers_alloy::AlloyChainProvider;
+use jsonrpsee::core::ClientError;
+use kona_derive::{ChainProvider, Signal};
+use kona_engine::{EngineState, FinalityViolation, FinalizeBlockId};
+use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
+use kona_rpc::RollupNodeApiClient;
 use thiserror::Error;
-use tokio::{select, sync::mpsc, time};
-use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
+use tokio::{
+    select,
+    sync::{mpsc, watch},
+    time,
+};
+
+/// How often the derivation delegate is polled for its sync status.
+pub(super) const DERIVATION_DELEGATE_POLL_INTERVAL: time::Duration = time::Duration::from_secs(4);
+
+/// Supplies the sync status of the external OP Stack CL node that derivation is delegated to.
+#[async_trait]
+pub trait SyncStatusSource: Send + Sync {
+    /// The error returned when the sync status cannot be fetched.
+    type Error: core::fmt::Display + Send;
+
+    /// Fetches the delegate's current sync status.
+    async fn sync_status(&self) -> Result<SyncStatus, Self::Error>;
+}
+
+/// Any jsonrpsee client can serve the delegate's `optimism_syncStatus`.
+#[async_trait]
+impl<C: RollupNodeApiClient + Send + Sync> SyncStatusSource for C {
+    type Error = ClientError;
+
+    async fn sync_status(&self) -> Result<SyncStatus, ClientError> {
+        self.op_sync_status().await
+    }
+}
 
 /// The [`NodeActor`] for the delegate derivation sub-routine.
 ///
@@ -20,83 +49,118 @@ use tokio_util::sync::{CancellationToken, WaitForCancellationFuture};
 /// Once validated, the actor sends the derived safe and finalized L2 info
 /// to the [`NodeActor`] responsible for the execution sub-routine.
 #[derive(Debug)]
-pub struct DelegateDerivationActor<DerivationEngineClient_>
+pub struct DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient,
+    Delegate: SyncStatusSource,
+    L1Provider: ChainProvider,
 {
-    /// The cancellation token, shared between all tasks.
-    cancellation_token: CancellationToken,
     /// The channel on which all inbound requests are received by the [`DelegateDerivationActor`].
     inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
     /// The Engine client used to interact with the engine.
     engine_client: DerivationEngineClient_,
 
-    /// Derivation delegate provider.
-    derivation_delegate_provider: DerivationDelegateClient,
+    /// Source of the sync status of the node that derivation is delegated to.
+    delegate: Delegate,
     /// L1 provider for validating L1 info for derivation delegation.
-    l1_provider: AlloyChainProvider,
+    l1_provider: L1Provider,
+    /// Publishes the delegate's `current_l1`: the L1 block that its derivation has reached.
+    derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
 
+    /// The engine's state as it publishes it. Delegate statuses are checked against the
+    /// finalized head the engine applied, not the last one forwarded to it, which the engine may
+    /// have skipped.
+    engine_state_rx: watch::Receiver<EngineState>,
     /// The engine's L2 safe head, according to updates from the Engine.
     engine_l2_safe_head: L2BlockInfo,
     /// Whether the engine sync has completed. This will only ever go from false -> true.
     has_engine_sync_completed: bool,
+    /// Ticker driving periodic polls of the derivation delegate.
+    delegated_derivation_ticker: time::Interval,
+
+    /// A safe head behind the engine's that was forwarded while the execution layer applied the
+    /// engine's forkchoice, with the engine's safe head at the time. The engine checks such a head
+    /// against its execution layer once; until either changes, sending it again repeats that
+    /// lookup to the same answer.
+    forwarded_lagging_safe_head: Option<(BlockNumHash, BlockNumHash)>,
+    /// The last rejection of a delegate status, so a delegate stuck on one inconsistency is
+    /// warned about once rather than on every poll.
+    last_rejection: Option<String>,
 }
 
-impl<DerivationEngineClient_> CancellableContext
-    for DelegateDerivationActor<DerivationEngineClient_>
+impl<DerivationEngineClient_, Delegate, L1Provider>
+    DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
-    DerivationEngineClient_: DerivationEngineClient,
-{
-    fn cancelled(&self) -> WaitForCancellationFuture<'_> {
-        self.cancellation_token.cancelled()
-    }
-}
-
-impl<DerivationEngineClient_> DelegateDerivationActor<DerivationEngineClient_>
-where
-    DerivationEngineClient_: DerivationEngineClient,
+    DerivationEngineClient_: DerivationEngineClient + 'static,
+    Delegate: SyncStatusSource + 'static,
+    L1Provider: ChainProvider + 'static,
 {
     /// Creates a new instance of the [`DelegateDerivationActor`].
     pub fn new(
         engine_client: DerivationEngineClient_,
-        cancellation_token: CancellationToken,
         inbound_request_rx: mpsc::Receiver<DerivationActorRequest>,
-        derivation_delegate_provider: DerivationDelegateClient,
-        l1_provider: AlloyChainProvider,
+        delegate: Delegate,
+        l1_provider: L1Provider,
+        derivation_origin_tx: watch::Sender<Option<BlockInfo>>,
+        engine_state_rx: watch::Receiver<EngineState>,
     ) -> Self {
+        let mut delegated_derivation_ticker = time::interval(DERIVATION_DELEGATE_POLL_INTERVAL);
+        delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
         Self {
-            cancellation_token,
             inbound_request_rx,
             engine_client,
-            derivation_delegate_provider,
+            delegate,
             l1_provider,
+            derivation_origin_tx,
+            engine_state_rx,
             engine_l2_safe_head: L2BlockInfo::default(),
             has_engine_sync_completed: false,
+            delegated_derivation_ticker,
+            forwarded_lagging_safe_head: None,
+            last_rejection: None,
         }
     }
 }
 
 #[async_trait]
-impl<DerivationEngineClient_> NodeActor for DelegateDerivationActor<DerivationEngineClient_>
+impl<DerivationEngineClient_, Delegate, L1Provider> NodeActor
+    for DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
+    Delegate: SyncStatusSource + 'static,
+    L1Provider: ChainProvider + Send + 'static,
 {
     type Error = DerivationError;
-    type StartData = ();
 
-    async fn start(mut self, _: Self::StartData) -> Result<(), Self::Error> {
-        self.start_delegate_derivation().await
+    async fn step(&mut self) -> Result<(), Self::Error> {
+        select! {
+            biased;
+
+            req = self.inbound_request_rx.recv() => {
+                let request = req.ok_or_else(|| {
+                    error!(
+                        target: "derivation",
+                        "DerivationActor inbound request receiver closed unexpectedly",
+                    );
+                    DerivationError::RequestReceiveFailed
+                })?;
+                self.handle_derivation_delegation_actor_request(request).await
+            }
+            _ = self.delegated_derivation_ticker.tick(),
+            if self.has_engine_sync_completed => {
+                self.fetch_and_apply_delegate_safe_head().await
+            }
+        }
     }
 }
 
-impl<DerivationEngineClient_> DelegateDerivationActor<DerivationEngineClient_>
+impl<DerivationEngineClient_, Delegate, L1Provider>
+    DelegateDerivationActor<DerivationEngineClient_, Delegate, L1Provider>
 where
     DerivationEngineClient_: DerivationEngineClient + 'static,
+    Delegate: SyncStatusSource + 'static,
+    L1Provider: ChainProvider + 'static,
 {
-    /// Hardcoded poll interval for Derivation Delegation
-    const DERIVATION_DELEGATE_POLL_INTERVAL: std::time::Duration =
-        std::time::Duration::from_secs(4);
-
     /// Validates a single L1 block height and hash against the canonical L1 chain.
     async fn validate_l1_block(
         &mut self,
@@ -104,8 +168,6 @@ where
         l1_block_number: u64,
         expected_hash: BlockHash,
     ) -> Result<(), DerivationDelegationError> {
-        use kona_derive::ChainProvider;
-
         let block = self
             .l1_provider
             .block_info_by_number(l1_block_number)
@@ -124,9 +186,45 @@ where
         Ok(())
     }
 
-    /// Verifies that the L1 info reported by the derivation delegate
-    /// are consistent with canonical L1 chain.
-    async fn validate_sync_status(&mut self, v: &SyncStatus) -> bool {
+    /// Rejects a status whose labels are out of order: its finalized block ahead of its safe head,
+    /// or its safe head ahead of its local safe head. No consistent delegate reports either, and a
+    /// finalized block ahead of the safe head would let a stale safe head sit below finality. A
+    /// zero local safe head is a label the delegate has not derived or does not report, so it does
+    /// not order anything.
+    fn validate_label_order(status: &SyncStatus) -> Result<(), DerivationDelegationError> {
+        let finalized = status.finalized_l2.block_info.number;
+        let safe = status.safe_l2.block_info.number;
+        let local_safe = if status.local_safe_l2 == L2BlockInfo::default() {
+            safe
+        } else {
+            status.local_safe_l2.block_info.number
+        };
+        if finalized > safe {
+            return Err(DerivationDelegationError::FinalizedAheadOfSafe { finalized, safe });
+        }
+        if safe > local_safe {
+            return Err(DerivationDelegationError::SafeAheadOfLocalSafe { local_safe, safe });
+        }
+        Ok(())
+    }
+
+    /// Verifies that the labels reported by the derivation delegate are in order, that its
+    /// finalized L2 block does not move back from the engine's, and that its L1 info is consistent
+    /// with the canonical L1 chain.
+    ///
+    /// Only a fork at the engine's finalized height is caught here. A chain that forked below it
+    /// and reports a higher finalized block passes, and the execution layer rejects the forkchoice
+    /// update that would move onto it.
+    async fn validate_sync_status(
+        &mut self,
+        v: &SyncStatus,
+    ) -> Result<(), DerivationDelegationError> {
+        Self::validate_label_order(v)?;
+        self.engine_state_rx
+            .borrow()
+            .sync_state
+            .ensure_respects_finality(v.finalized_l2.block_info.id())?;
+
         let checks = [
             ("L1 Origin of Safe L2", v.safe_l2.l1_origin.number, v.safe_l2.l1_origin.hash),
             (
@@ -136,44 +234,100 @@ where
             ),
             ("Current L1", v.current_l1.number, v.current_l1.hash),
         ];
+        let mut validated_l1_blocks = Vec::with_capacity(checks.len());
         for (context, number, hash) in checks {
-            if let Err(err) = self.validate_l1_block(context, number, hash).await {
-                warn!(
-                    target: "derivation",
-                    context = context,
-                    error = %err,
-                    "L1 inconsistency detected at sync status from delegate"
-                );
-                return false;
+            // Labels often share an L1 origin, and one lookup proves it canonical for all of them.
+            if validated_l1_blocks.contains(&(number, hash)) {
+                continue;
             }
+            self.validate_l1_block(context, number, hash).await?;
+            validated_l1_blocks.push((number, hash));
         }
-        true
+        Ok(())
+    }
+
+    /// Logs a rejected delegate status at `warn!` when the reason changed, and at `debug!` while
+    /// the delegate keeps reporting the same inconsistency.
+    fn log_rejected_status(&mut self, err: &DerivationDelegationError) {
+        let reason = err.to_string();
+        if self.last_rejection.as_ref() == Some(&reason) {
+            debug!(target: "derivation", error = %err, "Sync status from delegate rejected again");
+        } else {
+            warn!(target: "derivation", error = %err, "Rejected sync status from delegate");
+            self.last_rejection = Some(reason);
+        }
+    }
+
+    /// Whether the delegated safe head is the lagging one already forwarded against the same
+    /// engine safe head, so the engine would repeat its lookup to the same answer.
+    fn is_lagging_safe_head_forwarded(&self, safe_l2: &L2BlockInfo) -> bool {
+        self.lagging_safe_head_to_remember(safe_l2) == self.forwarded_lagging_safe_head &&
+            self.forwarded_lagging_safe_head.is_some()
+    }
+
+    /// The pair to remember for a delegated safe head behind the engine's consistent safe head
+    /// while its execution layer applied the engine's forkchoice, or `None` for any other head,
+    /// which the engine must always see.
+    fn lagging_safe_head_to_remember(
+        &self,
+        safe_l2: &L2BlockInfo,
+    ) -> Option<(BlockNumHash, BlockNumHash)> {
+        let engine_state = self.engine_state_rx.borrow();
+        let engine_safe_head = engine_state.sync_state.safe_head().block_info;
+        let is_consistent =
+            engine_state.sync_state.unsafe_head().block_info.number >= engine_safe_head.number;
+        (engine_state.el_applied_last_forkchoice &&
+            is_consistent &&
+            safe_l2.block_info.number < engine_safe_head.number)
+            .then(|| (safe_l2.block_info.id(), engine_safe_head.id()))
     }
 
     /// Fetches, validates, and applies sync status from the derivation delegate.
     async fn fetch_and_apply_delegate_safe_head(&mut self) -> Result<(), DerivationError> {
-        let sync_status = match self.derivation_delegate_provider.fetch_sync_status().await {
+        let sync_status = match self.delegate.sync_status().await {
             Ok(status) => status,
-            Err(_) => {
-                warn!(target: "derivation", "Failed to fetch sync status from delegate");
+            Err(err) => {
+                warn!(
+                    target: "derivation",
+                    error = %err,
+                    "Failed to fetch sync status from delegate"
+                );
                 return Ok(());
             }
         };
 
-        if !self.validate_sync_status(&sync_status).await {
+        if let Err(err) = self.validate_sync_status(&sync_status).await {
             // Validation failures here are expected to be transient, so we skip processing
             // this sync status and continue delegating derivation instead of treating it as
             // fatal.
+            self.log_rejected_status(&err);
             return Ok(());
         }
+        self.last_rejection = None;
+        self.derivation_origin_tx.send_replace(Some(sync_status.current_l1));
 
-        self.engine_client
-            .send_safe_l2_signal(sync_status.safe_l2.into())
-            .await
-            .map_err(|e| DerivationError::Sender(Box::new(e)))?;
+        if self.is_lagging_safe_head_forwarded(&sync_status.safe_l2) {
+            debug!(
+                target: "derivation",
+                safe_l2 = ?sync_status.safe_l2,
+                "Not forwarding a lagging safe head the engine already checked"
+            );
+        } else {
+            self.forwarded_lagging_safe_head =
+                self.lagging_safe_head_to_remember(&sync_status.safe_l2);
+            self.engine_client
+                .send_safe_l2_signal(sync_status.safe_l2.into())
+                .await
+                .map_err(|e| DerivationError::Sender(Box::new(e)))?;
+        }
 
+        // Delegated polling supplies `(number, hash)`. Carry the hash through so the engine
+        // finalizes the specific block we were asked to, not whatever it happens to have at the
+        // same height.
         self.engine_client
-            .send_finalized_l2_block(sync_status.finalized_l2.block_info.number)
+            .send_finalized_l2_block(FinalizeBlockId::ByHash(
+                sync_status.finalized_l2.block_info.id(),
+            ))
             .await
             .map_err(|e| DerivationError::Sender(Box::new(e)))?;
 
@@ -185,39 +339,6 @@ where
         );
 
         Ok(())
-    }
-
-    async fn start_delegate_derivation(mut self) -> Result<(), DerivationError> {
-        info!(target: "derivation", "Starting derivation with delegation");
-        let mut delegated_derivation_ticker =
-            time::interval(Self::DERIVATION_DELEGATE_POLL_INTERVAL);
-        delegated_derivation_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
-        loop {
-            select! {
-                biased;
-
-                _ = self.cancellation_token.cancelled() => {
-                    info!(
-                        target: "derivation",
-                        "Received shutdown signal. Exiting derivation task."
-                    );
-                    return Ok(());
-                }
-                req = self.inbound_request_rx.recv() => {
-                    let Some(request_type) = req else {
-                        error!(target: "derivation", "DerivationActor inbound request receiver closed unexpectedly");
-                        self.cancellation_token.cancel();
-                        return Err(DerivationError::RequestReceiveFailed);
-                    };
-
-                    self.handle_derivation_delegation_actor_request(request_type).await?;
-                }
-                _ = delegated_derivation_ticker.tick(),
-                if self.has_engine_sync_completed => {
-                    self.fetch_and_apply_delegate_safe_head().await?;
-                }
-            }
-        }
     }
 
     async fn handle_derivation_delegation_actor_request(
@@ -234,7 +355,12 @@ where
                 self.engine_l2_safe_head = *safe_head;
                 self.has_engine_sync_completed = true;
             }
-            DerivationActorRequest::ProcessEngineSignalRequest(_) |
+            DerivationActorRequest::ProcessEngineSignalRequest(signal) => match *signal {
+                Signal::Reset(reset) => self.engine_l2_safe_head = reset.l2_safe_head,
+                signal => {
+                    debug!(target: "derivation", ?signal, "Ignoring signal while derivation delegation");
+                }
+            },
             DerivationActorRequest::ProcessFinalizedL1Block(_) |
             DerivationActorRequest::ProcessL1HeadUpdateRequest(_) => {
                 debug!(target: "derivation", "Ignoring request while derivation delegation: {:?}", request_type);
@@ -246,6 +372,15 @@ where
 
 #[derive(Error, Debug)]
 enum DerivationDelegationError {
+    /// The delegate's finalized L2 block is ahead of its own safe head.
+    #[error("Finalized L2 {finalized} is ahead of safe L2 {safe}")]
+    FinalizedAheadOfSafe { finalized: u64, safe: u64 },
+
+    /// The delegate's finalized L2 block is behind the engine's, or a different block at its
+    /// height.
+    #[error("Finalized L2 moves the engine's finality back: {0}")]
+    FinalizedL2BreaksFinality(#[from] FinalityViolation),
+
     /// The L1 provider returned an error (network, RPC, etc.)
     #[error("L1 provider error: {0}")]
     L1Provider(String),
@@ -253,4 +388,8 @@ enum DerivationDelegationError {
     /// The hash provided by the derivation delegation does not match the canonical chain.
     #[error("L1 inconsistency in {context} at block {number}: expected {expected}, got {actual}")]
     L1ValidationFailed { context: String, number: u64, expected: BlockHash, actual: BlockHash },
+
+    /// The delegate's safe head is ahead of its own local safe head.
+    #[error("Safe L2 {safe} is ahead of local safe L2 {local_safe}")]
+    SafeAheadOfLocalSafe { local_safe: u64, safe: u64 },
 }

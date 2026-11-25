@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -87,6 +87,14 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 			assert.Equal(t, res.L1FeeScalar, l1Cfg.Scalar)
 		})
 	}
+	t.Run("no basefee", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(func(l *testutils.MockBlockInfo) {
+			l.InfoBaseFee = nil
+		})(rng)
+		_, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
+		require.ErrorContains(t, err, "has no base fee")
+	})
 	t.Run("no data", func(t *testing.T) {
 		_, err := L1BlockInfoFromBytes(&rollupCfg, 0, nil)
 		assert.Error(t, err)
@@ -207,7 +215,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoJovianLen, len(depTx.Data))
-		dafgs, err := types.ExtractDAFootprintGasScalar(depTx.Data)
+		dafgs, err := opfees.ExtractDAFootprintGasScalar(depTx.Data)
 		require.NoError(t, err)
 		// randomL1Cfg has scalar 0, which should be translated to the default value.
 		require.Equal(t, uint16(DAFootprintGasScalarDefault), dafgs)
@@ -218,7 +226,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
 		rollupCfg.ActivateAtGenesis(forks.Isthmus)
 		jovianTime := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime // activate jovian just after genesis
-		rollupCfg.InteropTime = &jovianTime
+		rollupCfg.JovianTime = &jovianTime
 		depTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, jovianTime)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -242,7 +250,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
 		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
-		rollupCfg.ActivateAtGenesis(forks.Interop)
+		rollupCfg.ActivateAtGenesis(forks.Lagoon)
 		// run 1 block after interop transition
 		timestamp := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime
 		depTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, timestamp)
@@ -256,9 +264,9 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		info := testutils.MakeBlockInfo(nil)(rng)
 		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
 		rollupCfg.ActivateAtGenesis(forks.Jovian)
-		interopTime := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime // activate interop just after genesis
-		rollupCfg.InteropTime = &interopTime
-		depTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, interopTime)
+		lagoonTime := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime // activate Lagoon (interop) just after genesis
+		rollupCfg.LagoonTime = &lagoonTime
+		depTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, lagoonTime)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
@@ -269,7 +277,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
 		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
-		rollupCfg.ActivateAtGenesis(forks.Interop)
+		rollupCfg.ActivateAtGenesis(forks.Lagoon)
 		depTx, err := L1InfoDeposit(&rollupCfg, params.MergedTestChainConfig, randomL1Cfg(rng, info), randomSeqNr(rng), info, rollupCfg.Genesis.L2Time)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)

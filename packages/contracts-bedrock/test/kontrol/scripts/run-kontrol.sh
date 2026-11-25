@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 
 export FOUNDRY_PROFILE=kprove
 
@@ -41,6 +41,7 @@ kontrol_prove() {
     --kore-rpc-command 'kore-rpc-booster --no-post-exec-simplify --equation-max-recursion 100 --equation-max-iterations 1000' \
     --xml-test-report \
     --maintenance-rate 16 \
+    --symbolic-caller \
     --assume-defined \
     --no-log-rewrites \
     --smt-timeout 16000 \
@@ -50,9 +51,22 @@ kontrol_prove() {
   return $?
 }
 
+# Copies out the JUnit report, if there is one, and the container log.
+copy_report_and_log() {
+  mkdir -p "$LOG_PATH"
+  # Check if kontrol_prove_report.xml exists in the container and copy it out if it does
+  if docker exec "$CONTAINER_NAME" test -f /home/user/workspace/kontrol_prove_report.xml; then
+    docker cp "$CONTAINER_NAME:/home/user/workspace/kontrol_prove_report.xml" "$LOG_PATH/kontrol_prove_report.xml"
+    notif "Copied kontrol_prove_report.xml to $LOG_PATH"
+  else
+    notif "kontrol_prove_report.xml not found in container"
+  fi
+  RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
+  docker logs "$CONTAINER_NAME" > "$LOG_PATH/$RUN_LOG"
+}
+
 get_log_results() {
   RESULTS_FILE="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
-  LOG_PATH="test/kontrol/logs"
   RESULTS_LOG="$LOG_PATH/$RESULTS_FILE"
 
   if [ ! -d $LOG_PATH ]; then
@@ -66,13 +80,7 @@ get_log_results() {
     mv results.tar.gz "$RESULTS_LOG"
   else
     docker cp "$CONTAINER_NAME:/home/user/workspace/results.tar.gz" "$RESULTS_LOG"
-    # Check if kontrol_prove_report.xml exists in the container and copy it out if it does
-    if docker exec "$CONTAINER_NAME" test -f /home/user/workspace/kontrol_prove_report.xml; then
-      docker cp "$CONTAINER_NAME:/home/user/workspace/kontrol_prove_report.xml" "$LOG_PATH/kontrol_prove_report.xml"
-      notif "Copied kontrol_prove_report.xml to $LOG_PATH"
-    else
-      notif "kontrol_prove_report.xml not found in container"
-    fi
+    copy_report_and_log
     tar -xzf "$RESULTS_LOG" > /dev/null 2>&1
   fi
   if [ -f "$RESULTS_LOG" ]; then
@@ -85,8 +93,6 @@ get_log_results() {
 
   if [ "$LOCAL" = false ]; then
     notif "Results Log: $RESULTS_LOG generated"
-    RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
-    docker logs "$CONTAINER_NAME" > "$LOG_PATH/$RUN_LOG"
     # Expand the tar folder to kout-proofs for Summary Results and caching
     tar -xzf "$RESULTS_LOG" -C "$WORKSPACE_DIR" > /dev/null 2>&1
   fi
@@ -94,7 +100,8 @@ get_log_results() {
 
 # Define the function to run on failure
 on_failure() {
-  get_log_results
+  trap - ERR INT TERM
+  get_log_results || true
 
   if [ "$LOCAL" = false ]; then
     clean_docker
@@ -156,7 +163,11 @@ done
 max_depth=10000
 max_iterations=10000
 smt_timeout=100000
-max_workers=16 # Set to 16 since there are 16 proofs to run
+max_workers=${KONTROL_WORKERS:-16}
+if ! [[ "$max_workers" =~ ^[1-9][0-9]*$ ]]; then
+  echo "KONTROL_WORKERS must be a positive integer" >&2
+  exit 1
+fi
 # workers is the minimum between max_workers and the length of test_list unless
 # no test arguments are provided, in which case we default to max_workers
 if [ "$CUSTOM_TESTS" == 0 ] && [ "$SCRIPT_TESTS" == false ]; then
@@ -172,6 +183,7 @@ break_every_step=--break-every-step
 break_every_step=
 bug_report=--bug-report
 bug_report=
+LOG_PATH="test/kontrol/logs"
 state_diff="./snapshots/state-diff/Kontrol-31337.json"
 
 #############
@@ -200,6 +212,12 @@ if [ "${results[1]}" -ne 0 ]; then
   exit 2
 fi
 
-get_log_results
+# A green CI run only copies out the report and the log. The proof archive is for debugging a failure,
+# and building it takes about 3 minutes.
+if [ "${CI:-}" = true ] && [ "$LOCAL" = false ]; then
+  copy_report_and_log
+else
+  get_log_results
+fi
 echo "Kontrol Passed"
 notif "DONE"

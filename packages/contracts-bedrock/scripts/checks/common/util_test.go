@@ -91,9 +91,7 @@ func TestProcessFilesGlob(t *testing.T) {
 
 	// Create test directory structure
 	tmpDir := t.TempDir()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
+	changeWorkingDir(t, tmpDir)
 
 	// Create test files
 	files := map[string]string{
@@ -191,9 +189,7 @@ func TestProcessFilesGlob(t *testing.T) {
 func TestFindFiles(t *testing.T) {
 	// Create test directory structure
 	tmpDir := t.TempDir()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatal(err)
-	}
+	changeWorkingDir(t, tmpDir)
 
 	// Create test files
 	files := map[string]string{
@@ -232,6 +228,72 @@ func TestFindFiles(t *testing.T) {
 	}
 }
 
+func TestFindFilesSupportsContractCheckGlobPatterns(t *testing.T) {
+	tmpDir := t.TempDir()
+	changeWorkingDir(t, tmpDir)
+
+	for _, file := range []string{
+		"forge-artifacts/root.json",
+		"forge-artifacts/a/A.json",
+		"forge-artifacts/a/A.txt",
+		"forge-artifacts/b.t.sol/B.json",
+		"forge-artifacts/legacy/CrossDomainMessengerLegacySpacer0.json",
+		"forge-artifacts/legacy/CrossDomainMessengerLegacySpacer1.json",
+		"forge-artifacts/legacy/CrossDomainMessengerLegacySpacer2.json",
+		"forge-artifacts/EAS.sol/EAS.json",
+		"forge-artifacts/EAS.sol/nested/Nested.json",
+		"src/Root.sol",
+		"src/a/b/Nested.sol",
+	} {
+		writeTestFile(t, file, "content")
+	}
+
+	found, err := FindFiles(
+		[]string{"forge-artifacts/**/*.json", "src/**/*.sol"},
+		[]string{"forge-artifacts/**/CrossDomainMessengerLegacySpacer{0,1}.json", "forge-artifacts/EAS.sol/**.json"},
+	)
+	if err != nil {
+		t.Fatalf("FindFiles failed: %v", err)
+	}
+
+	expected := []string{
+		"forge-artifacts/root.json",
+		"forge-artifacts/a/A.json",
+		"forge-artifacts/b.t.sol/B.json",
+		"forge-artifacts/legacy/CrossDomainMessengerLegacySpacer2.json",
+		"forge-artifacts/EAS.sol/nested/Nested.json",
+		"src/Root.sol",
+		"src/a/b/Nested.sol",
+	}
+	if len(found) != len(expected) {
+		t.Fatalf("expected %d files, got %d: %v", len(expected), len(found), found)
+	}
+	for _, file := range expected {
+		if _, ok := found[file]; !ok {
+			t.Errorf("expected to find %s", file)
+		}
+	}
+	for _, file := range []string{
+		"forge-artifacts/a/A.txt",
+		"forge-artifacts/legacy/CrossDomainMessengerLegacySpacer0.json",
+		"forge-artifacts/legacy/CrossDomainMessengerLegacySpacer1.json",
+		"forge-artifacts/EAS.sol/EAS.json",
+	} {
+		if _, ok := found[file]; ok {
+			t.Errorf("expected %s to be excluded", file)
+		}
+	}
+}
+
+func TestFindFilesReturnsPatternErrors(t *testing.T) {
+	if _, err := FindFiles([]string{"["}, nil); err == nil {
+		t.Fatal("expected invalid glob pattern to fail")
+	}
+	if _, err := FindFiles([]string{"{unterminated"}, nil); err == nil {
+		t.Fatal("expected unterminated brace pattern to fail")
+	}
+}
+
 func TestReadForgeArtifact(t *testing.T) {
 	// Create a temporary test artifact
 	tmpDir := t.TempDir()
@@ -262,4 +324,30 @@ func TestReadForgeArtifact(t *testing.T) {
 	if artifact.DeployedBytecode.Object != "0x456" {
 		t.Errorf("expected deployed bytecode '0x456', got %q", artifact.DeployedBytecode.Object)
 	}
+}
+
+func writeTestFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func changeWorkingDir(t *testing.T, dir string) {
+	t.Helper()
+	originalWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(originalWd); err != nil {
+			t.Fatal(err)
+		}
+	})
 }

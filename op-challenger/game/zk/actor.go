@@ -5,17 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/generic"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -23,12 +21,13 @@ var (
 	errNoResolutionRequired = errors.New("no resolution required")
 )
 
-type RootProvider interface {
-	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+type SuperRootProvider interface {
+	SuperRootAtTimestamp(ctx context.Context, timestamp uint64) (eth.SuperRootAtTimestampResponse, error)
 }
 
 type GameStatusProvider interface {
 	GetGameStatus(ctx context.Context, idx uint64) (gameTypes.GameStatus, error)
+	GetGameStatusAtBlock(ctx context.Context, idx uint64, block rpcblock.Block) (gameTypes.GameStatus, error)
 }
 
 type ChallengableContract interface {
@@ -42,23 +41,23 @@ type ChallengableContract interface {
 type Actor struct {
 	logger             log.Logger
 	l1Clock            ClockReader
-	rootProvider       RootProvider
+	l1Head             eth.BlockID
+	superRootProvider  SuperRootProvider
 	gameStatusProvider GameStatusProvider
 	contract           ChallengableContract
 	txSender           TxSender
-	l1Head             eth.BlockID
 }
 
-func ActorCreator(l1Clock ClockReader, rootProvider RootProvider, gameStatusProvider GameStatusProvider, contract ChallengableContract, txSender TxSender) generic.ActorCreator {
-	return func(ctx context.Context, logger log.Logger, l1Head eth.BlockID) (generic.Actor, error) {
+func ActorCreator(l1Clock ClockReader, superRootProvider SuperRootProvider, gameStatusProvider GameStatusProvider, contract ChallengableContract, txSender TxSender) generic.ActorCreator {
+	return func(_ context.Context, logger log.Logger, l1Head eth.BlockID) (generic.Actor, error) {
 		return &Actor{
 			logger:             logger,
 			l1Clock:            l1Clock,
-			rootProvider:       rootProvider,
+			l1Head:             l1Head,
+			superRootProvider:  superRootProvider,
 			gameStatusProvider: gameStatusProvider,
 			contract:           contract,
 			txSender:           txSender,
-			l1Head:             l1Head,
 		}, nil
 	}
 }
@@ -69,15 +68,40 @@ func (a *Actor) Act(ctx context.Context) error {
 		return fmt.Errorf("failed to get zk game state: %w", err)
 	}
 
+	if gameState.ProposalStatus == contracts.ProposalStatusResolved {
+		a.logger.Trace("Skipping resolved zk game")
+		a.logger.Debug("No challenge required")
+		a.logger.Debug("No resolution required")
+		return nil
+	}
+
+	parentStatus := gameTypes.GameStatusDefenderWon
+	if gameState.ParentIndex != math.MaxUint32 {
+		parentStatus, err = a.gameStatusProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
+		if err != nil {
+			return fmt.Errorf("failed to get parent game status: %w", err)
+		}
+	}
+
+	if parentStatus == gameTypes.GameStatusChallengerWon &&
+		gameState.ProposalStatus == contracts.ProposalStatusUnchallenged &&
+		gameState.Deadline.After(a.l1Clock.Now()) {
+		// Wait for parent finality before challenging or resolving an unchallenged child in its window.
+		parentStatus, err = a.gameStatusProvider.GetGameStatusAtBlock(ctx, uint64(gameState.ParentIndex), rpcblock.Finalized)
+		if err != nil {
+			return fmt.Errorf("failed to get finalized parent game status: %w", err)
+		}
+	}
+
 	var txs []txmgr.TxCandidate
-	if tx, err := a.createChallengeTx(ctx, gameState); errors.Is(err, errNoChallengeRequired) {
+	if tx, err := a.createChallengeTx(ctx, gameState, parentStatus); errors.Is(err, errNoChallengeRequired) {
 		a.logger.Debug("No challenge required")
 	} else if err != nil {
 		return err
 	} else {
 		txs = append(txs, tx)
 	}
-	if tx, err := a.createResolveTx(ctx, gameState); errors.Is(err, errNoResolutionRequired) {
+	if tx, err := a.createResolveTx(gameState, parentStatus); errors.Is(err, errNoResolutionRequired) {
 		a.logger.Debug("No resolution required")
 	} else if err != nil {
 		return err
@@ -94,14 +118,24 @@ func (a *Actor) Act(ctx context.Context) error {
 	return nil
 }
 
-func (a *Actor) createChallengeTx(ctx context.Context, gameState contracts.ChallengerMetadata) (txmgr.TxCandidate, error) {
-	if gameState.ProposalStatus != contracts.ProposalStatusUnchallenged || gameState.Deadline.Before(a.l1Clock.Now()) {
+func (a *Actor) createChallengeTx(ctx context.Context, gameState contracts.ChallengerMetadata, parentStatus gameTypes.GameStatus) (txmgr.TxCandidate, error) {
+	if gameState.ProposalStatus != contracts.ProposalStatusUnchallenged || !gameState.Deadline.After(a.l1Clock.Now()) {
 		a.logger.Trace("Skipping unchallengeable zk game")
 		return txmgr.TxCandidate{}, errNoChallengeRequired
 	}
-	if valid, err := a.isValidProposal(ctx); err != nil {
+	if parentStatus == gameTypes.GameStatusChallengerWon {
+		a.logger.Info("Challenging game with invalid parent")
+		return a.contract.ChallengeTx(ctx)
+	}
+	valid, err := a.isValidProposal(ctx)
+	if errors.Is(err, gameTypes.ErrNotInSync) {
+		a.logger.Debug("Waiting for source node to process past the game L1 head")
+		return txmgr.TxCandidate{}, errNoChallengeRequired
+	}
+	if err != nil {
 		return txmgr.TxCandidate{}, fmt.Errorf("failed to check if proposal is valid: %w", err)
-	} else if valid {
+	}
+	if valid {
 		a.logger.Trace("Not challenging valid zk game")
 		return txmgr.TxCandidate{}, errNoChallengeRequired
 	}
@@ -111,56 +145,42 @@ func (a *Actor) createChallengeTx(ctx context.Context, gameState contracts.Chall
 }
 
 func (a *Actor) isValidProposal(ctx context.Context) (bool, error) {
-	proposalHash, proposalSeqNum, err := a.contract.GetProposal(ctx)
+	proposalHash, proposalTimestamp, err := a.contract.GetProposal(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to get zk game proposal: %w", err)
 	}
-	canonicalOutput, err := a.rootProvider.OutputAtBlock(ctx, proposalSeqNum)
+	resp, err := a.superRootProvider.SuperRootAtTimestamp(ctx, proposalTimestamp)
 	if err != nil {
-		var rpcErr rpc.Error
-		if errors.As(err, &rpcErr) {
-			if strings.Contains(strings.ToLower(rpcErr.Error()), "not found") {
-				// There is no valid output at the proposal sequence number (it's in the future)
-				return false, nil
-			}
-		}
-		return false, fmt.Errorf("failed to get canonical output at block %v: %w", proposalSeqNum, err)
+		return false, fmt.Errorf("failed to get canonical super root at timestamp %v: %w", proposalTimestamp, err)
 	}
-	if common.Hash(canonicalOutput.OutputRoot) != proposalHash {
-		// Output root doesn't match so can't be valid
+	if resp.CurrentL1.Number <= a.l1Head.Number {
+		// Source node hasn't fully processed the game's L1 head yet — can't decide on a stale view.
+		return false, gameTypes.NotInSyncError("super root source (superroot_atTimestamp)", resp.CurrentL1.Number, a.l1Head.Number)
+	}
+	if resp.Data == nil {
+		// Data is only populated once the timestamp is safe, so a nil here means the proposal is too
+		// early to be backed by the canonical chain and is therefore invalid.
 		return false, nil
 	}
-	if canonicalOutput.Status.SafeL2.Number < proposalSeqNum {
-		// Note this deliberately uses the simpler check of if the proposed block is currently unsafe
-		// The proposal is not necessarily supported by data on L1 up to the game's L1 head
-		// but we don't need to challenge it as long as supporting data has since become available
-		// and the output matches the canonical chain.
-		a.logger.Debug("Proposed block is not yet safe, treating as invalid", "safe", canonicalOutput.Status.SafeL2.Number, "proposed", proposalSeqNum)
+	if resp.Data.VerifiedRequiredL1.Number > a.l1Head.Number {
+		// The proof binds the game's l1Head, so a root that needs L1 data after it can never be
+		// proven. Super fault games treat it as invalid in the same way (trace/super/provider.go).
 		return false, nil
 	}
-	return true, nil
+	// Valid exactly when the canonical super root matches the proposal claim.
+	return common.Hash(resp.Data.SuperRoot) == proposalHash, nil
 }
 
-func (a *Actor) createResolveTx(ctx context.Context, gameState contracts.ChallengerMetadata) (txmgr.TxCandidate, error) {
-	if gameState.ProposalStatus == contracts.ProposalStatusResolved {
-		a.logger.Trace("Skipping resolution of resolved zk game")
-		return txmgr.TxCandidate{}, errNoResolutionRequired
-	}
+func (a *Actor) createResolveTx(gameState contracts.ChallengerMetadata, parentStatus gameTypes.GameStatus) (txmgr.TxCandidate, error) {
 	deadlineExpired := gameState.Deadline.Before(a.l1Clock.Now())
 
-	if gameState.ParentIndex != math.MaxUint32 {
-		parentStatus, err := a.gameStatusProvider.GetGameStatus(ctx, uint64(gameState.ParentIndex))
-		if err != nil {
-			return txmgr.TxCandidate{}, fmt.Errorf("failed to get parent game status: %w", err)
-		}
-		if parentStatus == gameTypes.GameStatusInProgress {
-			a.logger.Trace("Skipping resolution of zk game with parent in progress")
-			return txmgr.TxCandidate{}, errNoResolutionRequired
-		}
-		if parentStatus == gameTypes.GameStatusChallengerWon {
-			// Resolve if the parent game is invalid
-			return a.contract.ResolveTx()
-		}
+	if parentStatus == gameTypes.GameStatusInProgress {
+		a.logger.Trace("Skipping resolution of zk game with parent in progress")
+		return txmgr.TxCandidate{}, errNoResolutionRequired
+	}
+	if parentStatus == gameTypes.GameStatusChallengerWon {
+		// Resolve if the parent game is invalid
+		return a.contract.ResolveTx()
 	}
 
 	if gameState.ProposalStatus == contracts.ProposalStatusChallengedAndValidProofProvided ||

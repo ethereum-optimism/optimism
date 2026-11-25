@@ -1,0 +1,59 @@
+---
+title: Lagoon
+description: Hardfork registry entry for the Lagoon network upgrade, which activates Superchain interop.
+diataxis: reference
+hardfork_name: lagoon
+hardfork_lifecycle: development
+hardfork_spec: https://specs.optimism.io/protocol/lagoon/overview.html
+hardfork_notice: /notices/upgrade-22
+hardfork_upgrade_number: 22
+---
+
+import LagoonFacts from "/snippets/generated/hardforks/lagoon.mdx"
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="This upgrade"
+  title="Lagoon specification"
+  href="https://specs.optimism.io/protocol/lagoon/overview.html"
+  note="This page records activation data and operational pointers; it does not restate the spec. The Lagoon spec is not yet finalized."
+/>
+
+Lagoon (Upgrade 22) is the upcoming hardfork that activates Superchain
+[interop](/op-stack/interop/explainer).
+It has no superchain-wide activation default in the superchain-registry.
+Instead, each chain that takes Lagoon sets its own activation time in its chain
+config.
+
+| Network | Chains | Interop | Activation |
+| --- | --- | --- | --- |
+| Sepolia | OP Sepolia, Unichain Sepolia | Yes | Thu, 10 Dec 2026 16:00:01 UTC (`1796918401`) |
+| Sepolia | Ink Sepolia, Soneium Minato | No | Thu, 10 Dec 2026 16:00:01 UTC (`1796918401`) |
+| Mainnet | OP Mainnet, Unichain | Yes | Mon, 11 Jan 2027 16:00:01 UTC (`1799683201`) |
+| Mainnet | Ink, Soneium | No | Mon, 11 Jan 2027 16:00:01 UTC (`1799683201`) |
+
+The mainnet activation is subject to governance approval.
+See the [Upgrade 22 notice](/notices/upgrade-22) for the full schedule,
+required actions, and the L1 contract upgrade that comes with Lagoon, and the
+[interop activation prep notice](/notices/interop-prep) for the node topology
+interop chains need.
+
+{/* TODO(#24442): add hardfork_min_versions (op-node, op-reth, op-supernode, op-batcher, kona) and hardfork_min_versions_source once the Lagoon activation releases are cut. */}
+
+<LagoonFacts />
+
+## What's included
+
+Per the [spec overview](https://specs.optimism.io/protocol/lagoon/overview.html)
+(subject to change while the spec is in development):
+
+*   Execution layer: reduced BLS12-381 precompile input sizes,
+    post-execution transactions, and
+    [sequencer defined metering](/op-stack/features/sdm).
+*   Consensus layer: Lagoon derivation changes, plus the interop dependency
+    set, derivation, sequencer and verifier behavior, and super roots.
+*   Smart contracts: interop messaging, predeploys, token bridging, ETH
+    liquidity, ETH bridging, and the interop changes to `OptimismPortal` and
+    `ETHLockbox`.
+
+The Super Fault Dispute Game is not part of this hardfork.

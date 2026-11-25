@@ -1,15 +1,16 @@
 ---
 title: Reading Logs with OP Stack Interop
-description: Learn how to reference logs from one chain on another within the OP Stack interop cluster.
+description: Understand how contracts use CrossL2Inbox to validate logs from other interop chains, and how this pull model differs from sending messages.
+diataxis: explanation
 ---
 
-<Info>OP Stack interop is in active development. Some features may be experimental.</Info>
+<Info>OP Stack interop goes live with the Lagoon hardfork.</Info>
 OP Stack interop enables developers to leverage current and historical logs from other blockchains within the [OP Stack interop cluster](/interop/explainer#superchain-interop-cluster) directly on their local chain.
 This allows smart contracts to consume local and cross-chain logs with low latency in a trust-minimized way.
 
 ## Overview
 
-Instead of relying solely on [`L2ToL2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol), developers can use [`CrossL2Inbox#validateMessage`](https://github.com/ethereum-optimism/optimism/blob/af091753917c1d7101314cbfe8ac5cbc2efe0e5e/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L49) and treat `CrossL2Inbox` as an oracle for logs that occurred on different chains or even their local chain.
+Instead of relying solely on [`L2ToL2CrossDomainMessenger`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol), developers can use [`CrossL2Inbox#validateMessage`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L76) and treat `CrossL2Inbox` as an oracle for logs that occurred on different chains or even their local chain.
 
 This enables developers to:
 
@@ -30,7 +31,7 @@ When reading logs, you must reference logs created within the [expiry window of 
 
 ### Architecture
 
-The process works through the [`CrossL2Inbox`](https://github.com/ethereum-optimism/optimism/blob/af091753917c1d7101314cbfe8ac5cbc2efe0e5e/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L33) contract, which serves as an oracle for logs from other chains in the OP Stack interop cluster:
+The process works through the [`CrossL2Inbox`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/CrossL2Inbox.sol#L31) contract, which serves as an oracle for logs from other chains in the OP Stack interop cluster:
 
 1.  A smart contract on `Chain A` emits a log (event)
 2.  Your contract on `Chain B` calls `CrossL2Inbox#validateMessage` with the log's identifier
@@ -45,7 +46,7 @@ The process works through the [`CrossL2Inbox`](https://github.com/ethereum-optim
 ## Example: cross-chain attestation verification
 
 Let's walk through a conceptual example of verifying an Ethereum Attestation Service (EAS) attestation across chains.
-EAS is a [predeploy](/> app-developers/reference/contracts/interop/predeploy) in the OP Stack for making attestations on or off-chain about anything.
+EAS is a [predeploy](/app-developers/reference/contracts/interop/predeploy) in the OP Stack for making attestations on or off-chain about anything.
 
 ### Source chain: creating an attestation
 
@@ -57,7 +58,7 @@ sequenceDiagram
     participant App as Application
     participant EAS as EAS Contract
     participant Log as Event Log
-    
+
     User->>App: Request attestation
     App->>EAS: createAttestation()
     EAS->>Log: Emit AttestationCreated event
@@ -117,17 +118,17 @@ flowchart TD
     A[1. Identify log to consume] --> B[2. Create Identifier struct]
     B --> C[3. Call validateMessage]
     C --> D[4. Process validated log data]
-    
+
     subgraph "Conceptual Approach"
     E["Define an Identifier struct with:
        - chainId: The source chain ID
        - origin: The source contract address
        - Other required identifier parameters"]
-    
+
     F["Call validateMessage on CrossL2Inbox
        Pass the identifier and hash of log data"]
     end
-    
+
     B --> E
     C --> F
 ```
@@ -171,7 +172,7 @@ flowchart LR
         D -->|relayMessage| E[Destination L2ToL2CrossDomainMessenger]
         E -->|execute| F[Destination Contract]
     end
-    
+
     subgraph "CrossL2Inbox (Pull Model)"
         G[Source Contract] -->|emit event| H[Event Log]
         J[Destination Contract] -->|validateMessage| K[CrossL2Inbox]

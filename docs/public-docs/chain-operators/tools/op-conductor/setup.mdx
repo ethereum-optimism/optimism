@@ -1,0 +1,196 @@
+---
+title: Setup
+description: Add op-conductor to an existing multi-sequencer OP Stack network without downtime.
+diataxis: how-to
+---
+
+For how op-conductor works and the guarantees it provides, see
+[OP Conductor](/chain-operators/tools/op-conductor). The flags and RPC methods
+used below are catalogued in the
+[configuration and RPC reference](/chain-operators/tools/op-conductor/reference).
+
+At OP Labs, op-conductor is deployed as a kubernetes statefulset because it
+requires a persistent volume to store the raft log. This guide describes
+setting up conductor on an existing network without incurring downtime.
+
+You can utilize the [op-conductor-ops](https://github.com/ethereum-optimism/infra/tree/main/op-conductor-ops) tool to confirm the conductor status between the steps.
+
+## Assumptions
+
+This setup guide has the following assumptions:
+
+*   3 deployed sequencers (sequencer-0, sequencer-1, sequencer-2) that are all
+    in sync and in the same vpc network
+*   sequencer-0 is currently the active sequencer
+*   You can execute a blue/green style sequencer deployment workflow that
+    involves no downtime (described below)
+*   conductor and sequencers are running in k8s or some other container
+    orchestrator (vm-based deployment may be slightly different and not covered
+    here)
+
+## Spin up op-conductor
+
+<Steps>
+  <Step title="Deploy conductor">
+  Deploy a conductor instance per sequencer with sequencer-1 as the raft cluster
+    bootstrap node:
+  
+    *   suggested conductor configs:
+  
+        ```yaml
+        OP_CONDUCTOR_CONSENSUS_ADDR: '0.0.0.0'
+        OP_CONDUCTOR_CONSENSUS_ADVERTISED: '<raft url or ip>'
+        OP_CONDUCTOR_CONSENSUS_PORT: '50050'
+        OP_CONDUCTOR_EXECUTION_RPC: '<op-geth url or ip>:8545'
+        OP_CONDUCTOR_HEALTHCHECK_INTERVAL: '1'
+        OP_CONDUCTOR_HEALTHCHECK_MIN_PEER_COUNT: '2'  # set based on your internal p2p network peer count
+        OP_CONDUCTOR_HEALTHCHECK_UNSAFE_INTERVAL: '5' # recommend a 2-3x multiple of your network block time to account for temporary performance issues
+        OP_CONDUCTOR_LOG_FORMAT: logfmt
+        OP_CONDUCTOR_LOG_LEVEL: info
+        OP_CONDUCTOR_METRICS_ADDR: 0.0.0.0
+        OP_CONDUCTOR_METRICS_ENABLED: 'true'
+        OP_CONDUCTOR_METRICS_PORT: '7300'
+        OP_CONDUCTOR_NETWORK: '<network>'
+        OP_CONDUCTOR_NODE_RPC: '<op-node url or ip>:8545'
+        OP_CONDUCTOR_RAFT_SERVER_ID: 'unique raft server id'
+        OP_CONDUCTOR_RAFT_STORAGE_DIR: /conductor/raft
+        OP_CONDUCTOR_RPC_ADDR: 0.0.0.0
+        OP_CONDUCTOR_RPC_ENABLE_ADMIN: 'true'
+        OP_CONDUCTOR_RPC_ENABLE_PROXY: 'true'
+        OP_CONDUCTOR_RPC_PORT: '8547'
+        ```
+  
+    *   sequencer-1 op-conductor extra config:
+  
+        ```yaml
+        OP_CONDUCTOR_PAUSED: "true"
+        OP_CONDUCTOR_RAFT_BOOTSTRAP: "true"
+        ```
+
+  </Step>
+  
+    <Step title="Pause two conductors">
+      Pause `sequencer-0` &` sequencer-2` conductors with [conductor_pause](/chain-operators/tools/op-conductor/reference#conductor_pause) RPC request.
+    </Step>
+  
+    <Step title="Update op-node configuration and switch the active sequencer">
+        Deploy an `op-node` config update to all sequencers that enables conductor. Use
+        a blue/green style deployment workflow that switches the active sequencer to
+        `sequencer-1`:
+      
+        *   all sequencer op-node configs:
+      
+            ```yaml
+            OP_NODE_CONDUCTOR_ENABLED: "true" # this is what commits unsafe blocks to the raft logs
+            OP_NODE_RPC_ADMIN_STATE: "" # this flag can't be used with conductor
+            ```
+    </Step>
+  
+    <Step title="Confirm sequencer switch was successful">
+        Confirm `sequencer-1` is active and successfully producing unsafe blocks.
+        Because `sequencer-1` was the raft cluster bootstrap node, it is now committing
+        unsafe payloads to the raft log.
+    </Step>
+  
+    <Step title="Add voting nodes">
+      Add voting nodes to cluster using [conductor_AddServerAsVoter](/chain-operators/tools/op-conductor/reference#conductor_addserverasvoter)
+    RPC request to the leader conductor (`sequencer-1`)
+
+  
+    </Step>
+  
+    <Step title="Confirm state">
+    Confirm cluster membership and sequencer state:
+  
+    *   `sequencer-0` and `sequencer-2`:
+        1.  raft cluster follower
+        2.  sequencer is stopped
+        3.  conductor is paused
+        4.  conductor enabled in op-node config
+  
+    *   `sequencer-1`
+        1.  raft cluster leader
+        2.  sequencer is active
+        3.  conductor is paused
+        4.  conductor enabled in op-node config
+
+  
+    </Step>
+  
+    <Step title="Resume conductors">
+      Resume all conductors with [conductor\_resume](/chain-operators/tools/op-conductor/reference#conductor_resume) RPC request to
+    each conductor instance.
+
+  
+    </Step>
+  
+    <Step title="Confirm state">
+      Confirm all conductors successfully resumed with [conductor_paused](/chain-operators/tools/op-conductor/reference#conductor_paused)
+    </Step>
+  
+    <Step title="Transfer leadership">
+      Trigger leadership transfer to `sequencer-0` using [conductor_transferLeaderToServer](/chain-operators/tools/op-conductor/reference#conductor_transferleadertoserver)
+    </Step>
+  
+    <Step title="Confirm state">
+    
+    Confirm cluster membership and sequencer state:
+
+    **`sequencer-1` and `sequencer-2`:**
+    1. raft cluster follower
+    2. sequencer is stopped
+    3. conductor is active
+    4. conductor enabled in op-node config
+
+    **`sequencer-0`:**
+    1. raft cluster leader
+    2. sequencer is active
+    3. conductor is active
+    4. conductor enabled in op-node config
+
+    </Step>
+  
+    <Step title="Update configuration">
+     Deploy a config change to `sequencer-1` conductor to remove the
+    `OP_CONDUCTOR_PAUSED: true` flag and `OP_CONDUCTOR_RAFT_BOOTSTRAP` flag.
+
+    </Step>
+</Steps>
+
+### Blue/green deployment
+
+In order to ensure there is no downtime when setting up conductor, you need to
+have a deployment script that can update sequencers without network downtime.
+
+An example of this workflow might look like:
+
+1.  Query current state of the network and determine which sequencer is
+    currently active (referred to as "original" sequencer below).
+    From the other available sequencers, choose a candidate sequencer.
+2.  Deploy the change to the candidate sequencer and then wait for it to sync
+    up to the original sequencer's unsafe head. You may want to check peer counts
+    and other important health metrics.
+3.  Stop the original sequencer using `admin_stopSequencer` which returns the
+    last inserted unsafe block hash. Wait for candidate sequencer to sync with
+    this returned hash in case there is a delta.
+4.  Start the candidate sequencer at the original's last inserted unsafe block
+    hash.
+    1.  Here you can also execute additional check for unsafe head progression
+        and decide to roll back the change (stop the candidate sequencer, start the
+        original, rollback deployment of candidate, etc.)
+5.  Deploy the change to the original sequencer, wait for it to sync to the
+    chain head. Execute health checks.
+
+### Post-conductor launch deployments
+
+After conductor is live, a similar canary style workflow is used to ensure
+minimal downtime in case there is an issue with deployment:
+
+1.  Choose a candidate sequencer from the raft-cluster followers
+2.  Deploy to the candidate sequencer. Run health checks on the candidate.
+3.  Transfer leadership to the candidate sequencer using
+    `conductor_transferLeaderToServer`. Run health checks on the candidate.
+4.  Test if candidate is still the leader using `conductor_leader` after some
+    grace period (ex: 30 seconds)
+    1.  If not, then there is likely an issue with the deployment. Roll back.
+5.  Upgrade the remaining sequencers, run healthchecks.

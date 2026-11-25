@@ -1,6 +1,9 @@
 package eth
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
 
 // OutputWithRequiredL1 is the OutputV0 pre-image, its hash, and its source L1 block
 type OutputWithRequiredL1 struct {
@@ -37,22 +40,24 @@ func (d *SuperRootResponseData) UnmarshalJSON(input []byte) error {
 	d.VerifiedRequiredL1 = dec.VerifiedRequiredL1
 	d.SuperRoot = dec.SuperRoot
 
-	// Unmarshal the Super field - currently only SuperV1 is supported
-	if len(dec.Super) > 0 {
-		var superV1 SuperV1
-		if err := json.Unmarshal(dec.Super, &superV1); err != nil {
-			return err
-		}
-		d.Super = &superV1
-	} else {
-		d.Super = nil
+	if len(dec.Super) == 0 || string(dec.Super) == "null" {
+		return errors.New("super root data is missing super")
 	}
+	// Unmarshal the Super field - currently only SuperV1 is supported
+	var superV1 SuperV1
+	if err := json.Unmarshal(dec.Super, &superV1); err != nil {
+		return err
+	}
+	d.Super = &superV1
 	return nil
 }
 
 // AtTimestampResponse is the response superroot_atTimestamp
 type SuperRootAtTimestampResponse struct {
-	// CurrentL1 is the highest L1 block that has been fully derived and verified by all chains.
+	// CurrentL1 is the L1 block currently being processed by the slowest L1
+	// processor in the supernode. Every L1 block strictly below CurrentL1.Number
+	// has been fully processed; data at CurrentL1 itself may still be incomplete.
+	// Consumers gating on "L1[≤X] is fully processed" must require CurrentL1.Number > X.
 	CurrentL1 BlockID `json:"current_l1"`
 
 	// CurrentSafeTimestamp is the highest L2 timestamp that is safe across the dependency set at the CurrentL1.

@@ -18,11 +18,20 @@ use reth_ethereum_primitives as _;
 
 pub mod api;
 pub use api::{
-    BlockStateDiff, OpProofsInitProvider, OpProofsProviderRO, OpProofsProviderRw, OpProofsStore,
+    BlockStateDiff, OpProofsBackfillProvider, OpProofsBackfillStore, OpProofsInitProvider,
+    OpProofsProviderRO, OpProofsProviderRw, OpProofsSnapshotInitProvider,
+    OpProofsSnapshotProviderRO, OpProofsStore, ProofWindowRange, SnapshotInitAnchor,
+    SnapshotInitStatus,
 };
 
 pub mod initialize;
 pub use initialize::{InitializationJob, RethTrieStorageLayout};
+
+pub mod backfill;
+pub use backfill::{BackfillError, BackfillJob, DEFAULT_BACKFILL_BATCH_SIZE};
+
+pub mod snapshot;
+pub use snapshot::{SnapshotError, SnapshotInitJob, SnapshotInitOutcome};
 
 pub mod in_memory;
 pub use in_memory::{
@@ -30,9 +39,7 @@ pub use in_memory::{
 };
 
 pub mod db;
-pub use db::{
-    MdbxAccountCursor, MdbxProofsStorage, MdbxProofsStorageV2, MdbxStorageCursor, MdbxTrieCursor,
-};
+pub use db::MdbxProofsStorage;
 
 #[cfg(feature = "metrics")]
 pub mod metrics;
@@ -50,14 +57,18 @@ pub mod proof;
 
 pub mod provider;
 
-pub mod live;
+pub mod engine;
+pub use engine::{CanonicalInMemoryStateProvider, EngineHandle};
 
 pub mod cursor;
 #[cfg(not(feature = "metrics"))]
 pub use cursor::{OpProofsHashedAccountCursor, OpProofsHashedStorageCursor, OpProofsTrieCursor};
 
 pub mod cursor_factory;
-pub use cursor_factory::{OpProofsHashedAccountCursorFactory, OpProofsTrieCursorFactory};
+pub use cursor_factory::{
+    OpProofsHashedAccountCursorFactory, OpProofsTrieCursorFactory, SnapshotHashedCursorFactory,
+    SnapshotTrieCursorFactory,
+};
 
 pub mod error;
 pub use error::{OpProofsStorageError, OpProofsStorageResult};
@@ -67,3 +78,6 @@ pub use prune::{
     OpProofStoragePruner, OpProofStoragePrunerResult, OpProofStoragePrunerTask, PrunerError,
     PrunerOutput,
 };
+
+#[cfg(test)]
+pub(crate) mod test_utils;

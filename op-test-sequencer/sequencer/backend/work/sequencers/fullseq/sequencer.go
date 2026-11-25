@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/metrics"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
@@ -260,7 +260,6 @@ func (s *Sequencer) Start(ctx context.Context, head common.Hash) error {
 }
 
 func (s *Sequencer) forceStart() error {
-	// TODO(#14129) start schedule
 	s.reset()
 
 	return seqtypes.ErrNotImplemented
@@ -276,12 +275,6 @@ func (s *Sequencer) Stop(ctx context.Context) (hash common.Hash, err error) {
 
 	s.active = false
 	return common.Hash{}, seqtypes.ErrNotImplemented
-	/*
-		// TODO(#14129) stop schedule
-		var last common.Hash
-		s.reset()
-		return last, nil
-	*/
 }
 
 func (s *Sequencer) Active() bool {

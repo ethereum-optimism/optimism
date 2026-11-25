@@ -87,6 +87,19 @@ func TestWindowSyncPolicy_GapThenFill_Cnt3(t *testing.T) {
 	}, got)
 }
 
+func TestWindowSyncPolicy_Reset(t *testing.T) {
+	p := NewWindowSyncPolicy(2, 5)
+
+	// Prime the cache with a leftover entry.
+	require.Equal(t, eth.ExecutionSyncing, p.ELSyncStatus(2))
+
+	p.Reset()
+
+	// Cache is empty: 3 alone is SYNCING, then [3,4] is VALID — [2,3,4] would not have applied.
+	require.Equal(t, eth.ExecutionSyncing, p.ELSyncStatus(3))
+	require.Equal(t, eth.ExecutionValid, p.ELSyncStatus(4))
+}
+
 func TestWindowSyncPolicy_Reorg_DropGreaterOrEqual_Current(t *testing.T) {
 	p := NewWindowSyncPolicy(2, 5)
 

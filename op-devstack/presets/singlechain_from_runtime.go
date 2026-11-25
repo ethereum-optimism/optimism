@@ -1,13 +1,17 @@
 package presets
 
 import (
+	"context"
+	"encoding/json"
+	"time"
+
+	"golang.org/x/sync/errgroup"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // Initial-sync-check budgets for singleChainMultiNodeFromRuntime. Attempts are
@@ -17,15 +21,31 @@ import (
 //   - CrossSafe (CLSync mode): requires derivation to process the first L1
 //     origin and advance safe; 60s is enough in practice.
 //   - CrossSafe (ELSync mode): the verifier must first complete EL sync over
-//     P2P (which can take tens of seconds on a cold node under CI load)
-//     before the forkchoice update that seeds safe/finalized fires; only
-//     after that does derivation start and begin advancing CrossSafe. The
-//     combined path is consistently slower than the CLSync case, so we give
-//     it a 4x budget. See issue #20334 for the failure mode this guards.
+//     P2P (which can take tens of seconds — sometimes minutes — on a cold
+//     node under CI load) before the forkchoice update that seeds
+//     safe/finalized fires; only after that does derivation start and begin
+//     advancing CrossSafe. Rather than guess a single budget large enough to
+//     absorb the worst CI run (see #20649), use a progress-aware wait that
+//     keeps polling as long as LocalUnsafe keeps advancing (the P2P gossip
+//     path is independent of EL snap-sync) and fails fast if the progress
+//     signal stalls.
 const (
-	initialSyncCheckAttemptsLocalUnsafe     = 30
-	initialSyncCheckAttemptsCrossSafe       = 30
-	initialSyncCheckAttemptsCrossSafeELSync = 120
+	initialSyncCheckAttemptsLocalUnsafe = 30
+	initialSyncCheckAttemptsCrossSafe   = 30
+
+	// initialSyncCrossSafeELSyncMaxWait caps how long we will wait for
+	// CrossSafe to match while initial EL-sync is in flight. The CL on the
+	// verifier cannot advance safe until the EL completes its initial
+	// snap-sync, which under CI load can far exceed a fixed multiple of the
+	// CLSync budget. This is a hard upper bound, not a typical case.
+	initialSyncCrossSafeELSyncMaxWait = 8 * time.Minute
+
+	// initialSyncCrossSafeELSyncStallTimeout fails fast if the verifier's
+	// LocalUnsafe head stops advancing while we're waiting for CrossSafe to
+	// match. LocalUnsafe advances every block via CL gossip independently of
+	// EL snap-sync, so a stall means the test setup is genuinely stuck and
+	// no extra waiting will help.
+	initialSyncCrossSafeELSyncStallTimeout = 30 * time.Second
 )
 
 func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime, runSyncChecks bool) *SingleChainMultiNode {
@@ -69,17 +89,66 @@ func singleChainMultiNodeFromRuntime(t devtest.T, runtime *sysgo.SingleChainRunt
 		// Ensure the follower node is in sync with the sequencer before starting tests.
 		// CrossSafe requires derivation to run, which under ELSync can only begin
 		// after the EL completes P2P sync and the node emits its first forkchoice
-		// update — so size that budget by the follower's sync mode.
-		crossSafeAttempts := initialSyncCheckAttemptsCrossSafe
-		if opNode, ok := nodeB.CL.(*sysgo.OpNode); ok && opNode.SyncMode() == nodeSync.ELSync {
-			crossSafeAttempts = initialSyncCheckAttemptsCrossSafeELSync
+		// update — so the wait strategy depends on the follower's sync mode.
+		var crossSafeCheck dsl.CheckFunc
+		opNode, hasOpNode := nodeB.CL.(*sysgo.OpNode)
+		isELSync := hasOpNode && opNode.SyncMode() == nodeSync.ELSync
+		if isELSync {
+			// EL-sync's CrossSafe wait has unpredictable duration in CI. Wait
+			// up to initialSyncCrossSafeELSyncMaxWait, but only as long as the
+			// follower's LocalUnsafe head keeps advancing — if gossip stalls
+			// for initialSyncCrossSafeELSyncStallTimeout we fail fast rather
+			// than burn the whole budget. See #20649.
+			crossSafeCheck = preset.L2CLB.MatchedWithProgressFn(
+				preset.L2CL,
+				safety.CrossSafe, safety.LocalUnsafe,
+				initialSyncCrossSafeELSyncMaxWait,
+				initialSyncCrossSafeELSyncStallTimeout,
+			)
+		} else {
+			crossSafeCheck = preset.L2CLB.InSyncFn(preset.L2CL, safety.CrossSafe, initialSyncCheckAttemptsCrossSafe)
 		}
-		dsl.CheckAll(t,
-			preset.L2CLB.MatchedFn(preset.L2CL, types.CrossSafe, crossSafeAttempts),
-			preset.L2CLB.MatchedFn(preset.L2CL, types.LocalUnsafe, initialSyncCheckAttemptsLocalUnsafe),
+		runInitialSyncChecks(t, preset.L2ELB, isELSync,
+			crossSafeCheck,
+			preset.L2CLB.InSyncFn(preset.L2CL, safety.LocalUnsafe, initialSyncCheckAttemptsLocalUnsafe),
 		)
 	}
 	return preset
+}
+
+// runInitialSyncChecks runs the initial-sync DSL checks. On failure in ELSync
+// mode it captures a one-shot eth_syncing snapshot from the verifier EL to
+// give an independent confirmation of what the EL thinks its sync state is.
+// The dump is best-effort — its only purpose is diagnostics for #20649, so any
+// RPC error is logged and ignored.
+//
+// The raw JSON is dumped rather than decoded, so the human reading the CI log
+// gets whatever shape the EL produced (op-reth: alloy SyncInfo plus a stages
+// list).
+func runInitialSyncChecks(t devtest.T, verifierEL *dsl.L2ELNode, isELSync bool, checks ...dsl.CheckFunc) {
+	var g errgroup.Group
+	for _, check := range checks {
+		check := check
+		g.Go(func() error {
+			return check()
+		})
+	}
+	err := g.Wait()
+	if err != nil && isELSync {
+		dumpVerifierELSyncing(t, verifierEL)
+	}
+	t.Require().NoError(err)
+}
+
+func dumpVerifierELSyncing(t devtest.T, verifierEL *dsl.L2ELNode) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var raw json.RawMessage
+	if err := verifierEL.EthClient().RPC().CallContext(ctx, &raw, "eth_syncing"); err != nil {
+		t.Logger().Warn("Failed to dump eth_syncing from verifier EL", "err", err)
+		return
+	}
+	t.Logger().Warn("Verifier EL eth_syncing snapshot at sync-check failure", "eth_syncing", string(raw))
 }
 
 func singleChainMultiNodeWithTestSeqFromRuntime(t devtest.T, runtime *sysgo.SingleChainRuntime) *SingleChainMultiNodeWithTestSeq {
@@ -191,23 +260,37 @@ func minimalWithConductorsFromRuntime(t devtest.T, runtime *sysgo.SingleChainRun
 	l2ChainID := runtime.L2Network.ChainID()
 	t.Require().NotNil(runtime.Conductors, "missing conductor support")
 
-	cAName := "sequencer"
-	cBName := "b"
-	cCName := "c"
-	cA := newConductorFrontend(t, cAName, l2ChainID, runtime.Conductors[cAName].HTTPEndpoint())
-	cB := newConductorFrontend(t, cBName, l2ChainID, runtime.Conductors[cBName].HTTPEndpoint())
-	cC := newConductorFrontend(t, cCName, l2ChainID, runtime.Conductors[cCName].HTTPEndpoint())
 	l2Net, ok := minimal.L2Chain.Escape().(*presetL2Network)
 	t.Require().True(ok, "expected preset L2 network")
-	l2Net.AddConductor(cA)
-	l2Net.AddConductor(cB)
-	l2Net.AddConductor(cC)
 
-	conductors := []stack.Conductor{cA, cB, cC}
+	// The primary sequencer node frontends already exist on Minimal; build
+	// frontends for the other two sequencer nodes the conductors manage.
+	sequencerCLs := map[string]*dsl.L2CLNode{"sequencer": minimal.L2CL}
+	for _, name := range []string{"b", "c"} {
+		node := runtime.Nodes[name]
+		t.Require().NotNilf(node, "missing single-chain node %s", name)
+		el := newL2ELFrontend(t, name, l2ChainID, node.EL.UserRPC(), node.EL.EngineRPC(), node.EL.JWTPath(), runtime.L2Network.RollupConfig(), node.EL)
+		cl := newL2CLFrontend(t, name, l2ChainID, node.CL.UserRPC(), node.CL)
+		cl.attachEL(el)
+		l2Net.AddL2ELNode(el)
+		l2Net.AddL2CLNode(cl)
+		sequencerCLs[name] = dsl.NewL2CLNode(cl)
+	}
+	// Keep the p2p mesh intact across node restarts mid-test (e.g. failover tests).
+	sequencerCLs["b"].ManagePeer(sequencerCLs["sequencer"])
+	sequencerCLs["c"].ManagePeer(sequencerCLs["sequencer"])
+	sequencerCLs["c"].ManagePeer(sequencerCLs["b"])
+
+	conductors := make(dsl.ConductorSet, 0, len(sequencerCLs))
+	for _, name := range []string{"sequencer", "b", "c"} {
+		frontend := newConductorFrontend(t, name, l2ChainID, runtime.Conductors[name].HTTPEndpoint(), runtime.Conductors[name].ConsensusEndpoint())
+		l2Net.AddConductor(frontend)
+		conductor := dsl.NewConductor(frontend, sequencerCLs[name])
+		conductors = append(conductors, conductor)
+	}
+
 	return &MinimalWithConductors{
-		Minimal: minimal,
-		ConductorSets: map[eth.ChainID]dsl.ConductorSet{
-			l2ChainID: dsl.NewConductorSet(conductors),
-		},
+		Minimal:    minimal,
+		Conductors: conductors,
 	}
 }

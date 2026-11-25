@@ -1,0 +1,125 @@
+---
+title: Upgrade 15 - Isthmus 하드포크
+description: Isthmus 하드포크의 호환성을 깨는 변경 사항(breaking changes)에 대비하는 방법을 알아봅니다.
+diataxis: reference
+content_type: notice
+date: 2025-05-09
+---
+
+이 페이지에서는 체인 운영자와 노드 운영자를 위해 Isthmus 네트워크 업그레이드와 관련된 호환성을 깨는 변경 사항을 설명합니다. 업그레이드 제안은 [여기](https://gov.optimism.io/t/upgrade-proposal-15-isthmus-hard-fork/9804)에서, 거버넌스 투표는 [여기](https://gov.optimism.io/t/proposal-preview-implement-prague-features-on-the-op-stack/9703)에서 확인할 수 있습니다.
+
+이 과정의 어느 단계에서든 어려움이 있으면 개발자 지원팀에 문의하시기 바랍니다.
+
+<Info>
+  Sepolia Superchain의 Isthmus 하드포크는 **Thu Apr 17 16:00:00 UTC 2025**(`1744905600`)에 활성화되며, Mainnet Superchain은 **Fri May 9 2025 16:00:01 UTC**(`1746806401`)에 활성화됩니다.
+  이는 [하드포크 상속 동작](/ko/op-stack/protocol/superchain-registry#hard-fork-activation-inheritance-behavior)을 선택한 모든 체인에 적용됩니다.
+</Info>
+
+## Isthmus에 포함된 내용
+
+Isthmus에는 다음과 같은 주요 변경 사항이 포함되어 있습니다.
+
+*   **OP Stack에 Prague 기능 구현**: Ethereum의 Pectra 활성화와 함께 추가되는 EIP 중 L2와 관련된 EIP가 포함됩니다. 자세한 내용은 [여기](https://gov.optimism.io/t/proposal-preview-implement-prague-features-on-the-op-stack/9703)에서 확인하십시오.
+*   **블록 헤더의 L2 Withdrawals Root**: 체인 운영자가 full node만으로 `op-dispute-mon`을 운영할 수 있게 하여 부담을 줄입니다. 이를 통해 체인 수가 늘어나더라도 Superchain에 속한 체인의 결함 증명(fault proof) 보안을 보다 쉽게 보장할 수 있습니다. 자세한 내용은 [여기](https://gov.optimism.io/t/proposal-preview-l2-withdrawals-root-in-block-header/9730)에서 확인하십시오.
+*   **Operator Fee**: 더 나은 리소스 가격 책정을 향한 첫걸음으로, OP Stack 수수료 공식에 새로운 구성 요소를 추가합니다. 이를 통해 Alt-DA 또는 ZK 증명을 사용하는 체인에 대한 OP Stack의 지원 역량이 향상됩니다. 자세한 내용은 [여기](https://gov.optimism.io/t/proposal-preview-operator-fee/9715)에서 확인하십시오.
+
+Isthmus 구현 세부 사항에 대한 자세한 내용은 [Isthmus 사양](https://specs.optimism.io/protocol/isthmus/overview.html)을 참고하시기 바랍니다.
+
+## 체인 운영자를 위한 안내
+
+체인 운영자는 활성화 시점 이전에 Isthmus 변경 사항이 포함되고 해당 체인의 활성화 시점이 내장된 릴리스로 노드를 업그레이드하거나, override를 통해 활성화 시점을 수동으로 설정해야 합니다. 자세한 내용은 아래 노드 운영자 섹션에 설명되어 있습니다. 또한 체인 운영자는 `op-batcher`를 [`v1.12.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.12.0)으로, `op-challenger`를 [`v1.4.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-challenger%2Fv1.4.0)으로 반드시 업데이트해야 합니다. 
+
+이와 더불어 이 새로운 기능을 활용하려면 [Upgrade 14](/ko/notices/archive/upgrade-14)의 L1 스마트 컨트랙트 업그레이드가 필요합니다.
+
+### 무허가(permissionless) 결함 증명이 활성화된 체인
+
+무허가 결함 증명을 실행하는 체인은 새로운 absolute prestate로 새 분쟁 게임(dispute game) 컨트랙트를 배포해야 합니다. 앞으로는 cannon의 새로운 64비트 버전이 사용됩니다. Sepolia Superchain은 [op-program/v1.6.0-2](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.0-rc.2)(`op-program/v1.6.0-rc.2` 기준)를 사용합니다. 무허가 결함 증명을 사용하는 Sepolia 체인은 `Base Sepolia`, `Ink Sepolia`, `OP Sepolia`입니다.
+
+<Steps>
+  <Step title="새 absolute prestate 검증">
+  <Info>
+      Upgrade 14부터 64비트 멀티스레드 버전의 cannon이 사용됩니다.
+    </Info>
+  
+    absolute prestate는 [op-program/v1.6.0-rc.2](https://github.com/ethereum-optimism/optimism/tree/op-program/v1.6.0-rc.2)(`op-program/v1.6.0-rc.2` 기준)로 생성됩니다. 다음 체인에는 이 새로운 absolute prestate(`0x03682932cec7ce0a3874b19675a6bbc923054a7b321efc7d3835187b172494b6`)를 사용할 수 있습니다.
+  
+    *   Sepolia: Base, Creator Chain, OP, Metal, Mode, Zora, Ethernity, Unichain, Ink, Minato(Soneium)
+  
+    `op-program/v1.6.0-rc.2` 태그에서 monorepo 루트에 있는 상태로 다음 [명령](https://github.com/ethereum-optimism/optimism/blob/d6fb90dd489e39efa206b55200766ccc075c1d9b/Makefile#L130-L132)(`d6fb90d` 기준)을 실행하여 이 absolute prestate를 검증할 수 있습니다.
+  
+    ```shell
+    make reproducible-prestate
+    ```
+  
+    명령이 끝나면 다음과 같은 출력이 표시되어야 합니다.
+  
+    ```shell
+    Cannon Absolute prestate hash: 
+    0x03513e996556589f633fe1d38d694f63bc93cca5df559af37631b30875a829e9
+    Cannon64 Absolute prestate hash: 
+    0x03682932cec7ce0a3874b19675a6bbc923054a7b321efc7d3835187b172494b6
+    CannonInterop Absolute prestate hash: 
+    0x0399cfb018011977a027d1e7a85eb7ff101aec9bfc7d6500abac944c47a4581f
+    ```
+  </Step>
+
+  <Step title="새 preimage 파일 업로드">
+  이전 단계에서 absolute prestate의 preimage도 함께 생성되었습니다. 이는 기본적으로 op-program을 바이너리 파일로 직렬화한 것입니다. 새 파일은 `optimism/op-program/bin/prestate-mt64.bin.gz`에 있습니다. 파일 이름을 absolute prestate 해시로 변경하여 `0x03682932cec7ce0a3874b19675a6bbc923054a7b321efc7d3835187b172494b6.bin.gz`와 같은 형태가 되도록 합니다.
+  
+    다른 absolute preimage 파일을 보관하는 위치에 이 파일을 업로드합니다. 이 위치는 `--cannon-prestates-url`이 가리키는 위치여야 합니다. `op-challenger`는 게임에 이의를 제기해야 할 때 이 파일을 가져와 사용합니다.
+  </Step>
+
+  <Step title="새 분쟁 게임 컨트랙트 배포">
+  그런 다음 absolute prestate 값을 사용하여 새로운 `FaultDisputeGame` 및 `PermissionedDisputeGame` 컨트랙트를 배포합니다.
+  </Step>
+
+  <Step title="DisputeGameFactory 업데이트">
+  그런 다음 `DisputeGameFactory.setImplementation`을 호출하여 `DisputeGameFactory`가 새로운 `FaultDisputeGame` 및 `PermissionedDisputeGame` 컨트랙트를 가리키도록 업데이트해야 합니다.
+  </Step>
+
+  <Step title="업그레이드 실행">
+  `op-challenger`가 새 preimage로 준비되면 "Set Dispute Game Implementation" 트랜잭션을 실행할 수 있습니다. 트랜잭션을 실행하기 전에 예상 출력을 시뮬레이션하고 검증하시기 바랍니다.
+  </Step>
+</Steps>
+
+Mainnet 활성화 타임스탬프가 포함된 새 op-program 릴리스는 곧 제공될 예정입니다.
+
+## 노드 운영자를 위한 안내
+
+노드 운영자는 활성화 날짜 이전에 각 Isthmus 릴리스로 업그레이드해야 합니다.
+
+다음 단계는 모든 노드 운영자에게 필요합니다.
+
+<Steps>
+  <Step title="최신 릴리스로 업데이트">
+  이 릴리스에는 Isthmus Mainnet과 Sepolia Superchain 활성화 타임스탬프가 모두 포함되어 있습니다.
+  
+    *   [`op-node` `v1.13.2`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.13.2)
+    *   [`op-geth` `v1.101503.4`](https://github.com/ethereum-optimism/op-geth/releases/tag/v1.101503.4)
+  </Step>
+
+  <Step title="Isthmus 활성화 날짜 구성">
+  <Info>
+      [하드포크 활성화 상속 동작](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md)을 선택한 OP Chain의 노드를 운영하면서 네트워크 플래그를 사용하고 있다면, Isthmus 활성화 날짜가 `op-node` 및 `op-geth` 노드에 포함되어 있습니다. 따라서 최신 릴리스로 업그레이드한 후 sequencer에 대해 추가 조치가 필요하지 않습니다. [3단계: 구성 확인](#verify-your-configuration)으로 건너뛰십시오.
+  
+      다음 체인이 포함되어 있으나 변경될 수 있습니다: `Base Sepolia`, `Creator Chain Testnet`, `Ethernity Sepolia`, `Ink Sepolia`, `Lisk Sepolia`, `Metal Sepolia`, `Mode Sepolia`, `Minato (Soneium) Sepolia`, `OP Sepolia`, `Unichain Sepolia`, `Zora Sepolia`.
+    </Info>
+  
+    [하드포크 활성화 상속 동작](https://github.com/ethereum-optimism/superchain-registry/blob/main/docs/hardfork-activation-inheritance.md)을 사용하지 않는 노드 운영자는 활성화를 수동으로 구성해야 합니다. 다음 두 가지 방법 중 하나로 구성할 수 있습니다.
+  
+    <Info>
+      커스텀 genesis 체인 구성을 사용하는 경우 `pragueTime`을 `isthmusTime`과 같은 값으로 설정해야 합니다. 이 값은 자동으로 설정되지 않습니다. 네트워크 플래그를 사용하는 체인과 override 플래그를 사용하는 경우에는 기본적으로 설정됩니다.
+    </Info>
+  
+    *   **옵션 1:** `op-node`의 `rollup.json`에서 활성화 시점을 설정합니다. 이 옵션을 사용하더라도 `op-geth`에서 `override.isthmus` 플래그는 여전히 설정해야 합니다. 체인 구성 파일은 더 엄격한 형식을 따르며, `op-node/v1.11.0` [릴리스 노트](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.11.0)에 설명된 `chain_op_config`를 포함해야 한다는 점에 유의하십시오.
+    *   **옵션 2:** `op-node`와 `op-geth` 모두에서 override(CLI)를 통해 활성화 시점을 설정합니다. 이는 sequencer와 다른 모든 노드의 `op-node` 및 `op-geth`에 설정해야 합니다.
+  </Step>
+
+  <Step title="구성 확인">
+  노드가 올바르게 구성되었는지 확인하려면 다음 사항을 점검하십시오.
+  
+    *   `op-node`와 `op-geth`는 시작 시 구성을 로그로 출력합니다.
+    *   op-node 시작 로그에서 Isthmus 시점이 `activation-timestamp`로 설정되어 있는지 확인합니다.
+    *   op-geth 시작 로그에서 Isthmus 시점이 `activation-timestamp`로 설정되어 있는지 확인합니다.
+  </Step>
+</Steps>

@@ -8,9 +8,10 @@ import (
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +33,7 @@ func TestL2SequencerRPCDepositTx(t *testing.T) {
 	require.Nil(t, err)
 
 	// Create a deposit tx to send over RPC.
-	tx := types.NewTx(&types.DepositTx{
+	rawTx, err := (&optypes.DepositTx{
 		SourceHash:          common.Hash{},
 		From:                crypto.PubkeyToAddress(txSigningKey.PublicKey),
 		To:                  &common.Address{0xff, 0xff},
@@ -41,15 +42,16 @@ func TestL2SequencerRPCDepositTx(t *testing.T) {
 		Gas:                 0,
 		IsSystemTransaction: false,
 		Data:                nil,
-	})
+	}).MarshalBinary()
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	err = l2Seq.SendTransaction(ctx, tx)
+	err = l2Seq.Client().CallContext(ctx, nil, "eth_sendRawTransaction", hexutil.Bytes(rawTx))
 	cancel()
 	require.Error(t, err, "a DepositTx was accepted by L2 sequencer over RPC when it should not have been.")
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	err = l2Verif.SendTransaction(ctx, tx)
+	err = l2Verif.Client().CallContext(ctx, nil, "eth_sendRawTransaction", hexutil.Bytes(rawTx))
 	cancel()
 	require.Error(t, err, "a DepositTx was accepted by L2 verifier over RPC when it should not have been.")
 }

@@ -10,7 +10,7 @@ use op_alloy_consensus::{
 };
 use reth_chain_state::CanonStateSubscriptions;
 use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{Recovered, SignedTransaction, SignerRecoverable, WithEncoded};
+use reth_primitives_traits::{SignedTransaction, SignerRecoverable, WithEncoded};
 use reth_rpc_eth_api::{
     EthApiTypes as _, FromEthApiError, FromEvmError, RpcConvert, RpcNodeCore, RpcReceipt,
     TxInfoMapper,
@@ -19,7 +19,7 @@ use reth_rpc_eth_api::{
 use reth_rpc_eth_types::{EthApiError, TransactionSource, block::convert_transaction_receipt};
 use reth_storage_api::{ProviderTx, ReceiptProvider, TransactionsProvider, errors::ProviderError};
 use reth_transaction_pool::{
-    AddedTransactionOutcome, PoolPooledTx, PoolTransaction, TransactionOrigin, TransactionPool,
+    AddedTransactionOutcome, PoolTransaction, PoolTx, TransactionOrigin, TransactionPool,
 };
 use std::{
     fmt::{Debug, Formatter},
@@ -42,17 +42,15 @@ where
         self.inner.eth_api.send_raw_transaction_sync_timeout()
     }
 
-    async fn send_transaction(
+    async fn send_pool_transaction(
         &self,
         origin: TransactionOrigin,
-        tx: WithEncoded<Recovered<PoolPooledTx<Self::Pool>>>,
+        tx: WithEncoded<PoolTx<Self::Pool>>,
     ) -> Result<B256, Self::Error> {
-        let (tx, recovered) = tx.split();
+        let (tx, pool_transaction) = tx.split();
 
         // broadcast raw transaction to subscribers if there is any.
         self.eth_api().broadcast_raw_transaction(tx.clone());
-
-        let pool_transaction = <Self::Pool as TransactionPool>::Transaction::from_pooled(recovered);
 
         // On optimism, transactions are forwarded directly to the sequencer to be included in
         // blocks that it builds.
@@ -62,10 +60,11 @@ where
                     tracing::debug!(target: "rpc::eth", %err, hash=% *pool_transaction.hash(), "failed to forward raw transaction");
                 })?;
 
-            // Retain tx in local tx pool after forwarding, for local RPC usage.
-            let _ = self.inner.eth_api.add_pool_transaction(origin, pool_transaction).await.inspect_err(|err| {
-                tracing::warn!(target: "rpc::eth", %err, %hash, "successfully sent tx to sequencer, but failed to persist in local tx pool");
-            });
+            if self.inner.retain_forwarded_txs() {
+                let _ = self.inner.eth_api.add_pool_transaction(origin, pool_transaction).await.inspect_err(|err| {
+                    tracing::warn!(target: "rpc::eth", %err, %hash, "successfully sent tx to sequencer, but failed to persist in local tx pool");
+                });
+            }
 
             return Ok(hash);
         }
@@ -80,6 +79,13 @@ where
         Ok(hash)
     }
 
+    /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-2
+    /// `reth_rpc_eth_api::helpers::EthTransactions::send_raw_transaction_sync`
+    ///
+    /// Derived from the upstream default: the timeout computation is taken verbatim and the
+    /// wait loop is extended to also resolve the receipt from a flashblock. Re-derive on any
+    /// change to the default body.
+    ///
     /// Decodes and recovers the transaction and submits it to the pool.
     ///
     /// And awaits the receipt, checking both canonical blocks and flashblocks for faster
@@ -87,9 +93,15 @@ where
     fn send_raw_transaction_sync(
         &self,
         tx: Bytes,
+        timeout_ms: Option<u64>,
     ) -> impl Future<Output = Result<RpcReceipt<Self::NetworkTypes>, Self::Error>> + Send {
         let this = self.clone();
-        let timeout_duration = self.send_raw_transaction_sync_timeout();
+        let configured_timeout = self.send_raw_transaction_sync_timeout();
+        let timeout_duration = timeout_ms
+            .filter(|timeout_ms| *timeout_ms > 0)
+            .map(Duration::from_millis)
+            .map(|timeout| timeout.min(configured_timeout))
+            .unwrap_or(configured_timeout);
         async move {
             let mut canonical_stream = this.provider().canonical_state_stream();
             let hash = EthTransactions::send_raw_transaction(&this, tx).await?;
@@ -159,6 +171,10 @@ where
     ///
     /// With flashblocks, we should also lookup the pending block for the transaction
     /// because this is considered confirmed/mined.
+    /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-2
+    /// `reth_rpc_eth_api::helpers::EthTransactions::transaction_receipt`
+    ///
+    /// Extends the upstream default with a flashblock receipt lookup.
     fn transaction_receipt(
         &self,
         hash: B256,
@@ -178,8 +194,10 @@ where
                     return Ok(Some(receipt));
                 }
             }
-            let Some((tx, meta, receipt, all_receipts)) = tx_receipt else { return Ok(None) };
-            self.build_transaction_receipt(tx, meta, receipt, all_receipts).await.map(Some)
+            let Some((tx, meta, receipt, all_receipts, block)) = tx_receipt else {
+                return Ok(None);
+            };
+            self.build_transaction_receipt(tx, meta, receipt, all_receipts, block).await.map(Some)
         }
     }
 }
@@ -190,6 +208,11 @@ where
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
+    /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-2
+    /// `reth_rpc_eth_api::helpers::LoadTransaction::transaction_by_hash`
+    ///
+    /// Inserts a flashblock lookup between upstream's disk and pool lookups, and does not
+    /// reproduce upstream's leading RPC-cache lookup.
     async fn transaction_by_hash(
         &self,
         hash: B256,

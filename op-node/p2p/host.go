@@ -18,25 +18,26 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
-	"github.com/libp2p/go-libp2p/core/sec/insecure"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
+	"github.com/libp2p/go-libp2p/p2p/security/insecure"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
 	madns "github.com/multiformats/go-multiaddr-dns"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const (
-	staticPeerTag = "static"
+	staticPeerTag     = "static"
+	staticPeerAddrTTL = time.Hour * 24 * 7
 )
 
 type HostNewStream interface {
@@ -48,7 +49,6 @@ type ExtraHostFeatures interface {
 	ConnectionGater() gating.BlockingConnectionGater
 	ConnectionManager() connmgr.ConnManager
 	IsStatic(peerID peer.ID) bool
-	SyncOnlyReqToStatic() bool
 }
 
 type extraHost struct {
@@ -63,8 +63,6 @@ type extraHost struct {
 	pinging *PingService
 
 	quitC chan struct{}
-
-	syncOnlyReqToStatic bool
 }
 
 func (e *extraHost) ConnectionGater() gating.BlockingConnectionGater {
@@ -80,10 +78,6 @@ func (e *extraHost) IsStatic(peerID peer.ID) bool {
 	return exists
 }
 
-func (e *extraHost) SyncOnlyReqToStatic() bool {
-	return e.syncOnlyReqToStatic
-}
-
 func (e *extraHost) Close() error {
 	close(e.quitC)
 	if e.pinging != nil {
@@ -94,7 +88,6 @@ func (e *extraHost) Close() error {
 
 func (e *extraHost) initStaticPeers() {
 	for _, addr := range e.staticPeers {
-		e.Peerstore().AddAddrs(addr.ID, addr.Addrs, time.Hour*24*7)
 		// We protect the peer, so the connection manager doesn't decide to prune it.
 		// We tag it with "static" so other protects/unprotects with different tags don't affect this protection.
 		e.connMgr.Protect(addr.ID, staticPeerTag)
@@ -111,6 +104,10 @@ func (e *extraHost) initStaticPeers() {
 
 func (e *extraHost) dialStaticPeer(ctx context.Context, addr *peer.AddrInfo) error {
 	e.log.Info("dialing static peer", "peer", addr.ID, "addrs", addr.Addrs)
+	// Add the configured addresses on every attempt, not only the first. Once their TTL ran out,
+	// only addresses learned from the peer (e.g. an old pod IP) would be left to dial, and a /dns4
+	// address would never be resolved again.
+	e.Peerstore().AddAddrs(addr.ID, addr.Addrs, staticPeerAddrTTL)
 	if _, err := e.Network().DialPeer(ctx, addr.ID); err != nil {
 		return err
 	}
@@ -229,7 +226,7 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 		//libp2p.ResourceManager(nil), // TODO use resource manager interface to manage resources per peer better.
 		libp2p.Peerstore(ps),
 		libp2p.BandwidthReporter(reporter), // may be nil if disabled
-		libp2p.MultiaddrResolver(madns.DefaultResolver),
+		libp2p.MultiaddrResolver(swarm.ResolverFromMaDNS{Resolver: madns.DefaultResolver}),
 		// Ping is a small built-in libp2p protocol that helps us check/debug latency between peers.
 		libp2p.Ping(true),
 	}
@@ -267,13 +264,12 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 	}
 
 	out := &extraHost{
-		Host:                h,
-		connMgr:             connMngr,
-		log:                 log,
-		staticPeers:         staticPeers,
-		staticPeerIDs:       staticPeerIDs,
-		quitC:               make(chan struct{}),
-		syncOnlyReqToStatic: conf.SyncOnlyReqToStatic,
+		Host:          h,
+		connMgr:       connMngr,
+		log:           log,
+		staticPeers:   staticPeers,
+		staticPeerIDs: staticPeerIDs,
+		quitC:         make(chan struct{}),
 	}
 
 	if conf.EnablePingService {

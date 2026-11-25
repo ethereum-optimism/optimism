@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, Proposal } from "src/dispute/lib/Types.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 
 library Types {
     /// @notice Represents a set of L1 contracts. Used to represent a set of proxies.
@@ -31,7 +32,6 @@ library Types {
         address unsafeBlockSigner;
         address proposer;
         address challenger;
-        // TODO Add fault proofs inputs in a future PR.
         uint32 basefeeScalar;
         uint32 blobBaseFeeScalar;
         uint256 l2ChainId;
@@ -41,6 +41,8 @@ library Types {
         // Configurable dispute game inputs
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
+        Proposal startingAnchorRoot;
+        Claim cannonAbsolutePrestate;
         uint256 disputeMaxGameDepth;
         uint256 disputeSplitDepth;
         Duration disputeClockExtension;
@@ -53,5 +55,11 @@ library Types {
         ISuperchainConfig superchainConfig;
         // Whether to use the custom gas token.
         bool useCustomGasToken;
+        // Per-chain withdrawal timing.
+        uint256 proofMaturityDelaySeconds;
+        uint256 disputeGameFinalityDelaySeconds;
+        uint256 withdrawalDelaySeconds;
+        // Bridge hook to configure on the portal, or the zero address for no hook.
+        IBridgeHook bridgeHook;
     }
 }

@@ -3,9 +3,9 @@ package batcher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -25,15 +25,18 @@ func (l *TestBatchSubmitter) JamTxPool(ctx context.Context) error {
 	if l.running {
 		return errors.New("tried to jam tx pool but batcher is already running")
 	}
+	l1Tip, err := l.l1Tip(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve l1 tip: %w", err)
+	}
 	var candidate *txmgr.TxCandidate
-	var err error
-	cc := l.channelMgr.cfgProvider.ChannelConfig(false)
+	cc := l.channelMgr.cfgProvider.ChannelConfig(false, isAmsterdamHeader(l1Tip))
 	if cc.UseBlobs {
 		candidate = l.calldataTxCandidate([]byte{})
 	} else if candidate, err = l.blobTxCandidate(emptyTxData); err != nil {
 		return err
 	}
-	if candidate.GasLimit, err = core.FloorDataGas(candidate.TxData); err != nil {
+	if candidate.GasLimit, err = MaxFloorDataGas(l.Txmgr.From(), candidate.To, candidate.TxData); err != nil {
 		return err
 	}
 

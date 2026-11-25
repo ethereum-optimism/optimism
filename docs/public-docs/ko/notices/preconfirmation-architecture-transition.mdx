@@ -1,0 +1,57 @@
+---
+title: Preconfirmation 아키텍처 전환
+description: OP Labs는 Flashblocks preconfirmation 아키텍처에 대한 지원을 종료하고, OP Labs가 자체 구축 및 유지 관리하는 솔루션인 Subblocks로 전환합니다.
+diataxis: reference
+lang: en-US
+content_type: notice
+topic: preconfirmation-architecture-transition
+personas:
+  - chain-operator
+  - node-operator
+  - app-developer
+  - partner
+categories:
+  - infrastructure
+  - protocol
+is_imported_content: 'false'
+---
+
+## 요약
+
+OP Labs는 Flashblocks preconfirmation 아키텍처에 대한 지원을 종료하고, OP Labs가 자체 구축 및 유지 관리하는 솔루션인 [Subblocks](/ko/notices/subblocks)로 전환합니다. Flashblocks는 Flashbots가 구축하고 유지 관리합니다. 이 공지는 OP Labs가 운영, 테스트 및 지원하는 범위를 다룹니다.
+
+OP Enterprise 체인의 preconfirmation은 OP Labs가 구축하고 유지 관리하는 Subblocks를 통해 제공됩니다. Subblocks는 2026년 8월 31일부터 OP Mainnet에서 운영되고 있으며 Flashblocks와 동일한 소비자용 인터페이스를 제공하므로, preconfirmation을 사용하는 애플리케이션과 인프라는 변경할 필요가 없습니다.
+
+## 변경 사항
+
+*   새로운 OP Enterprise 배포는 Subblocks를 사용하여 1초 미만의 블록 시간을 달성합니다. 새 배포에는 Flashblocks가 제공되지 않습니다.
+*   Flashblocks를 실행 중인 기존 OP Enterprise 체인은 Subblocks로 마이그레이션됩니다.
+*   마지막 OP Enterprise 체인이 마이그레이션된 후, OP Labs는 자체 인프라에서 op-rbuilder의 운영 및 테스트를 중단합니다.
+*   그 이후 전환 기간 동안 OP Labs는 중요한 Flashblocks 이슈를 최선의 노력(best-effort) 기준으로 Flashbots에 전달합니다. 수정 및 릴리스는 계속 Flashbots가 담당합니다.
+*   전환 기간이 종료된 후에는 OP Labs가 Flashblocks 지원을 제공하지 않습니다.
+
+## 변경되지 않는 사항
+
+*   Flashbots는 계속해서 Flashblocks를 소유, 유지 관리 및 릴리스합니다. OP Enterprise 외부에서 Flashblocks를 실행하는 체인은 이 공지의 영향을 받지 않으며, 계속 Flashbots와 직접 협력해야 합니다.
+*   Subblocks에서도 소비자용 preconfirmation 인터페이스는 변경되지 않습니다. 단, 8월 subblocks 마이그레이션 이후 일부 페이로드 값이 0으로 설정되었습니다. [의미](/ko/notices/subblocks#what-this-means)를 참조하세요.
+
+## 일정
+
+| 마일스톤 | 목표 |
+| --- | --- |
+| OP Sepolia에서 Subblocks 운영 시작 | 완료: 2026년 8월 17일 |
+| OP Mainnet에서 Subblocks 운영 시작 | 완료: 2026년 8월 31일 |
+| 마지막 OP Enterprise 체인의 Subblocks 마이그레이션 | 2026년 9월 말 — 미정 |
+| OP Labs의 op-rbuilder 운영 및 테스트 중단, 내부 fork 제거 | 최종 마이그레이션 이후 |
+| Flashbots에 대한 best-effort 이슈 전달 종료 | 2026년 10월 31일 — 미정 |
+
+## 영향
+
+*   **현재 Flashblocks를 실행 중인 OP Enterprise, Fully Managed.** OP Labs가 서비스의 일부로 Subblocks 마이그레이션 일정을 잡고 실행합니다. 범위와 일정을 확인하기 위해 연락드리겠습니다.
+*   **OP Enterprise, Self Managed.** 자체 관리 배포에서의 Subblocks 제공 여부는 Partnership Lead에게 문의하세요. Flashblocks를 계속 실행하기로 선택하는 경우 직접 운영하고 지원해야 하며, 지원 경로는 Flashbots입니다.
+*   **새로운 OP Enterprise 배포.** 기본적으로 Subblocks를 사용합니다. 조치가 필요하지 않습니다.
+*   **Flashblocks를 독자적으로 실행하는 비 OP Enterprise 고객.** 이 공지는 정보 제공용입니다. OP Labs는 해당 체인에 대한 Flashblocks 지원 약정을 제공하지 않습니다. 계속해서 기존 제공업체와 협력하세요.
+
+## 문의
+
+OP Labs 담당자에게 연락하거나 지원 채널을 통해 티켓을 생성하세요.

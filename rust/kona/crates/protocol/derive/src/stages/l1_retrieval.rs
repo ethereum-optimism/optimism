@@ -142,10 +142,6 @@ where
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         self.prev.flush_channel().await
     }
-
-    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
-        self.prev.provide_block(block).await
-    }
 }
 
 #[cfg(test)]

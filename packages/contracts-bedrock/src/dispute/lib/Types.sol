@@ -48,8 +48,7 @@ struct Proposal {
 
 /// @title GameTypes
 /// @notice A library that defines the IDs of games that can be played.
-///         When adding a new game type, the hardcoded game type lists in OPContractsManagerMigrator
-///         and OPContractsManagerUtils must also be updated.
+///         When adding a new game type, it must be added to the list returned by clearedGameTypes().
 library GameTypes {
     /// @dev A dispute game type the uses the cannon vm.
     GameType internal constant CANNON = GameType.wrap(0);
@@ -66,8 +65,8 @@ library GameTypes {
     /// @notice A dispute game type that uses the cannon vm (Super Roots).
     GameType internal constant SUPER_CANNON = GameType.wrap(4);
 
-    /// @notice A dispute game type that uses the permissioned cannon vm (Super Roots).
-    GameType internal constant SUPER_PERMISSIONED_CANNON = GameType.wrap(5);
+    /// @notice A permissioned dispute game type for Super Roots.
+    GameType internal constant SUPER_PERMISSIONED = GameType.wrap(5);
 
     /// @notice A dispute game type that uses OP Succinct
     GameType internal constant OP_SUCCINCT = GameType.wrap(6);
@@ -81,6 +80,9 @@ library GameTypes {
     /// @notice A dispute game type that uses the cannon vm with Kona (Super Roots).
     GameType internal constant SUPER_CANNON_KONA = GameType.wrap(9);
 
+    /// @notice A dispute game type that uses optimistic + ZK proofs for dispute resolution (Super Roots).
+    GameType internal constant ZK_DISPUTE_GAME = GameType.wrap(10);
+
     /// @notice A dispute game type with short game duration for testing withdrawals.
     ///         Not intended for production use.
     GameType internal constant FAST = GameType.wrap(254);
@@ -92,14 +94,26 @@ library GameTypes {
     /// @notice A dispute game type that uses RISC Zero's Kailua
     GameType internal constant KAILUA = GameType.wrap(1337);
 
-    /// @notice A dispute game type that uses optimistic + ZK proofs for dispute resolution.
-    GameType internal constant ZK_DISPUTE_GAME = GameType.wrap(10);
+    /// @notice The game types migration clears from a chain's pre-migration DisputeGameFactory.
+    ///         It might include other games than the valid game types an OPCM accepts as
+    ///         it also covers retired types, which are never valid config but may still be
+    ///         registered on an old factory.
+    function clearedGameTypes() internal pure returns (GameType[] memory types_) {
+        types_ = new GameType[](7);
+        types_[0] = CANNON;
+        types_[1] = PERMISSIONED_CANNON;
+        types_[2] = CANNON_KONA;
+        types_[3] = SUPER_CANNON;
+        types_[4] = SUPER_PERMISSIONED;
+        types_[5] = SUPER_CANNON_KONA;
+        types_[6] = ZK_DISPUTE_GAME;
+    }
 
     /// @notice Returns true if the game type uses super roots.
     function isSuperGame(GameType _gameType) internal pure returns (bool) {
         uint32 raw = _gameType.raw();
-        return raw == SUPER_CANNON.raw() || raw == SUPER_PERMISSIONED_CANNON.raw() || raw == SUPER_ASTERISC_KONA.raw()
-            || raw == SUPER_CANNON_KONA.raw();
+        return raw == SUPER_CANNON.raw() || raw == SUPER_PERMISSIONED.raw() || raw == SUPER_ASTERISC_KONA.raw()
+            || raw == SUPER_CANNON_KONA.raw() || raw == ZK_DISPUTE_GAME.raw();
     }
 }
 

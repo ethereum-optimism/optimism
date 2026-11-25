@@ -4,31 +4,33 @@ use crate::{
     metrics::{DebugApiExtMetrics, DebugApis},
     state::OpStateProviderFactory,
 };
-use alloy_consensus::BlockHeader;
-use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_primitives::{B256, Sealed};
-use alloy_rlp::Encodable;
+use alloy_consensus::{BlockHeader, Header};
+use alloy_eips::BlockId;
+use alloy_primitives::B256;
 use alloy_rpc_types_debug::ExecutionWitness;
 use async_trait::async_trait;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::RpcResult;
 use jsonrpsee_types::error::ErrorObject;
-use op_alloy_consensus::TxPostExec;
 use reth_basic_payload_builder::PayloadConfig;
 use reth_evm::{ConfigureEvm, execute::Executor};
-use reth_node_api::{BuildNextEnv, NodePrimitives, PayloadBuilderError};
-use reth_optimism_forks::OpHardforks;
+use reth_node_api::PayloadBuilderError;
+use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_payload_builder::{
-    OpAttributes, OpPayloadPrimitives,
+    OpPayloadAttributes, OpPayloadBuilderAttributes,
     builder::{OpBuilder, OpPayloadBuilderCtx},
 };
-use reth_optimism_trie::{OpProofsStorage, OpProofsStore, api::OpProofsProviderRO};
-use reth_optimism_txpool::OpPooledTransaction as OpPooledTx2;
+use reth_optimism_primitives::OpPrimitives;
+use reth_optimism_trie::{
+    OpProofsStorage, OpProofsStorageError, OpProofsStore, api::OpProofsProviderRO,
+};
+use reth_optimism_txpool::OpPooledTransaction;
 use reth_payload_util::NoopPayloadTransactions;
-use reth_primitives_traits::{SealedHeader, TxTy};
+use reth_primitives_traits::SealedHeader;
 use reth_provider::{
-    BlockReaderIdExt, ChainSpecProvider, HeaderProvider, NodePrimitivesProvider, ProviderError,
-    ProviderResult, StateProviderFactory,
+    BlockReaderIdExt, ChainSpecProvider, ProviderError, ProviderResult, StateProvider,
+    StateProviderFactory,
 };
 use reth_revm::{State, database::StateProviderDatabase, witness::ExecutionWitnessRecord};
 use reth_rpc_api::eth::helpers::FullEthApi;
@@ -36,7 +38,7 @@ use reth_rpc_eth_types::EthApiError;
 use reth_rpc_server_types::{ToRpcResult, result::internal_rpc_err};
 use reth_tasks::Runtime;
 use serde::{Deserialize, Serialize};
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{Semaphore, oneshot};
 
 /// Represents the current proofs sync status.
@@ -60,8 +62,11 @@ pub trait DebugApiOverride<Attributes> {
     ) -> RpcResult<ExecutionWitness>;
 
     /// Returns the execution witness for a given block.
+    ///
+    /// Takes the same [`BlockId`] as upstream's `debug_executionWitness`, so installing the
+    /// proofs ExEx does not narrow the accepted parameter to a number or tag.
     #[method(name = "executionWitness")]
-    async fn execution_witness(&self, block: BlockNumberOrTag) -> RpcResult<ExecutionWitness>;
+    async fn execution_witness(&self, block: BlockId) -> RpcResult<ExecutionWitness>;
 
     /// Returns the current proofs sync status.
     #[method(name = "proofsSyncStatus")]
@@ -70,17 +75,15 @@ pub trait DebugApiOverride<Attributes> {
 
 #[derive(Debug)]
 /// Overrides applied to the `debug_` namespace of the RPC API for the OP Proofs ExEx.
-pub struct DebugApiExt<Eth: FullEthApi, Storage, Provider, EvmConfig, Attrs> {
-    inner: Arc<DebugApiExtInner<Eth, Storage, Provider, EvmConfig, Attrs>>,
+pub struct DebugApiExt<Eth: FullEthApi, Storage, Provider, EvmConfig> {
+    inner: Arc<DebugApiExtInner<Eth, Storage, Provider, EvmConfig>>,
 }
 
-impl<Eth, Storage, Provider, EvmConfig, Attrs> DebugApiExt<Eth, Storage, Provider, EvmConfig, Attrs>
+impl<Eth, Storage, Provider, EvmConfig> DebugApiExt<Eth, Storage, Provider, EvmConfig>
 where
     Eth: FullEthApi + Send + Sync + 'static,
     ErrorObject<'static>: From<Eth::Error>,
     Storage: OpProofsStore + Clone + 'static,
-    Provider: BlockReaderIdExt + NodePrimitivesProvider<Primitives: OpPayloadPrimitives>,
-    EvmConfig: ConfigureEvm<Primitives = Provider::Primitives> + 'static,
 {
     /// Creates a new instance of the `DebugApiExt`.
     pub fn new(
@@ -104,7 +107,7 @@ where
 
 #[derive(Debug)]
 /// Overrides applied to the `debug_` namespace of the RPC API for historical proofs ExEx.
-pub struct DebugApiExtInner<Eth: FullEthApi, Storage, Provider, EvmConfig, Attrs> {
+pub struct DebugApiExtInner<Eth: FullEthApi, Storage, Provider, EvmConfig> {
     provider: Provider,
     eth_api: Eth,
     storage: OpProofsStorage<Storage>,
@@ -112,16 +115,14 @@ pub struct DebugApiExtInner<Eth: FullEthApi, Storage, Provider, EvmConfig, Attrs
     evm_config: EvmConfig,
     task_spawner: Runtime,
     semaphore: Semaphore,
-    _attrs: PhantomData<Attrs>,
     metrics: DebugApiExtMetrics,
 }
 
-impl<Eth, P, Provider, EvmConfig, Attrs> DebugApiExtInner<Eth, P, Provider, EvmConfig, Attrs>
+impl<Eth, P, Provider, EvmConfig> DebugApiExtInner<Eth, P, Provider, EvmConfig>
 where
     Eth: FullEthApi + Send + Sync + 'static,
     ErrorObject<'static>: From<Eth::Error>,
     P: OpProofsStore + Clone + 'static,
-    Provider: NodePrimitivesProvider<Primitives: OpPayloadPrimitives>,
 {
     fn new(
         provider: Provider,
@@ -138,25 +139,19 @@ where
             evm_config,
             task_spawner,
             semaphore: Semaphore::new(3),
-            _attrs: PhantomData,
             metrics: DebugApiExtMetrics::new(),
         }
     }
 }
 
-impl<Eth, P, Provider, EvmConfig, Attrs> DebugApiExt<Eth, P, Provider, EvmConfig, Attrs>
+impl<Eth, P, Provider, EvmConfig> DebugApiExt<Eth, P, Provider, EvmConfig>
 where
     Eth: FullEthApi + Send + Sync + 'static,
     ErrorObject<'static>: From<Eth::Error>,
     P: OpProofsStore + Clone + 'static,
-    Provider: BlockReaderIdExt
-        + NodePrimitivesProvider<Primitives: OpPayloadPrimitives>
-        + HeaderProvider<Header = <Provider::Primitives as NodePrimitives>::BlockHeader>,
+    Provider: BlockReaderIdExt<Header = Header>,
 {
-    fn parent_header(
-        &self,
-        parent_block_hash: B256,
-    ) -> ProviderResult<SealedHeader<Provider::Header>> {
+    fn parent_header(&self, parent_block_hash: B256) -> ProviderResult<SealedHeader> {
         self.inner
             .provider
             .sealed_header_by_hash(parent_block_hash)?
@@ -165,34 +160,26 @@ where
 }
 
 #[async_trait]
-impl<Eth, P, Provider, EvmConfig, Attrs, N> DebugApiOverrideServer<Attrs::RpcPayloadAttributes>
-    for DebugApiExt<Eth, P, Provider, EvmConfig, Attrs>
+impl<Eth, P, Provider, EvmConfig> DebugApiOverrideServer<OpPayloadAttributes>
+    for DebugApiExt<Eth, P, Provider, EvmConfig>
 where
     Eth: FullEthApi + Send + Sync + 'static,
     ErrorObject<'static>: From<Eth::Error>,
     P: OpProofsStore + Clone + 'static,
-    Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>, RpcPayloadAttributes: Send>,
-    N: OpPayloadPrimitives,
-    N::SignedTx: From<Sealed<TxPostExec>>,
     EvmConfig: reth_optimism_evm::ConfigurePostExecEvm<
-            Primitives = N,
-            NextBlockEnvCtx: BuildNextEnv<Attrs, N::BlockHeader, Provider::ChainSpec>,
+            Primitives = OpPrimitives,
+            NextBlockEnvCtx = OpNextBlockEnvAttributes,
         > + 'static,
-    Provider: BlockReaderIdExt<Header = N::BlockHeader>
+    Provider: BlockReaderIdExt<Header = Header>
         + StateProviderFactory
-        + ChainSpecProvider<ChainSpec: OpHardforks>
-        + NodePrimitivesProvider<Primitives = N>
-        + HeaderProvider<Header = N::BlockHeader>
+        + ChainSpecProvider<ChainSpec = OpChainSpec>
         + Clone
         + 'static,
-    op_alloy_consensus::OpPooledTransaction:
-        TryFrom<<N as OpPayloadPrimitives>::_TX, Error: core::error::Error>,
-    <N as OpPayloadPrimitives>::_TX: From<op_alloy_consensus::OpPooledTransaction>,
 {
     async fn execute_payload(
         &self,
         parent_block_hash: B256,
-        attributes: Attrs::RpcPayloadAttributes,
+        attributes: OpPayloadAttributes,
     ) -> RpcResult<ExecutionWitness> {
         self.inner
             .metrics
@@ -206,12 +193,14 @@ where
                 self.inner.task_spawner.spawn_blocking_task(async move {
                     let result = async {
                         let parent_hash = parent_header.hash();
-                        let attributes = Attrs::try_new(parent_hash, attributes, 3)
-                            .map_err(PayloadBuilderError::other)?;
+                        let attributes =
+                            OpPayloadBuilderAttributes::try_new(parent_hash, attributes, 3)
+                                .map_err(PayloadBuilderError::other)?;
 
-                        let payload_id = attributes.payload_id();
+                        let payload_id = attributes.id;
                         let config = PayloadConfig {
                             parent_header: Arc::new(parent_header),
+                            parent_block_info: None,
                             attributes,
                             payload_id,
                         };
@@ -226,20 +215,17 @@ where
 
                         let state_provider = this
                             .state_provider_factory
-                            .state_provider(Some(BlockId::Hash(parent_hash.into())))
+                            .state_provider(BlockId::Hash(parent_hash.into()))
                             .await
                             .map_err(PayloadBuilderError::other)?;
 
                         let builder = OpBuilder::new(|_| {
-                            NoopPayloadTransactions::<
-                                OpPooledTx2<
-                                    <N as OpPayloadPrimitives>::_TX,
-                                    op_alloy_consensus::OpPooledTransaction,
-                                >,
-                            >::default()
+                            NoopPayloadTransactions::<OpPooledTransaction>::default()
                         });
 
-                        builder.witness(state_provider, &ctx).map_err(PayloadBuilderError::other)
+                        builder
+                            .witness(state_provider, &this.provider, &ctx)
+                            .map_err(PayloadBuilderError::other)
                     };
 
                     let _ = tx.send(result.await);
@@ -252,7 +238,7 @@ where
             .await
     }
 
-    async fn execution_witness(&self, block_id: BlockNumberOrTag) -> RpcResult<ExecutionWitness> {
+    async fn execution_witness(&self, block_id: BlockId) -> RpcResult<ExecutionWitness> {
         self.inner
             .metrics
             .record_operation_async(DebugApis::DebugExecutionWitness, async {
@@ -261,56 +247,37 @@ where
                 let block = self
                     .inner
                     .eth_api
-                    .recovered_block(block_id.into())
+                    .recovered_block(block_id)
                     .await?
-                    .ok_or(EthApiError::HeaderNotFound(block_id.into()))?;
+                    .ok_or(EthApiError::HeaderNotFound(block_id))?;
 
                 let this = self.inner.clone();
                 let block_number = block.header().number();
 
                 let state_provider = this
                     .state_provider_factory
-                    .state_provider(Some(BlockId::Number(block.parent_num_hash().number.into())))
+                    .state_provider(BlockId::Hash(block.parent_hash().into()))
                     .await
                     .map_err(EthApiError::from)?;
-                let db = StateProviderDatabase::new(&state_provider);
+                let db = StateProviderDatabase::new((&state_provider).into_evm_state_provider());
                 let block_executor = this.eth_api.evm_config().executor(db);
 
-                let mut witness_record = ExecutionWitnessRecord::default();
-
+                let mut witness = None;
                 let _ = block_executor
                     .execute_with_state_closure(&block, |statedb: &State<_>| {
-                        witness_record.record_executed_state(statedb, Default::default());
+                        witness =
+                            Some(ExecutionWitnessRecord::new(statedb).into_execution_witness(
+                                &state_provider,
+                                &this.provider,
+                                block_number,
+                                Default::default(),
+                            ));
                     })
                     .map_err(EthApiError::from)?;
 
-                let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number } =
-                    witness_record;
-
-                let state = state_provider
-                    .witness(Default::default(), hashed_state, Default::default())
+                let exec_witness = witness
+                    .expect("state closure is called after successful execution")
                     .map_err(EthApiError::from)?;
-                let mut exec_witness =
-                    ExecutionWitness { state, codes, keys, ..Default::default() };
-
-                // If there were no calls to the BLOCKHASH opcode, return only the
-                // parent header.
-                let smallest =
-                    lowest_block_number.unwrap_or_else(|| block_number.saturating_sub(1));
-
-                let range = smallest..block_number;
-                exec_witness.headers = self
-                    .inner
-                    .provider
-                    .headers_range(range)
-                    .map_err(EthApiError::from)?
-                    .into_iter()
-                    .map(|header| {
-                        let mut serialized_header = Vec::new();
-                        header.encode(&mut serialized_header);
-                        serialized_header.into()
-                    })
-                    .collect();
 
                 Ok(exec_witness)
             })
@@ -320,16 +287,77 @@ where
     async fn proofs_sync_status(&self) -> RpcResult<ProofsSyncStatus> {
         let provider_ro =
             self.inner.storage.provider_ro().map_err(|err| internal_rpc_err(err.to_string()))?;
-        let earliest = provider_ro
-            .get_earliest_block_number()
-            .map_err(|err| internal_rpc_err(err.to_string()))?;
-        let latest = provider_ro
-            .get_latest_block_number()
-            .map_err(|err| internal_rpc_err(err.to_string()))?;
 
-        Ok(ProofsSyncStatus {
-            earliest: earliest.map(|(block_number, _)| block_number),
-            latest: latest.map(|(block_number, _)| block_number),
-        })
+        match provider_ro.get_proof_window() {
+            Ok(window) => Ok(ProofsSyncStatus {
+                earliest: Some(window.earliest.number),
+                latest: Some(window.latest.number),
+            }),
+            Err(OpProofsStorageError::NoBlocksFound) => {
+                Ok(ProofsSyncStatus { earliest: None, latest: None })
+            }
+            Err(err) => Err(internal_rpc_err(err.to_string())),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::b256;
+    use serde_json::json;
+    use std::sync::Mutex;
+
+    const BLOCK_HASH: B256 =
+        b256!("0x1111111111111111111111111111111111111111111111111111111111111111");
+
+    /// Stand-in for [`DebugApiExt`] that records the decoded argument instead of re-executing a
+    /// block, so these tests pin the RPC parameter shape rather than the witness contents.
+    #[derive(Debug, Default)]
+    struct RecordingDebugApi {
+        seen: Arc<Mutex<Option<BlockId>>>,
+    }
+
+    #[async_trait]
+    impl DebugApiOverrideServer<serde_json::Value> for RecordingDebugApi {
+        async fn execute_payload(
+            &self,
+            _parent_block_hash: B256,
+            _attributes: serde_json::Value,
+        ) -> RpcResult<ExecutionWitness> {
+            unimplemented!("not exercised by these tests")
+        }
+
+        async fn execution_witness(&self, block: BlockId) -> RpcResult<ExecutionWitness> {
+            *self.seen.lock().unwrap() = Some(block);
+            Ok(ExecutionWitness::default())
+        }
+
+        async fn proofs_sync_status(&self) -> RpcResult<ProofsSyncStatus> {
+            unimplemented!("not exercised by these tests")
+        }
+    }
+
+    async fn decoded_block(param: serde_json::Value) -> BlockId {
+        let seen = Arc::<Mutex<Option<BlockId>>>::default();
+        let module = RecordingDebugApi { seen: seen.clone() }.into_rpc();
+        let _: ExecutionWitness = module
+            .call("debug_executionWitness", [param])
+            .await
+            .expect("debug_executionWitness should accept the parameter");
+        seen.lock().unwrap().expect("handler should have run")
+    }
+
+    /// The override must accept every `debug_executionWitness` parameter the stock handler
+    /// does, so a caller sees one method shape whether or not the proofs ExEx is installed.
+    #[tokio::test]
+    async fn execution_witness_accepts_every_block_id_form() {
+        assert_eq!(decoded_block(json!(BLOCK_HASH)).await, BlockId::from(BLOCK_HASH));
+        assert_eq!(
+            decoded_block(json!({ "blockHash": BLOCK_HASH })).await,
+            BlockId::from(BLOCK_HASH)
+        );
+        assert_eq!(decoded_block(json!("0x2a")).await, BlockId::from(42));
+        assert_eq!(decoded_block(json!("latest")).await, BlockId::latest());
     }
 }

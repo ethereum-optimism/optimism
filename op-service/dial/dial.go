@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -54,15 +54,6 @@ func DialRollupClientWithTimeout(ctx context.Context, log log.Logger, url string
 	}
 
 	return sources.NewRollupClient(rpcCl), nil
-}
-
-func DialSupervisorClientWithTimeout(ctx context.Context, log log.Logger, url string, callerOpts ...client.RPCOption) (*sources.SupervisorClient, error) {
-	rpcCl, err := dialClientWithTimeout(ctx, log, url, callerOpts...)
-	if err != nil {
-		return nil, err
-	}
-
-	return sources.NewSupervisorClient(rpcCl), nil
 }
 
 func DialSuperNodeClientWithTimeout(ctx context.Context, log log.Logger, url string, callerOpts ...client.RPCOption) (*sources.SuperNodeClient, error) {

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +36,7 @@ type jsonRPCResp struct {
 	ID      json.RawMessage `json:"id"`
 	JSONRPC string          `json:"jsonrpc"`
 	Result  any             `json:"result"`
-	Error   *jsonRPCError   `json:"error"`
+	Error   *jsonRPCError   `json:"error,omitempty"`
 }
 
 func newResp(id json.RawMessage, result any) jsonRPCResp {

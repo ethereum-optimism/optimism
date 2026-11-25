@@ -12,9 +12,23 @@ type twoL2RuntimeComponents struct {
 
 	l2ABatcher *l2BatcherFrontend
 	l2BBatcher *l2BatcherFrontend
+}
 
-	faucetA *dsl.Faucet
-	faucetB *dsl.Faucet
+type l2RuntimePresetComponents struct {
+	network *dsl.L2Network
+	el      *dsl.L2ELNode
+	cl      *dsl.L2CLNode
+	batcher *dsl.L2Batcher
+
+	elFrontend      *l2ELFrontend
+	batcherFrontend *l2BatcherFrontend
+}
+
+type multiL2RuntimePresetComponents struct {
+	l1Network *dsl.L1Network
+	l1EL      *dsl.L1ELNode
+	l1CL      *dsl.L1CLNode
+	chains    map[string]*l2RuntimePresetComponents
 }
 
 func twoL2SupernodeFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2 {
@@ -23,93 +37,122 @@ func twoL2SupernodeFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *T
 }
 
 func twoL2FromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) (*TwoL2, *twoL2RuntimeComponents) {
-	chainA := runtime.Chains["l2a"]
-	chainB := runtime.Chains["l2b"]
-	t.Require().NotNil(chainA, "missing l2a runtime chain")
-	t.Require().NotNil(chainB, "missing l2b runtime chain")
-	l1ChainID := runtime.L1Network.ChainID()
-	l2AChainID := chainA.Network.ChainID()
-	l2BChainID := chainB.Network.ChainID()
+	components := multiL2FromRuntime(t, runtime, "l2a", "l2b")
+	chainA := components.chains["l2a"]
+	chainB := components.chains["l2b"]
+	preset := &TwoL2{
+		Log:       t.Logger(),
+		T:         t,
+		L1Network: components.l1Network,
+		L1EL:      components.l1EL,
+		L1CL:      components.l1CL,
+		L2A:       chainA.network,
+		L2B:       chainB.network,
+		L2ACL:     chainA.cl,
+		L2BCL:     chainB.cl,
+	}
+	return preset, &twoL2RuntimeComponents{
+		l2AEL:      chainA.elFrontend,
+		l2BEL:      chainB.elFrontend,
+		l2ABatcher: chainA.batcherFrontend,
+		l2BBatcher: chainB.batcherFrontend,
+	}
+}
 
+func multiL2FromRuntime(
+	t devtest.T,
+	runtime *sysgo.MultiChainRuntime,
+	chainNames ...string,
+) *multiL2RuntimePresetComponents {
+	t.Require().Len(runtime.Chains, len(chainNames), "runtime must contain exactly the requested L2 chains")
+
+	l1ChainID := runtime.L1Network.ChainID()
 	l1Network := newPresetL1Network(t, "l1", runtime.L1Network.ChainConfig())
 	l1EL := newL1ELFrontend(t, "l1", l1ChainID, runtime.L1EL.UserRPC())
 	l1CL := newL1CLFrontend(t, "l1", l1ChainID, runtime.L1CL.BeaconHTTPAddr(), runtime.L1CL.FakePoS())
 	l1Network.AddL1ELNode(l1EL)
 	l1Network.AddL1CLNode(l1CL)
-
-	l2A := newPresetL2Network(
-		t,
-		"l2a",
-		chainA.Network.ChainConfig(),
-		chainA.Network.RollupConfig(),
-		chainA.Network.Deployment(),
-		newKeyring(runtime.Keys, t.Require()),
-		l1Network,
-	)
-	l2AEL := newL2ELFrontend(t, "sequencer", l2AChainID, chainA.EL.UserRPC(), chainA.EL.EngineRPC(), chainA.EL.JWTPath(), chainA.Network.RollupConfig(), chainA.EL)
-	l2ACL := newL2CLFrontend(t, "sequencer", l2AChainID, chainA.CL.UserRPC(), chainA.CL)
-	l2ACL.attachEL(l2AEL)
-	l2ABatcher := newL2BatcherFrontend(t, "main", l2AChainID, chainA.Batcher.UserRPC())
-	l2A.AddL2ELNode(l2AEL)
-	l2A.AddL2CLNode(l2ACL)
-	l2A.AddL2Batcher(l2ABatcher)
-
-	l2B := newPresetL2Network(
-		t,
-		"l2b",
-		chainB.Network.ChainConfig(),
-		chainB.Network.RollupConfig(),
-		chainB.Network.Deployment(),
-		newKeyring(runtime.Keys, t.Require()),
-		l1Network,
-	)
-	l2BEL := newL2ELFrontend(t, "sequencer", l2BChainID, chainB.EL.UserRPC(), chainB.EL.EngineRPC(), chainB.EL.JWTPath(), chainB.Network.RollupConfig(), chainB.EL)
-	l2BCL := newL2CLFrontend(t, "sequencer", l2BChainID, chainB.CL.UserRPC(), chainB.CL)
-	l2BCL.attachEL(l2BEL)
-	l2BBatcher := newL2BatcherFrontend(t, "main", l2BChainID, chainB.Batcher.UserRPC())
-	l2B.AddL2ELNode(l2BEL)
-	l2B.AddL2CLNode(l2BCL)
-	l2B.AddL2Batcher(l2BBatcher)
-
-	faucetAFrontend := newFaucetFrontendForChain(t, runtime.FaucetService, l2AChainID)
-	faucetBFrontend := newFaucetFrontendForChain(t, runtime.FaucetService, l2BChainID)
-	l2A.AddFaucet(faucetAFrontend)
-	l2B.AddFaucet(faucetBFrontend)
-	faucetA := dsl.NewFaucet(faucetAFrontend)
-	faucetB := dsl.NewFaucet(faucetBFrontend)
-
 	l1ELDSL := dsl.NewL1ELNode(l1EL)
 	l1CLDSL := dsl.NewL1CLNode(l1CL)
-	l2AELDSL := dsl.NewL2ELNode(l2AEL)
-	l2ACLDSL := dsl.NewL2CLNode(l2ACL)
-	l2BELDSL := dsl.NewL2ELNode(l2BEL)
-	l2BCLDSL := dsl.NewL2CLNode(l2BCL)
 
-	preset := &TwoL2{
-		Log:       t.Logger(),
-		T:         t,
-		L1Network: dsl.NewL1Network(l1Network, l1ELDSL, l1CLDSL),
-		L1EL:      l1ELDSL,
-		L1CL:      l1CLDSL,
-		L2A:       dsl.NewL2Network(l2A, l2AELDSL, l2ACLDSL, l1ELDSL, nil, nil),
-		L2B:       dsl.NewL2Network(l2B, l2BELDSL, l2BCLDSL, l1ELDSL, nil, nil),
-		L2ACL:     l2ACLDSL,
-		L2BCL:     l2BCLDSL,
+	chains := make(map[string]*l2RuntimePresetComponents, len(chainNames))
+	keyring := newKeyring(runtime.Keys, t.Require())
+	for _, name := range chainNames {
+		runtimeChain := runtime.Chains[name]
+		t.Require().NotNil(runtimeChain, "missing %s runtime chain", name)
+		chainID := runtimeChain.Network.ChainID()
+		l2Network := newPresetL2Network(
+			t,
+			name,
+			runtimeChain.Network.ChainConfig(),
+			runtimeChain.Network.RollupConfig(),
+			runtimeChain.Network.Deployment(),
+			keyring,
+			l1Network,
+		)
+		l2EL := newL2ELFrontend(
+			t,
+			"sequencer",
+			chainID,
+			runtimeChain.EL.UserRPC(),
+			runtimeChain.EL.EngineRPC(),
+			runtimeChain.EL.JWTPath(),
+			runtimeChain.Network.RollupConfig(),
+			runtimeChain.EL,
+		)
+		l2CL := newL2CLFrontend(t, "sequencer", chainID, runtimeChain.CL.UserRPC(), runtimeChain.CL)
+		l2CL.attachEL(l2EL)
+		l2Batcher := newL2BatcherFrontend(t, "main", chainID, runtimeChain.Batcher.UserRPC())
+		l2Network.AddL2ELNode(l2EL)
+		l2Network.AddL2CLNode(l2CL)
+		l2Network.AddL2Batcher(l2Batcher)
+
+		l2ELDSL := dsl.NewL2ELNode(l2EL)
+		l2CLDSL := dsl.NewL2CLNode(l2CL)
+		chains[name] = &l2RuntimePresetComponents{
+			network:         dsl.NewL2Network(l2Network, l2ELDSL, l2CLDSL, l1ELDSL, nil, nil),
+			el:              l2ELDSL,
+			cl:              l2CLDSL,
+			batcher:         dsl.NewL2Batcher(l2Batcher),
+			elFrontend:      l2EL,
+			batcherFrontend: l2Batcher,
+		}
 	}
-	return preset, &twoL2RuntimeComponents{
-		l2AEL:      l2AEL,
-		l2BEL:      l2BEL,
-		l2ABatcher: l2ABatcher,
-		l2BBatcher: l2BBatcher,
-		faucetA:    faucetA,
-		faucetB:    faucetB,
+
+	return &multiL2RuntimePresetComponents{
+		l1Network: dsl.NewL1Network(l1Network, l1ELDSL, l1CLDSL),
+		l1EL:      l1ELDSL,
+		l1CL:      l1CLDSL,
+		chains:    chains,
 	}
 }
 
 func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2SupernodeInterop {
 	twoL2, components := twoL2FromRuntime(t, runtime)
+	chainA := runtime.Chains["l2a"]
+	chainB := runtime.Chains["l2b"]
+	t.Require().NotNil(chainA, "missing l2a supernode chain")
+	t.Require().NotNil(chainB, "missing l2b supernode chain")
+	t.Require().NotNil(chainA.SupernodeCL, "missing l2a supernode CL")
+	t.Require().NotNil(chainB.SupernodeCL, "missing l2b supernode CL")
 
-	supernode := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC())
+	supernode := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC(), runtime.Supernode)
+	// The supernode VN drives its own EL, distinct from the sequencer's
+	// (joined only by L1 + P2P) in light-sequencer presets. In virtual-sequencer
+	// presets the supernode VN is itself the sequencer, so SupernodeEL == EL and
+	// it reuses the chain's primary EL frontend.
+	l2ASupernodeCL := newL2CLFrontend(t, "supernode", chainA.Network.ChainID(), chainA.SupernodeCL.UserRPC(), chainA.SupernodeCL)
+	l2ASupernodeEL := components.l2AEL
+	if chainA.SupernodeEL != nil && chainA.SupernodeEL != chainA.EL {
+		l2ASupernodeEL = newL2ELFrontend(t, "supernode", chainA.Network.ChainID(), chainA.SupernodeEL.UserRPC(), chainA.SupernodeEL.EngineRPC(), chainA.SupernodeEL.JWTPath(), chainA.Network.RollupConfig(), chainA.SupernodeEL)
+	}
+	l2ASupernodeCL.attachEL(l2ASupernodeEL)
+	l2BSupernodeCL := newL2CLFrontend(t, "supernode", chainB.Network.ChainID(), chainB.SupernodeCL.UserRPC(), chainB.SupernodeCL)
+	l2BSupernodeEL := components.l2BEL
+	if chainB.SupernodeEL != nil && chainB.SupernodeEL != chainB.EL {
+		l2BSupernodeEL = newL2ELFrontend(t, "supernode", chainB.Network.ChainID(), chainB.SupernodeEL.UserRPC(), chainB.SupernodeEL.EngineRPC(), chainB.SupernodeEL.JWTPath(), chainB.Network.RollupConfig(), chainB.SupernodeEL)
+	}
+	l2BSupernodeCL.attachEL(l2BSupernodeEL)
 	testSequencer := newTestSequencerFrontend(
 		t,
 		runtime.TestSequencer.Name,
@@ -135,10 +178,12 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 		TestSequencer:         dsl.NewTestSequencer(testSequencer),
 		L2ELA:                 dsl.NewL2ELNode(components.l2AEL),
 		L2ELB:                 dsl.NewL2ELNode(components.l2BEL),
+		L2ASupernodeCL:        dsl.NewL2CLNode(l2ASupernodeCL),
+		L2BSupernodeCL:        dsl.NewL2CLNode(l2BSupernodeCL),
+		L2ASupernodeEL:        dsl.NewL2ELNode(l2ASupernodeEL),
+		L2BSupernodeEL:        dsl.NewL2ELNode(l2BSupernodeEL),
 		L2BatcherA:            dsl.NewL2Batcher(components.l2ABatcher),
 		L2BatcherB:            dsl.NewL2Batcher(components.l2BBatcher),
-		FaucetA:               components.faucetA,
-		FaucetB:               components.faucetB,
 		Wallet:                dsl.NewRandomHDWallet(t, 30),
 		GenesisTime:           genesisTime,
 		InteropActivationTime: genesisTime + runtime.DelaySeconds,
@@ -146,8 +191,8 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 		InteropFilter:         runtime.InteropFilter,
 		timeTravel:            runtime.TimeTravel,
 	}
-	preset.FunderA = dsl.NewFunder(preset.Wallet, preset.FaucetA, preset.L2ELA)
-	preset.FunderB = dsl.NewFunder(preset.Wallet, preset.FaucetB, preset.L2ELB)
+	preset.FunderA = newFunderEOA(t, runtime.Keys, preset.L2ELA, preset.Wallet)
+	preset.FunderB = newFunderEOA(t, runtime.Keys, preset.L2ELB, preset.Wallet)
 	return preset
 }
 

@@ -1,9 +1,7 @@
 //! Error types for the gossip networking module.
 
-use crate::BehaviourError;
-use derive_more::From;
+use crate::{BehaviourError, CanonicalIp};
 use libp2p::{Multiaddr, PeerId};
-use std::net::IpAddr;
 use thiserror::Error;
 
 /// Error encountered when publishing a payload to the gossip network.
@@ -33,12 +31,13 @@ pub enum PublishError {
 /// occurring when converting OP Stack data structures to network format.
 #[derive(Debug, Error)]
 pub enum HandlerEncodeError {
-    /// Failed to encode the OP Stack payload envelope.
-    ///
-    /// This error indicates issues with serializing the OP Stack network payload
-    /// structure, which contains the consensus data being gossiped.
-    #[error("Failed to encode payload: {0}")]
-    PayloadEncodeError(#[from] op_alloy_rpc_types_engine::PayloadEnvelopeEncodeError),
+    /// The execution payload version does not match the gossip topic.
+    #[error("Payload version does not match gossip topic")]
+    WrongPayloadVersion,
+
+    /// Failed to Snappy-compress the signed payload.
+    #[error("Failed to compress payload: {0}")]
+    SnapEncoding(#[from] snap::Error),
 
     /// Attempted to publish to an unknown or unsubscribed topic.
     ///
@@ -49,23 +48,46 @@ pub enum HandlerEncodeError {
 }
 
 /// An error type for the [`crate::GossipDriverBuilder`].
-#[derive(Debug, Clone, PartialEq, Eq, From, Error)]
+#[derive(Debug, Error)]
 pub enum GossipDriverBuilderError {
-    /// A TCP error.
-    #[error("TCP error")]
-    TcpError,
-    /// An error when setting the behaviour on the swarm builder.
-    #[error("error setting behaviour on swarm builder")]
-    WithBehaviourError,
+    /// An error when setting up the TCP transport.
+    #[error("error setting up TCP transport")]
+    TcpError(#[source] libp2p::noise::Error),
+    /// An error when building a [`crate::GossipTransport::Other`] transport.
+    #[error("error building the transport")]
+    OtherTransportError(#[source] libp2p::TransportBuilderError),
     /// An error when building the gossip behaviour.
     #[error("error building gossip behaviour")]
-    BehaviourError(BehaviourError),
-    /// An error when setting up the sync request/response protocol.
-    #[error("error setting up sync request/response protocol")]
-    SetupSyncReqRespError,
-    /// The sync request/response protocol has already been accepted.
-    #[error("sync request/response protocol already accepted")]
-    SyncReqRespAlreadyAccepted,
+    BehaviourError(#[from] BehaviourError),
+    /// gossipsub rejected the peer scoring parameters, for example for a block time under a
+    /// second. gossipsub only gives the reason as a string.
+    #[error("invalid peer scoring parameters: {0}")]
+    InvalidPeerScoring(String),
+}
+
+/// An error from [`crate::GossipDriverStarter::start`].
+#[derive(Debug, Error)]
+pub enum StartError {
+    /// The transport can't listen on the address.
+    #[error("failed to listen")]
+    Listen(#[from] libp2p::TransportError<std::io::Error>),
+    /// The listener closed before it reported the address it listens on.
+    #[error("the listener closed before it reported an address")]
+    ListenerClosed(#[source] Option<std::io::Error>),
+}
+
+/// Why a peer that the [`crate::GossipCommand::ConnectPeer`] command dialed didn't connect.
+#[derive(Debug, Clone, Error)]
+pub enum ConnectPeerError {
+    /// The gate refused the peer or its address, or the address can't be dialed. The gate refuses
+    /// before the dial, or once the connection is established, for an address blocked while the
+    /// dial ran.
+    #[error(transparent)]
+    Refused(#[from] DialError),
+    /// The swarm couldn't connect, for example because the peer refused the connection. Holds the
+    /// swarm's error message.
+    #[error("{0}")]
+    DialFailed(String),
 }
 
 /// An error type representing reasons why a peer cannot be dialed.
@@ -77,6 +99,12 @@ pub enum DialError {
         /// The multiaddress that failed to be parsed or does not contain a valid `PeerId`
         /// component
         addr: Multiaddr,
+    },
+    /// Already connected to this peer.
+    #[error("Already connected to peer: {peer_id}")]
+    AlreadyConnected {
+        /// The `PeerId` of the peer that is already connected
+        peer_id: PeerId,
     },
     /// Already dialing this peer.
     #[error("Already dialing peer: {peer_id}")]
@@ -96,6 +124,12 @@ pub enum DialError {
         /// The `PeerId` of the peer that is on the blocklist
         peer_id: PeerId,
     },
+    /// Peer is banned for its score, until the ban expires.
+    #[error("Peer is banned: {peer_id}")]
+    PeerBanned {
+        /// The `PeerId` of the banned peer
+        peer_id: PeerId,
+    },
     /// Failed to extract IP address from Multiaddr.
     #[error("Failed to extract IP address from Multiaddr: {addr}")]
     InvalidIpAddress {
@@ -106,12 +140,63 @@ pub enum DialError {
     #[error("IP address is blocked: {ip}")]
     AddressBlocked {
         /// The IP address that is on the blocklist
-        ip: IpAddr,
+        ip: CanonicalIp,
     },
     /// IP address is in a blocked subnet.
     #[error("IP address {ip} is in a blocked subnet")]
     SubnetBlocked {
         /// The IP address that belongs to a blocked subnet range
-        ip: IpAddr,
+        ip: CanonicalIp,
     },
+    /// No address is left to dial, though the gate refused none: none is for the peer, or a DNS
+    /// name didn't resolve.
+    #[error("No address to dial peer: {peer_id}")]
+    NoAddresses {
+        /// The peer that had no address left.
+        peer_id: PeerId,
+    },
+    /// The swarm refused to start the dial.
+    #[error("Failed to dial peer {peer_id}: {reason}")]
+    SwarmRefused {
+        /// The peer that wasn't dialed.
+        peer_id: PeerId,
+        /// The swarm's error message.
+        reason: String,
+    },
+}
+
+impl DialError {
+    /// Returns the reason as a metric label, such as `blocked_peer`.
+    pub(crate) const fn reason(&self) -> &'static str {
+        match self {
+            Self::InvalidMultiaddr { .. } => "invalid_multiaddr",
+            Self::AlreadyConnected { .. } => "already_connected",
+            Self::AlreadyDialing { .. } => "already_dialing",
+            Self::ThresholdReached { .. } => "threshold_reached",
+            Self::PeerBlocked { .. } => "blocked_peer",
+            Self::PeerBanned { .. } => "banned_peer",
+            Self::InvalidIpAddress { .. } => "invalid_ip_address",
+            Self::AddressBlocked { .. } => "blocked_address",
+            Self::SubnetBlocked { .. } => "blocked_subnet",
+            Self::NoAddresses { .. } => "no_addresses",
+            Self::SwarmRefused { .. } => "swarm_refused",
+        }
+    }
+}
+
+/// Error parsing a [`PeerAddr`](crate::PeerAddr) address.
+#[derive(Debug, Error)]
+pub enum PeerAddrError {
+    /// The address is not a multiaddr.
+    #[error("Invalid multiaddr")]
+    InvalidMultiaddr(#[source] libp2p::multiaddr::Error),
+    /// The address does not end in `/p2p/<peer id>`.
+    #[error("Address does not end in /p2p/<peer id>")]
+    MissingPeerId,
+    /// The address is only a `/p2p/<peer id>`, with nothing to dial.
+    #[error("Address has nothing to dial before /p2p/<peer id>")]
+    MissingAddress,
+    /// The address already ends in another peer's `/p2p/<peer id>`.
+    #[error("Address ends in another peer's /p2p/<peer id>")]
+    WrongPeerId,
 }

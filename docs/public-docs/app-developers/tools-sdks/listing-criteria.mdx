@@ -1,0 +1,85 @@
+---
+title: Tools & SDKs Listing Criteria
+description: What a tool or SDK must meet to be listed on the support matrix, the removal rule, and the maintenance sweep that keeps listings accurate.
+diataxis: reference
+---
+
+This page governs the [Tools & SDKs support matrix](/app-developers/tools-sdks/support-matrix).
+It exists so that adding or removing a listing is the application of written
+policy, not a per-pull-request argument. The approach follows the
+[ethereum.org product-listing policy](https://ethereum.org/en/contributing/adding-products/),
+which uses published criteria plus a standing removal rule for the same reason.
+
+Listings must also satisfy the site-wide
+[content guide](/op-stack/contribute/content-guide): the matrix is a routing
+page (clause 3 of the three-clause test), so every listing links one canonical
+documentation home and restates nothing.
+
+## Listing Criteria
+
+A tool or SDK is eligible for the matrix only if **all** of the following hold:
+
+1.  **Open source, public repository.** The source is publicly available and
+    the repository is linkable from the matrix.
+2.  **Works with the OP Stack as documented.** A developer can follow the
+    tool's own quickstart against an OP Stack chain and succeed. Listings for
+    tools that only incidentally support the OP Stack must link the
+    OP-Stack-relevant entry point, not a generic homepage.
+3.  **Actively maintained.** The project ships releases and responds to
+    issues. An archived or visibly abandoned repository is disqualifying.
+4.  **Has one canonical documentation home.** There is a single place we can
+    link as the source of truth (per the content guide's dual-sourcing ban we
+    will not maintain a copy of its documentation here).
+5.  **Honest support status.** The listing's support status must match what
+    the owner declares in its own repository or docs. Experimental or preview
+    software is listed as such, never as production.
+6.  **Third-party listings are marked.** Any listing not owned by the Optimism
+    Collective passes through the `<ThirdPartyContent>` component, per the
+    [content guide](/op-stack/contribute/content-guide).
+
+## Proposing a Listing
+
+Open a pull request against the
+[matrix page](/app-developers/tools-sdks/support-matrix) that adds one row and,
+in the PR description, states how the tool meets each criterion above — with
+links as evidence (repository, docs home, release page, the owner's own status
+declaration). Reviewers apply this page; if a criterion is unclear, the fix is
+a PR to this page, not an exception.
+
+## Removal Rule
+
+A listing is removed — not left stale — when it no longer meets the criteria.
+Typical triggers:
+
+*   The repository is archived, or releases and issue activity have stopped.
+*   The documented quickstart no longer works against an OP Stack chain.
+*   The canonical docs home is gone or no longer maintained.
+*   The owner's declared status changed and the listing was not updated
+    (in that case, update the row instead if the tool still qualifies).
+
+Removal is an ordinary pull request that cites the failed criterion. Rows are
+never soft-deprecated in place: the ethereum.org experience this policy is
+modeled on shows that stale curated tables are worse than absent ones.
+
+## Maintenance Sweep
+
+Curated listings rot silently, so accuracy is maintained by a scheduled sweep
+rather than by hoping readers report drift:
+
+*   **What is checked.** Every sweep re-verifies all four cells of every row —
+    purpose, owner, canonical docs link, and support status — against the
+    upstream repository and docs, and re-checks each criterion above.
+*   **What is recorded.** The sweep PR (or its "no changes" note) lists what
+    was checked and the upstream sources consulted, so the next sweep starts
+    from evidence.
+*   **Who runs it.** The docs maintainers own the sweep as part of the
+    standing docs review rotation; anyone may run one ahead of schedule by
+    opening the same kind of PR.
+*   **Outcome.** Each row is updated, confirmed, or removed under the
+    removal rule. A sweep that cannot verify a row treats it as failing.
+
+## Next Steps
+
+*   Browse the [Tools & SDKs support matrix](/app-developers/tools-sdks/support-matrix).
+*   Read the [content guide](/op-stack/contribute/content-guide) for the
+    site-wide rules this policy inherits.

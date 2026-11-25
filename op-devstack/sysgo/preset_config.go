@@ -1,14 +1,40 @@
 package sysgo
 
 import (
+	"fmt"
 	"time"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type PreGenesisSuperGameConfig struct {
 	ClaimedOutputs []eth.Bytes32
+}
+
+// ZKDisputeGameConfig configures the shared ZK dispute game installed after
+// the interop migration. OPCM injects the release-owned SP1 adapter.
+type ZKDisputeGameConfig struct {
+	MaxChallengeDuration time.Duration
+	MaxProveDuration     time.Duration
+}
+
+func (c ZKDisputeGameConfig) validate() error {
+	if c.MaxChallengeDuration <= 0 {
+		return fmt.Errorf("ZK maximum challenge duration must be positive")
+	}
+	if c.MaxChallengeDuration%time.Second != 0 {
+		return fmt.Errorf("ZK maximum challenge duration must use whole seconds")
+	}
+	if c.MaxProveDuration <= 0 {
+		return fmt.Errorf("ZK maximum prove duration must be positive")
+	}
+	if c.MaxProveDuration%time.Second != 0 {
+		return fmt.Errorf("ZK maximum prove duration must use whole seconds")
+	}
+	return nil
 }
 
 // PresetConfig captures preset constructor mutations.
@@ -18,7 +44,7 @@ type PresetConfig struct {
 	DeployerOptions            []DeployerOption
 	BatcherOptions             []BatcherOption
 	ProposerOptions            []ProposerOption
-	OPRBuilderOptions          []OPRBuilderNodeOption
+	OpRethOptions              []OpRethOption
 	GlobalL2CLOptions          []L2CLOption
 	GlobalSyncTesterELOptions  []SyncTesterELOption
 	L1ELKind                   string
@@ -29,11 +55,49 @@ type PresetConfig struct {
 	MaxSequencingWindow        *uint64
 	RequireInteropNotAtGen     bool
 	MessageExpiryWindow        *uint64
-	UseInteropFilter           bool
+	// L2ToL2MessageExpiryPeriod, if non-zero, sets the L2ToL2CrossDomainMessenger's expiry period
+	// in every L2 genesis, in seconds. It must exceed MessageExpiryWindow.
+	L2ToL2MessageExpiryPeriod uint64
+	UseInteropFilter          bool
 	// InteropLogBackfillDepth, if non-zero, configures the supernode to backfill
 	// initiating-message logs backward from the tip by this duration at startup.
 	InteropLogBackfillDepth time.Duration
 	PreGenesisSuperGame     *PreGenesisSuperGameConfig
+	ZKDisputeGame           *ZKDisputeGameConfig
+	ZKProposerOptions       []ZKProposerOption
+	// SkipHonestProposer skips starting the honest proposer (op-proposer, or op-zk-proposer for the ZK preset).
+	SkipHonestProposer bool
+	// SkipHonestChallenger skips starting the honest challenger.
+	SkipHonestChallenger bool
+	// SupernodeVerifierSyncMode overrides the supernode VN's sync mode when set.
+	SupernodeVerifierSyncMode *nodeSync.Mode
+	// InteropActivationDelaySeconds offsets Interop activation past genesis (0 = at genesis).
+	InteropActivationDelaySeconds uint64
+	// InteropAtGenesis activates Interop on the L2 chain at genesis and provisions a
+	// DependencySet for op-node startup (without a supervisor). Required by tests that
+	// exercise Interop-gated consensus features (e.g. SDM PostExec) on the default
+	// single-chain runtime.
+	InteropAtGenesis bool
+	// SupernodeVNSequencerForBootstrap, in the light-sequencer supernode interop preset,
+	// enables sequencing on the supernode VN and starts the light follow-mode ELSync
+	// sequencers stopped, so the VN can bootstrap the chain the light sequencers EL-sync
+	// from before a test hands off sequencing to them.
+	SupernodeVNSequencerForBootstrap bool
+	// ConductorFastHealthChecks runs conductor health checks every second
+	// instead of the effectively-disabled hourly default, so conductor-driven
+	// failover reacts to sequencer failures within test timescales. Health
+	// stays purely liveness-based: the unsafe/safe staleness windows remain at
+	// an hour so chain-progression hiccups under CI load cannot flip a healthy
+	// sequencer to unhealthy.
+	ConductorFastHealthChecks bool
+	// AltDAStore, if set, runs the L2 chain on alt-DA with keccak commitments, served by a DA server
+	// that keeps the inputs in this store. Only single-chain runtimes honor it, and they wire only the
+	// batcher and the sequencer node to the DA server.
+	AltDAStore altda.KVStore
+	// FollowSourceCLKind, if set, starts the two-verifiers runtime's sequencer and its deriving
+	// verifier "b" on this CL kind. The follow-source verifier "c" always takes the kind
+	// DEVSTACK_L2CL_KIND selects, as the other two do when this is unset.
+	FollowSourceCLKind MixedL2CLKind
 }
 
 func NewPresetConfig() PresetConfig {

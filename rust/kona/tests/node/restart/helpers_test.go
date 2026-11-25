@@ -12,7 +12,7 @@ func newRestartPreset(t devtest.T) *node_utils.MixedOpKonaPreset {
 
 	// Restart tests currently target a minimal kona-only topology.
 	return node_utils.NewMixedOpKonaForConfig(t, node_utils.L2NodeConfig{
-		KonaSequencerNodesWithGeth: 1,
-		KonaNodesWithGeth:          1,
+		KonaSequencerNodesWithReth: 1,
+		KonaNodesWithReth:          1,
 	})
 }

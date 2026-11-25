@@ -6,20 +6,13 @@ no-default-features = false
 [output]
 feature-depth = 1
 
-# This section is considered when running `cargo deny check advisories`
+# Checked only by the daily rust-deny-advisories CI job. `just deny` does not
+# run advisories.
 [advisories]
-yanked = "warn"
+unmaintained = "none" # not vulnerabilities
+# Each ignore on one line, reason ending "Review by YYYY-MM-DD." (checked daily by rust-deny-advisories).
 ignore = [
-  # paste crate is no longer maintained.
-  "RUSTSEC-2024-0436",
-  # bincode is unmaintained but still functional; transitive dep from reth-nippy-jar and test-fuzz.
-  "RUSTSEC-2025-0141",
-  # hickory-proto <0.26.1 NSEC3 closest-encloser DNSSEC validation unbounded loop;
-  # transitive via reth-network -> reth-dns-discovery. Pending upstream bump.
-  "RUSTSEC-2026-0118",
-  # hickory-proto <0.26.1 O(n^2) name-compression CPU exhaustion in BinEncoder;
-  # transitive via reth-network -> reth-dns-discovery. Pending upstream bump.
-  "RUSTSEC-2026-0119",
+  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 via elliptic-curve 0.13.8, no fixed 0.5.x release. Review by 2026-12-16." },
 ]
 
 # This section is considered when running `cargo deny check bans`.
@@ -98,6 +91,8 @@ registries = []
 [sources]
 allow-git = [
   "https://github.com/paradigmxyz/reth",
+  # Maintenance fork carrying patches not yet included in the selected upstream release.
+  "https://github.com/ethereum-optimism/reth",
   "https://github.com/alloy-rs/alloy",
   "https://github.com/alloy-rs/hardforks",
   "https://github.com/alloy-rs/evm",
@@ -106,7 +101,6 @@ allow-git = [
   "https://github.com/paradigmxyz/jsonrpsee",
   "https://github.com/paradigmxyz/revm-inspectors",
   "https://github.com/foundry-rs/block-explorers",
-  "https://github.com/flashbots/rollup-boost",
   "https://github.com/sigp/discv5",
 ]
 unknown-registry = "warn"

@@ -19,7 +19,7 @@ var ErrInvalidPort = errors.New("invalid RPC port")
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return CLIFlagsWithCategory(envPrefix, "", CLIConfig{
-		ListenAddr:  "0.0.0.0", // TODO(#16487): Switch to 127.0.0.1
+		ListenAddr:  "0.0.0.0",
 		ListenPort:  8545,
 		EnableAdmin: false,
 	})

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -13,7 +12,7 @@ func TestL2TransactionInclusion(gt *testing.T) {
 	out := newCommonPreset(t)
 
 	originNode := out.L2ELSequencerNodes()[0]
-	funder := dsl.NewFunder(out.Wallet, out.Faucet, originNode)
+	funder := out.Funder.AsFunder(originNode)
 
 	user := funder.NewFundedEOA(eth.OneEther)
 	to := out.Wallet.NewEOA(originNode)

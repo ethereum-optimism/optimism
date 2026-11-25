@@ -11,7 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 func ptrToUint64(v uint64) *uint64 {
@@ -35,23 +36,12 @@ func simpleWithSyncTesterOpts() []presets.Option {
 
 func TestSyncTesterHardforks(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	// Example error with op-reth:
-	//
-	// assertions.go:387:             ERROR[03-31|10:08:04.055]
-	// assertions.go:387:             	Error Trace:	/optimism/op-devstack/dsl/check.go:26
-	// assertions.go:387:             	            				/optimism/op-acceptance-tests/tests/sync_tester/sync_tester_hfs/sync_tester_hfs_test.go:54
-	// assertions.go:387:             	Error:      	Received unexpected error:
-	// assertions.go:387:             	            	operation failed permanently after 42 attempts: expected head to advance: unsafe
-	// assertions.go:387:             	Test:       	TestSyncTesterHardforks
-	sysgo.SkipOnOpReth(t, "not supported")
-
 	sys := presets.NewSimpleWithSyncTester(t, simpleWithSyncTesterOpts()...)
 	require := t.Require()
 	logger := t.Logger()
-	ctx := t.Ctx()
 
 	// Check the L2CL passed configured hardforks
-	jovianTime := sys.L2Chain.Escape().ChainConfig().JovianTime
+	jovianTime := sys.L2Chain.Escape().RollupConfig().JovianTime
 	require.NotNil(jovianTime, "jovian must be activated")
 
 	// Hardforks will be activated from Bedrock to Jovian, 10 hardforks with 6 second time delta between.
@@ -60,11 +50,11 @@ func TestSyncTesterHardforks(gt *testing.T) {
 
 	// Unsafe advancement: NewPayload -> ForkchoiceUpdated(no attr)
 	dsl.CheckAll(t,
-		sys.L2CL.AdvancedFn(types.LocalUnsafe, uint64(targetNum), targetNum+10),
-		sys.L2CL2.AdvancedFn(types.LocalUnsafe, uint64(targetNum), targetNum+10),
+		sys.L2CL.AdvancedFn(safety.LocalUnsafe, uint64(targetNum), targetNum+10),
+		sys.L2CL2.AdvancedFn(safety.LocalUnsafe, uint64(targetNum), targetNum+10),
 	)
 
-	current := sys.L2CL2.HeadBlockRef(types.LocalUnsafe)
+	current := sys.L2CL2.HeadBlockRef(safety.LocalUnsafe)
 	require.Greater(current.Time, *jovianTime, "must pass jovian block")
 	// Check block hash state from L2CL2 which was synced using the sync tester
 	require.Equal(sys.L2EL.BlockRefByNumber(current.Number).Hash, current.Hash, "hash mismatch")
@@ -74,25 +64,20 @@ func TestSyncTesterHardforks(gt *testing.T) {
 	sys.L2CL2.DisconnectPeer(sys.L2CL)
 	sys.L2CL.DisconnectPeer(sys.L2CL2)
 	sys.L2CL2.Stop()
-	sessionIDs := sys.SyncTester.ListSessions()
-	require.GreaterOrEqual(len(sessionIDs), 1, "at least one session")
-	sessionID := sessionIDs[0]
-	logger.Info("SyncTester EL", "sessionID", sessionID)
-	syncTesterClient := sys.SyncTester.Escape().APIWithSession(sessionID)
 	// Resync starting from genesis
-	require.NoError(syncTesterClient.ResetSession(ctx))
+	sys.SyncTester.ResetAllSessions()
 	sys.SyncTesterL2EL.UnsafeHead().NumEqualTo(0)
 
 	// Wait until safe head reached Jovian
-	sys.L2CL.Reached(types.LocalSafe, current.Number, 20)
+	sys.L2CL.Reached(safety.LocalSafe, current.Number, 20)
 
 	// Check safe head advancement can solely rely on derivation reaching Jovian
 	// Safe advancement: ForkchoiceUpdated(with attr) -> GetPayload -> NewPayload -> ForkchoiceUpdated(no attr)
 	sys.L2CL2.Start()
-	sys.L2CL2.Reached(types.LocalSafe, current.Number, 20)
+	sys.L2CL2.Reached(safety.LocalSafe, current.Number, 20)
 	sys.SyncTesterL2EL.Reached(eth.Safe, current.Number, 10)
 
-	current = sys.L2CL2.HeadBlockRef(types.LocalSafe)
+	current = sys.L2CL2.HeadBlockRef(safety.LocalSafe)
 	require.Greater(current.Time, *jovianTime, "must pass jovian block")
 	// Check block hash state from L2CL2 which was synced using the sync tester
 	require.Equal(sys.L2EL.BlockRefByNumber(current.Number).Hash, current.Hash, "hash mismatch")

@@ -12,16 +12,10 @@ pub use config::EngineConfig;
 mod error;
 pub use error::EngineError;
 
-mod request;
-pub use request::{
-    BuildRequest, EngineActorRequest, EngineClientError, EngineClientResult, EngineRpcRequest,
-    ResetRequest, SealRequest,
+pub use kona_engine::{
+    BuildRequest, CanonicalizeRequest, EngineActorRequest, EngineRequestError as EngineClientError,
+    EngineRequestResult as EngineClientResult, ResetRequest, SealRequest,
 };
 
-mod engine_request_processor;
-pub use engine_request_processor::{
-    EngineProcessingRequest, EngineProcessor, EngineRequestReceiver,
-};
-
-mod rpc_request_processor;
-pub use rpc_request_processor::{EngineRpcProcessor, EngineRpcRequestReceiver};
+#[cfg(test)]
+mod tests;

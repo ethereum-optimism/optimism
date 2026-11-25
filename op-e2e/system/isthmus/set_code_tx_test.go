@@ -45,7 +45,7 @@ func TestSetCodeInTxPool(t *testing.T) {
 
 			receipt, err := helpers.SendL2SetCodeTx(
 				cfg,
-				sys.NodeClient(e2esys.RoleSeq),
+				sys.NodeSourceClient(e2esys.RoleSeq),
 				sys.Cfg.Secrets.Alice,
 				func(opts *helpers.TxOpts) {
 					opts.ToAddr = &common.Address{0xaa}
@@ -58,7 +58,9 @@ func TestSetCodeInTxPool(t *testing.T) {
 				require.Equal(t, receipt.Status, uint64(1), "SetCode tx should be successful")
 			} else {
 				require.Error(t, err, "SetCode tx should fail")
-				require.ErrorContains(t, err, "not yet in Prague")
+				errMsg := err.Error()
+				require.Containsf(t, errMsg, "transaction type not supported",
+					"expected SetCode tx rejection before Isthmus, got %q", errMsg)
 				require.Nil(t, receipt)
 			}
 		})

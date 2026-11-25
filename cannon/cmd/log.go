@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 func Logger(w io.Writer, lvl slog.Level) log.Logger {

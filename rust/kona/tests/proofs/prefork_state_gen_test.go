@@ -1,0 +1,200 @@
+package proofs
+
+import (
+	"encoding/json"
+	"fmt"
+	"maps"
+	"math/big"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/forks"
+	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
+)
+
+// genPreForkStateEnv names the fork whose pre-fork state artifact to (re)generate,
+// e.g. OP_E2E_GEN_PREFORK_STATE=karst. It gates TestGenerateForkState.
+//
+// Generate one fork at a time, committing each before the next: the loader embeds
+// states at COMPILE time, so <prev>_state.json must be on disk (and the test
+// binary rebuilt) before generating <fork>_state.json.
+const genPreForkStateEnv = "OP_E2E_GEN_PREFORK_STATE"
+
+// TestGenerateForkState (re)generates op-core/nuts/state/<fork>_state.json for the
+// fork named by OP_E2E_GEN_PREFORK_STATE, plus <fork>_multichain_state.json from
+// Lagoon onward, and is skipped otherwise (so it never runs in
+// normal CI). It reuses the exact activation flow via activateFork — the
+// post-activation state IS the artifact (compose: <fork>_state = <prev>_state +
+// the frozen <fork> bundle) — so generation stays in lockstep with the validation
+// test rather than duplicating setup.
+func TestGenerateForkState(gt *testing.T) {
+	target := os.Getenv(genPreForkStateEnv)
+	if target == "" {
+		gt.Skipf("set %s=<fork> to (re)generate the <fork> pre-fork states", genPreForkStateEnv)
+	}
+
+	fork := forks.Name(target)
+	preFork := forks.Prev(fork)
+	require.NotEqualf(gt, forks.None, preFork, "fork %s has no preceding fork", fork)
+	preHelper := lookupHardforkHelper(preFork)
+	require.NotNilf(gt, preHelper, "no pre-fork helper registered for %s (prior fork %s)", fork, preFork)
+
+	matrix := helpers.NewMatrix[forks.Name]()
+	matrix.AddDefaultTestCasesWithName(string(fork), fork, helpers.NewForkMatrix(preHelper),
+		func(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
+			generateForkState(gt, testCfg, false)
+		})
+	if nutsstate.HasMultiChainState(fork) {
+		matrix.AddDefaultTestCasesWithName(string(fork)+"-multichain", fork, helpers.NewForkMatrix(preHelper),
+			func(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
+				generateForkState(gt, testCfg, true)
+			})
+	}
+	matrix.Run(gt)
+}
+
+// generateForkState writes <fork>_state.json, or <fork>_multichain_state.json for a chain with a
+// dependency set of more than one chain.
+func generateForkState(gt *testing.T, testCfg *helpers.TestCfg[forks.Name], multiChain bool) {
+	t := actionsHelpers.NewDefaultTesting(gt)
+	name := string(testCfg.Custom) + "_state.json"
+	if multiChain {
+		testCfg.DependencySetPeers = []eth.ChainID{dependencySetPeer}
+		name = string(testCfg.Custom) + "_multichain_state.json"
+	}
+	env, actHeader := activateFork(t, testCfg, false)
+	writePreForkState(t, env, testCfg.Custom, name, actHeader)
+}
+
+// writePreForkState dumps the post-activation predeploy-scoped state to
+// op-core/nuts/state/<name>.
+func writePreForkState(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv, fork forks.Name, name string, actHeader *types.Header) {
+	scoped := predeployScoped(dumpPredeployState(t, env.Engine, actHeader.Hash()))
+	require.NotEmptyf(t, scoped.Accounts, "dumped state at the %s activation block is empty", fork)
+	canonicalizeL1Block(scoped)
+
+	root, err := opservice.FindMonorepoRoot(".")
+	require.NoError(t, err)
+	outPath := filepath.Join(root, "op-core", "nuts", "state", name)
+	data, err := json.MarshalIndent(scoped, "", "  ")
+	require.NoError(t, err)
+	data = append(data, '\n')
+	require.NoError(t, os.WriteFile(outPath, data, 0o640))
+	fmt.Printf("wrote %s (%d accounts)\n", outPath, len(scoped.Accounts))
+}
+
+// canonicalizeL1Block drops L1Block's L1-attribute storage — integer slots 0..8
+// (number, timestamp, basefee, hash, …) per snapshots/storageLayout/L1Block.json.
+// Those are written by the per-block L1-info deposit, so they're run-specific
+// (timestamp, L1 hash) and get re-set when the state is consumed; zeroing them
+// keeps the artifact byte-deterministic without affecting behavior. The EIP-1967
+// impl/admin slots and the isFeatureEnabled mapping (keccak-keyed, not slot 9
+// literally) are left intact.
+func canonicalizeL1Block(allocs *foundry.ForgeAllocs) {
+	l1b, ok := allocs.Accounts[predeploys.L1BlockAddr]
+	if !ok {
+		return
+	}
+	for slot := range l1b.Storage {
+		if slot.Big().Cmp(big.NewInt(9)) < 0 { // L1-attribute slots 0..8
+			delete(l1b.Storage, slot)
+		}
+	}
+}
+
+// dumpPredeployState returns the state at the given L2 block of every account predeployScoped can
+// keep: the predeploys and preinstalls, then the implementations their EIP-1967 slots point at.
+func dumpPredeployState(t actionsHelpers.Testing, engine *actionsHelpers.L2Engine, blockHash common.Hash) *foundry.ForgeAllocs {
+	addrs := make([]common.Address, 0, len(predeploys.Predeploys))
+	for _, p := range predeploys.Predeploys {
+		addrs = append(addrs, p.Address)
+	}
+	accounts := engine.DumpAccounts(t, blockHash, addrs)
+
+	impls := make([]common.Address, 0, len(accounts))
+	for _, acct := range accounts {
+		if impl := common.BytesToAddress(acct.Storage[genesis.ImplementationSlot].Bytes()); impl != (common.Address{}) {
+			impls = append(impls, impl)
+		}
+	}
+	maps.Copy(accounts, engine.DumpAccounts(t, blockHash, impls))
+	return &foundry.ForgeAllocs{Accounts: accounts}
+}
+
+func TestPredeployScopedRetainsKarstPredeploysAndImplementations(t *testing.T) {
+	tests := []struct {
+		name           string
+		proxy          common.Address
+		implementation common.Address
+		code           []byte
+	}{
+		{
+			name:           "ConditionalDeployer",
+			proxy:          common.HexToAddress("0x420000000000000000000000000000000000002c"),
+			implementation: common.HexToAddress("0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3002c"),
+			code:           []byte{0x60, 0x00},
+		},
+		{
+			name:           "L2DevFeatureFlags",
+			proxy:          common.HexToAddress("0x420000000000000000000000000000000000002d"),
+			implementation: common.HexToAddress("0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3002d"),
+			code:           []byte{0x60, 0x01},
+		},
+	}
+
+	full := &foundry.ForgeAllocs{Accounts: make(types.GenesisAlloc)}
+	for _, test := range tests {
+		full.Accounts[test.proxy] = types.Account{Storage: map[common.Hash]common.Hash{
+			genesis.ImplementationSlot: common.BytesToHash(test.implementation.Bytes()),
+		}}
+		full.Accounts[test.implementation] = types.Account{Code: test.code}
+	}
+
+	scoped := predeployScoped(full)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Contains(t, scoped.Accounts, test.proxy)
+			require.Equal(t, full.Accounts[test.proxy], scoped.Accounts[test.proxy])
+			require.Contains(t, scoped.Accounts, test.implementation)
+			require.Equal(t, full.Accounts[test.implementation], scoped.Accounts[test.implementation])
+		})
+	}
+}
+
+// predeployScoped keeps every predeploy and preinstall, plus the
+// impls they point at via their EIP-1967 slot — with full per-account storage.
+// Everything else (e.g. prefunded EOAs) is dropped.
+func predeployScoped(full *foundry.ForgeAllocs) *foundry.ForgeAllocs {
+	out := &foundry.ForgeAllocs{Accounts: make(types.GenesisAlloc)}
+	for _, p := range predeploys.Predeploys {
+		acct, ok := full.Accounts[p.Address]
+		if !ok {
+			continue
+		}
+		out.Accounts[p.Address] = acct
+		if p.ProxyDisabled {
+			continue
+		}
+		implAddr := common.BytesToAddress(acct.Storage[genesis.ImplementationSlot].Bytes())
+		if implAddr == (common.Address{}) {
+			continue
+		}
+		if implAcct, ok := full.Accounts[implAddr]; ok {
+			out.Accounts[implAddr] = implAcct
+		}
+	}
+	return out
+}

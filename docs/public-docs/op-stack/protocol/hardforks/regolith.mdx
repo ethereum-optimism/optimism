@@ -1,0 +1,41 @@
+---
+title: Regolith
+description: Hardfork registry entry for the Regolith network upgrade, which corrected deposit processing after Bedrock.
+diataxis: reference
+hardfork_name: regolith
+hardfork_lifecycle: active
+hardfork_spec: https://specs.optimism.io/protocol/regolith/overview.html
+hardfork_activation_mainnet: 0
+hardfork_activation_sepolia: 0
+---
+
+import RegolithFacts from "/snippets/generated/hardforks/regolith.mdx"
+import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+<NormativeSpec
+  what="This upgrade"
+  title="Regolith specification"
+  href="https://specs.optimism.io/protocol/regolith/overview.html"
+  note="This page records activation data and operational pointers; it does not restate the spec."
+/>
+
+Regolith made minor corrections to deposit processing based on audit findings
+after Bedrock. It activates at timestamp `0` on OP Mainnet and OP Sepolia —
+that is, from the Bedrock migration onward — which predates the
+superchain-registry's superchain-wide hardfork defaults.
+
+<RegolithFacts />
+
+## What changed
+
+Per the [spec overview](https://specs.optimism.io/protocol/regolith/overview.html):
+
+*   Disabled the `isSystemTx` boolean; system transactions use the same gas
+    accounting rules as regular deposits.
+*   Records actual deposit gas usage in the deposit transaction receipt and
+    subtracts it from the L2 block gas pool (unused deposit gas is not refunded).
+*   Adds the optional `depositNonce` receipt field and uses it to correct
+    transaction and receipt metadata in RPC responses.
+*   Commits `gas` and `depositNonce` into the consensus representation of the
+    receipt so the data syncs safely between L2 nodes.
+*   Corrects the L1 cost function to more closely match pre-Bedrock behavior.

@@ -1,0 +1,181 @@
+# Deciding which PRs belong in a release note
+
+## Why the draft is noisy
+
+`just release-notes` selects commits by include-path, and those paths are deliberately wide.
+For the Go services:
+
+```
+--include-path "<component>/**/*"  --include-path "go.*"
+--include-path "op-core/**/*"      --include-path "op-service/**/*"
+```
+
+`op-core/` and `op-service/` hold code shared by every Go service, by the test harnesses
+(`op-devstack`, `op-e2e`, `op-acceptance-tests`) and by tools that ship separately
+(`op-deployer`, `op-chain-ops`). So a draft picks up many commits that never reach the
+binary — the op-batcher v1.16.13 draft listed 21 PRs, of which 8 touched nothing op-batcher
+compiles. The `kona-*` components and `op-zk-proposer` filter on all of `rust/kona/**`,
+`rust/op-alloy/**` and `rust/alloy-op*/**`, so a kona-node draft picks up kona-client,
+kona-host and kona-sp1 work too.
+
+## The test that matters
+
+**Not** "did this PR touch `<component>/`". Shared code is compiled into the binary, so a
+change under `op-service/` or `op-core/` can absolutely change how the component behaves —
+`op-service/txmgr`, `op-service/bgpo` and `op-core/fees` all reach op-batcher.
+
+The right question: **does this PR change code compiled into this binary, and does that
+change alter behaviour an operator would notice?** Downstream Go importers do not count —
+see the Drop list below.
+
+`scripts/pr-facts.sh` answers the first half exactly and tags every PR:
+
+| Tag | Meaning | Default |
+| --- | --- | --- |
+| `LINKED` | Changed a package in the binary's transitive dependency set; the listed packages are the ones that reach it | Candidate — apply the judgment pass |
+| `CONFIG` | Moved the embedded superchain registry — submodule pin, generated archive checksum, or kona's snapshots. `LINKED+CONFIG` when compiled code moved too | Always read by hand |
+| `DEPS` | Changed the dependency manifests without touching a compiled package | Drop, unless it is a security bump |
+| `--` | Touched nothing the binary compiles | Drop |
+| `?` | Dependencies could not be resolved | Judge by hand |
+
+A `CONFIG` row carries no linkage evidence and never will, yet is routinely the most
+consequential change in the release: read the PR body for which chains and which values
+moved. A new hardfork activation time is a `## Chain Configuration` entry and can make the
+release `required` for the chains it names.
+
+A `DEPS` row listing paths rather than "(manifest only)" changed something else too, which
+was not compiled in. Check the lock diff against the component's dependency set before
+dropping it — #22714 looked like kona work but moved `hickory-resolver`, which op-reth links
+for DNS discovery, off a High advisory.
+
+## The judgment pass on LINKED rows
+
+A PR whose substance is test infrastructure often nudges a linked package in passing. For
+each `LINKED` row, look only at the part of the diff landing in the listed packages:
+
+```bash
+gh pr view <N> --json title,body      # intent
+gh pr diff <N>                        # when the intent is unclear
+```
+
+`_test.go` files are already excluded from linkage, so a Go PR that only adds coverage is
+tagged `--`. Rust test code lives behind `#[cfg(test)]` inside the crate and cannot be
+excluded by path, so `LINKED` Rust rows still need this check by hand.
+
+**Linkage proves the package is compiled in, not that the changed function is on the
+component's runtime path.** This is the trap that survives the mechanical pass.
+`op-core/fees` is genuinely linked into op-batcher, but the Jovian DA-footprint work
+(#22163, #22219) is reached from the `op-chain-ops/cmd/check-*` tools, not from anything the
+batcher runs — both were cut with the note "doesn't affect the batcher". Similarly,
+`op-node/rollup/derive` is linked into op-batcher, but a derivation-only change there is not
+batcher-facing. Ask what the component does, not just what it links:
+
+```bash
+grep -rn "<ChangedSymbol>" <component>/ --include='*.go' | grep -v _test.go
+```
+
+**Keep** when the change to the linked package:
+
+- alters runtime behaviour — what gets built, submitted, derived, gossiped, or logged
+- changes a flag, env var, config key, default, metric, or RPC surface
+- fixes a bug, panic, race, or correctness issue reachable in production
+- is a security fix
+
+**Drop** when it is:
+
+- test-only, fixtures, mocks, or `testutils` churn
+- a pure rename/move with no behaviour change
+- a dev-feature toggle removal for a feature never on in production
+- comment, TODO, or docs cleanup
+- another component's work that merely brushed a shared package
+- a Go API change with no operator-facing effect, **including one that only unblocks
+  downstream importers** of the monorepo as a Go module — see house-style.md for why that is
+  not a user-facing surface
+
+**Keep a cross-component PR** when the component embeds the other one. op-supernode runs
+virtual op-nodes, so op-node's follow-source reorg metrics belong in the supernode notes even
+though the PR touches no `op-supernode/` path.
+
+**A change confined to an unreleased feature is cut entirely.** Keep it only if it also
+reaches a path that is live today. `house-style.md` has the liveness checks.
+
+## Fixes for bugs that never shipped
+
+Before letting a scary-looking fix set the upgrade recommendation, check whether the bug is
+inside the same release range:
+
+```bash
+git tag --contains <sha-that-introduced-the-bug> | grep '<component>/v'
+```
+
+Empty output means the bug never reached a release: keep the PR in the list, but do not let
+it set the recommendation — and do not mention it in the note. "Both land in this release, so
+no published version is affected" is a triage conclusion, not something the reader needs.
+
+## Changes that already shipped
+
+A release tag is not always on the same line of history as the previous one. When the
+previous tag is not an ancestor of this one, a fix cherry-picked for the previous release
+appears again, as its original PR. List the commits that only the previous release has:
+
+```bash
+git log --format='%s' $(git merge-base <prev-tag> <this-tag>)..<prev-tag> -- <component paths>
+```
+
+Drop each draft PR that one of those commits backported, because the previous release
+already shipped it. `op-contracts/v8.0.0` listed #20919, which `op-contracts/v7.0.0` had
+already shipped as #20925.
+
+## op-contracts and op-deployer
+
+The op-contracts note gets what changes onchain. The op-deployer note gets what changes for
+a user of the tool, including changes to the contract scripts it runs. A PR that does both
+gets an entry in each note. The op-deployer note links to the op-contracts release and does
+not repeat its changes.
+
+For op-contracts, `LINKED` means a contract under `src/` or the candidate L2 upgrade bundle
+changed. Keep every bundle change: `op-core/nuts` snapshots it for the fork, and op-node and
+kona execute it. Drop a change that only bumps a contract's version. `DEPS` means
+`foundry.toml` or a `lib/` pin changed; read each one, because it can change the deployed
+bytecode.
+
+For op-deployer, `LINKED` also covers the contract scripts that its Go code runs, and their
+imports, from `forge tree`. The import graph comes from the current checkout, so a script
+deleted during the release range does not match; check such a row by hand.
+
+## Dependency and security bumps
+
+`DEPS` rows are usually noise, but a bump patching a CVE in a library the binary links is
+worth a line, and if it is the most serious thing in the release it raises the
+recommendation. Check the module is really in the binary first:
+
+```bash
+go list -deps ./<component>/cmd | grep <module-path>
+```
+
+Renovate/dependabot bumps with no security label: drop.
+
+## Ground truth
+
+Two published releases, checked against their regenerated raw drafts:
+
+- **`op-node/v1.19.4`** — 32 PRs raw, 15 published. Dropped: op-dispute-mon and op-challenger
+  work, kona changes, dependabot bumps, test fixes, a stale-TODO removal, two dev-feature
+  toggle removals.
+- **`op-batcher/v1.16.12`** — 23 PRs raw, 1 published. Almost the entire draft was other
+  components' work reaching op-batcher's include paths.
+
+Regenerate any published release's raw draft to check a call:
+
+```bash
+GITHUB_TOKEN=$(gh auth token) mise exec -- just release-notes op-node v1.19.3 v1.19.4
+```
+
+The v1.19.5 train is the closest reference for current practice. Surviving PR counts:
+op-node 10 of 30, op-batcher 6 of 21, op-supernode 8 of 24, kona-node 6 of 17.
+
+## Drafts with more than one section
+
+If earlier RCs were never published, git-cliff emits several `## What's Changed in <tag>`
+sections in one draft. For a finalized release, merge them under the final tag, dedupe by PR
+number, and triage the union — the release covers all of it.

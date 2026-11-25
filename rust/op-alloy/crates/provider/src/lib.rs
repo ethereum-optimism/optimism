@@ -1,4 +1,5 @@
-#![doc = include_str!("../README.md")]
+//! Optimism providers to interface with the engine API, adopted from L1, and the OP-unique engine
+//! API.
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/alloy-rs/core/main/assets/alloy.jpg",
     html_favicon_url = "https://raw.githubusercontent.com/alloy-rs/core/main/assets/favicon.ico"

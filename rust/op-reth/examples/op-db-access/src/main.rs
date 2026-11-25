@@ -1,7 +1,7 @@
 //! Shows how to manually access the database
 
 use reth_op::{
-    chainspec::BASE_MAINNET, node::OpNode, provider::providers::ReadOnlyConfig, tasks::Runtime,
+    chainspec::OP_MAINNET, node::OpNode, provider::providers::ReadOnlyConfig, tasks::Runtime,
 };
 
 // Providers are zero-cost abstractions on top of an opened MDBX Transaction
@@ -18,7 +18,7 @@ fn main() -> eyre::Result<()> {
 
     // Instantiate a provider factory for Ethereum mainnet using the provided datadir path.
     let factory = OpNode::provider_factory_builder().open_read_only(
-        BASE_MAINNET.clone(),
+        OP_MAINNET.clone(),
         ReadOnlyConfig::from_datadir(datadir),
         runtime,
     )?;

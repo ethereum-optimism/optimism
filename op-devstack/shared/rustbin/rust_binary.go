@@ -7,24 +7,23 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
-
-	"github.com/ethereum/go-ethereum/log"
+	"time"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // Spec describes a Rust binary to be built and located.
 type Spec struct {
-	SrcDir  string // directory name relative to monorepo root, e.g. "rollup-boost"
-	Package string // cargo package name, e.g. "rollup-boost"
-	Binary  string // binary name, e.g. "rollup-boost"
+	SrcDir  string // directory name relative to monorepo root, e.g. "rust/kona"
+	Package string // cargo package name, e.g. "kona-node"
+	Binary  string // binary name, e.g. "kona-node"
 }
 
 // EnsureExists locates or builds a Rust binary as needed.
 //
-// Env var overrides (suffix derived from binary name, e.g. "rollup-boost" -> "ROLLUP_BOOST"):
+// Env var overrides (suffix derived from binary name, e.g. "kona-node" -> "KONA_NODE"):
 //   - RUST_BINARY_PATH_<BINARY>: absolute path to pre-built binary (skips build, must exist)
 //   - RUST_SRC_DIR_<BINARY>: overrides SrcDir (absolute path to cargo project root)
 //
@@ -84,7 +83,7 @@ func resolveSrcRoot(defaultSrcDir, envSuffix string) (string, error) {
 }
 
 // toEnvVarSuffix converts a binary name to an env var suffix.
-// e.g. "rollup-boost" -> "ROLLUP_BOOST"
+// e.g. "kona-node" -> "KONA_NODE"
 func toEnvVarSuffix(binary string) string {
 	return strings.ToUpper(strings.ReplaceAll(binary, "-", "_"))
 }
@@ -106,7 +105,14 @@ func resolveBuiltRustBinaryPath(srcRoot, binary string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return selectNewestBinary(targetDir, binary)
+}
 
+// selectNewestBinary locates the built binary under targetDir, preferring the
+// most recently modified when several profiles or target triples are present.
+// Picking by mtime avoids silently shadowing a freshly built release binary with
+// a stale debug leftover (alphabetical order would prefer "debug" over "release").
+func selectNewestBinary(targetDir, binary string) (string, error) {
 	candidates := []string{
 		filepath.Join(targetDir, "release", binary),
 		filepath.Join(targetDir, "debug", binary),
@@ -117,26 +123,27 @@ func resolveBuiltRustBinaryPath(srcRoot, binary string) (string, error) {
 	}
 
 	seen := make(map[string]struct{}, len(candidates))
-	var existing []string
+	var newest string
+	var newestMod time.Time
 	for _, candidate := range candidates {
 		if _, dup := seen[candidate]; dup {
 			continue
 		}
 		seen[candidate] = struct{}{}
-		if _, err := os.Stat(candidate); err == nil {
-			existing = append(existing, candidate)
+		info, err := os.Stat(candidate)
+		if err != nil {
+			continue
+		}
+		if newest == "" || info.ModTime().After(newestMod) {
+			newest = candidate
+			newestMod = info.ModTime()
 		}
 	}
 
-	switch len(existing) {
-	case 0:
+	if newest == "" {
 		return "", fmt.Errorf("no built binary found under target dir %s", targetDir)
-	case 1:
-		return existing[0], nil
-	default:
-		sort.Strings(existing)
-		return existing[0], nil
 	}
+	return newest, nil
 }
 
 func cargoTargetDirectory(srcRoot string) (string, error) {

@@ -60,7 +60,11 @@ pub struct RollupConfig {
     pub fjord_max_sequencer_drift: u64,
     /// The L1 chain ID
     pub l1_chain_id: u64,
-    /// The L2 chain ID
+    /// The L2 chain ID.
+    ///
+    /// Serialized as a JSON number, as op-node does, so Go clients can decode it. Deserialization
+    /// accepts a number or an alloy chain name.
+    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_chain_id"))]
     pub l2_chain_id: Chain,
     /// Hardfork timestamps.
     #[cfg_attr(feature = "serde", serde(flatten))]
@@ -91,20 +95,30 @@ pub struct RollupConfig {
     /// `chain_op_config` is the chain-specific EIP1559 config for the rollup.
     #[cfg_attr(feature = "serde", serde(default = "BaseFeeConfig::optimism"))]
     pub chain_op_config: BaseFeeConfig,
+    /// OP Private settlement chain ID: 0 if public, own ID if a settlement chain, else its
+    /// settlement chain's ID.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_zero"))]
+    pub settlement_chain_id: u64,
+}
+
+#[cfg(feature = "serde")]
+const fn is_zero(v: &u64) -> bool {
+    *v == 0
+}
+
+/// Serializes a [`Chain`] as its numeric ID. `Chain`'s own `Serialize` emits a name string
+/// (e.g. `"optimism"`) for alloy-named chains, which op-node's `*big.Int` field rejects.
+#[cfg(feature = "serde")]
+fn serialize_chain_id<S: serde::Serializer>(
+    chain: &Chain,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.serialize_u64(chain.id())
 }
 
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        use crate::{
-            BASE_SEPOLIA_BASE_FEE_CONFIG, OP_MAINNET_BASE_FEE_CONFIG, OP_SEPOLIA_BASE_FEE_CONFIG,
-        };
-        let chain_op_config = match u32::arbitrary(u)? % 3 {
-            0 => OP_MAINNET_BASE_FEE_CONFIG,
-            1 => OP_SEPOLIA_BASE_FEE_CONFIG,
-            _ => BASE_SEPOLIA_BASE_FEE_CONFIG,
-        };
-
         Ok(Self {
             genesis: ChainGenesis::arbitrary(u)?,
             block_time: u.arbitrary()?,
@@ -123,8 +137,17 @@ impl<'a> arbitrary::Arbitrary<'a> for RollupConfig {
             superchain_config_address: Option::<Address>::arbitrary(u)?,
             blobs_enabled_l1_timestamp: Option::<u64>::arbitrary(u)?,
             da_challenge_address: Option::<Address>::arbitrary(u)?,
-            chain_op_config,
+            chain_op_config: if u.arbitrary()? {
+                OP_MAINNET_BASE_FEE_CONFIG
+            } else {
+                BaseFeeConfig {
+                    eip1559_elasticity: 10,
+                    eip1559_denominator: 50,
+                    eip1559_denominator_canyon: 250,
+                }
+            },
             alt_da_config: Option::<AltDAConfig>::arbitrary(u)?,
+            settlement_chain_id: u.arbitrary()?,
         })
     }
 }
@@ -152,38 +175,7 @@ impl Default for RollupConfig {
             da_challenge_address: None,
             alt_da_config: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
-        }
-    }
-}
-
-#[cfg(feature = "revm")]
-impl RollupConfig {
-    /// Returns the active [`op_revm::OpSpecId`] for the executor.
-    ///
-    /// ## Takes
-    /// - `timestamp`: The timestamp of the executing block.
-    ///
-    /// ## Returns
-    /// The active [`op_revm::OpSpecId`] for the executor.
-    pub fn spec_id(&self, timestamp: u64) -> op_revm::OpSpecId {
-        if self.is_interop_active(timestamp) {
-            op_revm::OpSpecId::INTEROP
-        } else if self.is_jovian_active(timestamp) {
-            op_revm::OpSpecId::JOVIAN
-        } else if self.is_isthmus_active(timestamp) {
-            op_revm::OpSpecId::ISTHMUS
-        } else if self.is_holocene_active(timestamp) {
-            op_revm::OpSpecId::HOLOCENE
-        } else if self.is_fjord_active(timestamp) {
-            op_revm::OpSpecId::FJORD
-        } else if self.is_ecotone_active(timestamp) {
-            op_revm::OpSpecId::ECOTONE
-        } else if self.is_canyon_active(timestamp) {
-            op_revm::OpSpecId::CANYON
-        } else if self.is_regolith_active(timestamp) {
-            op_revm::OpSpecId::REGOLITH
-        } else {
-            op_revm::OpSpecId::BEDROCK
+            settlement_chain_id: 0,
         }
     }
 }
@@ -298,10 +290,10 @@ impl RollupConfig {
 
     /// Returns true if SDM post-exec transactions are active at the given timestamp.
     ///
-    /// SDM is currently unscheduled and must not activate as part of Jovian or Karst.
+    /// Defers to the hardfork where SDM is activated, matching op-node's `IsSDM`.
     #[must_use]
-    pub const fn is_sdm_active(&self, _timestamp: u64) -> bool {
-        false
+    pub fn is_sdm_active(&self, timestamp: u64) -> bool {
+        self.is_lagoon_active(timestamp)
     }
 
     /// Returns true if Jovian is active at the given timestamp.
@@ -319,7 +311,7 @@ impl RollupConfig {
     /// Returns true if Karst is active at the given timestamp.
     pub fn is_karst_active(&self, timestamp: u64) -> bool {
         self.hardforks.karst_time.is_some_and(|t| timestamp >= t) ||
-            self.is_interop_active(timestamp)
+            self.is_lagoon_active(timestamp)
     }
 
     /// Returns true if the timestamp marks the first Karst block.
@@ -328,21 +320,45 @@ impl RollupConfig {
             !self.is_karst_active(timestamp.saturating_sub(self.block_time))
     }
 
-    /// Returns true if Interop is active at the given timestamp.
-    pub fn is_interop_active(&self, timestamp: u64) -> bool {
-        self.hardforks.interop_time.is_some_and(|t| timestamp >= t)
+    /// Returns true if Lagoon is active at the given timestamp.
+    pub fn is_lagoon_active(&self, timestamp: u64) -> bool {
+        self.hardforks.lagoon_time.is_some_and(|t| timestamp >= t)
     }
 
-    /// Returns true if the timestamp marks the first Interop block.
+    /// Returns true if `timestamp` is `fork`'s activation block — `fork` is active at `timestamp`
+    /// but was not active at the previous block. Mirrors op-node's `IsActivationBlockForFork`.
+    pub fn is_fork_activation_block(&self, fork: OpHardfork, timestamp: u64) -> bool {
+        let activation = self.op_fork_activation(fork);
+        activation.active_at_timestamp(timestamp) &&
+            !activation.active_at_timestamp(timestamp.saturating_sub(self.block_time))
+    }
+
+    /// Returns true if the timestamp marks the first Lagoon block.
+    pub fn is_first_lagoon_block(&self, timestamp: u64) -> bool {
+        self.is_lagoon_active(timestamp) &&
+            !self.is_lagoon_active(timestamp.saturating_sub(self.block_time))
+    }
+
+    /// Returns true if the interop feature is active at the given timestamp.
+    ///
+    /// Defers to the hardfork where interop is activated, but kept as a separate feature gate —
+    /// mirroring op-node's `IsInterop` — so interop can diverge from the fork if its activation is
+    /// ever decoupled. Interop-feature code should gate on this, not on the raw fork accessor.
+    pub fn is_interop_active(&self, timestamp: u64) -> bool {
+        self.is_lagoon_active(timestamp)
+    }
+
+    /// Returns true if the timestamp marks the first interop-active block.
     pub fn is_first_interop_block(&self, timestamp: u64) -> bool {
         self.is_interop_active(timestamp) &&
             !self.is_interop_active(timestamp.saturating_sub(self.block_time))
     }
 
-    /// Returns true if a DA Challenge proxy Address is provided in the rollup config and the
-    /// address is not zero.
-    pub fn is_alt_da_enabled(&self) -> bool {
-        self.da_challenge_address.is_some_and(|addr| !addr.is_zero())
+    /// Returns true if the rollup config has an alt-DA config, for either commitment type.
+    /// Generic commitments have no challenge contract, so `da_challenge_address` doesn't
+    /// indicate alt-DA.
+    pub const fn is_alt_da_enabled(&self) -> bool {
+        self.alt_da_config.is_some()
     }
 
     /// Returns the max sequencer drift for the given timestamp.
@@ -380,13 +396,14 @@ impl RollupConfig {
         self.hardforks
     }
 
-    /// Computes a block number from a timestamp, relative to the L2 genesis time and the block
-    /// time.
+    /// Computes the absolute L2 block number that a timestamp falls in.
     ///
-    /// This function assumes that the timestamp is aligned with the block time, and uses floor
-    /// division in its computation.
+    /// The computation uses floor division. A timestamp between two blocks therefore resolves
+    /// to the earlier block.
     pub const fn block_number_from_timestamp(&self, timestamp: u64) -> u64 {
-        timestamp.saturating_sub(self.genesis.l2_time).saturating_div(self.block_time)
+        self.genesis.l2.number.saturating_add(
+            timestamp.saturating_sub(self.genesis.l2_time).saturating_div(self.block_time),
+        )
     }
 
     /// Checks the scalar value in Ecotone.
@@ -418,20 +435,12 @@ impl EthereumHardforks for RollupConfig {
         if fork <= EthereumHardfork::Berlin {
             // We assume that OP chains were launched with all forks before Berlin activated.
             ForkCondition::Block(0)
-        } else if fork <= EthereumHardfork::Paris {
-            // Bedrock activates all hardforks up to Paris.
-            self.op_fork_activation(OpHardfork::Bedrock)
-        } else if fork <= EthereumHardfork::Shanghai {
-            // Canyon activates Shanghai hardfork.
-            self.op_fork_activation(OpHardfork::Canyon)
-        } else if fork <= EthereumHardfork::Cancun {
-            // Ecotone activates Cancun hardfork.
-            self.op_fork_activation(OpHardfork::Ecotone)
-        } else if fork <= EthereumHardfork::Prague {
-            // Isthmus activates Prague hardfork.
-            self.op_fork_activation(OpHardfork::Isthmus)
         } else {
-            ForkCondition::Never
+            // Every later L1 fork activates with the OP fork that implies it (Bedrock for
+            // London through Paris); L1 forks without an L2 equivalent never activate.
+            OpHardfork::activating_op_fork(fork)
+                .map(|op_fork| self.op_fork_activation(op_fork))
+                .unwrap_or(ForkCondition::Never)
         }
     }
 }
@@ -484,10 +493,10 @@ impl OpHardforks for RollupConfig {
                 .hardforks
                 .karst_time
                 .map(ForkCondition::Timestamp)
-                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Interop)),
-            OpHardfork::Interop => self
+                .unwrap_or_else(|| self.op_fork_activation(OpHardfork::Lagoon)),
+            OpHardfork::Lagoon => self
                 .hardforks
-                .interop_time
+                .lagoon_time
                 .map(ForkCondition::Timestamp)
                 .unwrap_or(ForkCondition::Never),
             _ => ForkCondition::Never,
@@ -498,7 +507,6 @@ impl OpHardforks for RollupConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "serde")]
     use alloy_eips::BlockNumHash;
     use alloy_primitives::address;
     #[cfg(feature = "serde")]
@@ -514,26 +522,96 @@ mod tests {
         RollupConfig::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap();
     }
 
+    /// Runs an `arbtest` property in one of three modes:
+    ///
+    /// - `ARBTEST_SEED` set (the seed arbtest prints on failure): replay that seed. Filter the run
+    ///   to one test, since arbtest applies the variable to every arbtest in the process.
+    /// - `CI` set: run a fixed number of seeds from a fixed-seed RNG, so CI is deterministic for a
+    ///   given `Cargo.lock` (a `rand` upgrade may change `StdRng`'s output and so the seeds).
+    /// - otherwise: arbtest's random search, for its time budget (`ARBTEST_BUDGET_MS`, 100ms by
+    ///   default).
+    ///
+    /// Inputs range from a few dozen bytes, where `Unstructured` runs out and most fields come out
+    /// as their default or `None`, to a few KiB, where every field gets a value. A property that
+    /// returns `Err` fails a replayed or CI seed, whereas the random search skips it.
+    #[cfg(all(feature = "arbitrary", feature = "serde"))]
+    fn run_arbtest(property: impl Fn(&mut arbitrary::Unstructured<'_>) -> arbitrary::Result<()>) {
+        use rand::{Rng, SeedableRng};
+        const SIZE_MIN: u32 = 32;
+        const SIZE_MAX: u32 = 4 * 1024;
+        const CI_CASES: usize = 1000;
+
+        if std::env::var_os("CI").is_none() || std::env::var_os("ARBTEST_SEED").is_some() {
+            // arbtest itself replays `ARBTEST_SEED` when set, ignoring the size bounds.
+            arbtest::arbtest(property).size_min(SIZE_MIN).size_max(SIZE_MAX).run();
+            return;
+        }
+        let mut rng = rand::rngs::StdRng::seed_from_u64(0);
+        for _ in 0..CI_CASES {
+            // arbtest's seed layout: the input size in the low 32 bits, the RNG seed above.
+            let size = rng.random_range(SIZE_MIN..=SIZE_MAX);
+            let seed = u64::from(size) | (u64::from(rng.random::<u32>()) << 32);
+            arbtest::arbtest(&property).seed(seed).run();
+        }
+    }
+
+    /// Every `RollupConfig` survives a serde round trip. Several attributes act differently on
+    /// the way out and the way in: `skip_serializing_if` with `default`, the flattened
+    /// `hardforks`, renames such as `blobs_data` and `alt_da`, and `serialize_with` on
+    /// `l2_chain_id`.
     #[test]
-    #[cfg(feature = "revm")]
-    fn test_revm_spec_id() {
-        // By default, the spec ID should be BEDROCK.
-        let mut config = RollupConfig {
-            hardforks: HardForkConfig { regolith_time: Some(10), ..Default::default() },
+    #[cfg(all(feature = "arbitrary", feature = "serde"))]
+    fn test_arbitrary_rollup_config_serde_roundtrip() {
+        use arbitrary::Arbitrary;
+        run_arbtest(|u| {
+            let config = RollupConfig::arbitrary(u)?;
+            let json = serde_json::to_string(&config).unwrap();
+            let decoded: RollupConfig = serde_json::from_str(&json).unwrap();
+            assert_eq!(decoded, config, "{json}");
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn test_ethereum_fork_activation_follows_op_forks() {
+        let config = RollupConfig {
+            hardforks: HardForkConfig {
+                canyon_time: Some(10),
+                ecotone_time: Some(20),
+                isthmus_time: Some(30),
+                karst_time: Some(40),
+                ..Default::default()
+            },
             ..Default::default()
         };
-        assert_eq!(config.spec_id(0), op_revm::OpSpecId::BEDROCK);
-        assert_eq!(config.spec_id(10), op_revm::OpSpecId::REGOLITH);
-        config.hardforks.canyon_time = Some(20);
-        assert_eq!(config.spec_id(20), op_revm::OpSpecId::CANYON);
-        config.hardforks.ecotone_time = Some(30);
-        assert_eq!(config.spec_id(30), op_revm::OpSpecId::ECOTONE);
-        config.hardforks.fjord_time = Some(40);
-        assert_eq!(config.spec_id(40), op_revm::OpSpecId::FJORD);
-        config.hardforks.holocene_time = Some(50);
-        assert_eq!(config.spec_id(50), op_revm::OpSpecId::HOLOCENE);
-        config.hardforks.isthmus_time = Some(60);
-        assert_eq!(config.spec_id(60), op_revm::OpSpecId::ISTHMUS);
+        // Bedrock activates all L1 forks up to and including Paris.
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::London),
+            ForkCondition::Block(0)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Paris),
+            config.op_fork_activation(OpHardfork::Bedrock)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Shanghai),
+            ForkCondition::Timestamp(10)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Cancun),
+            ForkCondition::Timestamp(20)
+        );
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Prague),
+            ForkCondition::Timestamp(30)
+        );
+        // Karst activates the Osaka hardfork.
+        assert_eq!(
+            config.ethereum_fork_activation(EthereumHardfork::Osaka),
+            ForkCondition::Timestamp(40)
+        );
+        // L1 forks without an L2 equivalent never activate.
+        assert_eq!(config.ethereum_fork_activation(EthereumHardfork::Bpo1), ForkCondition::Never);
     }
 
     #[test]
@@ -657,7 +735,7 @@ mod tests {
     #[test]
     fn test_jovian_active() {
         let mut config = RollupConfig::default();
-        assert!(!config.is_interop_active(0));
+        assert!(!config.is_lagoon_active(0));
         config.hardforks.jovian_time = Some(10);
         assert!(config.is_regolith_active(10));
         assert!(config.is_canyon_active(10));
@@ -692,22 +770,57 @@ mod tests {
     }
 
     #[test]
-    fn test_sdm_disabled_after_jovian_and_karst() {
+    fn test_lagoon_active() {
         let mut config = RollupConfig::default();
+        assert!(!config.is_lagoon_active(0));
+        config.hardforks.lagoon_time = Some(10);
+        assert!(config.is_lagoon_active(10));
+        assert!(!config.is_lagoon_active(9));
+    }
+
+    #[test]
+    fn test_first_lagoon_block() {
+        let mut config = RollupConfig { block_time: 2, ..Default::default() };
+        config.hardforks.lagoon_time = Some(120);
+        assert!(!config.is_first_lagoon_block(118));
+        assert!(config.is_first_lagoon_block(120));
+        assert!(!config.is_first_lagoon_block(122));
+    }
+
+    #[test]
+    fn test_interop_feature_tracks_lagoon() {
+        // The interop feature gate rides Lagoon today.
+        let mut config = RollupConfig { block_time: 2, ..Default::default() };
+        config.hardforks.lagoon_time = Some(120);
+        assert_eq!(config.is_interop_active(119), config.is_lagoon_active(119));
+        assert_eq!(config.is_interop_active(120), config.is_lagoon_active(120));
+        assert!(config.is_first_interop_block(120));
+        assert!(!config.is_first_interop_block(122));
+    }
+
+    #[test]
+    fn test_sdm_rides_lagoon() {
+        let mut config = RollupConfig::default();
+        // Jovian/Karst alone must not activate SDM — only Lagoon does.
         config.hardforks.jovian_time = Some(10);
         config.hardforks.karst_time = Some(20);
-
         assert!(config.is_jovian_active(10));
         assert!(!config.is_sdm_active(10));
         assert!(config.is_karst_active(20));
         assert!(!config.is_sdm_active(20));
+
+        // Schedule Lagoon and SDM must follow.
+        config.hardforks.lagoon_time = Some(30);
+        assert!(!config.is_sdm_active(29));
+        assert!(config.is_sdm_active(30));
+        assert!(config.is_sdm_active(31));
     }
 
     #[test]
-    fn test_interop_active() {
+    fn test_lagoon_stacks_prior_forks() {
         let mut config = RollupConfig::default();
-        assert!(!config.is_interop_active(0));
-        config.hardforks.interop_time = Some(10);
+        assert!(!config.is_lagoon_active(0));
+        config.hardforks.lagoon_time = Some(10);
         assert!(config.is_regolith_active(10));
         assert!(config.is_canyon_active(10));
         assert!(config.is_delta_active(10));
@@ -718,8 +831,8 @@ mod tests {
         assert!(!config.is_pectra_blob_schedule_active(10));
         assert!(config.is_isthmus_active(10));
         assert!(config.is_karst_active(10));
-        assert!(config.is_interop_active(10));
-        assert!(!config.is_interop_active(9));
+        assert!(config.is_lagoon_active(10));
+        assert!(!config.is_lagoon_active(9));
     }
 
     #[test]
@@ -737,7 +850,8 @@ mod tests {
                 isthmus_time: Some(90),
                 jovian_time: Some(100),
                 karst_time: Some(110),
-                interop_time: Some(120),
+                keep_karst_upgrade_gas: false,
+                lagoon_time: Some(120),
             },
             block_time: 2,
             ..Default::default()
@@ -798,19 +912,21 @@ mod tests {
         assert!(cfg.is_first_karst_block(110));
         assert!(!cfg.is_first_karst_block(112));
 
-        // Interop
-        assert!(!cfg.is_first_interop_block(118));
-        assert!(cfg.is_first_interop_block(120));
-        assert!(!cfg.is_first_interop_block(122));
+        // Lagoon
+        assert!(!cfg.is_first_lagoon_block(118));
+        assert!(cfg.is_first_lagoon_block(120));
+        assert!(!cfg.is_first_lagoon_block(122));
     }
 
     #[test]
     fn test_alt_da_enabled() {
         let mut config = RollupConfig::default();
         assert!(!config.is_alt_da_enabled());
-        config.da_challenge_address = Some(Address::ZERO);
-        assert!(!config.is_alt_da_enabled());
-        config.da_challenge_address = Some(address!("0000000000000000000000000000000000000001"));
+        config.alt_da_config = Some(AltDAConfig {
+            da_commitment_type: Some("GenericCommitment".into()),
+            da_challenge_address: None,
+            ..Default::default()
+        });
         assert!(config.is_alt_da_enabled());
     }
 
@@ -836,6 +952,24 @@ mod tests {
         assert_eq!(config.max_sequencer_drift(10), FJORD_MAX_SEQUENCER_DRIFT);
     }
 
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_settlement_chain_id_serde() {
+        let config = RollupConfig { settlement_chain_id: 1337, ..Default::default() };
+        let json = serde_json::to_value(&config).unwrap();
+        assert_eq!(json["settlement_chain_id"], 1337);
+        assert_eq!(serde_json::from_value::<RollupConfig>(json).unwrap(), config);
+
+        // A public chain omits the field, and an absent field reads as 0.
+        let json = serde_json::to_value(RollupConfig::default()).unwrap();
+        assert!(json.get("settlement_chain_id").is_none());
+        assert_eq!(serde_json::from_value::<RollupConfig>(json).unwrap().settlement_chain_id, 0);
+    }
+
+    /// The config that the inline JSON of kona's own deserialization tests
+    /// (`test_deserialize_reference_rollup_config`, `test_rollup_config_unknown_field`) decodes
+    /// to. It is not part of the cross-language contract with op-node; that is
+    /// [`cross_language_rollup_config`].
     fn expected_rollup_config() -> RollupConfig {
         use crate::{OP_MAINNET_BASE_FEE_CONFIG, SystemConfig};
         RollupConfig {
@@ -889,6 +1023,7 @@ mod tests {
             da_challenge_address: None,
             chain_op_config: OP_MAINNET_BASE_FEE_CONFIG,
             alt_da_config: None,
+            settlement_chain_id: 0,
         }
     }
 
@@ -948,6 +1083,140 @@ mod tests {
         let expected = expected_rollup_config();
         let deserialized: RollupConfig = serde_json::from_str(raw).unwrap();
         assert_eq!(deserialized, expected);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_serialize_named_l2_chain_id_as_number() {
+        let config = RollupConfig { l2_chain_id: Chain::optimism_mainnet(), ..Default::default() };
+        let json = serde_json::to_value(&config).unwrap();
+        assert_eq!(json["l2_chain_id"], 10);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_deserialize_l2_chain_id_name() {
+        let mut json = serde_json::to_value(expected_rollup_config()).unwrap();
+        json["l2_chain_id"] = "optimism".into();
+        let config: RollupConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(config.l2_chain_id, Chain::optimism_mainnet());
+    }
+
+    /// The config in the cross-language golden file, `rollup_config_cross_language.json`.
+    ///
+    /// The file is the contract between kona's `RollupConfig` serialization (which kona-node's
+    /// `optimism_rollupConfig` returns) and op-node's `rollup.Config`: op-node's
+    /// `TestDecodeKonaRollupConfig` (`op-node/rollup/types_test.go`) decodes it field by field.
+    ///
+    /// - Every struct here, nested ones included, is an exhaustive literal with no
+    ///   `..Default::default()`. A new field does not compile until it gets a value, and then the
+    ///   Go test sees it.
+    /// - Values are distinct and non-zero, so a field that one side drops or names differently, or
+    ///   two swapped fields, change the decoded result.
+    /// - The config passes op-node's `Check()`: fork times increase, and the L2 chain ID is OP
+    ///   Mainnet's, which alloy names `"optimism"`. The alt-DA config uses a generic commitment,
+    ///   because op-node reads the challenge address under another key and would otherwise reject
+    ///   the config; a generic commitment must also leave `da_max_input_size` unset.
+    ///
+    /// After changing this config, regenerate the file with
+    /// `UPDATE_GOLDEN=1 cargo test -p kona-genesis test_cross_language_rollup_config_golden`, then
+    /// update the Go test.
+    #[cfg(feature = "serde")]
+    fn cross_language_rollup_config() -> RollupConfig {
+        use crate::SystemConfig;
+        RollupConfig {
+            genesis: ChainGenesis {
+                l1: BlockNumHash {
+                    hash: b256!("438335a20d98863a4c0c97999eb2481921ccd28553eac6f913af7c12aec04108"),
+                    number: 17_422_590,
+                },
+                l2: BlockNumHash {
+                    hash: b256!("dbf6a80fef073de06add9b0d14026d6e5a86c85f6d102c36d3d8e9cf89c2afd3"),
+                    number: 105_235_063,
+                },
+                l2_time: 1_686_068_903,
+                system_config: Some(SystemConfig {
+                    batcher_address: address!("6887246668a3b87f54deb3b94ba47a6f63f32985"),
+                    overhead: U256::from(0xbc),
+                    scalar: U256::from(0xa6fe0),
+                    gas_limit: 30_000_000,
+                    base_fee_scalar: Some(5_227),
+                    blob_base_fee_scalar: Some(1_014_213),
+                    eip1559_denominator: Some(251),
+                    eip1559_elasticity: Some(7),
+                    operator_fee_scalar: Some(17),
+                    operator_fee_constant: Some(19),
+                    min_base_fee: Some(23),
+                    da_footprint_gas_scalar: Some(29),
+                }),
+            },
+            block_time: 2,
+            max_sequencer_drift: 600,
+            seq_window_size: 3600,
+            channel_timeout: 300,
+            granite_channel_timeout: 45,
+            #[cfg(feature = "rollup_config_override")]
+            fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
+            l1_chain_id: 1,
+            l2_chain_id: Chain::optimism_mainnet(),
+            hardforks: HardForkConfig {
+                regolith_time: Some(1_686_068_904),
+                canyon_time: Some(1_704_992_401),
+                delta_time: Some(1_708_560_001),
+                ecotone_time: Some(1_710_374_401),
+                fjord_time: Some(1_720_627_201),
+                granite_time: Some(1_726_070_401),
+                holocene_time: Some(1_736_445_601),
+                pectra_blob_schedule_time: Some(1_742_486_401),
+                isthmus_time: Some(1_746_806_401),
+                jovian_time: Some(1_764_691_201),
+                karst_time: Some(1_780_000_001),
+                keep_karst_upgrade_gas: true,
+                lagoon_time: Some(1_790_000_001),
+            },
+            batch_inbox_address: address!("ff00000000000000000000000000000000000010"),
+            deposit_contract_address: address!("beb5fc579115071764c7423a4f12edde41f106ed"),
+            l1_system_config_address: address!("229047fed2591dbec1ef1118d64f7af3db9eb290"),
+            superchain_config_address: Some(address!("95703e0982140d16f8eba6d158fccede42f04a4c")),
+            blobs_enabled_l1_timestamp: Some(1_710_374_402),
+            da_challenge_address: Some(address!("0000000000000000000000000000000000000da1")),
+            alt_da_config: Some(AltDAConfig {
+                da_challenge_address: Some(address!("0000000000000000000000000000000000000da2")),
+                da_challenge_window: Some(160),
+                da_resolve_window: Some(161),
+                da_commitment_type: Some("GenericCommitment".into()),
+                da_max_input_size: None,
+            }),
+            // Not OP Mainnet's values, which are also the serde default.
+            chain_op_config: BaseFeeConfig {
+                eip1559_elasticity: 8,
+                eip1559_denominator: 60,
+                eip1559_denominator_canyon: 260,
+            },
+            settlement_chain_id: 424,
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_cross_language_rollup_config_golden() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/rollup_config_cross_language.json"
+        );
+        let config = cross_language_rollup_config();
+        let mut json = serde_json::to_value(&config).unwrap();
+        // Present only with `rollup_config_override`. Removing it keeps the file the same under
+        // every feature set, and op-node has no such field.
+        json.as_object_mut().unwrap().remove("fjord_max_sequencer_drift");
+
+        if std::env::var_os("UPDATE_GOLDEN").is_some() {
+            std::fs::write(path, serde_json::to_string_pretty(&json).unwrap() + "\n").unwrap();
+        }
+        let golden: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(json, golden, "rerun with UPDATE_GOLDEN=1 to regenerate {path}");
+        assert_eq!(serde_json::from_value::<RollupConfig>(golden).unwrap(), config);
     }
 
     #[test]
@@ -1017,6 +1286,28 @@ mod tests {
 
         assert_eq!(cfg.block_number_from_timestamp(20), 5);
         assert_eq!(cfg.block_number_from_timestamp(30), 10);
+    }
+
+    #[test]
+    fn test_compute_block_number_from_time_non_zero_genesis() {
+        // OP Mainnet, whose L2 genesis is the last block of the legacy OVM chain.
+        let cfg = RollupConfig {
+            genesis: ChainGenesis {
+                l2: BlockNumHash { number: 105235063, ..Default::default() },
+                l2_time: 1686068903,
+                ..Default::default()
+            },
+            block_time: 2,
+            ..Default::default()
+        };
+
+        assert_eq!(cfg.block_number_from_timestamp(1686068903), 105235063);
+        assert_eq!(cfg.block_number_from_timestamp(1686068905), 105235064);
+        // 1788303126 falls between two blocks.
+        assert_eq!(cfg.block_number_from_timestamp(1788303126), 156352174);
+        assert_eq!(cfg.block_number_from_timestamp(1788303127), 156352175);
+        // A timestamp before genesis clamps to the genesis block.
+        assert_eq!(cfg.block_number_from_timestamp(0), 105235063);
     }
 
     #[cfg(feature = "rollup_config_override")]

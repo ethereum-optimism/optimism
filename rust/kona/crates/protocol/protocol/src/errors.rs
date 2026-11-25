@@ -25,4 +25,12 @@ pub enum OpBlockConversionError {
     /// EIP-1559 parameter decoding error.
     #[error("Failed to decode EIP-1559 parameters from header's `extraData` field.")]
     Eip1559DecodeError(#[from] EIP1559ParamError),
+    /// Activation-block gas limit is below the fork's one-time upgrade gas.
+    #[error("Activation block gas limit {gas_limit} is below upgrade gas {upgrade_gas}")]
+    GasLimitBelowUpgradeGas {
+        /// The block header's gas limit.
+        gas_limit: u64,
+        /// The fork's one-time upgrade gas.
+        upgrade_gas: u64,
+    },
 }

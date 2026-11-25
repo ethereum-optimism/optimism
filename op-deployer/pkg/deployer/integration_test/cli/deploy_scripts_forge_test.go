@@ -12,10 +12,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -40,8 +40,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy AltDA using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -50,7 +49,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			L1RPCUrl:   runner.GetL1RPC(),
 			PrivateKey: runner.GetPrivateKey(),
 		}
-		output, err := opcm.DeployAltDAViaForge(forgeEnv, opcm.DeployAltDAInput{
+		output, err := opcm.DeployAltDA(forgeEnv, opcm.DeployAltDAInput{
 			Salt:                     common.BigToHash(big.NewInt(12345)),
 			ProxyAdmin:               superchainProxyAdminOwner,
 			ChallengeContractOwner:   challenger,
@@ -73,7 +72,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -91,7 +89,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
-			"--use-forge",
+			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -104,8 +102,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy AlphabetVM using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -114,7 +111,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			L1RPCUrl:   runner.GetL1RPC(),
 			PrivateKey: runner.GetPrivateKey(),
 		}
-		output, err := opcm.DeployAlphabetVMViaForge(forgeEnv, opcm.DeployAlphabetVMInput{
+		output, err := opcm.DeployAlphabetVM(forgeEnv, opcm.DeployAlphabetVMInput{
 			AbsolutePrestate: common.BigToHash(big.NewInt(12345)),
 			PreimageOracle:   implsOutput.PreimageOracleSingleton,
 		})
@@ -132,7 +129,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -150,7 +146,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
-			"--use-forge",
+			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -163,8 +159,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy MIPS using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -173,7 +168,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			L1RPCUrl:   runner.GetL1RPC(),
 			PrivateKey: runner.GetPrivateKey(),
 		}
-		output, err := opcm.DeployMIPSViaForge(forgeEnv, opcm.DeployMIPSInput{
+		output, err := opcm.DeployMIPS(forgeEnv, opcm.DeployMIPSInput{
 			PreimageOracle: implsOutput.PreimageOracleSingleton,
 			MipsVersion:    big.NewInt(int64(standard.MIPSVersion)),
 		})
@@ -190,7 +185,6 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--outfile", superchainOutputFile,
 			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--guardian", guardian.Hex(),
-			"--use-forge",
 		}, nil)
 
 		var superchainOutput opcm.DeploySuperchainOutput
@@ -208,7 +202,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			"--l1-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
 			"--superchain-proxy-admin", superchainOutput.SuperchainProxyAdmin.Hex(),
 			"--challenger", challenger.Hex(),
-			"--use-forge",
+			"--sp1-verifier-address", runner.DeployMockSP1Verifier(t).Hex(),
 		}, nil)
 
 		var implsOutput opcm.DeployImplementationsOutput
@@ -221,8 +215,7 @@ func TestDeployScriptsForge(t *testing.T) {
 		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
 		require.NoError(t, err)
 
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
+		forgeClient := testutil.NewForgeClient(t, fmt.Sprintf("%v", embeddedArtifactsFS))
 
 		// Deploy DisputeGame using Forge wrapper function
 		forgeEnv := &opcm.ForgeEnv{
@@ -231,7 +224,7 @@ func TestDeployScriptsForge(t *testing.T) {
 			L1RPCUrl:   runner.GetL1RPC(),
 			PrivateKey: runner.GetPrivateKey(),
 		}
-		output, err := opcm.DeployDisputeGameViaForge(forgeEnv, opcm.DeployDisputeGameInput{
+		output, err := opcm.DeployDisputeGame(forgeEnv, opcm.DeployDisputeGameInput{
 			Release:                  "dev",
 			GameKind:                 "FaultDisputeGame",
 			GameType:                 1,
@@ -249,50 +242,5 @@ func TestDeployScriptsForge(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotEqual(t, common.Address{}, output.DisputeGameImpl)
-	})
-
-	t.Run("read superchain deployment with forge", func(t *testing.T) {
-		runner := NewCLITestRunnerWithNetwork(t)
-		workDir := runner.GetWorkDir()
-
-		superchainOutputFile := filepath.Join(workDir, "bootstrap_superchain_for_read.json")
-		runner.ExpectSuccessWithNetwork(t, []string{
-			"bootstrap", "superchain",
-			"--outfile", superchainOutputFile,
-			"--superchain-proxy-admin-owner", superchainProxyAdminOwner.Hex(),
-			"--guardian", guardian.Hex(),
-			"--use-forge",
-		}, nil)
-
-		var superchainOutput opcm.DeploySuperchainOutput
-		data, err := os.ReadFile(superchainOutputFile)
-		require.NoError(t, err)
-		err = json.Unmarshal(data, &superchainOutput)
-		require.NoError(t, err)
-
-		tmpDir := t.TempDir()
-		embeddedArtifactsFS, err := artifacts.ExtractEmbedded(tmpDir)
-		require.NoError(t, err)
-
-		forgeClient, err := forge.NewStandardClient(fmt.Sprintf("%v", embeddedArtifactsFS))
-		require.NoError(t, err)
-
-		// Read superchain deployment using Forge wrapper function
-		forgeEnv := &opcm.ForgeEnv{
-			Client:   forgeClient,
-			Context:  context.Background(),
-			L1RPCUrl: runner.GetL1RPC(),
-			// PrivateKey not required for read-only operations
-		}
-		output, err := opcm.ReadSuperchainDeploymentViaForge(forgeEnv, opcm.ReadSuperchainDeploymentInput{
-			SuperchainConfigProxy: superchainOutput.SuperchainConfigProxy,
-		})
-		require.NoError(t, err)
-
-		require.Equal(t, superchainOutput.SuperchainConfigProxy, output.SuperchainConfigProxy)
-		require.Equal(t, superchainOutput.SuperchainConfigImpl, output.SuperchainConfigImpl)
-		require.Equal(t, superchainOutput.SuperchainProxyAdmin, output.SuperchainProxyAdmin)
-		require.NotEqual(t, common.Address{}, output.Guardian)
-		require.NotEqual(t, common.Address{}, output.SuperchainProxyAdminOwner)
 	})
 }

@@ -1,7 +1,7 @@
 # op-alloy
 
-Built on [Alloy][alloy], op-alloy aggregates the OP stack's unique primitives from [Maili][maili],
-to the subset of L1 types used by Optimistic rollups.
+Built on [Alloy][alloy], op-alloy aggregates the OP Stack's unique primitives —
+from consensus and RPC types to the subset of L1 types used by Optimistic rollups.
 
 
 ## Usage
@@ -16,32 +16,6 @@ The following crates are provided by `op-alloy`:
 | [op-alloy-rpc-types-engine](https://crates.io/crates/op-alloy-rpc-types-engine) | Type definitions specific to RPC engine | [![version](https://img.shields.io/crates/v/op-alloy-rpc-types-engine)](https://crates.io/crates/op-alloy-rpc-types-engine) |
 | [op-alloy-rpc-types](https://crates.io/crates/op-alloy-rpc-types) | Shared types used across RPC components | [![version](https://img.shields.io/crates/v/op-alloy-rpc-types)](https://crates.io/crates/op-alloy-rpc-types) |
 
-
-
-## Development Status
-
-`op-alloy` is currently in active development, and is not yet ready for use in production.
-
-
-## Supported Rust Versions (MSRV)
-
-The current MSRV (minimum supported rust version) is 1.86.
-
-Unlike Alloy, op-alloy may use the latest stable release,
-to benefit from the latest features.
-
-The MSRV is not increased automatically, and will be updated
-only as part of a patch (pre-1.0) or minor (post-1.0) release.
-
-
-## Contributing
-
-op-alloy is built by open source contributors like you, thank you for improving the project!
-
-A [contributing guide][contributing] is available that sets guidelines for contributing.
-
-Pull requests will not be merged unless CI passes, so please ensure that your contribution follows the
-linting rules and passes clippy.
 
 
 ## `no_std`
@@ -84,10 +58,8 @@ shall be dual licensed as above, without any additional terms or conditions.
 
 [check-no-std]: ./scripts/check_no_std.sh
 
-[maili]: https://github.com/op-rs/maili
 [kona]: https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona
 [alloy]: https://github.com/alloy-rs/alloy
-[contributing]: https://alloy-rs.github.io/op-alloy
 
 [`op-alloy-consensus`]: https://crates.io/crates/op-alloy-consensus
 [`op-alloy-network`]: https://crates.io/crates/op-alloy-network

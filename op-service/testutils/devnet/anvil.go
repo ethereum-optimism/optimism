@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const DefaultChainID = 77799777
@@ -60,6 +60,18 @@ func WithBlockTime(bt int) AnvilOption {
 func WithChainID(id uint64) AnvilOption {
 	return func(a *Anvil) {
 		a.args["--chain-id"] = strconv.FormatUint(id, 10)
+	}
+}
+
+func WithTimestamp(timestamp uint64) AnvilOption {
+	return func(a *Anvil) {
+		a.args["--timestamp"] = strconv.FormatUint(timestamp, 10)
+	}
+}
+
+func WithHardfork(hardfork string) AnvilOption {
+	return func(a *Anvil) {
+		a.args["--hardfork"] = hardfork
 	}
 }
 
@@ -203,8 +215,10 @@ func (r *Anvil) RPCUrl() string {
 	return fmt.Sprintf("http://localhost:%d", port)
 }
 
-func DefaultAnvilRPC(t *testing.T, lgr log.Logger) (string, *ethclient.Client) {
-	anvil, err := NewAnvil(lgr, WithChainID(DefaultChainID))
+// DefaultAnvilRPC starts Anvil with DefaultChainID. Later options can override this default.
+func DefaultAnvilRPC(t *testing.T, lgr log.Logger, opts ...AnvilOption) (string, *ethclient.Client) {
+	anvilOpts := append([]AnvilOption{WithChainID(DefaultChainID)}, opts...)
+	anvil, err := NewAnvil(lgr, anvilOpts...)
 	require.NoError(t, err)
 	require.NoError(t, anvil.Start())
 	t.Cleanup(func() {

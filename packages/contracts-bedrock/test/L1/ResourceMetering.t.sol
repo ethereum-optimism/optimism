@@ -45,9 +45,7 @@ contract MeterUser is ResourceMetering {
 
     function set(uint128 _prevBaseFee, uint64 _prevBoughtGas, uint64 _prevBlockNum) public {
         params = ResourceMetering.ResourceParams({
-            prevBaseFee: _prevBaseFee,
-            prevBoughtGas: _prevBoughtGas,
-            prevBlockNum: _prevBlockNum
+            prevBaseFee: _prevBaseFee, prevBoughtGas: _prevBoughtGas, prevBlockNum: _prevBlockNum
         });
     }
 
@@ -65,9 +63,7 @@ contract CustomMeterUser is ResourceMetering {
 
     constructor(uint128 _prevBaseFee, uint64 _prevBoughtGas, uint64 _prevBlockNum) {
         params = ResourceMetering.ResourceParams({
-            prevBaseFee: _prevBaseFee,
-            prevBoughtGas: _prevBoughtGas,
-            prevBlockNum: _prevBlockNum
+            prevBaseFee: _prevBaseFee, prevBoughtGas: _prevBoughtGas, prevBlockNum: _prevBlockNum
         });
     }
 
@@ -387,7 +383,7 @@ contract ArtifactResourceMetering_Metered_Test is Test {
                     for (uint256 l; l < requestedGases.length; l++) {
                         for (uint256 m; m < l1BaseFees.length; m++) {
                             for (uint256 n; n < ethPrices.length; n++) {
-                                uint256 snapshotId = vm.snapshot();
+                                uint256 snapshotId = vm.snapshotState();
 
                                 uint128 prevBaseFee = prevBaseFees[i];
                                 uint64 prevBoughtGas = prevBoughtGases[j];
@@ -453,7 +449,7 @@ contract ArtifactResourceMetering_Metered_Test is Test {
                                     )
                                 );
 
-                                assertTrue(vm.revertTo(snapshotId));
+                                assertTrue(vm.revertToState(snapshotId));
                             }
                         }
                     }

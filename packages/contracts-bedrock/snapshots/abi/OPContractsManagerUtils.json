@@ -314,6 +314,11 @@
             "internalType": "address",
             "name": "storageSetterImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "sp1PlonkAdapterImpl",
+            "type": "address"
           }
         ],
         "internalType": "struct IOPContractsManagerContainer.Implementations",
@@ -399,6 +404,54 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_opcm",
+        "type": "address"
+      }
+    ],
+    "name": "isPermittedMigrateSequence",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_opcm",
+        "type": "address"
+      }
+    ],
+    "name": "isPermittedUpgradeSequence",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -689,6 +742,17 @@
       }
     ],
     "name": "OPContractsManagerUtils_ExtraTagInProd",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "length",
+        "type": "uint256"
+      }
+    ],
+    "name": "OPContractsManagerUtils_InvalidZKGameArgsLength",
     "type": "error"
   },
   {

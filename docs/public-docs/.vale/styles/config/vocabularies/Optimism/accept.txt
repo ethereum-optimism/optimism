@@ -214,7 +214,6 @@ REQUIREDBLOCKS
 RPCPREFIX
 RPGF
 RWAs
-Reemitting
 Regenesis
 Reimagine
 Relayer
@@ -350,6 +349,7 @@ cpu
 crosschain
 crypto
 cryptocurrencies
+cutover
 da_challenge_address
 da_challenge_window
 da_resolve_window
@@ -538,7 +538,6 @@ proxyd
 quicknode
 quickstarts
 rebalancing
-reemit
 regenesis
 regolith_time
 rejournal
@@ -628,6 +627,7 @@ viem's
 vmdebug
 vmtrace
 vmodule
+wagmi
 websocket
 websockets
 wei

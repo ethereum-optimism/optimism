@@ -18,7 +18,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 
 	gcrypto "github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
@@ -30,6 +29,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // force to use the new chainhash module, and not the legacy chainhash package btcd module
@@ -52,7 +52,7 @@ const (
 	collectiveDialTimeout  = time.Second * 30
 )
 
-func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error) {
+func (conf *Config) Discovery(logger log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error) {
 	if conf.NoDiscovery {
 		return nil, nil, nil
 	}
@@ -102,7 +102,7 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort 
 		NetRestrict:  conf.NetRestrict,
 		Bootnodes:    conf.Bootnodes,
 		Unhandled:    nil, // Not used in dv5
-		Log:          log,
+		Log:          log.ToGeth(logger),
 		ValidSchemes: enode.ValidSchemes,
 	}
 	udpV5, err := discover.ListenV5(conn, localNode, cfg)
@@ -110,7 +110,7 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort 
 		return nil, nil, err
 	}
 
-	log.Info("started discovery service", "enr", localNode.Node(), "id", localNode.ID())
+	logger.Info("started discovery service", "enr", localNode.Node(), "id", localNode.ID())
 
 	// TODO: periodically we can pull the external IP and TCP port from libp2p NAT service,
 	// and add it as a statement to keep the localNode accurate (if we trust the NAT device more than the discv5 statements)

@@ -8,11 +8,11 @@ _PROJECT := shell("basename $1", justfile_directory())
 
 _ALL_TAGS := shell("git tag --sort=creatordate --points-at $1 2> /dev/null || true", GITCOMMIT)
 
-_PROJECT_TAGS := shell("echo $1 | grep ^$2/ | tr ' ' '\n' | sed s:$2/:: | sort -V", _ALL_TAGS, _PROJECT)
+_PROJECT_TAGS := shell("printf '%s\\n' $1 | grep ^$2/ | sed s:$2/:: | sort -V", _ALL_TAGS, _PROJECT)
 
-_PREFERRED_TAG := shell("echo $1 | tr ' ' '\n' | grep -v -- '-rc' | tail -n 1", _PROJECT_TAGS)
+_PREFERRED_TAG := shell("printf '%s\\n' $1 | grep -v -- '-rc' | tail -n 1", _PROJECT_TAGS)
 
-_LAST_TAG := shell("echo $1 | tr ' ' '\n' | tail -n 1", _PROJECT_TAGS)
+_LAST_TAG := shell("printf '%s\\n' $1 | tail -n 1", _PROJECT_TAGS)
 
 # Find version tag, prioritizing non-rc release tags
 _COMPUTED_VERSION := if _PREFERRED_TAG != "" {

@@ -38,11 +38,7 @@ WORKSPACE_DIR=$(cd "$SCRIPT_HOME/../../.." > /dev/null 2>&1 && pwd)
 pushd "$WORKSPACE_DIR" > /dev/null || exit
 
 # Variables
-export KONTROL_FP_DEPLOYMENT="${KONTROL_FP_DEPLOYMENT:-false}"
 export CONTAINER_NAME=kontrol-tests
-if [ "$KONTROL_FP_DEPLOYMENT" = true ]; then
-  export CONTAINER_NAME=kontrol-fp-tests
-fi
 KONTROLRC=$(yq '.tools.kontrol' "$WORKSPACE_DIR/../../mise.toml")
 export KONTROL_RELEASE=$KONTROLRC
 export LOCAL=false
@@ -172,10 +168,14 @@ copy_to_docker() {
     TMP_DIR=$(mktemp -d)
     cp -r "$WORKSPACE_DIR/." "$TMP_DIR"
     rm -rf "$TMP_DIR/node_modules"
+    # Also remove the agent-doc symlinks (AGENTS.md and its CLAUDE.md alias) because they point
+    # outside the copied tree, which docker cp rejects with the same "invalid symlink" error.
+    rm -f "$TMP_DIR/AGENTS.md" "$TMP_DIR/CLAUDE.md"
     docker cp --follow-link "$TMP_DIR/." $CONTAINER_NAME:/home/user/workspace
     rm -rf "$TMP_DIR"
 
-    docker exec --user root "$CONTAINER_NAME" chown -R user:user /home/user
+    # Only the workspace needs it: docker cp writes as root, and the image already gives user the rest of /home/user.
+    docker exec --user root "$CONTAINER_NAME" chown -R user:user /home/user/workspace
   fi
 }
 

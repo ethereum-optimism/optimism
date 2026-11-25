@@ -187,9 +187,10 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
             // │ [84, 84 + n)         │ Extra data (opaque)                 │
             // └──────────────────────┴─────────────────────────────────────┘
             proxy_ = IDisputeGame(
-                address(impl).cloneDeterministic(
-                    abi.encodePacked(msg.sender, _rootClaim, parentHash, _extraData), Hash.unwrap(uuid)
-                )
+                address(impl)
+                    .cloneDeterministic(
+                        abi.encodePacked(msg.sender, _rootClaim, parentHash, _extraData), Hash.unwrap(uuid)
+                    )
             );
         } else {
             // Clone the implementation contract and initialize it with the given parameters.
@@ -206,10 +207,11 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
             // │ [88 + n, 88 + n + m) │ Implementation args (opaque)        │
             // └──────────────────────┴─────────────────────────────────────┘
             proxy_ = IDisputeGame(
-                address(impl).cloneDeterministic(
-                    abi.encodePacked(msg.sender, _rootClaim, parentHash, _gameType, _extraData, implArgs),
-                    Hash.unwrap(uuid)
-                )
+                address(impl)
+                    .cloneDeterministic(
+                        abi.encodePacked(msg.sender, _rootClaim, parentHash, _gameType, _extraData, implArgs),
+                        Hash.unwrap(uuid)
+                    )
             );
         }
         proxy_.initialize{ value: msg.value }();
@@ -282,11 +284,7 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
                 bytes memory extraData = IDisputeGame(proxy).extraData();
                 Claim rootClaim = IDisputeGame(proxy).rootClaim();
                 games_[games_.length - 1] = GameSearchResult({
-                    index: i,
-                    metadata: id,
-                    timestamp: timestamp,
-                    rootClaim: rootClaim,
-                    extraData: extraData
+                    index: i, metadata: id, timestamp: timestamp, rootClaim: rootClaim, extraData: extraData
                 });
                 if (games_.length >= _n) break;
             }

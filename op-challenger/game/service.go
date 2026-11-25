@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
@@ -30,6 +29,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -229,6 +229,8 @@ func (s *Service) registerGameTypes(ctx context.Context, cfg *config.Config) err
 	if err != nil {
 		return err
 	}
+	fault.RegisterBondContracts(ctx, s.metrics, gameTypeRegistry, s.clientProvider.MultiCaller())
+	zk.RegisterBondContracts(s.metrics, gameTypeRegistry, s.clientProvider.MultiCaller())
 	s.registry = gameTypeRegistry
 	s.oracles = oracles
 	return nil
@@ -249,7 +251,7 @@ func (s *Service) initLargePreimages() error {
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
-	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, cfg.GameAllowlist, s.l1RPC, cfg.MinUpdateInterval)
+	s.monitor = newGameMonitor(s.logger, s.l1Clock, s.factoryContract, s.sched, s.preimages, cfg.GameWindow, s.claimer, cfg.GameTypes, cfg.GameAllowlist, s.l1RPC, cfg.MinUpdateInterval)
 }
 
 func (s *Service) Start(ctx context.Context) error {

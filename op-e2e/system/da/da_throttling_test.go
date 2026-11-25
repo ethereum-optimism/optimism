@@ -13,9 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/node"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
@@ -148,12 +146,6 @@ func TestDABlockThrottling(t *testing.T) {
 
 func setupTest(t *testing.T, maxTxSize, maxBlockSize uint64) (e2esys.SystemConfig, *sources.RollupClient, *ethclient.Client, *ethclient.Client, *batcher.TestBatchSubmitter) {
 	cfg := e2esys.DefaultSystemConfig(t)
-	cfg.GethOptions["sequencer"] = append(cfg.GethOptions["sequencer"], []geth.GethOption{
-		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
-			ethCfg.Miner.GasCeil = 30_000_000
-			return nil
-		},
-	}...)
 	// disable batcher because we start it manually later
 	cfg.DisableBatcher = true
 

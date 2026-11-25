@@ -10,13 +10,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
+	gethforks "github.com/ethereum/go-ethereum/params/forks"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -65,6 +67,115 @@ func TestRegolithTimeAsOffset(t *testing.T) {
 		},
 	}
 	require.Equal(t, uint64(1500+5000), *config.RegolithTime(5000))
+}
+
+func TestL2GenesisTime(t *testing.T) {
+	t.Run("defaults to the L1 start time when unset", func(t *testing.T) {
+		config := &DeployConfig{}
+		got, err := config.L2GenesisTime(5000)
+		require.NoError(t, err)
+		require.Equal(t, uint64(5000), got)
+	})
+
+	t.Run("returns the explicit timestamp when set", func(t *testing.T) {
+		override := hexutil.Uint64(9000)
+		config := &DeployConfig{L2InitializationConfig: L2InitializationConfig{
+			L2GenesisBlockDeployConfig: L2GenesisBlockDeployConfig{L2GenesisBlockTimestamp: &override},
+		}}
+		got, err := config.L2GenesisTime(5000)
+		require.NoError(t, err)
+		require.Equal(t, uint64(9000), got)
+	})
+
+	t.Run("equal to the L1 start time is accepted", func(t *testing.T) {
+		override := hexutil.Uint64(5000)
+		config := &DeployConfig{L2InitializationConfig: L2InitializationConfig{
+			L2GenesisBlockDeployConfig: L2GenesisBlockDeployConfig{L2GenesisBlockTimestamp: &override},
+		}}
+		got, err := config.L2GenesisTime(5000)
+		require.NoError(t, err)
+		require.Equal(t, uint64(5000), got)
+	})
+
+	t.Run("below the L1 start time is rejected", func(t *testing.T) {
+		override := hexutil.Uint64(4999)
+		config := &DeployConfig{L2InitializationConfig: L2InitializationConfig{
+			L2GenesisBlockDeployConfig: L2GenesisBlockDeployConfig{L2GenesisBlockTimestamp: &override},
+		}}
+		_, err := config.L2GenesisTime(5000)
+		require.ErrorIs(t, err, ErrInvalidDeployConfig)
+	})
+}
+
+func TestNewL2Genesis_TimestampOverride(t *testing.T) {
+	regolithOffset := hexutil.Uint64(1500)
+	makeConfig := func(timestamp *hexutil.Uint64) *DeployConfig {
+		return &DeployConfig{L2InitializationConfig: L2InitializationConfig{
+			L2CoreDeployConfig:          L2CoreDeployConfig{L2ChainID: 1234},
+			L2GenesisBlockDeployConfig:  L2GenesisBlockDeployConfig{L2GenesisBlockTimestamp: timestamp},
+			UpgradeScheduleDeployConfig: UpgradeScheduleDeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset},
+		}}
+	}
+	l1Start := &eth.BlockRef{Time: 5000}
+
+	t.Run("unset uses the L1 start time", func(t *testing.T) {
+		genesis, err := NewL2Genesis(makeConfig(nil), l1Start)
+		require.NoError(t, err)
+		require.Equal(t, uint64(5000), genesis.Timestamp)
+		require.Equal(t, uint64(5000+1500), *genesis.Config.RegolithTime)
+	})
+
+	t.Run("override sets the genesis timestamp", func(t *testing.T) {
+		override := hexutil.Uint64(9000)
+		genesis, err := NewL2Genesis(makeConfig(&override), l1Start)
+		require.NoError(t, err)
+		require.Equal(t, uint64(9000), genesis.Timestamp)
+		require.Equal(t, uint64(9000+1500), *genesis.Config.RegolithTime)
+	})
+
+	t.Run("override below the L1 start time errors", func(t *testing.T) {
+		override := hexutil.Uint64(4999)
+		_, err := NewL2Genesis(makeConfig(&override), l1Start)
+		require.ErrorIs(t, err, ErrInvalidDeployConfig)
+	})
+}
+
+func TestRollupConfig_TimestampOverride(t *testing.T) {
+	regolithOffset := hexutil.Uint64(1500)
+	makeConfig := func(timestamp *hexutil.Uint64) *DeployConfig {
+		return &DeployConfig{
+			L2InitializationConfig: L2InitializationConfig{
+				L2GenesisBlockDeployConfig:  L2GenesisBlockDeployConfig{L2GenesisBlockTimestamp: timestamp},
+				UpgradeScheduleDeployConfig: UpgradeScheduleDeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset},
+			},
+			L1DependenciesConfig: L1DependenciesConfig{
+				SystemConfigProxy:   common.HexToAddress("0x01"),
+				OptimismPortalProxy: common.HexToAddress("0x02"),
+			},
+		}
+	}
+	l1Start := &eth.BlockRef{Hash: common.HexToHash("0xaa"), Number: 100, Time: 5000}
+
+	t.Run("unset uses the L1 start time", func(t *testing.T) {
+		cfg, err := makeConfig(nil).RollupConfig(l1Start, common.HexToHash("0xbb"), 0)
+		require.NoError(t, err)
+		require.Equal(t, uint64(5000), cfg.Genesis.L2Time)
+		require.Equal(t, uint64(5000+1500), *cfg.RegolithTime)
+	})
+
+	t.Run("override sets L2Time", func(t *testing.T) {
+		override := hexutil.Uint64(9000)
+		cfg, err := makeConfig(&override).RollupConfig(l1Start, common.HexToHash("0xbb"), 0)
+		require.NoError(t, err)
+		require.Equal(t, uint64(9000), cfg.Genesis.L2Time)
+		require.Equal(t, uint64(9000+1500), *cfg.RegolithTime)
+	})
+
+	t.Run("override below the L1 start time errors", func(t *testing.T) {
+		override := hexutil.Uint64(4999)
+		_, err := makeConfig(&override).RollupConfig(l1Start, common.HexToHash("0xbb"), 0)
+		require.ErrorIs(t, err, ErrInvalidDeployConfig)
+	})
 }
 
 func TestCanyonTimeZero(t *testing.T) {
@@ -160,6 +271,18 @@ func TestUpgradeScheduleDeployConfig_ForkGettersAndSetters(t *testing.T) {
 	}
 }
 
+func TestUpgradeScheduleDeployConfig_IsForkActive(t *testing.T) {
+	var d UpgradeScheduleDeployConfig
+	genesis := uint64(1000)
+	d.ActivateForkAtOffset(forks.Isthmus, 50)
+
+	require.True(t, d.IsForkActive(forks.Holocene, genesis, genesis), "fork at genesis")
+	require.False(t, d.IsForkActive(forks.Isthmus, genesis, genesis), "before offset")
+	require.False(t, d.IsForkActive(forks.Isthmus, genesis, genesis+49), "just before offset")
+	require.True(t, d.IsForkActive(forks.Isthmus, genesis, genesis+50), "at offset")
+	require.False(t, d.IsForkActive(forks.Jovian, genesis, genesis+1_000_000), "unscheduled")
+}
+
 func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 	var d UpgradeScheduleDeployConfig
 	ts := uint64(42)
@@ -187,6 +310,36 @@ func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 	})
 }
 
+func TestUpgradeScheduleDeployConfig_DisableL1ForksAfter(t *testing.T) {
+	allL1Forks := func() *UpgradeScheduleDeployConfig {
+		zero := new(hexutil.Uint64)
+		return &UpgradeScheduleDeployConfig{
+			L1CancunTimeOffset: zero, L1PragueTimeOffset: zero, L1OsakaTimeOffset: zero,
+			L1BPO1TimeOffset: zero, L1BPO2TimeOffset: zero, L1AmsterdamTimeOffset: zero,
+			L1BPO3TimeOffset: zero, L1BPO4TimeOffset: zero,
+		}
+	}
+
+	t.Run("cancun", func(t *testing.T) {
+		d := allL1Forks()
+		d.DisableL1ForksAfter(gethforks.Cancun)
+		require.NotNil(t, d.L1CancunTimeOffset)
+		require.Equal(t, &UpgradeScheduleDeployConfig{L1CancunTimeOffset: d.L1CancunTimeOffset}, d)
+	})
+
+	t.Run("amsterdam activates before BPO3", func(t *testing.T) {
+		d := allL1Forks()
+		d.DisableL1ForksAfter(gethforks.Amsterdam)
+		want := allL1Forks()
+		want.L1BPO3TimeOffset, want.L1BPO4TimeOffset = nil, nil
+		require.Equal(t, want, d)
+	})
+
+	t.Run("unschedulable fork", func(t *testing.T) {
+		require.Panics(t, func() { allL1Forks().DisableL1ForksAfter(gethforks.Shanghai) })
+	})
+}
+
 func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
 	// Iterate over all of them in case more are added
 	for i, fork := range scheduleableForks[2:] {
@@ -208,7 +361,7 @@ func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
 		{forks.Isthmus, 6},
 		{forks.Jovian, 7},
 		{forks.Karst, 8},
-		{forks.Interop, 9},
+		{forks.Lagoon, 9},
 	}
 	for _, tt := range tests {
 		var d UpgradeScheduleDeployConfig

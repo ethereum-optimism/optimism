@@ -8,11 +8,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -32,6 +31,13 @@ type l2GenesisOverrides struct {
 	OperatorFeeVaultWithdrawalNetwork        genesis.WithdrawalNetwork `json:"operatorFeeVaultWithdrawalNetwork"`
 	EnableGovernance                         bool                      `json:"enableGovernance"`
 	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
+	// L2ToL2MessageExpiryPeriod overrides the L2ToL2CrossDomainMessenger's expiry period, in
+	// seconds. Zero keeps the production period. Test networks only; upgrades keep the period.
+	L2ToL2MessageExpiryPeriod uint64 `json:"l2ToL2MessageExpiryPeriod"`
+	// SettlementChainID is the chain's OP Private settlement chain ID, written into the
+	// ChainConfig predeploy: 0 on a public chain, the chain's own ID on a settlement chain, and
+	// its settlement chain's ID on a private chain. It needs the OP_PRIVATE dev feature.
+	SettlementChainID uint64 `json:"settlementChainId"`
 }
 
 type cgtConfig struct {
@@ -42,7 +48,7 @@ type cgtConfig struct {
 	LiquidityControllerOwner   common.Address
 }
 
-func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, st *state.State, chainID common.Hash) error {
+func GenerateL2Genesis(pEnv *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := pEnv.Logger.New("stage", "generate-l2-genesis")
 
 	thisIntent, err := intent.Chain(chainID)
@@ -62,21 +68,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
 
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		pEnv.Logger,
-		pEnv.Deployer,
-		bundle.L2,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create L2 script host: %w", err)
-	}
-
-	script, err := opcm.NewL2GenesisScript(host)
-	if err != nil {
-		return fmt.Errorf("failed to create L2Genesis script: %w", err)
-	}
-
 	overrides, schedule, err := calculateL2GenesisOverrides(intent, thisIntent)
 	if err != nil {
 		return fmt.Errorf("failed to calculate L2 genesis overrides: %w", err)
@@ -84,13 +75,16 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	cgt := buildCGTConfig(thisIntent)
 
-	devFeatureBitmap, err := buildDevFeatureBitmap(intent)
-
-	if err != nil {
+	if err := checkL2ToL2MessageExpiryPeriodOverride(intent.ConfigType, intent.L1ChainID, overrides.L2ToL2MessageExpiryPeriod); err != nil {
 		return err
 	}
 
-	if err := script.Run(opcm.L2GenesisInput{
+	devFeatureBitmap := devFeatureBitmapOverride(intent)
+	if err := checkSettlementChainIDOverride(devFeatureBitmap, overrides.SettlementChainID); err != nil {
+		return err
+	}
+
+	input := opcm.L2GenesisInput{
 		L1ChainID:                                new(big.Int).SetUint64(intent.L1ChainID),
 		L2ChainID:                                chainID.Big(),
 		L1CrossDomainMessengerProxy:              thisChainState.L1CrossDomainMessengerProxy,
@@ -121,15 +115,22 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		LiquidityControllerOwner:   cgt.LiquidityControllerOwner,
 		DevFeatureBitmap:           devFeatureBitmap,
 		UseInterop:                 intent.UseInterop,
-	}); err != nil {
-		return fmt.Errorf("failed to call L2Genesis script: %w", err)
+		L2ToL2MessageExpiryPeriod:  new(big.Int).SetUint64(overrides.L2ToL2MessageExpiryPeriod),
+		SettlementChainID:          new(big.Int).SetUint64(overrides.SettlementChainID),
 	}
 
-	host.Wipe(pEnv.Deployer)
-
-	dump, err := host.StateDump()
+	dump, err := opcm.L2Genesis(pEnv.Context, pEnv.L2Forge, pEnv.Deployer, pEnv.AllowUnoptimizedContracts, input)
 	if err != nil {
-		return fmt.Errorf("failed to dump state: %w", err)
+		return err
+	}
+
+	if err := genesis.CheckL2GenesisAllocs(dump, genesis.CheckL2AllocsOpts{
+		FundDevAccounts: overrides.FundDevAccounts,
+		// Tagged L2Genesis artifacts predating the #21339 prank nonce reset leave the
+		// proxy admin owner with a bumped nonce, so allow it as a plain EOA.
+		AllowedEOAs: []common.Address{thisIntent.Roles.L2ProxyAdminOwner},
+	}); err != nil {
+		return fmt.Errorf("L2 genesis allocs failed validation: %w", err)
 	}
 
 	thisChainState.Allocs = &state.GzipData[foundry.ForgeAllocs]{
@@ -169,6 +170,12 @@ func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIn
 		}
 	}
 
+	// Read through the one accessor, so the precedence here and in the settlement checks agree.
+	overrides.SettlementChainID, err = SettlementChainIDOverride(intent, thisIntent)
+	if err != nil {
+		return l2GenesisOverrides{}, nil, err
+	}
+
 	return overrides, schedule, nil
 }
 
@@ -201,24 +208,15 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 	return big.NewInt(int64(n))
 }
 
-// buildDevFeatureBitmap reads the devFeatureBitmap from global overrides and returns an error if the interop feature
-// bit does not match the UseInterop intent flag. This ensures that interop feature is explicitly enabled by both the intent and the boolean flag.
-func buildDevFeatureBitmap(intent *state.Intent) (common.Hash, error) {
-	var devFeatureBitmap common.Hash
+// devFeatureBitmapOverride returns the devFeatureBitmap from the global overrides, or zero when it is not set.
+func devFeatureBitmapOverride(intent *state.Intent) common.Hash {
 	switch v := intent.GlobalDeployOverrides["devFeatureBitmap"].(type) {
 	case common.Hash:
-		devFeatureBitmap = v
+		return v
 	case string:
-		devFeatureBitmap = common.HexToHash(v)
+		return common.HexToHash(v)
 	}
-
-	interopBitEnabled := devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OptimismPortalInteropFlag)
-
-	if intent.UseInterop != interopBitEnabled {
-		return common.Hash{}, fmt.Errorf("interop feature in devFeatureBitmap does not match the UseInterop intent flag")
-	}
-
-	return devFeatureBitmap, nil
+	return common.Hash{}
 }
 
 func defaultOverrides() l2GenesisOverrides {
@@ -235,4 +233,28 @@ func defaultOverrides() l2GenesisOverrides {
 		EnableGovernance:                         false,
 		GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
 	}
+}
+
+// checkSettlementChainIDOverride refuses a settlement chain ID without the OP_PRIVATE dev
+// feature, which genesis would otherwise ignore.
+func checkSettlementChainIDOverride(devFeatureBitmap common.Hash, settlementChainID uint64) error {
+	if settlementChainID != 0 && !devfeatures.IsDevFeatureEnabled(devFeatureBitmap, devfeatures.OPPrivateFlag) {
+		return fmt.Errorf("settlementChainId override %d needs the OP_PRIVATE dev feature", settlementChainID)
+	}
+	return nil
+}
+
+// checkL2ToL2MessageExpiryPeriodOverride refuses an expiry period override for standard intents
+// and on public L1s.
+func checkL2ToL2MessageExpiryPeriodOverride(configType state.IntentType, l1ChainID uint64, period uint64) error {
+	if period == 0 {
+		return nil
+	}
+	if configType == state.IntentTypeStandard || configType == state.IntentTypeStandardOverrides {
+		return fmt.Errorf("l2ToL2MessageExpiryPeriod override %ds is for test networks only, not for %s intents", period, configType)
+	}
+	if eth.L1ChainConfigByChainID(eth.ChainIDFromUInt64(l1ChainID)) != nil {
+		return fmt.Errorf("l2ToL2MessageExpiryPeriod override %ds is for test networks only, not for chains on public L1 %d", period, l1ChainID)
+	}
+	return nil
 }

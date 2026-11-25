@@ -1,0 +1,46 @@
+---
+title: Solution guides
+sidebarTitle: Overview
+description: Solution guides that sequence the OP Stack documentation into one paved path per real operator or developer goal.
+content-type: router-landing
+last-reviewed: 2026-07-24
+---
+
+import { OpEnterpriseCalloutBody } from '/snippets/op-enterprise-callout.mdx';
+
+Each page in this section is a **solution guide**: one goal that in practice
+spans several components, sequenced as a single in-site path. A solution
+guide links each stop to its canonical page and states what to take from it,
+adds the decision logic that no single component page can own, and leaves
+the site only through curated, working exits. If your goal is listed here,
+start here instead of assembling the path yourself.
+
+<CardGroup cols={2}>
+  <Card title="Tune batcher costs" href="/use-cases/tune-batcher-costs">
+    Cut what your chain spends posting data to L1, and recover what you do
+    spend through your fee parameters.
+  </Card>
+  <Card title="Run a fault-proof challenger" href="/use-cases/run-a-fault-proof-challenger">
+    Stand up an op-challenger that defends your chain, from bond budgeting
+    through configuration and monitoring.
+  </Card>
+  <Card title="Implement a custom deposit flow" href="/use-cases/implement-a-custom-deposit-flow">
+    Build an L1 to L2 deposit path, choosing the right contract entry point
+    and handling gas, aliasing, and failures.
+  </Card>
+  <Card title="Launch a chain with fault proofs and HA sequencing" href="/use-cases/launch-a-chain-with-fault-proofs-and-ha-sequencing">
+    Take a chain to production with withdrawals secured by fault proofs and
+    a sequencer cluster that survives node failures.
+  </Card>
+  <Card title="Choose your node stack" href="/use-cases/choose-your-node-stack">
+    Pick the consensus and execution clients for a node based on the job it
+    does, with review-dated support facts.
+  </Card>
+  <Card title="Looking for something else?" href="/">
+    Browse the documentation by role — app developers, chain operators, node
+    operators, and protocol readers.
+  </Card>
+  <Card title="Rather run less of this yourself?" href="https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise">
+    <OpEnterpriseCalloutBody linked={false} />
+  </Card>
+</CardGroup>

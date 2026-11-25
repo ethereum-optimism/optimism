@@ -10,8 +10,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/ethereum/go-ethereum/log"
-
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
@@ -93,8 +92,12 @@ func (t *implP) SkipNow() {
 }
 
 func (t *implP) TempDir() string {
+	return t.TempDirWithPrefix("op-dev")
+}
+
+func (t *implP) TempDirWithPrefix(prefix string) string {
 	// The last "*" will be replaced with the random temp dir name
-	tempDir, err := os.MkdirTemp("", "op-dev-*")
+	tempDir, err := os.MkdirTemp("", tempDirPattern(prefix))
 	if err != nil {
 		t.Errorf("failed to create temp dir: %v", err)
 		t.FailNow()
@@ -164,8 +167,7 @@ func (t *implP) WithCtx(ctx context.Context) P {
 	expected := TestScope(t.ctx)
 	got := TestScope(ctx)
 	t.req.Equal(expected, got, "cannot replace context with different test-scope")
-	logger := t.logger.New()
-	logger.SetContext(ctx)
+	logger := t.logger.WithContext(ctx)
 	out := &wrapP{ctx: ctx, logger: logger, P: t}
 	out.req = testreq.New(out)
 	return out

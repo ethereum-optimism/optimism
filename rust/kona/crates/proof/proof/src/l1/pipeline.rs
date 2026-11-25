@@ -2,6 +2,7 @@
 
 use crate::FlushableCache;
 use alloc::{boxed::Box, sync::Arc};
+use alloy_primitives::B256;
 use async_trait::async_trait;
 use core::fmt::Debug;
 use kona_derive::{
@@ -51,7 +52,7 @@ where
     /// Constructs a new oracle-backed derivation pipeline.
     ///
     /// `dependency_set` must be `Some` when the rollup config schedules the
-    /// Interop hardfork. The [`StatefulAttributesBuilder`] panics at
+    /// Lagoon hardfork. The [`StatefulAttributesBuilder`] panics at
     /// construction otherwise. Pass `None` only when interop is not scheduled
     /// for this chain.
     #[allow(clippy::too_many_arguments)]
@@ -169,10 +170,10 @@ where
     }
 
     /// Returns the [`SystemConfig`] by L2 number.
-    async fn system_config_by_number(
+    async fn system_config_by_l2_hash(
         &mut self,
-        number: u64,
+        hash: B256,
     ) -> Result<SystemConfig, PipelineErrorKind> {
-        self.pipeline.system_config_by_number(number).await
+        self.pipeline.system_config_by_l2_hash(hash).await
     }
 }

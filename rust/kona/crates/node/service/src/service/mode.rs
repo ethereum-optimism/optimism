@@ -1,4 +1,4 @@
-//! Contains enums that configure the mode for the node to operate in.
+//! Contains the enum that configures the mode for the node to operate in.
 
 /// The [`NodeMode`] enum represents the modes of operation for the [`RollupNode`].
 ///
@@ -34,16 +34,4 @@ impl NodeMode {
     pub const fn is_sequencer(&self) -> bool {
         matches!(self, Self::Sequencer)
     }
-}
-
-/// The [`InteropMode`] enum represents how the node works with interop.
-#[derive(Debug, derive_more::Display, Default, Clone, Copy, PartialEq, Eq)]
-pub enum InteropMode {
-    /// The node is in polled mode.
-    #[display("Polled")]
-    #[default]
-    Polled,
-    /// The node is in indexed mode.
-    #[display("Indexed")]
-    Indexed,
 }

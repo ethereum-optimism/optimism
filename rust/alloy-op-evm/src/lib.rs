@@ -1,4 +1,4 @@
-#![doc = include_str!("../README.md")]
+//! OP EVM implementation.
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/alloy-rs/core/main/assets/alloy.jpg",
     html_favicon_url = "https://raw.githubusercontent.com/alloy-rs/core/main/assets/favicon.ico"
@@ -26,6 +26,7 @@ use core::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
+use op_alloy::consensus::POST_EXEC_TX_TYPE_ID;
 use op_revm::{
     L1BlockInfo, OpBuilder, OpHaltReason, OpSpecId, OpTransaction,
     constants::{BASE_FEE_RECIPIENT, L1_FEE_RECIPIENT, OPERATOR_FEE_RECIPIENT},
@@ -33,7 +34,7 @@ use op_revm::{
 };
 use revm::{
     Context, ExecuteEvm, InspectEvm, Inspector, Journal, MainContext, SystemCallEvm,
-    context::{BlockEnv, CfgEnv, TxEnv},
+    context::{BlockEnv, CfgEnv, DBErrorMarker, TxEnv},
     context_interface::{
         Transaction,
         result::{EVMError, ResultAndState},
@@ -47,12 +48,21 @@ pub mod tx;
 pub use tx::OpTx;
 
 pub mod block;
-pub use block::{OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory, PostExecMode};
+pub use block::{
+    OpBlockExecutionCtx, OpBlockExecutor, OpBlockExecutorFactory, PostExecMode, PreRefundGasUsed,
+};
 
 pub mod post_exec;
 
 /// The OP EVM context type.
 pub type OpEvmContext<DB> = Context<BlockEnv, OpTx, CfgEnv<OpSpecId>, DB, Journal<DB>, L1BlockInfo>;
+
+type OpEvmInner<DB, I, P, R> = op_revm::OpEvm<
+    OpEvmContext<DB>,
+    post_exec::PostExecCompositeInspector<I, R>,
+    EthInstructions<EthInterpreter, OpEvmContext<DB>>,
+    P,
+>;
 
 /// OP EVM implementation.
 ///
@@ -62,41 +72,48 @@ pub type OpEvmContext<DB> = Context<BlockEnv, OpTx, CfgEnv<OpSpecId>, DB, Journa
 ///
 /// The `Tx` type parameter controls the transaction environment type. By default it uses
 /// [`OpTx`] which wraps [`OpTransaction<TxEnv>`] and implements the necessary foreign traits.
+///
+/// The `R` type parameter is the post-exec refund inspector embedded alongside the user inspector
+/// `I` (see [`post_exec::PostExecCompositeInspector`]). It is fixed by the EVM factory and defaults
+/// to [`NullRefundPolicy`](post_exec::NullRefundPolicy).
 #[allow(missing_debug_implementations)] // missing revm::OpContext Debug impl
-pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx> {
-    inner: op_revm::OpEvm<
-        OpEvmContext<DB>,
-        post_exec::PostExecCompositeInspector<I>,
-        EthInstructions<EthInterpreter, OpEvmContext<DB>>,
-        P,
-    >,
+pub struct OpEvm<DB: Database, I, P = OpPrecompiles, Tx = OpTx, R = post_exec::NullRefundPolicy> {
+    inner: OpEvmInner<DB, I, P, R>,
     inspect: bool,
     post_exec_tracking_active: bool,
-    last_tx_warming_savings: u64,
+    last_tx_post_exec_result: post_exec::PostExecExecutedTx,
     _tx: PhantomData<Tx>,
 }
 
-impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
+/// UPSTREAM-MIRROR(copy): revm-context@43.0.3 `revm_context::Evm::with_inspector`
+///
+/// Rebuilds `evm` with its inspector replaced by `f(inspector)`. Upstream `with_inspector` takes
+/// the new inspector by value, so it cannot derive it from the old one.
+///
+/// revm's [`Evm`](revm::context::Evm) has feature-gated fields, so it must not be constructed or
+/// destructured exhaustively here: Cargo feature unification can enable those fields without this
+/// crate knowing. Construct through the upstream constructor instead, carrying over the frame
+/// stack; every field not named below is reset to its default. In revm 43 the only such field is
+/// `async_stack` (under `revm/asyncdb`), a lazily allocated fiber stack, so resetting it only drops
+/// a cached allocation. On a revm bump, compare `Evm`'s fields against the ones carried over here.
+fn map_inspector<CTX, INSP, OINSP, I, P, F: Default>(
+    evm: revm::context::Evm<CTX, INSP, I, P, F>,
+    f: impl FnOnce(INSP) -> OINSP,
+) -> revm::context::Evm<CTX, OINSP, I, P, F> {
+    let revm::context::Evm { ctx, inspector, instruction, precompiles, frame_stack, .. } = evm;
+    let mut evm =
+        revm::context::Evm::new_with_inspector(ctx, f(inspector), instruction, precompiles);
+    evm.frame_stack = frame_stack;
+    evm
+}
+
+impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R> {
     /// Consumes self and return the inner EVM instance.
     pub fn into_inner(
         self,
     ) -> op_revm::OpEvm<OpEvmContext<DB>, I, EthInstructions<EthInterpreter, OpEvmContext<DB>>, P>
     {
-        let op_revm::OpEvm(revm::context::Evm {
-            ctx,
-            inspector,
-            instruction,
-            precompiles,
-            frame_stack,
-        }) = self.inner;
-
-        op_revm::OpEvm(revm::context::Evm {
-            ctx,
-            inspector: inspector.into_inner(),
-            instruction,
-            precompiles,
-            frame_stack,
-        })
+        op_revm::OpEvm(map_inspector(self.inner.0, |inspector| inspector.into_inner()))
     }
 
     /// Provides a reference to the EVM context.
@@ -110,11 +127,43 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
     }
 }
 
-impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
-    /// Creates a new OP EVM instance.
+impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R> {
+    /// Creates a new OP EVM instance with the provided post-exec refund policy.
     ///
     /// The `inspect` argument determines whether the configured [`Inspector`] of the given
     /// [`OpEvm`](op_revm::OpEvm) should be invoked on [`Evm::transact`].
+    pub fn new_with_refund_policy(
+        evm: op_revm::OpEvm<
+            OpEvmContext<DB>,
+            I,
+            EthInstructions<EthInterpreter, OpEvmContext<DB>>,
+            P,
+        >,
+        inspect: bool,
+        refund_policy: R,
+    ) -> Self {
+        Self::from_inner(
+            op_revm::OpEvm(map_inspector(evm.0, |inspector| {
+                post_exec::PostExecCompositeInspector::new_with_post_exec(inspector, refund_policy)
+            })),
+            inspect,
+        )
+    }
+
+    /// Wraps an inner EVM whose inspector already carries the post-exec refund policy.
+    fn from_inner(inner: OpEvmInner<DB, I, P, R>, inspect: bool) -> Self {
+        Self {
+            inner,
+            inspect,
+            post_exec_tracking_active: false,
+            last_tx_post_exec_result: Default::default(),
+            _tx: PhantomData,
+        }
+    }
+}
+
+impl<DB: Database, I, P, Tx, R: Default> OpEvm<DB, I, P, Tx, R> {
+    /// Creates a new OP EVM instance with a default-constructed post-exec refund policy.
     pub fn new(
         evm: op_revm::OpEvm<
             OpEvmContext<DB>,
@@ -124,29 +173,60 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
         >,
         inspect: bool,
     ) -> Self {
-        let op_revm::OpEvm(revm::context::Evm {
-            ctx,
-            inspector,
-            instruction,
-            precompiles,
-            frame_stack,
-        }) = evm;
-
-        Self {
-            inner: op_revm::OpEvm(revm::context::Evm {
-                ctx,
-                inspector: post_exec::PostExecCompositeInspector::new(inspector),
-                instruction,
-                precompiles,
-                frame_stack,
-            }),
-            inspect,
-            post_exec_tracking_active: false,
-            last_tx_warming_savings: 0,
-            _tx: PhantomData,
-        }
+        Self::new_with_refund_policy(evm, inspect, R::default())
     }
+}
 
+impl<DB: Database, I, Tx, R> OpEvm<DB, I, PrecompilesMap, Tx, R> {
+    /// Creates an OP EVM with the standard OP context, precompiles, and provided refund policy.
+    pub fn from_env_with_refund_policy(
+        db: DB,
+        input: EvmEnv<OpSpecId, BlockEnv>,
+        inspector: I,
+        inspect: bool,
+        refund_policy: R,
+    ) -> Self {
+        let spec_id = input.cfg_env.spec;
+        let inner = Context::mainnet()
+            .with_tx(OpTx(OpTransaction::builder().build_fill()))
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
+            .with_chain(L1BlockInfo::default())
+            .with_db(db)
+            .with_block(input.block_env)
+            .with_cfg(input.cfg_env)
+            // Wrap the inspector before building, rather than via `new_with_refund_policy`, so the
+            // EVM's frame stack is only allocated once.
+            .build_op_with_inspector(post_exec::PostExecCompositeInspector::new_with_post_exec(
+                inspector,
+                refund_policy,
+            ))
+            .with_precompiles(PrecompilesMap::from_static(
+                OpPrecompiles::new_with_spec(spec_id).precompiles(),
+            ));
+
+        Self::from_inner(inner, inspect)
+    }
+}
+
+impl<DB: Database, I, Tx, R: Default> OpEvm<DB, I, PrecompilesMap, Tx, R> {
+    /// Creates an OP EVM with the standard OP context and precompiles.
+    ///
+    /// This is shared by factories that differ only in their fixed post-exec refund inspector.
+    /// The `inspect` argument controls whether `inspector` is invoked during execution.
+    pub fn from_env(
+        db: DB,
+        input: EvmEnv<OpSpecId, BlockEnv>,
+        inspector: I,
+        inspect: bool,
+    ) -> Self {
+        Self::from_env_with_refund_policy(db, input, inspector, inspect, R::default())
+    }
+}
+
+impl<DB: Database, I, P, Tx, R> OpEvm<DB, I, P, Tx, R>
+where
+    R: post_exec::PostExecRefundInspector,
+{
     /// Begin post-exec tracking for the next transaction.
     pub fn begin_post_exec_tx(&mut self, ctx: post_exec::PostExecTxContext) {
         self.post_exec_tracking_active = true;
@@ -159,16 +239,35 @@ impl<DB: Database, I, P, Tx> OpEvm<DB, I, P, Tx> {
 
     /// Take the extracted post-exec result for the most recently executed transaction.
     pub fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
-        post_exec::PostExecExecutedTx {
-            refund_total: core::mem::take(&mut self.last_tx_warming_savings),
-        }
+        core::mem::take(&mut self.last_tx_post_exec_result)
+    }
+
+    /// Returns the refund policy.
+    pub const fn refund_policy(&self) -> &R {
+        self.inner.0.inspector.refund_policy()
+    }
+
+    /// Mark the refund policy's block-scoped state before a candidate transaction.
+    pub fn refund_checkpoint(&mut self) -> R::Checkpoint {
+        self.inner.0.inspector.refund_checkpoint()
+    }
+
+    /// Roll the refund policy's block-scoped state back to `checkpoint`.
+    pub fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: R::Checkpoint,
+    ) -> Result<(), post_exec::RevertToCheckpointError> {
+        self.inner.0.inspector.revert_refund_checkpoint(checkpoint)
     }
 }
 
-impl<DB: Database, I, P, Tx> post_exec::PostExecEvm for OpEvm<DB, I, P, Tx>
+impl<DB: Database, I, P, Tx, R> post_exec::PostExecEvm for OpEvm<DB, I, P, Tx, R>
 where
     Self: Evm,
+    R: post_exec::PostExecRefundInspector,
 {
+    type Checkpoint = R::Checkpoint;
+
     fn begin_post_exec_tx(&mut self, ctx: post_exec::PostExecTxContext) {
         Self::begin_post_exec_tx(self, ctx);
     }
@@ -176,12 +275,26 @@ where
     fn take_last_post_exec_tx_result(&mut self) -> post_exec::PostExecExecutedTx {
         Self::take_last_post_exec_tx_result(self)
     }
+
+    fn refund_checkpoint(&mut self) -> Self::Checkpoint {
+        Self::refund_checkpoint(self)
+    }
+
+    fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), post_exec::RevertToCheckpointError> {
+        Self::revert_refund_checkpoint(self, checkpoint)
+    }
 }
 
-impl<Tx> post_exec::PostExecEvmFactoryHooks for OpEvmFactory<Tx>
+impl<Tx, F> post_exec::PostExecEvmFactoryHooks for OpEvmFactory<Tx, F>
 where
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>> + Default + Clone + Debug,
+    F: post_exec::PostExecRefundPolicyFactory,
 {
+    type Checkpoint = <F::Policy as post_exec::PostExecRefundInspector>::Checkpoint;
+
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: post_exec::PostExecTxContext)
     where
         DB: Database,
@@ -199,9 +312,28 @@ where
     {
         evm.take_last_post_exec_tx_result()
     }
+
+    fn refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>) -> Self::Checkpoint
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.refund_checkpoint()
+    }
+
+    fn revert_refund_checkpoint<DB, I>(
+        evm: &mut Self::Evm<DB, I>,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), post_exec::RevertToCheckpointError>
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>,
+    {
+        evm.revert_refund_checkpoint(checkpoint)
+    }
 }
 
-impl<DB: Database, I, P, Tx> Deref for OpEvm<DB, I, P, Tx> {
+impl<DB: Database, I, P, Tx, R> Deref for OpEvm<DB, I, P, Tx, R> {
     type Target = OpEvmContext<DB>;
 
     #[inline]
@@ -210,19 +342,25 @@ impl<DB: Database, I, P, Tx> Deref for OpEvm<DB, I, P, Tx> {
     }
 }
 
-impl<DB: Database, I, P, Tx> DerefMut for OpEvm<DB, I, P, Tx> {
+impl<DB: Database, I, P, Tx, R> DerefMut for OpEvm<DB, I, P, Tx, R> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.ctx_mut()
     }
 }
 
-impl<DB, I, P, Tx> Evm for OpEvm<DB, I, P, Tx>
+/// UPSTREAM-MIRROR(copy): alloy-evm@0.39.0 `alloy_evm::eth::EthEvm`
+///
+/// Mirrors upstream's `Evm` impl for `EthEvm`, adding the OP transaction wrapper, the post-exec
+/// transaction short-circuit and the post-exec refund tracking. A method added to the `Evm`
+/// trait, or a changed body in upstream's impl, needs mirroring here.
+impl<DB, I, P, Tx, R> Evm for OpEvm<DB, I, P, Tx, R>
 where
     DB: Database,
     I: Inspector<OpEvmContext<DB>>,
     P: PrecompileProvider<OpEvmContext<DB>, Output = InterpreterResult>,
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>>,
+    R: post_exec::PostExecRefundInspector,
 {
     type DB = DB;
     type Tx = Tx;
@@ -249,13 +387,22 @@ where
         &mut self,
         tx: Self::Tx,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        self.last_tx_warming_savings = 0;
+        self.last_tx_post_exec_result = post_exec::PostExecExecutedTx::default();
+
+        let tx = OpTx(tx.into());
+
+        // Post-exec transactions never execute, and revm would reject their tx env outright, so
+        // one that arrives here without the block executor's short-circuit gets the
+        // consensus-defined no-op result.
+        if tx.tx_type() == POST_EXEC_TX_TYPE_ID {
+            return Ok(post_exec::noop_post_exec_result());
+        }
 
         let track_post_exec = self.post_exec_tracking_active;
         let result = if self.inspect || track_post_exec {
-            self.inner.inspect_tx(OpTx(tx.into()))
+            self.inner.inspect_tx(tx)
         } else {
-            self.inner.transact(OpTx(tx.into()))
+            self.inner.transact(tx)
         };
 
         if track_post_exec {
@@ -269,8 +416,7 @@ where
                 }
             }
 
-            let post_exec_result = self.inner.0.inspector.finish_post_exec_tx();
-            self.last_tx_warming_savings = post_exec_result.refund_total;
+            self.last_tx_post_exec_result = self.inner.0.inspector.finish_post_exec_tx();
             self.post_exec_tracking_active = false;
         }
 
@@ -315,34 +461,54 @@ where
 
 /// Factory producing [`OpEvm`]s.
 ///
-/// The `Tx` type parameter controls the transaction type used by the created EVMs.
-/// By default it uses [`OpTx`] which wraps [`OpTransaction<TxEnv>`] and implements
-/// the necessary foreign traits.
+/// The `Tx` type parameter controls the transaction type used by the created EVMs. By default it
+/// uses [`OpTx`], which wraps [`OpTransaction<TxEnv>`] and implements the necessary foreign traits.
+///
+/// The `F` type parameter creates the post-exec refund policy installed in every new EVM. It
+/// defaults to [`NullRefundPolicy`](post_exec::NullRefundPolicy), which is stateless and also acts
+/// as its own factory. Configured policies use an explicit factory type.
 #[derive(Debug)]
-pub struct OpEvmFactory<Tx = OpTx>(PhantomData<Tx>);
+pub struct OpEvmFactory<Tx = OpTx, F = post_exec::NullRefundPolicy> {
+    refund_policy_factory: F,
+    _marker: PhantomData<Tx>,
+}
 
-impl<Tx> Clone for OpEvmFactory<Tx> {
+impl<Tx, F> OpEvmFactory<Tx, F> {
+    /// Creates an EVM factory backed by the provided refund-policy factory.
+    pub const fn new(refund_policy_factory: F) -> Self {
+        Self { refund_policy_factory, _marker: PhantomData }
+    }
+
+    /// Returns the configured refund-policy factory.
+    pub const fn refund_policy_factory(&self) -> &F {
+        &self.refund_policy_factory
+    }
+}
+
+impl<Tx, F: Clone> Clone for OpEvmFactory<Tx, F> {
     fn clone(&self) -> Self {
-        *self
+        Self::new(self.refund_policy_factory.clone())
     }
 }
 
-impl<Tx> Copy for OpEvmFactory<Tx> {}
+impl<Tx, F: Copy> Copy for OpEvmFactory<Tx, F> {}
 
-impl<Tx> Default for OpEvmFactory<Tx> {
+impl<Tx> Default for OpEvmFactory<Tx, post_exec::NullRefundPolicy> {
     fn default() -> Self {
-        Self(PhantomData)
+        Self::new(post_exec::NullRefundPolicy)
     }
 }
 
-impl<Tx> EvmFactory for OpEvmFactory<Tx>
+impl<Tx, F> EvmFactory for OpEvmFactory<Tx, F>
 where
     Tx: IntoTxEnv<Tx> + Into<OpTransaction<TxEnv>> + Default + Clone + Debug,
+    F: post_exec::PostExecRefundPolicyFactory,
 {
-    type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> = OpEvm<DB, I, Self::Precompiles, Tx>;
+    type Evm<DB: Database, I: Inspector<OpEvmContext<DB>>> =
+        OpEvm<DB, I, Self::Precompiles, Tx, F::Policy>;
     type Context<DB: Database> = OpEvmContext<DB>;
     type Tx = Tx;
-    type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError, OpTxError>;
+    type Error<DBError: DBErrorMarker> = EVMError<DBError, OpTxError>;
     type HaltReason = OpHaltReason;
     type Spec = OpSpecId;
     type BlockEnv = BlockEnv;
@@ -353,20 +519,13 @@ where
         db: DB,
         input: EvmEnv<OpSpecId, BlockEnv>,
     ) -> Self::Evm<DB, NoOpInspector> {
-        let spec_id = input.cfg_env.spec;
-        let inner = Context::mainnet()
-            .with_tx(OpTx(OpTransaction::builder().build_fill()))
-            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
-            .with_chain(L1BlockInfo::default())
-            .with_db(db)
-            .with_block(input.block_env)
-            .with_cfg(input.cfg_env)
-            .build_op_with_inspector(NoOpInspector {})
-            .with_precompiles(PrecompilesMap::from_static(
-                OpPrecompiles::new_with_spec(spec_id).precompiles(),
-            ));
-
-        OpEvm::new(inner, false)
+        OpEvm::from_env_with_refund_policy(
+            db,
+            input,
+            NoOpInspector {},
+            false,
+            self.refund_policy_factory.create(),
+        )
     }
 
     fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
@@ -375,245 +534,15 @@ where
         input: EvmEnv<OpSpecId, BlockEnv>,
         inspector: I,
     ) -> Self::Evm<DB, I> {
-        let spec_id = input.cfg_env.spec;
-        let inner = Context::mainnet()
-            .with_tx(OpTx(OpTransaction::builder().build_fill()))
-            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK))
-            .with_chain(L1BlockInfo::default())
-            .with_db(db)
-            .with_block(input.block_env)
-            .with_cfg(input.cfg_env)
-            .build_op_with_inspector(inspector)
-            .with_precompiles(PrecompilesMap::from_static(
-                OpPrecompiles::new_with_spec(spec_id).precompiles(),
-            ));
-
-        OpEvm::new(inner, true)
+        OpEvm::from_env_with_refund_policy(
+            db,
+            input,
+            inspector,
+            true,
+            self.refund_policy_factory.create(),
+        )
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use alloc::vec;
-    use alloy_consensus::{SignableTransaction, TxLegacy};
-    use alloy_evm::{
-        EvmInternals, FromRecoveredTx,
-        precompiles::{Precompile, PrecompileInput},
-    };
-    use alloy_primitives::{Signature, TxKind, U256};
-    use op_revm::precompiles::{bls12_381, bn254_pair};
-    use revm::{
-        context::CfgEnv,
-        database::{EmptyDB, InMemoryDB},
-        precompile::PrecompileHalt,
-        state::AccountInfo,
-    };
-
-    use super::*;
-
-    fn legacy_op_tx(nonce: u64, caller: Address, target: Address) -> OpTx {
-        let tx =
-            TxLegacy { nonce, gas_limit: 100_000, to: TxKind::Call(target), ..Default::default() }
-                .into_signed(Signature::new(
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                ));
-
-        OpTx::from_recovered_tx(&tx, caller)
-    }
-
-    // Verifies the raw OpEvm post-exec hook: this test enables SDM tracking directly with
-    // `begin_post_exec_tx` rather than via node config, and confirms it forces the inspector path
-    // even when normal tracing is disabled.
-    #[test]
-    fn op_evm_post_exec_tracking_runs_when_inspector_is_otherwise_disabled() {
-        let caller = Address::ZERO;
-        let target = Address::from([0x22; 20]);
-        let mut db = InMemoryDB::default();
-        db.insert_account_info(
-            caller,
-            AccountInfo { balance: U256::from(1_000_000_000u64), ..Default::default() },
-        );
-        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
-            db,
-            EvmEnv::new(
-                CfgEnv::new_with_spec(OpSpecId::JOVIAN),
-                BlockEnv { gas_limit: 1_000_000, ..Default::default() },
-            ),
-        );
-        assert!(!evm.inspect, "factory-created EVM should start with user inspection disabled");
-
-        let mut tracked_refund = |tx_index| {
-            evm.begin_post_exec_tx(post_exec::PostExecTxContext {
-                tx_index,
-                kind: post_exec::PostExecTxKind::Normal,
-            });
-            // `transact_raw` does not commit state in this low-level test, so reuse nonce 0.
-            evm.transact_raw(legacy_op_tx(0, caller, target)).expect("tx executes");
-            evm.take_last_post_exec_tx_result().refund_total
-        };
-
-        assert_eq!(tracked_refund(0), 0);
-        assert!(tracked_refund(1) > 0, "second tx should observe block-warmed addresses");
-    }
-
-    #[test]
-    fn test_precompiles_jovian_fail() {
-        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
-            EmptyDB::default(),
-            EvmEnv::new(CfgEnv::new_with_spec(OpSpecId::JOVIAN), BlockEnv::default()),
-        );
-
-        let (precompiles, ctx) = (&mut evm.inner.0.precompiles, &mut evm.inner.0.ctx);
-
-        let jovian_precompile = precompiles.get(bn254_pair::JOVIAN.address()).unwrap();
-        let result = jovian_precompile
-            .call(PrecompileInput {
-                data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE + 1],
-                gas: u64::MAX,
-                reservoir: 0,
-                caller: Address::ZERO,
-                value: U256::ZERO,
-                is_static: false,
-                target_address: Address::ZERO,
-                bytecode_address: Address::ZERO,
-                internals: EvmInternals::from_context(ctx),
-            })
-            .unwrap();
-
-        assert!(result.is_halt());
-        assert!(matches!(result.halt_reason(), Some(&PrecompileHalt::Bn254PairLength)));
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G1_MSM.address()).unwrap();
-        let result = jovian_precompile
-            .call(PrecompileInput {
-                data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE + 1],
-                gas: u64::MAX,
-                reservoir: 0,
-                caller: Address::ZERO,
-                value: U256::ZERO,
-                is_static: false,
-                target_address: Address::ZERO,
-                bytecode_address: Address::ZERO,
-                internals: EvmInternals::from_context(ctx),
-            })
-            .unwrap();
-
-        assert!(result.is_halt());
-        assert!(matches!(
-            result.halt_reason(),
-            Some(PrecompileHalt::Other(msg)) if msg.contains("G1MSM input length too long")
-        ));
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G2_MSM.address()).unwrap();
-        let result = jovian_precompile
-            .call(PrecompileInput {
-                data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE + 1],
-                gas: u64::MAX,
-                reservoir: 0,
-                caller: Address::ZERO,
-                value: U256::ZERO,
-                is_static: false,
-                target_address: Address::ZERO,
-                bytecode_address: Address::ZERO,
-                internals: EvmInternals::from_context(ctx),
-            })
-            .unwrap();
-
-        assert!(result.is_halt());
-        assert!(matches!(
-            result.halt_reason(),
-            Some(PrecompileHalt::Other(msg)) if msg.contains("G2MSM input length too long")
-        ));
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_PAIRING.address()).unwrap();
-        let result = jovian_precompile
-            .call(PrecompileInput {
-                data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE + 1],
-                gas: u64::MAX,
-                reservoir: 0,
-                caller: Address::ZERO,
-                value: U256::ZERO,
-                is_static: false,
-                target_address: Address::ZERO,
-                bytecode_address: Address::ZERO,
-                internals: EvmInternals::from_context(ctx),
-            })
-            .unwrap();
-
-        assert!(result.is_halt());
-        assert!(matches!(
-            result.halt_reason(),
-            Some(PrecompileHalt::Other(msg)) if msg.contains("Pairing input length too long")
-        ));
-    }
-
-    #[test]
-    fn test_precompiles_jovian() {
-        let mut evm = OpEvmFactory::<OpTx>::default().create_evm(
-            EmptyDB::default(),
-            EvmEnv::new(CfgEnv::new_with_spec(OpSpecId::JOVIAN), BlockEnv::default()),
-        );
-        let (precompiles, ctx) = (&mut evm.inner.0.precompiles, &mut evm.inner.0.ctx);
-        let jovian_precompile = precompiles.get(bn254_pair::JOVIAN.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bn254_pair::JOVIAN_MAX_INPUT_SIZE],
-            gas: u64::MAX,
-            reservoir: 0,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
-
-        assert!(result.is_ok());
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G1_MSM.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_G1_MSM_MAX_INPUT_SIZE],
-            gas: u64::MAX,
-            reservoir: 0,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
-
-        assert!(result.is_ok());
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_G2_MSM.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_G2_MSM_MAX_INPUT_SIZE],
-            gas: u64::MAX,
-            reservoir: 0,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
-
-        assert!(result.is_ok());
-
-        let jovian_precompile = precompiles.get(bls12_381::JOVIAN_PAIRING.address()).unwrap();
-        let result = jovian_precompile.call(PrecompileInput {
-            data: &vec![0; bls12_381::JOVIAN_PAIRING_MAX_INPUT_SIZE],
-            gas: u64::MAX,
-            reservoir: 0,
-            caller: Address::ZERO,
-            value: U256::ZERO,
-            is_static: false,
-            target_address: Address::ZERO,
-            bytecode_address: Address::ZERO,
-            internals: EvmInternals::from_context(ctx),
-        });
-
-        assert!(result.is_ok());
-    }
-}
+mod tests;

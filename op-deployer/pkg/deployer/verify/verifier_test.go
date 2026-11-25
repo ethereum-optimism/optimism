@@ -75,6 +75,11 @@ func TestFieldNameToContractName(t *testing.T) {
 			input:    "Opcm",
 			expected: "opcm",
 		},
+		{
+			name:     "SP1 acronym",
+			input:    "SP1PlonkAdapterImpl",
+			expected: "s_p1_plonk_adapter_impl",
+		},
 	}
 
 	for _, tt := range tests {

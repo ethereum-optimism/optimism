@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 )
@@ -26,11 +27,11 @@ type EthBlockInfo interface {
 
 	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 
+	// InfoAndTxsByHash returns a block's info and all of its transactions. It
+	// fails on an L2 block: read L2 bodies through EthL2BlockTxs.
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 
 	InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error)
-
-	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
 }
 
 type EthHeader interface {
@@ -39,8 +40,29 @@ type EthHeader interface {
 	HeaderByNumber(ctx context.Context, number uint64) (*types.Header, error)
 
 	HeaderByLabel(ctx context.Context, label eth.BlockLabel) (*types.Header, error)
+}
 
-	HeaderAndTxsByHash(ctx context.Context, hash common.Hash) (*types.Header, types.Transactions, error)
+// EthL2BlockTxs partitions an L2 block's transactions by class: the OP Stack
+// synthetic transactions (0x7E deposits, 0x7D post-exec) are routed to
+// op-core/types structs, and the remainder — standard Ethereum transactions —
+// decode as go-ethereum types on any block. Use these instead of InfoAndTxsBy*
+// for L2 blocks, whose full transaction lists upstream go-ethereum cannot
+// decode.
+type EthL2BlockTxs interface {
+	// InfoAndUserTxsByHash returns a block's standard Ethereum transactions,
+	// excluding the OP Stack synthetic classes.
+	InfoAndUserTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+
+	InfoAndUserTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error)
+
+	// InfoAndDepositsByHash returns a block's deposit (0x7E) transactions.
+	InfoAndDepositsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, []*optypes.DepositTx, error)
+
+	// InfoAndFirstDepositByHash returns a block's first transaction decoded as
+	// a deposit — the L1-info deposit of an L2 block.
+	InfoAndFirstDepositByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, *optypes.DepositTx, error)
+
+	InfoAndFirstDepositByNumber(ctx context.Context, number uint64) (eth.BlockInfo, *optypes.DepositTx, error)
 }
 
 type EthPayload interface {
@@ -55,12 +77,15 @@ type ReceiptsFetcher interface {
 	// FetchReceipts returns a block info and all of the receipts associated with transactions in the block.
 	// It verifies the receipt hash in the block header against the receipt hash of the fetched receipts
 	// to ensure that the execution engine did not fail to return any receipts.
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	// The OP Stack extension fields are populated when the fetch method carries
+	// them (JSON methods; the raw consensus-encoded path has no fee metadata).
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
 }
 
 type ReceiptFetcher interface {
-	// TransactionReceipt returns a receipt associated with transaction.
-	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	// TransactionReceipt returns a receipt associated with transaction, with
+	// the OP Stack extension fields populated when present in the response.
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*optypes.Receipt, error)
 }
 
 type ExecutionWitness interface {
@@ -167,5 +192,6 @@ type EthClient interface {
 type EthExtendedClient interface {
 	EthClient
 	EthPayload
+	EthL2BlockTxs
 	ReceiptsFetcher
 }

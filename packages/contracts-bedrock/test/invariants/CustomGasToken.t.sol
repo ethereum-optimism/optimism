@@ -9,7 +9,6 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Features } from "src/libraries/Features.sol";
-import { SafeSend } from "src/universal/SafeSend.sol";
 
 // Contracts
 import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
@@ -103,8 +102,9 @@ contract NativeAssetLiquidity_Fundooor is StdUtils {
         // precondition: amount to fund has an upper bound (this contract's balance) + ghost accounting
         _amount = bound(_amount, 0, address(this).balance);
 
-        // action: fund _amount
-        new SafeSend{ value: _amount }(payable(address(nativeAssetLiquidity)));
+        // action: fund _amount without invoking the recipient
+        vm.deal(address(this), address(this).balance - _amount);
+        vm.deal(address(nativeAssetLiquidity), address(nativeAssetLiquidity).balance + _amount);
 
         // postcondition: nil here (in the invariant tests)
         // update ghost variables
@@ -114,9 +114,7 @@ contract NativeAssetLiquidity_Fundooor is StdUtils {
     receive() external payable { }
 }
 
-/// @notice actor which receives fund and send them to either the minter or the funder actor,
-///         keeping a closed loop (no vm.deal). It receive() function always revert, to insure mint()/safeSend is
-///         always successfully sending the CGT.
+/// @notice Actor that forwards funds to the minter or funder while tracking unexpected callbacks.
 contract RandomActor is StdUtils {
     address internal liquidityController_Minter;
     address internal nativeAssetLiquidity_Fundooor;
@@ -207,6 +205,9 @@ contract CustomGasToken_Invariants_Test is CommonTest {
 
         // Create the initial supply
         vm.deal(address(nativeAssetLiquidity), STARTING_BALANCE);
+
+        // Handler callers must not impersonate accounts whose balances are tracked.
+        targetSender(makeAddr("invariantSender"));
 
         // Set the target contract.
         targetContract(address(actor_minter));

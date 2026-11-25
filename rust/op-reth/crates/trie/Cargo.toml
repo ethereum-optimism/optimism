@@ -1,6 +1,6 @@
 [package]
 name = "reth-optimism-trie"
-version = "1.11.3"
+version = "2.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -13,14 +13,17 @@ workspace = true
 
 [dependencies]
 # reth
+reth-chain-state.workspace = true
 reth-db = { workspace = true, features = ["mdbx"] }
 reth-evm.workspace = true
 reth-execution-errors.workspace = true
 reth-primitives-traits.workspace = true
 reth-provider.workspace = true
 reth-revm.workspace = true
+reth-stages-types.workspace = true
 reth-trie = { workspace = true, features = ["serde"] }
 reth-trie-common = { workspace = true, features = ["serde"] }
+reth-trie-db.workspace = true
 reth-codecs.workspace = true
 reth-tasks.workspace = true
 
@@ -43,7 +46,6 @@ tokio = { workspace = true, features = ["sync"] }
 # codec
 bytes.workspace = true
 serde.workspace = true
-bincode.workspace = true
 
 # misc
 parking_lot.workspace = true
@@ -52,9 +54,11 @@ auto_impl.workspace = true
 eyre = { workspace = true, optional = true }
 strum.workspace = true
 tracing.workspace = true
+crossbeam-channel.workspace = true
 derive_more.workspace = true
 
 [dev-dependencies]
+reth-optimism-trie = { path = ".", features = ["test-utils"] }
 reth-codecs = { workspace = true, features = ["test-utils"] }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }
@@ -77,9 +81,25 @@ mockall.workspace = true
 eyre.workspace = true
 
 # misc
+metrics-util = { workspace = true, features = ["debugging"] }
 serial_test.workspace = true
 
 [features]
+test-utils = [
+	"reth-chain-state/test-utils",
+	"reth-codecs/test-utils",
+	"reth-db/test-utils",
+	"reth-ethereum-primitives?/test-utils",
+	"reth-evm/test-utils",
+	"reth-primitives-traits/test-utils",
+	"reth-provider/test-utils",
+	"reth-revm/test-utils",
+	"reth-tasks/test-utils",
+	"reth-trie/test-utils",
+	"reth-trie-common/test-utils",
+	"reth-trie-db/test-utils",
+	"reth-stages-types/test-utils"
+]
 serde-bincode-compat = [
 	"reth-trie-common/serde-bincode-compat",
 	"alloy-consensus/serde-bincode-compat",
@@ -90,6 +110,7 @@ serde-bincode-compat = [
 ]
 metrics = [
 	"reth-trie/metrics",
+	"reth-trie-db/metrics",
 	"dep:reth-metrics",
 	"dep:metrics",
 	"dep:eyre",

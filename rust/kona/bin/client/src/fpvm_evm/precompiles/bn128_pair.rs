@@ -15,6 +15,10 @@ const BN256_MAX_PAIRING_SIZE_GRANITE: usize = 112_687;
 const BN256_MAX_PAIRING_SIZE_JOVIAN: usize = 81_984;
 const BN256_MAX_PAIRING_SIZE_KARST: usize = 57_600;
 
+/// Per-pair oracle/L1 gas required by [EIP-7904](https://eips.ethereum.org/EIPS/eip-7904).
+/// `ISTANBUL_PAIR_BASE` (45_000) is unchanged; only the per-pair rate differs (34_000 → 34_103).
+const GLAMSTERDAM_PAIR_PER_POINT: u64 = 34_103;
+
 /// Runs the FPVM-accelerated `ecpairing` precompile call.
 pub(crate) fn fpvm_bn128_pair<H, O>(
     input: &[u8],
@@ -26,8 +30,9 @@ where
     H: HintWriterClient + Send + Sync,
     O: PreimageOracleClient + Send + Sync,
 {
-    let gas_used =
-        (input.len() / PAIR_ELEMENT_LEN) as u64 * ISTANBUL_PAIR_PER_POINT + ISTANBUL_PAIR_BASE;
+    let pairs = (input.len() / PAIR_ELEMENT_LEN) as u64;
+    let gas_used = pairs * ISTANBUL_PAIR_PER_POINT + ISTANBUL_PAIR_BASE;
+    let oracle_gas = pairs * GLAMSTERDAM_PAIR_PER_POINT + ISTANBUL_PAIR_BASE;
 
     if gas_used > gas_limit {
         return Err(PrecompileHalt::OutOfGas);
@@ -42,7 +47,7 @@ where
     let result_data = kona_proof::block_on(precompile_run! {
         hint_writer,
         oracle_reader,
-        &[precompile.address().as_slice(), &gas_used.to_be_bytes(), input]
+        &[precompile.address().as_slice(), &oracle_gas.to_be_bytes(), input]
     })
     .map_err(|e| PrecompileHalt::Other(e.to_string().into()))?;
 
@@ -111,6 +116,7 @@ mod test {
     use super::*;
     use crate::fpvm_evm::precompiles::test_utils::{
         execute_native_precompile, test_accelerated_precompile,
+        test_accelerated_precompile_capture_hint,
     };
     use alloy_primitives::hex;
 
@@ -255,5 +261,96 @@ mod test {
             assert!(matches!(accelerated_result, PrecompileHalt::Bn254PairLength));
         })
         .await;
+    }
+
+    /// Helper: capture the oracle hint and the recorded `gas_used` from a single
+    /// `fpvm_bn128_pair*` invocation, so the assertion site can compare both halves of the
+    /// L2-charge / oracle-gas split.
+    async fn capture_bn128_pair_hint(
+        run: impl Fn(
+            &[u8],
+            &kona_preimage::HintWriter<kona_preimage::NativeChannel>,
+            &kona_preimage::OracleReader<kona_preimage::NativeChannel>,
+        ) -> EthPrecompileResult
+        + Send
+        + Sync
+        + 'static,
+        input: Vec<u8>,
+    ) -> (crate::fpvm_evm::precompiles::test_utils::CapturedHint, u64) {
+        let recorded_gas_used: std::sync::Arc<std::sync::Mutex<Option<u64>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let recorded_gas_used_in = recorded_gas_used.clone();
+
+        let captured =
+            test_accelerated_precompile_capture_hint(move |hint_writer, oracle_reader| {
+                let result = run(input.as_slice(), hint_writer, oracle_reader).unwrap();
+                *recorded_gas_used_in.lock().unwrap() = Some(result.gas_used);
+            })
+            .await;
+
+        let gas_used = recorded_gas_used.lock().unwrap().unwrap();
+        (captured, gas_used)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_accelerated_bn128_pairing_oracle_gas_carries_l1_cost_two_pairs() {
+        // 2 pairs (existing TEST_INPUT, 384 bytes).
+        let (captured, gas_used) = capture_bn128_pair_hint(
+            |input, hw, or| fpvm_bn128_pair(input, u64::MAX, hw, or),
+            TEST_INPUT.to_vec(),
+        )
+        .await;
+
+        // Oracle hint at current L1 per-pair rate (EIP-7904): 2 * 34_103 + 45_000 = 113_206
+        assert_eq!(captured.oracle_gas(), 2 * GLAMSTERDAM_PAIR_PER_POINT + ISTANBUL_PAIR_BASE);
+        assert_eq!(captured.oracle_gas(), 113_206);
+        // L2 charge unchanged at Istanbul rate: 2 * 34_000 + 45_000 = 113_000
+        assert_eq!(gas_used, 2 * ISTANBUL_PAIR_PER_POINT + ISTANBUL_PAIR_BASE);
+        assert_eq!(gas_used, 113_000);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_accelerated_bn128_pairing_oracle_gas_carries_l1_cost_three_pairs() {
+        // 3 pairs of zero-byte input (576 bytes). Empty pairs are valid input.
+        let input = vec![0u8; 3 * PAIR_ELEMENT_LEN];
+        let (captured, gas_used) = capture_bn128_pair_hint(
+            |input, hw, or| fpvm_bn128_pair(input, u64::MAX, hw, or),
+            input,
+        )
+        .await;
+
+        // Current L1 per-pair rate (EIP-7904): 3 * 34_103 + 45_000 = 147_309
+        assert_eq!(captured.oracle_gas(), 3 * GLAMSTERDAM_PAIR_PER_POINT + ISTANBUL_PAIR_BASE);
+        assert_eq!(captured.oracle_gas(), 147_309);
+        // 3 * 34_000 + 45_000 = 147_000
+        assert_eq!(gas_used, 3 * ISTANBUL_PAIR_PER_POINT + ISTANBUL_PAIR_BASE);
+        assert_eq!(gas_used, 147_000);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_accelerated_bn128_pairing_oracle_gas_carries_l1_cost_zero_pairs() {
+        // Empty input is valid (0 % PAIR_ELEMENT_LEN == 0). Locks the BASE summand.
+        let (captured, gas_used) = capture_bn128_pair_hint(
+            |input, hw, or| fpvm_bn128_pair(input, u64::MAX, hw, or),
+            Vec::new(),
+        )
+        .await;
+
+        assert_eq!(captured.oracle_gas(), ISTANBUL_PAIR_BASE);
+        assert_eq!(captured.oracle_gas(), 45_000);
+        assert_eq!(gas_used, ISTANBUL_PAIR_BASE);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_accelerated_bn128_pairing_granite_oracle_gas_carries_l1_cost() {
+        // Locks wrapper-inheritance: `fpvm_bn128_pair_granite` must delegate to
+        // `fpvm_bn128_pair`, so the oracle hint carries the current L1 cost.
+        let (captured, _) = capture_bn128_pair_hint(
+            |input, hw, or| fpvm_bn128_pair_granite(input, u64::MAX, hw, or),
+            TEST_INPUT.to_vec(),
+        )
+        .await;
+
+        assert_eq!(captured.oracle_gas(), 113_206);
     }
 }

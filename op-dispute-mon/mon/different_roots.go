@@ -2,7 +2,7 @@ package mon
 
 import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type DifferentRootMetrics interface {
@@ -21,7 +21,7 @@ func NewDifferentRootMonitor(logger log.Logger, metrics DifferentRootMetrics) *D
 	}
 }
 
-func (m *DifferentRootMonitor) CheckDifferentRoots(games []*types.EnrichedGameData) {
+func (m *DifferentRootMonitor) CheckDifferentRoots(games []*types.CommonGameData) {
 	count := 0
 	for _, game := range games {
 		if game.NodeEndpointDifferentRoots {

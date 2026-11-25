@@ -9,6 +9,7 @@ import (
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
@@ -19,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 	op_e2e.RunMain(m)
 }
 
-// TestERC20BridgeDeposits tests the the L1StandardBridge bridge ERC20
+// TestERC20BridgeDeposits tests the L1StandardBridge bridge ERC20
 // functionality.
 func TestERC20BridgeDeposits(t *testing.T) {
 	op_e2e.InitParallel(t)
@@ -104,7 +104,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 
 	depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
 	require.NoError(t, err)
-	_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
+	_, err = wait.ForReceiptOK(context.Background(), l2Client, depositTx.Hash())
 	require.NoError(t, err)
 
 	// Ensure that the deposit went through

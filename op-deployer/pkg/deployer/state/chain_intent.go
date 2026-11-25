@@ -2,6 +2,7 @@ package state
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -18,7 +19,7 @@ const (
 	VMTypeAlphabet   = "ALPHABET"
 	VMTypeCannon     = "CANNON"      // Corresponds to the currently released Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
 	VMTypeCannonNext = "CANNON-NEXT" // Corresponds to the next in-development Cannon StateVersion. See: https://github.com/ethereum-optimism/optimism/blob/4c05241bc534ae5837007c32995fc62f3dd059b6/cannon/mipsevm/versions/version.go
-	VMTypeZK         = "ZK"          // ZK dispute game — uses a ZK verifier instead of a MIPS VM.
+	VMTypeZK         = "ZK"          // ZK dispute game — uses a ZK verifier instead of a MIPS VM, with super-root semantics.
 )
 
 func (v VMType) MipsVersion() uint64 {
@@ -33,6 +34,9 @@ func (v VMType) MipsVersion() uint64 {
 	}
 }
 
+// FaultGameAbsolutePrestateOverrideKey names the absolute prestate override.
+const FaultGameAbsolutePrestateOverrideKey = "faultGameAbsolutePrestate"
+
 type ChainProofParams struct {
 	DisputeGameType                         uint32      `json:"respectedGameType" toml:"respectedGameType"`
 	DisputeAbsolutePrestate                 common.Hash `json:"faultGameAbsolutePrestate" toml:"faultGameAbsolutePrestate"`
@@ -41,6 +45,9 @@ type ChainProofParams struct {
 	DisputeClockExtension                   uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
 	DisputeMaxClockDuration                 uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
 	DangerouslyAllowCustomDisputeParameters bool        `json:"dangerouslyAllowCustomDisputeParameters" toml:"dangerouslyAllowCustomDisputeParameters"`
+	ProofMaturityDelaySeconds               uint64      `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
+	DisputeGameFinalityDelaySeconds         uint64      `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
+	WithdrawalDelaySeconds                  uint64      `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
 }
 
 type AdditionalDisputeGame struct {
@@ -53,11 +60,10 @@ type AdditionalDisputeGame struct {
 
 // ZKDisputeGameParams holds the configuration for a ZK dispute game in the upgrade pipeline.
 type ZKDisputeGameParams struct {
-	Verifier             common.Address `json:"verifier" toml:"verifier"`
-	AbsolutePrestate     common.Hash    `json:"absolutePrestate" toml:"absolutePrestate"`
-	MaxChallengeDuration uint64         `json:"maxChallengeDuration" toml:"maxChallengeDuration"`
-	MaxProveDuration     uint64         `json:"maxProveDuration" toml:"maxProveDuration"`
-	ChallengerBond       *hexutil.Big   `json:"challengerBond" toml:"challengerBond"`
+	AbsolutePrestate     common.Hash  `json:"absolutePrestate" toml:"absolutePrestate"`
+	MaxChallengeDuration uint64       `json:"maxChallengeDuration" toml:"maxChallengeDuration"`
+	MaxProveDuration     uint64       `json:"maxProveDuration" toml:"maxProveDuration"`
+	ChallengerBond       *hexutil.Big `json:"challengerBond" toml:"challengerBond"`
 }
 
 type L2DevGenesisParams struct {
@@ -93,6 +99,9 @@ type ChainIntent struct {
 	MinBaseFee                 uint64                    `json:"minBaseFee,omitempty" toml:"minBaseFee,omitempty"`
 	DAFootprintGasScalar       uint16                    `json:"daFootprintGasScalar,omitempty" toml:"daFootprintGasScalar,omitempty"`
 	CustomGasToken             CustomGasToken            `json:"customGasToken" toml:"customGasToken"`
+	// BridgeHook is the IBridgeHook the portal screens deposits and withdrawals through.
+	// Unset or zero means no hook. A pointer, because omitempty never omits a zero common.Address.
+	BridgeHook *common.Address `json:"bridgeHook,omitempty" toml:"bridgeHook,omitempty"`
 
 	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
 	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`
@@ -114,6 +123,7 @@ var ErrNonStandardValue = fmt.Errorf("chain contains non-standard config value")
 var ErrEip1559ZeroValue = fmt.Errorf("eip1559 param is set to zero value")
 var ErrIncompatibleValue = fmt.Errorf("chain contains incompatible config value")
 var ErrZKDisputeGameMissingParams = fmt.Errorf("ZK dispute game is missing required params")
+var ErrZKDisputeGameParamOutOfRange = fmt.Errorf("ZK dispute game param is out of range")
 
 func (c *ChainIntent) Check() error {
 	if c.ID == emptyHash {
@@ -162,17 +172,25 @@ func (c *ChainIntent) Check() error {
 		// LiquidityControllerOwner is optional - if not set, L2ProxyAdminOwner will be used as default
 	}
 
+	// Mirrors OPContractsManagerV2_BridgeHookNotSupported, so the user gets a readable error.
+	if c.GetBridgeHook() != emptyAddress && c.IsCustomGasTokenEnabled() {
+		return fmt.Errorf("%w: bridgeHook is not supported with a custom gas token, chainId=%s", ErrIncompatibleValue, c.ID)
+	}
+
 	if c.DangerousAltDAConfig.UseAltDA {
-		return c.DangerousAltDAConfig.Check(nil)
+		if err := c.DangerousAltDAConfig.Check(nil); err != nil {
+			return err
+		}
 	}
 
 	for _, game := range c.AdditionalDisputeGames {
+		// PERMISSIONED_CANNON fallbacks come from the OP chain deployment, never an additional game.
+		if game.DisputeGameType == 0 || game.DisputeGameType == 1 {
+			return fmt.Errorf("%w: dangerousAdditionalDisputeGames entry has respectedGameType %d; CANNON (0) and PERMISSIONED_CANNON (1) are no longer supported as additional dispute games, chainId=%s", ErrIncompatibleValue, game.DisputeGameType, c.ID)
+		}
 		if game.VMType == VMTypeZK {
 			if game.ZKDisputeGame == nil {
 				return fmt.Errorf("%w: zkDisputeGame config must be set when VMType is ZK, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
-			}
-			if game.ZKDisputeGame.Verifier == (common.Address{}) {
-				return fmt.Errorf("%w: Verifier must not be zero address, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
 			}
 			if game.ZKDisputeGame.AbsolutePrestate == (common.Hash{}) {
 				return fmt.Errorf("%w: AbsolutePrestate must not be zero, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
@@ -180,8 +198,16 @@ func (c *ChainIntent) Check() error {
 			if game.ZKDisputeGame.MaxChallengeDuration == 0 {
 				return fmt.Errorf("%w: MaxChallengeDuration must be > 0, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
 			}
+			// Capped at uint32 max so block.timestamp + duration cannot overflow the game's uint64
+			// deadline cast, which would place the deadline in the past.
+			if game.ZKDisputeGame.MaxChallengeDuration > math.MaxUint32 {
+				return fmt.Errorf("%w: MaxChallengeDuration must be <= %d, chainId=%s", ErrZKDisputeGameParamOutOfRange, uint64(math.MaxUint32), c.ID)
+			}
 			if game.ZKDisputeGame.MaxProveDuration == 0 {
 				return fmt.Errorf("%w: MaxProveDuration must be > 0, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
+			}
+			if game.ZKDisputeGame.MaxProveDuration > math.MaxUint32 {
+				return fmt.Errorf("%w: MaxProveDuration must be <= %d, chainId=%s", ErrZKDisputeGameParamOutOfRange, uint64(math.MaxUint32), c.ID)
 			}
 			if game.ZKDisputeGame.ChallengerBond == nil || game.ZKDisputeGame.ChallengerBond.ToInt().Sign() <= 0 {
 				return fmt.Errorf("%w: ChallengerBond must be set to a positive value, chainId=%s", ErrZKDisputeGameMissingParams, c.ID)
@@ -219,6 +245,14 @@ func (c *ChainIntent) GetLiquidityControllerOwner() common.Address {
 		return c.CustomGasToken.LiquidityControllerOwner
 	}
 	return c.Roles.L2ProxyAdminOwner
+}
+
+// GetBridgeHook returns the configured bridge hook, or the zero address when none is set.
+func (c *ChainIntent) GetBridgeHook() common.Address {
+	if c.BridgeHook == nil {
+		return common.Address{}
+	}
+	return *c.BridgeHook
 }
 
 // IsCustomGasTokenEnabled returns true if custom gas token is enabled.

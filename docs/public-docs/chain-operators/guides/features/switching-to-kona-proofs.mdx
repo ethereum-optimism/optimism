@@ -1,13 +1,12 @@
 ---
 title: Switch to Kona Proofs
 description: Learn how to switch your OP Stack chain to use Kona-based fault proofs as the respected game type.
+diataxis: how-to
 ---
 
-<Note>
-  Kona proofs will become available if and when Optimism Governance approves [Upgrade 18](/notices/upgrade-18).
-  Until then, you can experiment with Kona proofs using [op-deployer/v0.6.0-rc.2](https://github.com/ethereum-optimism/optimism/releases/tag/op-deployer%2Fv0.6.0-rc.2), which allows you to upgrade from `op-contracts/v5.0.0` to `op-contracts/v6.0.0-rc.1`. 
-  This smart contract release candidate will be finalized after governance approval.
-</Note>
+<Info>
+  [Upgrade 18](/notices/archive/upgrade-18) (approved by Optimism Governance) introduced `CANNON_KONA` (8) as an available game type alongside `CANNON` (0). [Upgrade 19](/notices/archive/upgrade-19) promotes `CANNON_KONA` to the **respected game type** for chains managed by the Optimism Security Council — meaning it is applied automatically as part of the onchain upgrade. Non-managed chains that want to switch must follow this guide.
+</Info>
 
 ## Overview
 
@@ -18,17 +17,17 @@ description: Learn how to switch your OP Stack chain to use Kona-based fault pro
 | `cannonPrestate`        | Bytes32 | Set               | Set                    | Must be a valid `cannon64` prestate hash            |
 | `cannonKonaPrestate`    | Bytes32 | Set               | Set                    | Must be a valid `cannon64-kona` prestate hash       |
 
-Kona proofs use the `kona-client` fault proof program, which is a combination of `kona-node` and `op-reth`. This runs alongside the existing `op-program` (a combination of `op-node` and `op-geth`). Both programs:
+Kona proofs use the `kona-client` fault proof program, which is a combination of `kona-node` and `op-reth`. It replaces `op-program` (a combination of `op-node` and `op-geth`), which has reached end-of-support and does not support the Karst hardfork. See [End of Support for op-geth and op-program](/notices/archive/op-geth-deprecation). Both programs:
 
 - Use Cannon as the FPVM, and  
 - Are used by the same dispute game implementation (`FaultDisputeGame.sol`).
 
 After the cannon+kona upgrade is deployed, both game types are available:
 
-- `CANNON` (0) — op-program  
-- `CANNON_KONA` (8) — kona-client  
+- `CANNON` (0): `op-program` (end-of-support)  
+- `CANNON_KONA` (8): `kona-client`  
 
-By default, the respected game type remains `CANNON` (0), meaning only those games are used for withdrawals. This guide explains how to switch your chain so that Kona proofs (`CANNON_KONA`, 8) become the respected game type.
+Until you switch, the respected game type remains `CANNON` (0), meaning only those games are used for withdrawals. Because `op-program` does not support Karst, complete this switch before activating the Karst hardfork on your chain. This guide explains how to switch your chain so that Kona proofs (`CANNON_KONA`, 8) become the respected game type.
 
 <Warning>
   This guide assumes you have already completed the cannon+kona upgrade, including setting both `cannonPrestate` and `cannonKonaPrestate` in `OpChainConfig`, and that your fault proof infrastructure is healthy.

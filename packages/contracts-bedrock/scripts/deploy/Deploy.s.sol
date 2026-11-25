@@ -6,6 +6,7 @@ import { VmSafe } from "forge-std/Vm.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { MockSP1Verifier } from "test/dispute/zk/MockSP1Verifier.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
@@ -39,9 +40,11 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -149,8 +152,12 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy all L1 contracts and write the state diff to a file.
-    ///         Used to generate kontrol tests.
+    ///         Used to generate kontrol tests. The dev chain has no SP1 verifier, so it uses the
+    ///         accept-all MockSP1Verifier.
     function runWithStateDiff() public stateDiff {
+        vm.broadcast(msg.sender);
+        MockSP1Verifier sp1Verifier = new MockSP1Verifier();
+        cfg.setSP1Verifier(address(sp1Verifier));
         _run({ _needsSuperchain: true });
     }
 
@@ -175,9 +182,8 @@ contract Deploy is Deployer {
 
         // Set the respected game type according to the deploy config
         vm.startPrank(ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")).guardian());
-        IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")).setRespectedGameType(
-            GameType.wrap(uint32(cfg.respectedGameType()))
-        );
+        IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"))
+            .setRespectedGameType(GameType.wrap(uint32(cfg.respectedGameType())));
         vm.stopPrank();
 
         if (cfg.useAltDA()) {
@@ -254,11 +260,14 @@ contract Deploy is Deployer {
 
         DeployImplementations.Output memory dio = di.run(
             DeployImplementations.Input({
-                withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+                minWithdrawalDelaySeconds: cfg.minWithdrawalDelaySeconds(),
+                maxWithdrawalDelaySeconds: cfg.maxWithdrawalDelaySeconds(),
                 minProposalSizeBytes: cfg.preimageOracleMinProposalSize(),
                 challengePeriodSeconds: cfg.preimageOracleChallengePeriod(),
-                proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-                disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+                minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
+                maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds(),
+                minDisputeGameFinalityDelaySeconds: cfg.minDisputeGameFinalityDelaySeconds(),
+                maxDisputeGameFinalityDelaySeconds: cfg.maxDisputeGameFinalityDelaySeconds(),
                 mipsVersion: StandardConstants.MIPS_VERSION,
                 devFeatureBitmap: cfg.devFeatureBitmap(),
                 faultGameV2MaxGameDepth: cfg.faultGameV2MaxGameDepth(),
@@ -268,7 +277,8 @@ contract Deploy is Deployer {
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
                 l1ProxyAdminOwner: superchainProxyAdmin.owner(),
-                challenger: cfg.l2OutputOracleChallenger()
+                challenger: cfg.l2OutputOracleChallenger(),
+                sp1Verifier: ISP1Verifier(cfg.sp1Verifier())
             })
         );
 
@@ -279,6 +289,7 @@ contract Deploy is Deployer {
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
         artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameImpl));
+        artifacts.save("SP1PlonkAdapter", address(dio.sp1PlonkAdapterSingleton));
 
         // Get a contract set from the implementation addresses which were just deployed.
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);
@@ -290,7 +301,10 @@ contract Deploy is Deployer {
             _contracts: impls,
             _superchainConfig: superchainConfigProxy,
             _opChainProxyAdminOwner: cfg.finalSystemOwner(),
-            _isProxy: false
+            _isProxy: false,
+            _minProofMaturityDelaySeconds: cfg.minProofMaturityDelaySeconds(),
+            _maxProofMaturityDelaySeconds: cfg.maxProofMaturityDelaySeconds(),
+            _bridgeHook: address(0)
         });
         ChainAssertions.checkETHLockboxImpl(
             IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))
@@ -300,22 +314,30 @@ contract Deploy is Deployer {
         );
         GameType permGameType = DevFeatures.isDevFeatureEnabled(
             cfg.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.PERMISSIONED_CANNON;
+        )
+            ? GameTypes.SUPER_PERMISSIONED
+            : GameTypes.PERMISSIONED_CANNON;
         ChainAssertions.checkDisputeGameFactory(
             IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false, permGameType
         );
-        ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
+        ChainAssertions.checkDelayedWETHImpl(
+            IDelayedWETH(payable(impls.DelayedWETH)), cfg.minWithdrawalDelaySeconds(), cfg.maxWithdrawalDelaySeconds()
+        );
         ChainAssertions.checkMIPS({
-            _mips: IMIPS64(address(dio.mipsSingleton)),
-            _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
+            _mips: IMIPS64(address(dio.mipsSingleton)), _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
         ChainAssertions.checkOPContractsManager({
-            _impls: impls,
-            _opcm: IOPContractsManagerV2(address(dio.opcmV2)),
-            _mips: IMIPS64(address(dio.mipsSingleton))
+            _impls: impls, _opcm: IOPContractsManagerV2(address(dio.opcmV2)), _mips: IMIPS64(address(dio.mipsSingleton))
         });
         ChainAssertions.checkSystemConfigImpls(impls);
-        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
+        ChainAssertions.checkAnchorStateRegistryProxy(
+            IAnchorStateRegistry(impls.AnchorStateRegistry),
+            false,
+            GameType.wrap(0),
+            Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+            cfg.minDisputeGameFinalityDelaySeconds(),
+            cfg.maxDisputeGameFinalityDelaySeconds()
+        );
     }
 
     /// @notice Deploy all of the OP Chain specific contracts
@@ -331,7 +353,9 @@ contract Deploy is Deployer {
 
         IOPContractsManagerV2.FullConfig memory deployInput = DevFeatures.isDevFeatureEnabled(
             cfg.devFeatureBitmap(), DevFeatures.SUPER_ROOT_GAMES_MIGRATION
-        ) ? getSuperRootDeployInputV2() : getDeployInputV2();
+        )
+            ? getSuperRootDeployInputV2()
+            : getDeployInputV2();
         IOPContractsManagerV2.ChainContracts memory deployOutput = opcm.deploy(deployInput);
 
         // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
@@ -386,33 +410,20 @@ contract Deploy is Deployer {
         IOPContractsManagerUtils.DisputeGameConfig[] memory disputeGameConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: bytes("")
         });
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.PERMISSIONED_CANNON, gameArgs: bytes("")
         });
         disputeGameConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: bytes("")
         });
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            gameType: GameTypes.SUPER_PERMISSIONED,
             gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
-                    proposer: cfg.l2OutputOracleProposer(),
-                    challenger: cfg.l2OutputOracleChallenger()
-                })
+                IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: cfg.l2OutputOracleProposer() })
             )
         });
         disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
@@ -426,10 +437,7 @@ contract Deploy is Deployer {
             )
         });
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: bytes("")
         });
 
         return IOPContractsManagerV2.FullConfig({
@@ -440,17 +448,20 @@ contract Deploy is Deployer {
             unsafeBlockSigner: cfg.p2pSequencerAddress(),
             batcher: cfg.batchSenderAddress(),
             startingAnchorRoot: Proposal({
-                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
-                l2SequenceNumber: uint64(cfg.faultGameGenesisBlock())
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()), l2SequenceNumber: uint64(cfg.faultGameGenesisBlock())
             }),
-            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED,
             basefeeScalar: cfg.basefeeScalar(),
             blobBasefeeScalar: cfg.blobbasefeeScalar(),
             gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+            bridgeHook: IBridgeHook(address(0))
         });
     }
 
@@ -490,22 +501,13 @@ contract Deploy is Deployer {
             )
         });
         disputeGameConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_PERMISSIONED, gameArgs: bytes("")
         });
         disputeGameConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: bytes("")
         });
         disputeGameConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: bytes("")
         });
 
         return IOPContractsManagerV2.FullConfig({
@@ -516,8 +518,7 @@ contract Deploy is Deployer {
             unsafeBlockSigner: cfg.p2pSequencerAddress(),
             batcher: cfg.batchSenderAddress(),
             startingAnchorRoot: Proposal({
-                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
-                l2SequenceNumber: uint64(cfg.faultGameGenesisBlock())
+                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()), l2SequenceNumber: uint64(cfg.faultGameGenesisBlock())
             }),
             startingRespectedGameType: GameTypes.PERMISSIONED_CANNON,
             basefeeScalar: cfg.basefeeScalar(),
@@ -526,7 +527,11 @@ contract Deploy is Deployer {
             l2ChainId: cfg.l2ChainID(),
             resourceConfig: Constants.DEFAULT_RESOURCE_CONFIG(),
             disputeGameConfigs: disputeGameConfigs,
-            useCustomGasToken: cfg.useCustomGasToken()
+            useCustomGasToken: cfg.useCustomGasToken(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+            bridgeHook: IBridgeHook(address(0))
         });
     }
 }

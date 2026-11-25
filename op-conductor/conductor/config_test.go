@@ -1,14 +1,81 @@
 package conductor
 
 import (
-	"math/big"
+	"log/slog"
 	"testing"
-	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli/v2"
+
+	"github.com/ethereum-optimism/optimism/op-conductor/flags"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
+
+func TestNewConfigWithoutRegistry(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		testConductorCLIConfig(t, nil, 1000, nil)
+	})
+	t.Run("legacy settings", func(t *testing.T) {
+		t.Setenv("OP_CONDUCTOR_NETWORK", "unknown-network")
+		t.Setenv("OP_CONDUCTOR_OVERRIDE_PECTRABLOBSCHEDULE", "0")
+		t.Setenv("OP_CONDUCTOR_EXECUTION_HEADER_CACHE_SIZE", "256")
+		testConductorCLIConfig(t, []string{
+			"--rollup.config", t.TempDir() + "/missing.json",
+			"--override.canyon", "0",
+			"--override.keep-karst-upgrade-gas=false",
+		}, 256, []string{
+			"network", "rollup.config", "override.canyon",
+			"override.pectrablobschedule", "override.keep-karst-upgrade-gas",
+		})
+	})
+}
+
+func testConductorCLIConfig(t *testing.T, extraArgs []string, cacheSize int, deprecated []string) {
+	t.Helper()
+	logger, captured := testlog.CaptureLogger(t, slog.LevelWarn)
+	app := cli.NewApp()
+	app.Flags = cliapp.ProtectFlags(flags.Flags)
+	// urfave/cli mutates scalar flag definitions when applying environment values.
+	for i, flag := range app.Flags {
+		switch flag := flag.(type) {
+		case *cli.IntFlag:
+			copy := *flag
+			app.Flags[i] = &copy
+		case *cli.StringFlag:
+			copy := *flag
+			app.Flags[i] = &copy
+		case *cli.Uint64Flag:
+			copy := *flag
+			app.Flags[i] = &copy
+		}
+	}
+	app.Action = func(ctx *cli.Context) error {
+		cfg, err := NewConfig(ctx, logger)
+		require.NoError(t, err)
+		require.NoError(t, cfg.Check())
+		require.Equal(t, cacheSize, cfg.ExecutionHeaderCacheSize)
+		return nil
+	}
+	args := []string{
+		"op-conductor",
+		"--consensus.addr", "127.0.0.1",
+		"--consensus.port", "0",
+		"--raft.server.id", "sequencer",
+		"--raft.storage.dir", t.TempDir(),
+		"--node.rpc", "http://localhost:9545",
+		"--execution.rpc", "http://localhost:8545",
+		"--healthcheck.interval", "1",
+		"--healthcheck.unsafe-interval", "3",
+		"--healthcheck.min-peer-count", "1",
+	}
+	require.NoError(t, app.Run(append(args, extraArgs...)))
+	warnings := captured.FindLogs(testlog.NewMessageFilter("Ignoring deprecated op-conductor flag. It will be removed in an upcoming release after 2027-03-01. Configure the paired op-node instead."))
+	require.Len(t, warnings, len(deprecated))
+	for _, name := range deprecated {
+		require.NotNil(t, captured.FindLog(testlog.NewAttributesFilter("flag", name)))
+	}
+}
 
 func TestConfigCheckRollupBoostAndNextMutuallyExclusive(t *testing.T) {
 	cfg := &Config{
@@ -99,7 +166,6 @@ func TestConfigCheck_HTTPBodyLimit(t *testing.T) {
 
 // newValidConfig creates a valid Config for testing
 func newValidConfig(t *testing.T) Config {
-	now := uint64(time.Now().Unix())
 	return Config{
 		ConsensusAddr:   "127.0.0.1",
 		ConsensusPort:   50050,
@@ -115,36 +181,6 @@ func newValidConfig(t *testing.T) Config {
 			UnsafeInterval: 3,
 			SafeInterval:   5,
 			MinPeerCount:   1,
-		},
-		RollupCfg: rollup.Config{
-			Genesis: rollup.Genesis{
-				L1: eth.BlockID{
-					Hash:   [32]byte{1},
-					Number: 100,
-				},
-				L2: eth.BlockID{
-					Hash:   [32]byte{2},
-					Number: 0,
-				},
-				L2Time: now,
-				SystemConfig: eth.SystemConfig{
-					BatcherAddr: [20]byte{1},
-					Overhead:    [32]byte{1},
-					Scalar:      [32]byte{1},
-					GasLimit:    30_000_000,
-				},
-			},
-			BlockTime:               2,
-			MaxSequencerDrift:       600,
-			SeqWindowSize:           3600,
-			ChannelTimeoutBedrock:   300,
-			L1ChainID:               big.NewInt(1),
-			L2ChainID:               big.NewInt(2),
-			RegolithTime:            &now,
-			CanyonTime:              &now,
-			BatchInboxAddress:       [20]byte{1, 2},
-			DepositContractAddress:  [20]byte{2, 3},
-			L1SystemConfigAddress:   [20]byte{3, 4},
 		},
 	}
 }

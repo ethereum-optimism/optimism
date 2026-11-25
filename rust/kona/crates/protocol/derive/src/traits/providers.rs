@@ -22,6 +22,20 @@ pub trait ChainProvider {
     /// source.
     async fn block_info_by_number(&mut self, number: u64) -> Result<BlockInfo, Self::Error>;
 
+    /// Resolves a reset base against the canonical chain without delaying for confirmations.
+    /// The reset base has already been selected; this lookup preserves canonical-by-number
+    /// resolution even if the supplied base hash was reorged out. Providers without a live
+    /// confirmation-depth policy use the ordinary lookup.
+    async fn block_info_by_number_for_reset(
+        &mut self,
+        number: u64,
+    ) -> Result<BlockInfo, Self::Error>
+    where
+        Self: Send,
+    {
+        self.block_info_by_number(number).await
+    }
+
     /// Returns all receipts in the block with the given hash, or an error if the block does not
     /// exist in the data source.
     async fn receipts_by_hash(&mut self, hash: B256) -> Result<Vec<Receipt>, Self::Error>;
@@ -39,23 +53,24 @@ pub trait L2ChainProvider: BatchValidationProviderDerive {
     /// The error type for the [`L2ChainProvider`].
     type Error: Display + Into<PipelineErrorKind>;
 
-    /// Returns the [`SystemConfig`] by L2 number.
-    async fn system_config_by_number(
+    /// Returns the [`SystemConfig`] for the L2 block with the given hash.
+    async fn system_config_by_l2_hash(
         &mut self,
-        number: u64,
+        hash: B256,
         rollup_config: Arc<RollupConfig>,
     ) -> Result<SystemConfig, <Self as L2ChainProvider>::Error>;
 }
 
 /// A super-trait for [`BatchValidationProvider`] that binds `Self::Error` to have a conversion into
 /// [`PipelineErrorKind`].
-pub trait BatchValidationProviderDerive: BatchValidationProvider {}
+pub trait BatchValidationProviderDerive:
+    BatchValidationProvider<Error: Into<PipelineErrorKind>>
+{
+}
 
 // Auto-implement the [BatchValidationProviderDerive] trait for all types that implement
 // [BatchValidationProvider] where the error can be converted into [PipelineErrorKind].
-impl<T> BatchValidationProviderDerive for T
-where
-    T: BatchValidationProvider,
-    <T as BatchValidationProvider>::Error: Into<PipelineErrorKind>,
+impl<T> BatchValidationProviderDerive for T where
+    T: BatchValidationProvider<Error: Into<PipelineErrorKind>>
 {
 }

@@ -1,0 +1,52 @@
+---
+title: Alt-DA 모드 설명
+description: Alt-DA 모드 체인 운영의 기본 프로세스, 이점, 고려 사항을 알아봅니다.
+diataxis: explanation
+---
+<Warning>이 기능은 실험적 기능입니다. 주의하여 사용하십시오.</Warning>
+Alt-DA 모드를 사용하면 커밋먼트 유형에 관계없이 다양한 데이터 가용성(Data Availability, DA) 레이어를 OP Stack에 원활하게 통합할 수 있습니다. 이를 통해 모든 체인 운영자가 선호하는 DA 레이어를 사용하여 지속적으로 낮은 비용으로 OP Stack 체인을 출시할 수 있습니다.
+
+## 지속적으로 낮은 비용
+
+OP Stack 체인이 안전하게 작동하려면 L2 트랜잭션 데이터를 모든 노드 운영자가 사용할 수 있도록 보장해야 합니다. EIP-4844는 OP Stack rollup의 Ethereum L1 데이터 비용을 크게 줄였지만, blobspace는 점차 혼잡해지고 있으며 이는 blob 수수료 상승과 체인 운영자 비용 증가로 이어질 것입니다. 
+지난 몇 년 동안 L2가 L2 데이터를 게시할 수 있는 대안적인 장소로 대체 DA 레이어들이 구축되었습니다. 이러한 레이어는 저렴하고 처리량이 더 높으면서도 안정적이며, 보안과 탈중앙화 측면의 트레이드오프를 최소화합니다.
+
+## 작동 방식
+
+Alt-DA 모드는 Alt-DA 레이어에 데이터를 읽고 쓰기 위한 표준 인터페이스를 도입합니다. 이를 통해 모든 DA 레이어 팀이 자체 [DA Server](https://specs.optimism.io/experimental/alt-da.html?utm_source=op-docs&utm_medium=docs#da-server)를 구축하고 유지 관리하여 OP Stack이 해당 DA 레이어와 통신할 수 있도록 할 수 있습니다. DA Server는 키 관리, DA 레이어 node와의 인터페이스 등 DA 레이어 고유의 모든 로직을 처리합니다.
+
+이러한 추상화 덕분에 Alt-DA 모드의 새로운 기능과 개선 사항은 어떤 DA 레이어를 선택했는지에 관계없이 Alt-DA 모드를 사용하는 모든 체인에 적용됩니다.
+데이터 가용성 챌린지(Data Availability Challenge, DA Challenge)는 출시 시점에 비활성화되지만, 이 통합은 향후 OP Stack 기능과 호환되는 솔루션을 제공합니다.
+
+## 향후 개선 사항
+
+OP Stack의 Rollup 구성과 마찬가지로, 핵심 기여자들은 Alt-DA 모드의 탈중앙화, 보안, 비용 효율성을 지속적으로 개선하고 있습니다. 핵심 기여자들이 구축하려는 향후 기능은 다음과 같습니다.
+
+*   결함 증명(Fault Proofs)과의 통합
+*   더 많은 DA 레이어에 대한 Alt-DA Challenge 지원(현재는 `keccak256` 커밋먼트 유형을 사용하는 DA 레이어만 지원)
+*   DA Bridge 통합(예: Celestia Blobstream, Eigen DA Cert Verification)
+*   단일 커밋먼트로 커밋할 수 있는 데이터 양 증가(머클화(merklization) 활용 가능성)
+
+## Alt-DA 모드의 트레이드오프
+
+Alt-DA 모드는 단순히 L1 Ethereum에 데이터를 게시하는 것보다 항상 더 많은 신뢰 가정을 수반합니다. 현재의 초기 버전에서 범용 커밋먼트를 사용하는 Alt-DA 모드는 체인 운영자가 모든 데이터를 DA 레이어에 게시하고 해당 커밋먼트를 L1 Ethereum에 게시함으로써 데이터를 사용 가능하게 할 것이라고 전적으로 신뢰합니다. 체인 운영자가 잘못된 커밋먼트를 게시하거나 DA 레이어에 데이터를 게시하지 않으면, 노드 운영자는 해당 데이터에 접근할 수 없습니다. 위에서 언급한 향후 개선 사항은 이러한 신뢰 가정을 해결하기 위한 것입니다. DA Bridge가 통합되면, DA 레이어와 그 DA Bridge가 탈중앙화되어 의도대로 작동하는 한, 데이터가 DA 레이어에 게시된 후 L1 커밋먼트는 신뢰할 수 있는 단일 당사자에 의존하지 않고 브리징됩니다. 다만 DA Bridge와 결함 증명을 통합한 이후에도 DA 레이어와 DA Bridge가 안전하고 의도대로 작동한다는 추가적인 신뢰 가정이 여전히 존재한다는 점을 기억해야 합니다. 
+
+## 다음 단계
+
+*   시작할 준비가 되셨습니까? [Alt-DA 모드 체인 배포](/ko/chain-operators/guides/features/alt-da-mode-guide) 가이드를 읽어 보십시오.
+*   Alt-DA 모드의 내부 작동 방식에 대한 자세한 내용은 [사양을 확인하십시오](https://specs.optimism.io/experimental/alt-da.html?utm_source=op-docs&utm_medium=docs).
+
+## 자주 묻는 질문
+
+### Ethereum L1 DA를 사용하여 체인을 배포한 후 나중에 Alt-DA로 전환할 수 있습니까?
+
+Ethereum L1 DA에서 Alt-DA 모드로의 마이그레이션 경로를 명세화하는 것은 향후 목표이지만, 아직 마이그레이션 경로의 범위가 정해지지 않았습니다.
+
+### Alt-DA를 사용하여 체인을 배포한 후 나중에 Ethereum L1 DA로 전환할 수 있습니까?
+
+위와 마찬가지로 이 마이그레이션 경로를 명세화하는 것은 향후 목표이지만, 아직 마이그레이션 경로의 범위가 정해지지 않았습니다.
+
+### Alt-DA 모드를 사용하는 중에 Alt-DA 레이어 간에 전환할 수 있습니까?
+
+현재 기술적으로 가능합니다. 체인 운영자는 전환 기간 동안 두 개의 DA 레이어에 동시에 데이터를 게시하기 시작하고, 그 기간 동안 노드 운영자들이 운영하는 DA Server를 전환하도록 조율할 수 있습니다. 
+이와 관련하여 도움이 필요하면 [Github를 통해](https://github.com/ethereum-optimism/developers/discussions) 문의하십시오

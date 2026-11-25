@@ -2,7 +2,7 @@
 
 use crate::InteropProvider;
 use alloc::vec::Vec;
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, U256};
 use core::fmt::Debug;
 use kona_registry::HashMap;
 use thiserror::Error;
@@ -46,6 +46,15 @@ pub enum MessageGraphError<E: Debug> {
         /// The actual message hash
         actual: B256,
     },
+    /// The committed log at the message's index does not have the message's origin and payload
+    /// hash.
+    #[error("Log {log_index} on chain ID {chain_id} does not match the message")]
+    InvalidMessageLog {
+        /// The remote chain ID
+        chain_id: u64,
+        /// The log index
+        log_index: u64,
+    },
     /// Invalid message timestamp
     #[error("Invalid message timestamp. Expected {expected}, got {actual}")]
     InvalidMessageTimestamp {
@@ -53,6 +62,15 @@ pub enum MessageGraphError<E: Debug> {
         expected: u64,
         /// The actual timestamp
         actual: u64,
+    },
+    /// The message identifier's block number is not the block the initiating chain produced at
+    /// the identifier's timestamp.
+    #[error("Invalid message block number {block_number} for initiating timestamp {timestamp}")]
+    InvalidMessageBlockNumber {
+        /// The block number claimed by the message identifier.
+        block_number: U256,
+        /// The initiating timestamp claimed by the message identifier.
+        timestamp: u64,
     },
     /// Interop has not been activated for at least one block on the initiating message's chain.
     #[error(
@@ -132,26 +150,3 @@ pub enum SuperRootError {
 
 /// A [Result] alias for the [`SuperRootError`] type.
 pub type SuperRootResult<T> = core::result::Result<T, SuperRootError>;
-
-/// Errors that can occur during interop validation.
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum InteropValidationError {
-    /// Interop is not enabled on one or both chains at the required timestamp.
-    #[error("interop not enabled")]
-    InteropNotEnabled,
-
-    /// Executing timestamp is earlier than the initiating timestamp.
-    #[error(
-        "executing timestamp is earlier than initiating timestamp, executing: {executing}, initiating: {initiating}"
-    )]
-    InvalidTimestampInvariant {
-        /// Executing timestamp of the message
-        executing: u64,
-        /// Initiating timestamp of the message
-        initiating: u64,
-    },
-
-    /// Timestamp is outside the allowed interop expiry window.
-    #[error("timestamp outside allowed interop window, timestamp: {0}")]
-    InvalidInteropTimestamp(u64),
-}

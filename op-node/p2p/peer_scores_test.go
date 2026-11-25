@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/ethereum/go-ethereum/log"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -28,6 +27,7 @@ import (
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	testlog "github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -71,7 +71,7 @@ func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []h
 	var out []host.Host
 	log := testlog.Logger(testSuite.T(), log.LevelError)
 	for i := 0; i < n; i++ {
-		swarm := tswarm.GenSwarm(testSuite.T())
+		swarm := tswarm.GenSwarm(testSuite.T(), tswarm.OptDisableQUIC)
 		eps, err := store.NewExtendedPeerstore(ctx, log, clock.SystemClock, swarm.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()), 1*time.Hour)
 		netw := &customPeerstoreNetwork{swarm, eps}
 		require.NoError(testSuite.T(), err)

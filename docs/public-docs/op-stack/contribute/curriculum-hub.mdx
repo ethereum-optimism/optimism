@@ -1,0 +1,138 @@
+---
+title: "Content type: curriculum hub"
+description: The published contract for curriculum hubs — purpose, tone, required components, title grammar, and a copy-paste template.
+diataxis: reference
+---
+
+A **curriculum hub** gathers everything a reader needs to master one feature
+— fault proofs, interop — under a single sidebar node, ordered from gentle
+introduction to normative spec. It is the answer to "I want to actually
+understand X": one place, one reading order, all four documentation modes
+composed for one topic.
+
+This page is the contract for the type. A new curriculum hub is reviewed
+against it; cite the relevant section in review instead of re-arguing it.
+
+## Purpose
+
+*   Give each major feature **one front door** with a recommended reading
+    order, instead of pages scattered across nav groups.
+*   **Compose, don't rewrite**: the hub resequences existing pages and adds
+    at most a few short learning-unit pages where the sequence has a gap.
+*   Make the exits explicit: every hub ends at the **normative spec** (and
+    audits, where they exist) so depth-seekers are routed off-site on
+    purpose, never stranded.
+
+## Composition
+
+A curriculum hub composes all four quadrants for one feature: explanation
+(the gentle intro and deep dives), tutorial/how-to (the hands-on stops),
+reference (component and configuration pages), and the spec exit. The hub's
+index page carries `diataxis: explanation` (it orients the reader in the
+feature) plus `content-type: curriculum-hub`. Stops inside the hub keep
+their own quadrant values; new gap-filling stops follow the
+[learning unit contract](/op-stack/contribute/learning-unit).
+
+See [Choose a content type](/op-stack/contribute/choose-a-content-type) for
+how the composed types relate to the `diataxis:` taxonomy.
+
+## Tone
+
+*   The index page orients: what the feature is, why it matters, and how
+    the materials fit together — in a few short paragraphs, not an essay.
+*   Every listed stop gets a one-line reason ("read this to …"), written
+    for the learner deciding whether to click, not as a summary.
+*   Confidence about order, honesty about depth: say what is skippable and
+    what is normative.
+
+## Required components
+
+Every curriculum hub must have:
+
+1.  **One sidebar node**: the hub is a single nav group; a hub that spans
+    groups has failed its purpose.
+2.  **An index page** with frontmatter `title`, `description`,
+    `diataxis: explanation`, `content-type: curriculum-hub`, and
+    `last-reviewed: YYYY-MM-DD` (hubs are curated artifacts and enter the
+    review sweep on merge).
+3.  **An ordered path** on the index, in this shape (sections may be merged
+    or omitted only where the feature genuinely lacks the material):
+    *   `## Start here` — the gentle introduction.
+    *   `## Go deeper` — mechanism and architecture material.
+    *   `## Get hands-on` — the tutorials and how-tos, where they exist.
+    *   `## Economics and incentives` — where the feature has them.
+    *   `## The normative spec` — deep links into
+        [specs.optimism.io](https://specs.optimism.io/) on **current spec
+        paths** (never retired path generations), per the
+        [content guide](/op-stack/contribute/content-guide).
+    *   `## Audits and security` — where audits exist.
+4.  **One-line reasons** on every link.
+5.  **No duplicated content**: the hub links existing pages; a stop needing
+    rework gets an issue, not a fork. Gap-filling stops are new
+    [learning units](/op-stack/contribute/learning-unit), capped at a few
+    per hub.
+
+## Title grammar
+
+The hub's nav group and index title are the feature's plain name in sentence
+case: "Fault proofs", "Interoperability". No "hub", "curriculum", "guide to",
+or "learn" in the title — the shape is visible from the sidebar; the name
+should match what readers search for.
+
+## Template
+
+Copy this template for a new hub's index page:
+
+```mdx
+---
+title: <Feature name>
+description: <One sentence: what the feature is and what this hub covers.>
+diataxis: explanation
+content-type: curriculum-hub
+last-reviewed: <YYYY-MM-DD>
+---
+
+<Two or three short paragraphs: what <feature> is, why it matters to this
+audience, and how the materials below fit together.>
+
+## Start here
+
+*   [<Gentle introduction>](</path>) — read this first for the mental model.
+
+## Go deeper
+
+*   [<Mechanism page>](</path>) — <what it explains, one line>.
+*   [<Architecture page>](</path>) — <what it explains, one line>.
+
+## Get hands-on
+
+*   [<Tutorial or how-to>](</path>) — <what you'll build or do, one line>.
+
+## Economics and incentives
+
+*   [<Economics page>](</path>) — <what it covers, one line>.
+
+## The normative spec
+
+The definitive definition of <feature> behavior lives in the OP Stack
+specifications:
+
+*   [<Spec section title>](https://specs.optimism.io/<current-path>) —
+    <what it defines, one line>.
+
+## Audits and security
+
+*   [<Audit or security page>](</path>) — <what was audited or what the
+    security model is, one line>.
+```
+
+## Exemplars
+
+Calibrate against the shipped hubs:
+
+*   [Fault proofs](/op-stack/fault-proofs/index): the first shipped hub,
+    sequencing the six existing fault-proofs pages plus the hands-on
+    guides, bond economics, spec exits, and security material.
+*   [Interoperability](/op-stack/interop/index): the second shipped hub,
+    which shows how to frame a hub honestly for a feature still in active
+    development.

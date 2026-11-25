@@ -1,0 +1,86 @@
+//! Command that builds the OP proofs trie-state snapshot at a target block.
+
+use crate::chainspec::OpChainSpecParser;
+use clap::Parser;
+use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
+use reth_node_core::version::version_metadata;
+use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_node::args::ProofsHistoryStorageArgs;
+use reth_optimism_trie::{
+    OpProofsProviderRO, OpProofsStore, SnapshotInitJob, db::MdbxProofsStorage,
+};
+use reth_provider::{DBProvider, DatabaseProviderFactory};
+use std::sync::Arc;
+use tracing::info;
+
+/// Builds the snapshot at `--target-block` (defaults to `earliest`) and marks it `Ready`.
+#[derive(Debug, Parser)]
+pub struct SnapshotInitCommand {
+    #[command(flatten)]
+    env: EnvironmentArgs<OpChainSpecParser>,
+
+    /// Shared proofs-history storage flags (storage path + version).
+    #[command(flatten)]
+    pub history: ProofsHistoryStorageArgs,
+
+    /// Target block for the snapshot anchor. Must fall inside the proofs
+    /// window `[earliest, latest]`. Defaults to `earliest` — that's the
+    /// anchor the snapshot-accelerated backfill flow picks up.
+    #[arg(long = "proofs-history.snapshot-target-block", value_name = "TARGET_BLOCK")]
+    pub target_block: Option<u64>,
+}
+
+impl SnapshotInitCommand {
+    /// Execute [`SnapshotInitCommand`].
+    pub async fn execute<N: CliNodeTypes<ChainSpec = OpChainSpec>>(
+        self,
+        runtime: reth_tasks::Runtime,
+    ) -> eyre::Result<()> {
+        info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
+
+        let Environment { provider_factory, data_dir, .. } =
+            self.env.init::<N>(AccessRights::RO, runtime)?;
+        let storage_path = self.history.resolve_storage_path(data_dir.as_ref());
+        info!(target: "reth::cli", "Initializing OP proofs snapshot at: {:?}", storage_path);
+
+        let storage: Arc<MdbxProofsStorage> = Arc::new(
+            MdbxProofsStorage::new(&storage_path)
+                .map_err(|e| eyre::eyre!("Failed to open MdbxProofsStorage: {e}"))?,
+        );
+
+        // Resolve `None` to the proof window's `earliest`.
+        let target_block = match self.target_block {
+            Some(b) => b,
+            None => {
+                storage
+                    .provider_ro()
+                    .map_err(|e| eyre::eyre!("Failed to open proofs RO provider: {e}"))?
+                    .get_proof_window()
+                    .map_err(|e| eyre::eyre!("Failed to read proof window: {e}"))?
+                    .earliest
+                    .number
+            }
+        };
+
+        let provider = provider_factory
+            .database_provider_ro()
+            .map_err(|e| eyre::eyre!("Failed to open reth DB provider: {e}"))?
+            .disable_long_read_transaction_safety();
+
+        let outcome = SnapshotInitJob::new(provider, storage).run(target_block)?;
+        info!(
+            target: "reth::cli",
+            anchor = ?outcome.block,
+            status = ?outcome.status,
+            account_nodes_copied = outcome.account_nodes_copied,
+            storage_nodes_copied = outcome.storage_nodes_copied,
+            "Snapshot init complete"
+        );
+        Ok(())
+    }
+
+    /// Returns the underlying chain being used to run this command.
+    pub const fn chain_spec(&self) -> Option<&Arc<OpChainSpec>> {
+        Some(&self.env.chain)
+    }
+}

@@ -11,8 +11,7 @@ use alloy_op_evm::OpEvmFactory;
 use alloy_primitives::{Address, B256, Bytes, keccak256};
 use alloy_provider::Provider;
 use alloy_rlp::{Decodable, Encodable};
-use alloy_rpc_types::{Block, debug::ExecutionWitness};
-use alloy_transport::{RpcError, TransportErrorKind};
+use alloy_rpc_types::Block;
 use anyhow::{Result, anyhow, ensure};
 use ark_ff::{BigInteger, PrimeField};
 use async_trait::async_trait;
@@ -21,7 +20,7 @@ use kona_driver::Driver;
 use kona_executor::TrieDBProvider;
 use kona_preimage::{
     BidirectionalChannel, HintReader, HintWriter, OracleReader, OracleServer, PreimageKey,
-    PreimageKeyType,
+    PreimageKeyType, VerifyingPreimageFetcher,
 };
 use kona_proof::{
     CachingOracle, Hint,
@@ -39,6 +38,23 @@ use std::sync::Arc;
 use tokio::task;
 use tracing::{Instrument, debug, info, info_span};
 
+struct AbortOnDrop<T>(task::JoinHandle<T>);
+
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+async fn join_reexecution_tasks<S, C>(
+    server_task: task::JoinHandle<S>,
+    client_task: task::JoinHandle<C>,
+) -> Result<(S, C), task::JoinError> {
+    let mut server_task = AbortOnDrop(server_task);
+    let mut client_task = AbortOnDrop(client_task);
+    tokio::try_join!(&mut server_task.0, &mut client_task.0)
+}
+
 /// Parses the binary framing of a [`HintType::L2PayloadWitness`] hint.
 ///
 /// Returns `(parent_block_hash, payload_attributes_bytes, chain_id)`.
@@ -55,12 +71,6 @@ fn parse_l2_payload_witness_hint(data: &[u8]) -> Result<(B256, &[u8], u64)> {
     let chain_id = u64::from_be_bytes(data[data.len() - 8..].try_into()?);
     let payload_attributes_bytes = &data[32..data.len() - 8];
     Ok((parent_block_hash, payload_attributes_bytes, chain_id))
-}
-
-/// Returns `true` if the RPC error indicates the node does not support the requested method
-/// (JSON-RPC error code -32601: Method not found).
-const fn is_rpc_method_not_found(e: &RpcError<TransportErrorKind>) -> bool {
-    matches!(e, RpcError::ErrorResp(p) if p.code == -32601)
 }
 
 /// The [`HintHandler`] for the [`InteropHost`].
@@ -184,15 +194,7 @@ impl HintHandler for InteropHintHandler {
                 let input = hint.data[28..].to_vec();
                 let input_hash = keccak256(hint.data.as_ref());
 
-                let result = crate::eth::execute(address, input, gas).map_or_else(
-                    |_| vec![0u8; 1],
-                    |raw_res| {
-                        let mut res = Vec::with_capacity(1 + raw_res.len());
-                        res.push(0x01);
-                        res.extend_from_slice(&raw_res);
-                        res
-                    },
-                );
+                let result = crate::eth::execute(address, input, gas)?.into_preimage_value();
 
                 let mut kv_lock = kv.write().await;
                 kv_lock.set(PreimageKey::new_keccak256(*input_hash).into(), hint.data.into())?;
@@ -358,7 +360,7 @@ impl HintHandler for InteropHintHandler {
             HintType::L2StateNode => {
                 ensure!(hint.data.len() == 40, "Invalid hint data length");
 
-                let hash: B256 = hint.data.as_ref().try_into()?;
+                let hash = B256::from_slice(&hint.data[..32]);
                 let chain_id = u64::from_be_bytes(hint.data[32..40].try_into()?);
 
                 // Fetch the preimage from the L2 chain provider.
@@ -540,18 +542,16 @@ impl HintHandler for InteropHintHandler {
                     PreimageServer::new(
                         OracleServer::new(preimage.host),
                         HintReader::new(hint.host),
-                        Arc::new(backend),
+                        Arc::new(VerifyingPreimageFetcher::new(backend)),
                     )
                     .start(),
                 );
                 // The host re-execution path mirrors the client's
                 // `sub_transition` fault-proof pipeline, so we must pass the same
-                // dependency set that the client will derive from BootInfo. Parse
-                // it from the same path the KV store uses (`--interop-dep-set-path`)
-                // here so the owned value can move into the spawned task.
+                // dependency set that the client will derive from BootInfo. Resolve
+                // it here so the owned value can move into the spawned task.
                 let dependency_set = cfg
-                    .read_dependency_set()
-                    .transpose()
+                    .dependency_set_for(chain_id)
                     .map_err(|e| anyhow!("failed to read interop dep-set: {e}"))?
                     .map(Arc::new);
                 let client_task = task::spawn({
@@ -613,6 +613,7 @@ impl HintHandler for InteropHintHandler {
                             l2_provider.clone(),
                             l2_provider,
                             OpEvmFactory::<alloy_op_evm::OpTx>::default(),
+                            alloy_op_evm::block::OpAlloyReceiptBuilder::default(),
                             None,
                         );
                         let mut driver = Driver::new(cursor, executor, pipeline);
@@ -632,7 +633,7 @@ impl HintHandler for InteropHintHandler {
                 });
 
                 // Wait on both the server and client tasks to complete.
-                let (_, client_result) = tokio::try_join!(server_task, client_task)?;
+                let (_, client_result) = join_reexecution_tasks(server_task, client_task).await?;
                 let (build_outcome, raw_transactions) = client_result?;
 
                 // Store optimistic block hash preimage.
@@ -677,27 +678,13 @@ impl HintHandler for InteropHintHandler {
                 // 2. Route to correct L2 provider
                 let l2_provider = providers.l2(&chain_id)?;
 
-                // 3. Call debug_executePayload RPC
-                let execute_payload_response = match l2_provider
-                    .client()
-                    .request::<(B256, OpPayloadAttributes), ExecutionWitness>(
-                        "debug_executePayload",
-                        (parent_block_hash, payload_attributes),
-                    )
-                    .await
-                {
-                    Ok(response) => response,
-                    Err(e) => {
-                        info!(
-                            target: "interop_hint_handler",
-                            err = %e,
-                            chain_id,
-                            method_not_found = is_rpc_method_not_found(&e),
-                            "debug_executePayload unavailable, skipping witness preimage collection"
-                        );
-                        return Ok(());
-                    }
-                };
+                // 3. Call debug_executePayload RPC.
+                let execute_payload_response = crate::backend::util::fetch_execution_witness(
+                    l2_provider.client(),
+                    parent_block_hash,
+                    payload_attributes,
+                )
+                .await?;
 
                 // 4. Store preimages in KV store
                 let preimages = execute_payload_response
@@ -721,34 +708,59 @@ impl HintHandler for InteropHintHandler {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        future::pending,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+
+    use tokio::sync::Barrier;
+
     use super::*;
-    use alloy_json_rpc::ErrorPayload;
-    use alloy_transport::TransportErrorKind;
 
-    #[test]
-    fn test_is_rpc_method_not_found_true() {
-        let e = RpcError::<TransportErrorKind>::ErrorResp(ErrorPayload {
-            code: -32601,
-            message: "method not found".into(),
-            data: None,
-        });
-        assert!(is_rpc_method_not_found(&e));
+    struct ActiveTask(Arc<AtomicUsize>);
+
+    impl ActiveTask {
+        fn enter(active: Arc<AtomicUsize>) -> Self {
+            active.fetch_add(1, Ordering::SeqCst);
+            Self(active)
+        }
     }
 
-    #[test]
-    fn test_is_rpc_method_not_found_false_wrong_code() {
-        let e = RpcError::<TransportErrorKind>::ErrorResp(ErrorPayload {
-            code: -32600,
-            message: "invalid request".into(),
-            data: None,
-        });
-        assert!(!is_rpc_method_not_found(&e));
+    impl Drop for ActiveTask {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+        }
     }
 
-    #[test]
-    fn test_is_rpc_method_not_found_false_null_resp() {
-        let e = RpcError::<TransportErrorKind>::NullResp;
-        assert!(!is_rpc_method_not_found(&e));
+    #[tokio::test]
+    async fn dropping_reexecution_join_aborts_both_tasks() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let started = Arc::new(Barrier::new(3));
+        let spawn_pending = || {
+            let active = active.clone();
+            let started = started.clone();
+            task::spawn(async move {
+                let _active = ActiveTask::enter(active);
+                started.wait().await;
+                pending::<()>().await;
+            })
+        };
+        let join_task = task::spawn(join_reexecution_tasks(spawn_pending(), spawn_pending()));
+
+        started.wait().await;
+        assert_eq!(active.load(Ordering::SeqCst), 2);
+        join_task.abort();
+        assert!(join_task.await.unwrap_err().is_cancelled());
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while active.load(Ordering::SeqCst) != 0 {
+                task::yield_now().await;
+            }
+        })
+        .await
+        .expect("nested tasks were not cancelled");
     }
 
     fn make_hint(parent_hash: B256, json: &[u8], chain_id: u64) -> Vec<u8> {

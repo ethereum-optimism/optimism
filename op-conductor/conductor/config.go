@@ -5,13 +5,11 @@ import (
 	"math"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/flags"
-	opnode "github.com/ethereum-optimism/optimism/op-node"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -62,8 +60,8 @@ type Config struct {
 	// ExecutionRPC is the HTTP provider URL for execution layer.
 	ExecutionRPC string
 
-	// SupervisorRPC is the HTTP provider URL for supervisor.
-	SupervisorRPC string
+	// ExecutionHeaderCacheSize is the header cache capacity. Zero uses the default.
+	ExecutionHeaderCacheSize int
 
 	// RollupBoostEnabled enables the rollup-boost healthcheck (HTTP status codes).
 	// When enabled, healthchecks are performed against ExecutionRPC + "/healthz".
@@ -88,9 +86,6 @@ type Config struct {
 	// HealthCheck is the health check configuration.
 	HealthCheck HealthCheckConfig
 
-	// RollupCfg is the rollup config.
-	RollupCfg rollup.Config
-
 	// RPCEnableProxy is true if the sequencer RPC proxy should be enabled.
 	RPCEnableProxy bool
 
@@ -101,7 +96,7 @@ type Config struct {
 	// WebsocketServerPort is the port at which op-conductor exposes its websocket server from which clients can read streams sourced from rollupBoostWsUrl.
 	WebsocketServerPort int
 
-	LogConfig     oplog.CLIConfig
+	LogConfig     logcli.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
@@ -130,7 +125,10 @@ func (c *Config) Check() error {
 		return fmt.Errorf("missing node RPC")
 	}
 	if c.ExecutionRPC == "" {
-		return fmt.Errorf("missing geth RPC")
+		return fmt.Errorf("missing execution RPC")
+	}
+	if c.ExecutionHeaderCacheSize < 0 {
+		return fmt.Errorf("invalid execution header cache size: %d", c.ExecutionHeaderCacheSize)
 	}
 	if c.RollupBoostEnabled && c.RollupBoostNextEnabled {
 		return fmt.Errorf("only one of rollup-boost or rollup-boost next healthchecks can be enabled")
@@ -140,9 +138,6 @@ func (c *Config) Check() error {
 	}
 	if err := c.HealthCheck.Check(); err != nil {
 		return fmt.Errorf("invalid health check config: %w", err)
-	}
-	if err := c.RollupCfg.Check(); err != nil {
-		return fmt.Errorf("invalid rollup config: %w", err)
 	}
 	if err := c.MetricsConfig.Check(); err != nil {
 		return fmt.Errorf("invalid metrics config: %w", err)
@@ -165,10 +160,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		return nil, fmt.Errorf("missing required flags: %w", err)
 	}
 
-	rollupCfg, err := opnode.NewRollupConfigFromCLI(log, ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load rollup config: %w", err)
-	}
+	flags.WarnDeprecated(ctx, log)
 
 	executionP2pRpcUrl := ctx.String(flags.HealthcheckExecutionP2pRPCUrl.Name)
 	if executionP2pRpcUrl == "" {
@@ -194,7 +186,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RaftLeaderLeaseTimeout:        ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
 		NodeRPC:                       ctx.String(flags.NodeRPC.Name),
 		ExecutionRPC:                  ctx.String(flags.ExecutionRPC.Name),
-		SupervisorRPC:                 ctx.String(flags.SupervisorRPC.Name),
+		ExecutionHeaderCacheSize:      ctx.Int(flags.ExecutionHeaderCacheSize.Name),
 		RollupBoostEnabled:            ctx.Bool(flags.RollupBoostEnabled.Name),
 		RollupBoostHealthcheckTimeout: ctx.Duration(flags.RollupBoostHealthcheckTimeout.Name),
 		RollupBoostNextEnabled:        ctx.Bool(flags.RollupBoostNextEnabled.Name),
@@ -213,11 +205,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 			RollupBoostPartialHealthinessToleranceLimit:           ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceLimit.Name),
 			RollupBoostPartialHealthinessToleranceIntervalSeconds: ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds.Name),
 		},
-		RollupCfg:           *rollupCfg,
 		RPCEnableProxy:      ctx.Bool(flags.RPCEnableProxy.Name),
 		RollupBoostWsURL:    ctx.String(flags.RollupBoostWsURL.Name),
 		WebsocketServerPort: ctx.Int(flags.WebsocketServerPort.Name),
-		LogConfig:           oplog.ReadCLIConfig(ctx),
+		LogConfig:           logcli.ReadCLIConfig(ctx),
 		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:         oppprof.ReadCLIConfig(ctx),
 		RPC:                 oprpc.ReadCLIConfig(ctx),

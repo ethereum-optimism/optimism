@@ -16,6 +16,9 @@ pub mod result;
 pub mod spec;
 pub mod transaction;
 
+#[cfg(test)]
+mod catch_error_tests;
+
 pub use revm;
 
 pub use api::{
@@ -26,4 +29,7 @@ pub use evm::OpEvm;
 pub use l1block::L1BlockInfo;
 pub use result::OpHaltReason;
 pub use spec::*;
-pub use transaction::{OpTransaction, error::OpTransactionError, estimate_tx_compressed_size};
+pub use transaction::{
+    OpTransaction, encoded_tx_da_footprint, error::OpTransactionError, estimate_tx_compressed_size,
+    tx_da_footprint,
+};

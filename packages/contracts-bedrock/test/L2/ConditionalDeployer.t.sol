@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
 // Contracts
@@ -30,7 +29,6 @@ contract ConditionalDeployer_TestInit is CommonTest {
 
     function setUp() public override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
         // Deploy contracts
         simpleContractCreationCode = type(ConditionalDeployer_Harness).creationCode;
     }

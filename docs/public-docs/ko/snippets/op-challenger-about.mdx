@@ -1,0 +1,25 @@
+{/*
+  Shared op-challenger role description. This snippet is the single home for
+  the "what the challenger is and does" block that the setup pages share;
+  the conceptual deep-dive stays on /op-stack/fault-proofs/challenger.
+  Page-specific framing (guide leads, tutorial step context) stays on the
+  consumer page, outside the snippet.
+
+  Usage:
+    import OpChallengerAbout from "/snippets/op-challenger-about.mdx"
+
+    <OpChallengerAbout />
+
+  Consumer pages (keep this list in sync):
+    chain-operators/guides/configuration/op-challenger-config-guide.mdx
+    chain-operators/tutorials/create-l2-rollup/op-challenger-setup.mdx
+*/}
+
+challenger는 분쟁 게임(dispute game)을 모니터링하고 잘못된 주장(claim)에 이의를 제기하여 OP Stack 체인을 보호하는 핵심 결함 증명(fault proof) 구성 요소입니다. 이 결함 증명 기능에 대한 전반적인 개요는 [op-challenger 설명](/ko/op-stack/fault-proofs/challenger)을 참조하십시오.
+
+challenger는 다음을 담당합니다.
+
+*   결함 증명 시스템이 생성한 분쟁 게임 모니터링
+*   분쟁 게임에서 잘못된 주장에 이의 제기
+*   유효한 상태 전환 방어
+*   가능한 경우 게임 해결(resolve)

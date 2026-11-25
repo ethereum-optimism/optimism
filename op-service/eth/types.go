@@ -16,9 +16,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 type ErrorCode int
@@ -435,68 +436,6 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 	return blockHash, blockHash == payload.BlockHash
 }
 
-// BlockAsPayload converts a [*types.Block] to an [ExecutionPayload]. It can only be used to convert
-// OP-Stack blocks, as it follows Canyon and Isthmus rules to set the Withdrawals and
-// WithdrawalsRoot fields.
-func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayload, error) {
-	baseFee, overflow := uint256.FromBig(bl.BaseFee())
-	if overflow {
-		return nil, fmt.Errorf("invalid base fee in block: %s", bl.BaseFee())
-	}
-	opaqueTxs := make([]Data, len(bl.Transactions()))
-	for i, tx := range bl.Transactions() {
-		otx, err := tx.MarshalBinary()
-		if err != nil {
-			return nil, fmt.Errorf("tx %d failed to marshal: %w", i, err)
-		}
-		opaqueTxs[i] = otx
-	}
-	if baseFee == nil {
-		return nil, fmt.Errorf("base fee was nil")
-	}
-
-	payload := &ExecutionPayload{
-		ParentHash:    bl.ParentHash(),
-		FeeRecipient:  bl.Coinbase(),
-		StateRoot:     Bytes32(bl.Root()),
-		ReceiptsRoot:  Bytes32(bl.ReceiptHash()),
-		LogsBloom:     Bytes256(bl.Bloom()),
-		PrevRandao:    Bytes32(bl.MixDigest()),
-		BlockNumber:   Uint64Quantity(bl.NumberU64()),
-		GasLimit:      Uint64Quantity(bl.GasLimit()),
-		GasUsed:       Uint64Quantity(bl.GasUsed()),
-		Timestamp:     Uint64Quantity(bl.Time()),
-		ExtraData:     bl.Extra(),
-		BaseFeePerGas: Uint256Quantity(*baseFee),
-		BlockHash:     bl.Hash(),
-		Transactions:  opaqueTxs,
-		ExcessBlobGas: (*Uint64Quantity)(bl.ExcessBlobGas()),
-		BlobGasUsed:   (*Uint64Quantity)(bl.BlobGasUsed()),
-		// WithdrawalsRoot is only set starting at Isthmus
-	}
-
-	if config.IsCanyon(uint64(payload.Timestamp)) {
-		payload.Withdrawals = &types.Withdrawals{}
-	}
-
-	if config.IsIsthmus(uint64(payload.Timestamp)) {
-		payload.WithdrawalsRoot = bl.Header().WithdrawalsHash
-	}
-
-	return payload, nil
-}
-
-func BlockAsPayloadEnv(bl *types.Block, config *params.ChainConfig) (*ExecutionPayloadEnvelope, error) {
-	payload, err := BlockAsPayload(bl, config)
-	if err != nil {
-		return nil, err
-	}
-	return &ExecutionPayloadEnvelope{
-		ExecutionPayload:      payload,
-		ParentBeaconBlockRoot: bl.BeaconRoot(),
-	}, nil
-}
-
 type PayloadAttributes struct {
 	// value for the timestamp field of the new payload
 	Timestamp Uint64Quantity `json:"timestamp"`
@@ -527,7 +466,7 @@ type PayloadAttributes struct {
 // type. Empty transactions are also considered non-Deposit transactions.
 func (a *PayloadAttributes) IsDepositsOnly() bool {
 	for _, tx := range a.Transactions {
-		if len(tx) == 0 || tx[0] != types.DepositTxType {
+		if !optypes.IsDepositTxBytes(tx) {
 			return false
 		}
 	}
@@ -540,7 +479,7 @@ func (a *PayloadAttributes) WithDepositsOnly() *PayloadAttributes {
 	clone := *a
 	depositTxs := make([]Data, 0, len(a.Transactions))
 	for _, tx := range a.Transactions {
-		if len(tx) > 0 && tx[0] == types.DepositTxType {
+		if optypes.IsDepositTxBytes(tx) {
 			depositTxs = append(depositTxs, tx)
 		}
 	}
@@ -807,6 +746,7 @@ const (
 	GetPayloadV2 EngineAPIMethod = "engine_getPayloadV2"
 	GetPayloadV3 EngineAPIMethod = "engine_getPayloadV3"
 	GetPayloadV4 EngineAPIMethod = "engine_getPayloadV4"
+	GetPayloadV5 EngineAPIMethod = "engine_getPayloadV5"
 )
 
 // StorageKey is a marshaling utility for hex-encoded storage keys, which can have leading 0s and are

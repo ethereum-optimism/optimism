@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -14,6 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -36,6 +37,7 @@ type TwoL2 struct {
 // NewTwoL2Supernode creates a fresh TwoL2 target backed by a shared supernode for the
 // current test.
 func NewTwoL2Supernode(t devtest.T, opts ...Option) *TwoL2 {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2Supernode", opts, twoL2SupernodePresetSupportedOptionKinds)
 	return twoL2SupernodeFromRuntime(t, sysgo.NewTwoL2SupernodeRuntimeWithConfig(t, presetCfg))
 }
@@ -58,20 +60,30 @@ type TwoL2SupernodeInterop struct {
 	L2ELA *dsl.L2ELNode
 	L2ELB *dsl.L2ELNode
 
+	// L2ASupernodeCL and L2BSupernodeCL provide access to the shared supernode's
+	// per-chain rollup routes. In light-sequencer presets, L2ACL/L2BCL are the
+	// light CL sequencers and these fields are the safe-chain derivation nodes.
+	L2ASupernodeCL *dsl.L2CLNode
+	L2BSupernodeCL *dsl.L2CLNode
+
+	// L2ASupernodeEL and L2BSupernodeEL provide access to the supernode VN's
+	// execution layer per chain. In light-sequencer presets this is a distinct
+	// node from L2ELA/L2ELB (joined only by L1 + P2P), so tests can assert the
+	// producer and the verifier agree on execution state. In virtual-sequencer
+	// presets the VN is the sequencer, so these alias L2ELA/L2ELB.
+	L2ASupernodeEL *dsl.L2ELNode
+	L2BSupernodeEL *dsl.L2ELNode
+
 	// L2BatcherA and L2BatcherB provide access to the batchers for pausing/resuming
 	L2BatcherA *dsl.L2Batcher
 	L2BatcherB *dsl.L2Batcher
 
-	// Faucets for funding test accounts
-	FaucetA *dsl.Faucet
-	FaucetB *dsl.Faucet
-
 	// Wallet for test account management
 	Wallet *dsl.HDWallet
 
-	// Funders for creating funded EOAs
-	FunderA *dsl.Funder
-	FunderB *dsl.Funder
+	// Prefunded funders for creating funded EOAs (one per chain)
+	FunderA *dsl.FunderEOA
+	FunderB *dsl.FunderEOA
 
 	// GenesisTime is the genesis timestamp of the L2 chains
 	GenesisTime uint64
@@ -89,10 +101,16 @@ type TwoL2SupernodeInterop struct {
 	timeTravel *clock.AdvancingClock
 }
 
+// L2UserRPCURLs returns the user-RPC URLs for both L2 EL nodes in canonical
+// (A, B) order. Useful for scripts and tools that take a list of L2 endpoints.
+func (s *TwoL2SupernodeInterop) L2UserRPCURLs() []string {
+	return []string{s.L2ELA.Escape().UserRPC(), s.L2ELB.Escape().UserRPC()}
+}
+
 // AdvanceTime advances the time-travel clock if enabled.
 func (s *TwoL2SupernodeInterop) AdvanceTime(amount time.Duration) {
 	s.T.Require().NotNil(s.timeTravel, "attempting to advance time on incompatible system")
-	s.timeTravel.AdvanceTime(amount)
+	s.L1EL.AdvanceTime(s.timeTravel, amount, s.L1CL.BlockTime())
 }
 
 // SuperNodeClient returns an API for calling supernode-specific RPC methods
@@ -101,11 +119,66 @@ func (s *TwoL2SupernodeInterop) SuperNodeClient() apis.SupernodeQueryAPI {
 	return s.Supernode.QueryAPI()
 }
 
+// BootstrapLightSequencersViaVNHandoff brings up a two-L2 light-sequencer supernode
+// interop system that was constructed with WithSupernodeVNSequencerForBootstrap.
+//
+// A follow-mode ELSync sequencer cannot bootstrap a chain from genesis as the sole
+// producer (it deadlocks in willStartEL with no peer payload, #21164). This helper
+// uses the supernode VN as the bootstrap producer: the VN actively sequences and
+// gossips unsafe blocks so the light ELSync sequencers leave willStartEL via EL
+// sync, then sequencing is handed off from the VN to the light sequencers.
+//
+// On return: the light CLs are the active sequencers, the supernode routes are
+// stopped, and the chain is live on the light ELSync sequencers.
+func (s *TwoL2SupernodeInterop) BootstrapLightSequencersViaVNHandoff() {
+	t := s.T
+	// Re-peer the light sequencers to their supernode routes across any restarts.
+	s.L2ACL.ManagePeer(s.L2ASupernodeCL)
+	s.L2BCL.ManagePeer(s.L2BSupernodeCL)
+
+	// Bootstrap producer is the VN; the light ELSync sequencers start stopped.
+	vnAActive, err := s.L2ASupernodeCL.Escape().RollupAPI().SequencerActive(t.Ctx())
+	t.Require().NoError(err, "chain A VN sequencer status")
+	t.Require().True(vnAActive, "chain A supernode VN should be the active bootstrap sequencer")
+	vnBActive, err := s.L2BSupernodeCL.Escape().RollupAPI().SequencerActive(t.Ctx())
+	t.Require().NoError(err, "chain B VN sequencer status")
+	t.Require().True(vnBActive, "chain B supernode VN should be the active bootstrap sequencer")
+
+	// Wait for the light ELSync sequencers to EL-sync from the VN's gossip and
+	// leave willStartEL.
+	dsl.CheckAll(t,
+		s.L2ACL.AdvancedFn(safety.LocalUnsafe, 3, 60),
+		s.L2BCL.AdvancedFn(safety.LocalUnsafe, 3, 60),
+	)
+
+	// Hand off sequencing from the VN to the light sequencers.
+	s.L2ASupernodeCL.StopSequencer()
+	s.L2BSupernodeCL.StopSequencer()
+	s.L2ACL.StartSequencer()
+	s.L2BCL.StartSequencer()
+
+	lightAActive, err := s.L2ACL.Escape().RollupAPI().SequencerActive(t.Ctx())
+	t.Require().NoError(err, "chain A light sequencer status after handoff")
+	t.Require().True(lightAActive, "chain A light sequencer should be active after handoff")
+	lightBActive, err := s.L2BCL.Escape().RollupAPI().SequencerActive(t.Ctx())
+	t.Require().NoError(err, "chain B light sequencer status after handoff")
+	t.Require().True(lightBActive, "chain B light sequencer should be active after handoff")
+}
+
 // NewTwoL2SupernodeInterop creates a fresh TwoL2SupernodeInterop target for the current
 // test.
 func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeInterop", opts, twoL2SupernodeInteropPresetSupportedOptionKinds)
 	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
+}
+
+// NewTwoL2SupernodeLightSequencerInterop creates a two-L2 interop setup where
+// light op-node CLs sequence blocks and the shared supernode derives safe heads.
+func NewTwoL2SupernodeLightSequencerInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
+	skipOpNodeOnlyPresetOnKonaNode(t)
+	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeLightSequencerInterop", opts, twoL2SupernodeLightSequencerPresetSupportedOptionKinds)
+	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
 }
 
 // =============================================================================
@@ -152,7 +225,7 @@ func (s *TwoL2SupernodeInterop) ForSameTimestampTesting(t devtest.T) *SameTimest
 	// Sync chains and pause interop
 	s.L2B.CatchUpTo(s.L2A)
 	s.L2A.CatchUpTo(s.L2B)
-	s.Supernode.EnsureInteropPaused(s.L2ACL, s.L2BCL, 10)
+	s.Supernode.EnsureInteropPaused(10, s.L2ACL, s.L2BCL)
 
 	// Stop sequencers
 	s.L2ACL.StopSequencer()
@@ -199,8 +272,8 @@ func (s *SameTimestampTestSetup) IncludeAndValidate(txsA, txsB []*txplan.Planned
 	require.NotNil(s.t, s.TestSequencer, "TestSequencer is required for deterministic timestamp tests")
 
 	// Assign nonces deterministically within each same-timestamp block. Relying on
-	// mempool-visible pending nonces is racy across clients, and op-reth is stricter
-	// about underpriced replacement transactions than op-geth.
+	// mempool-visible pending nonces is racy, and op-reth rejects underpriced
+	// replacement transactions.
 	baseNonceA := s.Alice.PendingNonce()
 	for i, ptx := range txsA {
 		txplan.WithStaticNonce(baseNonceA + uint64(i))(ptx)

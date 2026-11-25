@@ -12,6 +12,7 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -63,6 +64,10 @@ interface IOPContractsManagerV2 {
         IResourceMetering.ResourceConfig resourceConfig;
         IOPContractsManagerUtils.DisputeGameConfig[] disputeGameConfigs;
         bool useCustomGasToken;
+        uint256 proofMaturityDelaySeconds;
+        uint256 disputeGameFinalityDelaySeconds;
+        uint256 withdrawalDelaySeconds;
+        IBridgeHook bridgeHook;
     }
 
     struct UpgradeInput {
@@ -85,6 +90,10 @@ interface IOPContractsManagerV2 {
     error OPContractsManagerV2_OnlyDelegateCall();
     error OPContractsManagerV2_CannotUpgradeToCustomGasToken();
     error OPContractsManagerV2_InvalidUpgradeSequence(string _lastVersion, string _thisVersion);
+    error OPContractsManagerV2_ZeroGameImplementation(GameType _gameType);
+    error OPContractsManagerV2_InvalidDelayConfig();
+    error OPContractsManagerV2_BridgeHookNotSupported();
+    error OPContractsManagerV2_InvalidBridgeHook();
     error IdentityPrecompileCallFailed();
     error ReservedBitsSet();
     error BytesArrayTooLong();
@@ -119,7 +128,7 @@ interface IOPContractsManagerV2 {
     function version() external view returns (string memory);
 
     /// @notice Upgrades Superchain-wide contracts.
-    function upgradeSuperchain(SuperchainUpgradeInput memory _inp) external returns (SuperchainContracts memory);
+    function upgradeSuperchain(SuperchainUpgradeInput calldata _inp) external returns (SuperchainContracts memory);
 
     /// @notice Deploys and wires a complete OP Chain per the provided configuration.
     function deploy(FullConfig memory _cfg) external returns (ChainContracts memory);
@@ -127,7 +136,7 @@ interface IOPContractsManagerV2 {
     /// @notice Upgrades contracts on an existing OP Chain per the provided input.
     function upgrade(UpgradeInput memory _inp) external returns (ChainContracts memory);
 
-    /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
+    /// @notice Migrates two or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
     function migrate(IOPContractsManagerMigrator.MigrateInput calldata _input) external;
 
@@ -136,6 +145,8 @@ interface IOPContractsManagerV2 {
 
     /// @notice Checks if the upgrade sequence from the last used OPCM to this OPCM is permitted.
     function isPermittedUpgradeSequence(ISystemConfig _systemConfig) external view returns (bool);
+
+    function isPermittedMigrateSequence(ISystemConfig _systemConfig) external view returns (bool);
 
     /// @notice Returns the development feature bitmap.
     function devFeatureBitmap() external view returns (bytes32);

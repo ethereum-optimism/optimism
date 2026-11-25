@@ -5,6 +5,7 @@ use alloc::{
     vec::Vec,
 };
 use alloy_genesis::Genesis;
+use alloy_primitives::ChainId;
 use miniz_oxide::inflate::decompress_to_vec_zlib_with_limit;
 use tar_no_std::{CorruptDataError, TarArchiveRef};
 
@@ -30,6 +31,46 @@ pub(crate) enum SuperchainConfigError {
     DecompressError(String),
 }
 
+/// Returns whether a chain ID appears in the embedded superchain registry.
+///
+/// This checks chain metadata, including chains without a bundled genesis, and does not
+/// decompress genesis allocations. The built-in dev chain is not a registry entry.
+///
+/// # Panics
+///
+/// Panics if the embedded registry archive or chain metadata is invalid.
+pub fn is_superchain_chain_id(chain_id: ChainId) -> bool {
+    superchain_metadata(chain_id).is_some()
+}
+
+/// Returns the block time, in seconds, that the embedded superchain registry lists for a chain
+/// ID, or `None` for a chain outside the registry.
+///
+/// # Panics
+///
+/// Panics if the embedded registry archive or chain metadata is invalid.
+pub fn superchain_block_time(chain_id: ChainId) -> Option<u64> {
+    superchain_metadata(chain_id).map(|metadata| metadata.block_time)
+}
+
+/// Returns the registry metadata of a chain ID, from the chain metadata files only.
+fn superchain_metadata(chain_id: ChainId) -> Option<ChainMetadata> {
+    let archive = TarArchiveRef::new(SUPER_CHAIN_CONFIGS_TAR_BYTES)
+        .expect("embedded superchain registry archive must be valid");
+    archive
+        .entries()
+        .filter(|entry| {
+            let filename = entry.filename();
+            let filename = filename.as_str().expect("registry filename must be UTF-8");
+            filename.starts_with("configs/") && !filename.ends_with("/superchain.json")
+        })
+        .map(|entry| {
+            serde_json::from_slice::<ChainMetadata>(entry.data())
+                .expect("embedded superchain chain metadata must be valid")
+        })
+        .find(|metadata| metadata.chain_id == chain_id)
+}
+
 /// Reads the [`Genesis`] from the superchain config tar file for a superchain.
 /// For example, `read_genesis_from_superchain_config("unichain", "mainnet")`.
 pub(crate) fn read_superchain_genesis(
@@ -49,9 +90,9 @@ pub(crate) fn read_superchain_genesis(
     // Load the genesis file.
     let mut genesis: Genesis = serde_json::from_slice(&genesis_file)?;
 
-    // The "config" field is stripped (see fetch_superchain_config.sh) from the genesis file
-    // because it is not always populated. For that reason, we read the config from the chain
-    // metadata file. See: https://github.com/ethereum-optimism/superchain-registry/issues/901
+    // The "config" field is stripped (see build.rs) from the genesis file because it is
+    // not always populated. For that reason, we read the config from the chain metadata
+    // file. See: https://github.com/ethereum-optimism/superchain-registry/issues/901
     genesis.config =
         to_genesis_chain_config(&read_superchain_metadata(name, environment, &archive)?);
 
@@ -87,19 +128,46 @@ fn read_file(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{SUPPORTED_CHAINS, generated_chain_value_parser, superchain::Superchain};
-    use alloy_chains::NamedChain;
-    use alloy_op_hardforks::{
-        BASE_MAINNET_CANYON_TIMESTAMP, BASE_MAINNET_ECOTONE_TIMESTAMP,
-        BASE_MAINNET_ISTHMUS_TIMESTAMP, BASE_MAINNET_JOVIAN_TIMESTAMP,
-        BASE_SEPOLIA_CANYON_TIMESTAMP, BASE_SEPOLIA_ECOTONE_TIMESTAMP,
-        BASE_SEPOLIA_ISTHMUS_TIMESTAMP, BASE_SEPOLIA_JOVIAN_TIMESTAMP, OP_MAINNET_CANYON_TIMESTAMP,
-        OP_MAINNET_ECOTONE_TIMESTAMP, OP_MAINNET_ISTHMUS_TIMESTAMP, OP_MAINNET_JOVIAN_TIMESTAMP,
-        OP_SEPOLIA_CANYON_TIMESTAMP, OP_SEPOLIA_ECOTONE_TIMESTAMP, OP_SEPOLIA_ISTHMUS_TIMESTAMP,
-        OP_SEPOLIA_JOVIAN_TIMESTAMP, OpHardfork,
-    };
+    use crate::{generated_chain_value_parser, superchain::Superchain};
+    use alloy_primitives::B256;
     use reth_optimism_primitives::L2_TO_L1_MESSAGE_PASSER_ADDRESS;
     use tar_no_std::TarArchiveRef;
+
+    #[test]
+    fn test_is_superchain_chain_id() {
+        for chain_id in [10, 130, 11155420, 1301] {
+            assert!(is_superchain_chain_id(chain_id), "missing registry chain {chain_id}");
+        }
+        for chain_id in [901, 902, 903, crate::OP_DEV.chain.id(), u64::MAX] {
+            assert!(!is_superchain_chain_id(chain_id), "unexpected registry chain {chain_id}");
+        }
+    }
+
+    #[test]
+    fn test_is_superchain_chain_id_covers_all_registry_entries() {
+        let archive = TarArchiveRef::new(SUPER_CHAIN_CONFIGS_TAR_BYTES).unwrap();
+        let mut checked = 0;
+        for entry in archive.entries() {
+            let filename = entry.filename();
+            let filename = filename.as_str().unwrap();
+            if !filename.starts_with("configs/") || filename.ends_with("/superchain.json") {
+                continue;
+            }
+            let metadata: ChainMetadata = serde_json::from_slice(entry.data()).unwrap();
+            assert!(is_superchain_chain_id(metadata.chain_id));
+            assert!(metadata.block_time > 0, "chain {} has no block time", metadata.chain_id);
+            assert_eq!(superchain_block_time(metadata.chain_id), Some(metadata.block_time));
+            checked += 1;
+        }
+        assert!(checked > 0);
+    }
+
+    #[test]
+    fn test_superchain_block_time() {
+        // Unichain's 1 s differs from the 2 s fallback.
+        assert_eq!(superchain_block_time(130), Some(1));
+        assert_eq!(superchain_block_time(crate::OP_DEV.chain.id()), None);
+    }
 
     #[test]
     fn test_read_superchain_genesis() {
@@ -162,137 +230,36 @@ mod tests {
     }
 
     #[test]
-    fn test_hardfork_timestamps() {
-        for &chain in SUPPORTED_CHAINS {
-            let metadata = generated_chain_value_parser(chain).unwrap();
-
-            match metadata.chain().named() {
-                Some(NamedChain::Optimism) => {
-                    assert_eq!(
-                        metadata.hardforks.get(OpHardfork::Jovian).unwrap().as_timestamp().unwrap(),
-                        OP_MAINNET_JOVIAN_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata
-                            .hardforks
-                            .get(OpHardfork::Isthmus)
-                            .unwrap()
-                            .as_timestamp()
-                            .unwrap(),
-                        OP_MAINNET_ISTHMUS_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata.hardforks.get(OpHardfork::Canyon).unwrap().as_timestamp().unwrap(),
-                        OP_MAINNET_CANYON_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata
-                            .hardforks
-                            .get(OpHardfork::Ecotone)
-                            .unwrap()
-                            .as_timestamp()
-                            .unwrap(),
-                        OP_MAINNET_ECOTONE_TIMESTAMP
-                    );
-                }
-                Some(NamedChain::OptimismSepolia) => {
-                    assert_eq!(
-                        metadata.hardforks.get(OpHardfork::Jovian).unwrap().as_timestamp().unwrap(),
-                        OP_SEPOLIA_JOVIAN_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata
-                            .hardforks
-                            .get(OpHardfork::Isthmus)
-                            .unwrap()
-                            .as_timestamp()
-                            .unwrap(),
-                        OP_SEPOLIA_ISTHMUS_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata.hardforks.get(OpHardfork::Canyon).unwrap().as_timestamp().unwrap(),
-                        OP_SEPOLIA_CANYON_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata
-                            .hardforks
-                            .get(OpHardfork::Ecotone)
-                            .unwrap()
-                            .as_timestamp()
-                            .unwrap(),
-                        OP_SEPOLIA_ECOTONE_TIMESTAMP
-                    );
-                }
-                Some(NamedChain::Base) => {
-                    assert_eq!(
-                        metadata.hardforks.get(OpHardfork::Jovian).unwrap().as_timestamp().unwrap(),
-                        BASE_MAINNET_JOVIAN_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata
-                            .hardforks
-                            .get(OpHardfork::Isthmus)
-                            .unwrap()
-                            .as_timestamp()
-                            .unwrap(),
-                        BASE_MAINNET_ISTHMUS_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata.hardforks.get(OpHardfork::Canyon).unwrap().as_timestamp().unwrap(),
-                        BASE_MAINNET_CANYON_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata
-                            .hardforks
-                            .get(OpHardfork::Ecotone)
-                            .unwrap()
-                            .as_timestamp()
-                            .unwrap(),
-                        BASE_MAINNET_ECOTONE_TIMESTAMP
-                    );
-                }
-                Some(NamedChain::BaseSepolia) => {
-                    assert_eq!(
-                        metadata.hardforks.get(OpHardfork::Jovian).unwrap().as_timestamp().unwrap(),
-                        BASE_SEPOLIA_JOVIAN_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata
-                            .hardforks
-                            .get(OpHardfork::Isthmus)
-                            .unwrap()
-                            .as_timestamp()
-                            .unwrap(),
-                        BASE_SEPOLIA_ISTHMUS_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata.hardforks.get(OpHardfork::Canyon).unwrap().as_timestamp().unwrap(),
-                        BASE_SEPOLIA_CANYON_TIMESTAMP
-                    );
-
-                    assert_eq!(
-                        metadata
-                            .hardforks
-                            .get(OpHardfork::Ecotone)
-                            .unwrap()
-                            .as_timestamp()
-                            .unwrap(),
-                        BASE_SEPOLIA_ECOTONE_TIMESTAMP
-                    );
-                }
-                _ => {}
+    fn test_generated_specs_match_registry_genesis_hash() {
+        // Every generated `--chain <name>` spec must seal the genesis header the registry names.
+        // OP Mainnet is the exception: the registry's L2 genesis is its Bedrock transition block,
+        // while the spec pins the chain's block-0 hash (see `OP_MAINNET_GENESIS_HASH`).
+        let archive = TarArchiveRef::new(SUPER_CHAIN_CONFIGS_TAR_BYTES).unwrap();
+        let mut mismatches = Vec::new();
+        for &chain in Superchain::ALL {
+            let (name, env) = (chain.name(), chain.environment());
+            if (name, env) == ("op", "mainnet") {
+                continue;
+            }
+            // The CLI key, as `key_for!` builds it.
+            let key = if env == "mainnet" { name.to_string() } else { format!("{name}-{env}") };
+            let spec = generated_chain_value_parser(&key).unwrap();
+            let config: serde_json::Value = serde_json::from_slice(
+                &read_file(&archive, &format!("configs/{env}/{name}.json")).unwrap(),
+            )
+            .unwrap();
+            let expected: B256 = config["genesis"]["l2"]["hash"].as_str().unwrap().parse().unwrap();
+            if spec.genesis_hash() != expected {
+                mismatches.push(format!(
+                    "{env}/{name}: spec {} registry {expected}",
+                    spec.genesis_hash()
+                ));
             }
         }
+        assert!(
+            mismatches.is_empty(),
+            "generated specs with a wrong genesis hash:\n{}",
+            mismatches.join("\n")
+        );
     }
 }

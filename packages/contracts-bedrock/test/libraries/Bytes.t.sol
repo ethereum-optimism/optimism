@@ -25,14 +25,13 @@ abstract contract Bytes_TestInit is Test {
     function manualEq(bytes memory _a, bytes memory _b) internal pure returns (bool) {
         bool _eq;
         assembly {
-            _eq :=
-                and(
-                    // Check if the contents of the two bytes arrays are equal in memory.
-                    eq(keccak256(add(0x20, _a), mload(_a)), keccak256(add(0x20, _b), mload(_b))),
-                    // Check if the length of the two bytes arrays are equal in memory.
-                    // This is redundant given the above check, but included for completeness.
-                    eq(mload(_a), mload(_b))
-                )
+            _eq := and(
+                // Check if the contents of the two bytes arrays are equal in memory.
+                eq(keccak256(add(0x20, _a), mload(_a)), keccak256(add(0x20, _b), mload(_b))),
+                // Check if the length of the two bytes arrays are equal in memory.
+                // This is redundant given the above check, but included for completeness.
+                eq(mload(_a), mload(_b))
+            )
         }
         return _eq;
     }

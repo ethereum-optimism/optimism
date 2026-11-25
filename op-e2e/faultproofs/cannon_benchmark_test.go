@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -30,6 +29,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -68,22 +68,22 @@ func testBenchmarkCannonFPP(t *testing.T, allocType config.AllocType) {
 	receipt := callBigContracts(ctx, t, cfg, l2Seq, cfg.Secrets.Alice, newContracts)
 
 	t.Log("Capture the latest L2 head that precedes contract creations as agreed starting point")
-	agreedBlock, err := l2Seq.BlockByNumber(ctx, new(big.Int).Sub(receipt.BlockNumber, big.NewInt(1)))
+	agreedBlock, err := l2Seq.HeaderByNumber(ctx, new(big.Int).Sub(receipt.BlockNumber, big.NewInt(1)))
 	require.NoError(t, err)
-	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, agreedBlock.NumberU64())
+	agreedL2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, bigs.Uint64Strict(agreedBlock.Number))
 	require.NoError(t, err, "could not retrieve l2 agreed block")
 	l2Head := agreedL2Output.BlockRef.Hash
 	l2OutputRoot := agreedL2Output.OutputRoot
 
 	t.Log("Determine L2 claim")
 	l2ClaimBlockNumber := receipt.BlockNumber
-	l2Output, err := rollupClient.OutputAtBlock(ctx, bigs.Uint64Strict(l2ClaimBlockNumber))
+	l2Output, err := wait.ForOutputAtBlock(ctx, rollupClient, bigs.Uint64Strict(l2ClaimBlockNumber))
 	require.NoError(t, err, "could not get expected output")
 	l2Claim := l2Output.OutputRoot
 
 	t.Log("Determine L1 head that includes all batches required for L2 claim block")
 	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, bigs.Uint64Strict(l2ClaimBlockNumber)))
-	l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
+	l1HeadBlock, err := l1Client.HeaderByNumber(ctx, nil)
 	require.NoError(t, err, "get l1 head block")
 	l1Head := l1HeadBlock.Hash()
 

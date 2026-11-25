@@ -98,12 +98,14 @@ rules:
       succeed or (2) assert that a user-triggered OOG is acceptable.
     message: try/catch blocks must be marked as EIP-150 safe
     patterns:
-      - pattern: |
-          try ... {
-            ...
-          } catch ... {
-            ...
-          }
+      - pattern-either:
+          - pattern: |
+              try ... {
+                ...
+              } catch ... {
+                ...
+              }
+          - pattern: try ... { ... } catch ... { ... }
       - pattern-not-inside: |
           // eip150-safe
           ...
@@ -111,7 +113,6 @@ rules:
       exclude:
         - /packages/contracts-bedrock/test
         - /packages/contracts-bedrock/scripts
-        - /ops/ai-eng/contracts-test-maintenance/prompt/prompt.md
 
   - id: sol-style-input-arg-fmt
     languages: [solidity]
@@ -120,7 +121,6 @@ rules:
     pattern-regex: function\s+\w+\s*\(\s*([^)]*?\b\w+\s+(?!_)(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+\s*(?=,|\)))
     paths:
       exclude:
-        - /op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
         - /packages/contracts-bedrock/test
         - /packages/contracts-bedrock/interfaces
         - /packages/contracts-bedrock/scripts/libraries/Solarray.sol
@@ -136,7 +136,6 @@ rules:
     paths:
       exclude:
         - /packages/contracts-bedrock/interfaces/dispute/IDelayedWETH.sol
-        - /op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
         - /packages/contracts-bedrock/interfaces
         - /packages/contracts-bedrock/test/safe-tools
         - /packages/contracts-bedrock/scripts/libraries/Solarray.sol
@@ -451,6 +450,9 @@ rules:
         - /packages/contracts-bedrock/src/dispute/zk/OptimisticZkGame.sol
         # DataAvailabilityChallenge is a beta/non-standard contract.
         - /packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
+        # ComplianceModule may have an admin that is not a ProxyAdmin, so it checks the
+        # EIP-1967 admin slot directly.
+        - /packages/contracts-bedrock/src/compliance/ComplianceModule.sol
 
   - id: sol-safety-use-deployutils-getcode
     languages: [solidity]

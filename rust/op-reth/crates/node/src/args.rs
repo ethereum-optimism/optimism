@@ -2,20 +2,146 @@
 
 //! clap [Args](clap::Args) for optimism rollup configuration
 
+use alloy_primitives::Address;
 use clap::builder::ArgPredicate;
 use op_alloy_consensus::interop::SafetyLevel;
-use std::{path::PathBuf, time::Duration};
+use reth_optimism_trie::DEFAULT_BACKFILL_BATCH_SIZE;
+use std::path::PathBuf;
 use url::Url;
 
-/// Storage schema version for the proofs-history database.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+/// Storage format of the proofs-history database. v2 is the only supported format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProofsStorageVersion {
-    /// V1 storage schema (original single-table-per-domain layout). Default.
-    #[default]
-    V1,
-    /// V2 storage schema with changeset and history-bitmap tables, enabling
-    /// history-aware reads at any block number within the proof window.
+    /// Storage format with changeset and history-bitmap tables.
     V2,
+}
+
+/// Parses `--proofs-history.storage-version`, rejecting every format but v2.
+fn parse_proofs_storage_version(value: &str) -> Result<ProofsStorageVersion, String> {
+    match value {
+        "v2" => Ok(ProofsStorageVersion::V2),
+        _ => Err("only `v2` is supported and existing v1 proofs data is ignored; drop this flag \
+                  or pass `v2`, delete any v1 proofs database (or use a fresh \
+                  `--proofs-history.storage-path`), then run `op-reth proofs init`"
+            .to_string()),
+    }
+}
+
+/// Default proofs history window in blocks: 30 days × 24h × 60min × 60s / 2s
+/// per block = `1_296_000`.
+pub const DEFAULT_PROOFS_HISTORY_WINDOW: u64 = 1_296_000;
+
+/// Subdirectory under reth's chain-specific data dir where the proofs history
+/// DB lives when the user didn't pass `--proofs-history.storage-path`.
+pub const DEFAULT_PROOFS_HISTORY_SUBDIR: &str = "historical-proofs";
+
+/// Shared proofs-history storage args used by both the node's [`RollupArgs`]
+/// and every `op-proofs` CLI subcommand. `storage_path` is `Option<PathBuf>`
+/// because we default to `<reth-data-dir>/historical-proofs` when not
+/// provided — see [`Self::resolve_storage_path`].
+#[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
+pub struct ProofsHistoryStorageArgs {
+    /// Path to the proofs-history storage DB. Defaults to
+    /// `<reth-data-dir>/historical-proofs` (chain-namespaced via reth's
+    /// `--datadir`).
+    #[arg(long = "proofs-history.storage-path", value_name = "PROOFS_HISTORY_STORAGE_PATH")]
+    pub storage_path: Option<PathBuf>,
+
+    /// Deprecated: v2 is the only storage format, so `v2` is a no-op and any other value is
+    /// rejected.
+    ///
+    /// Kept so that deployments which still pass `--proofs-history.storage-version=v2` keep
+    /// working.
+    #[arg(
+        long = "proofs-history.storage-version",
+        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
+        value_parser = parse_proofs_storage_version
+    )]
+    pub storage_version: Option<ProofsStorageVersion>,
+}
+
+impl ProofsHistoryStorageArgs {
+    /// Resolve the storage path, defaulting to
+    /// `<reth_data_dir>/historical-proofs` when the user didn't pass
+    /// `--proofs-history.storage-path`.
+    pub fn resolve_storage_path(&self, reth_data_dir: &std::path::Path) -> PathBuf {
+        self.storage_path
+            .clone()
+            .unwrap_or_else(|| reth_data_dir.join(DEFAULT_PROOFS_HISTORY_SUBDIR))
+    }
+}
+
+/// Shared proofs-history window arg. Used by both [`RollupArgs`] (the node)
+/// and the `op-proofs prune` subcommand so the flag name and default stay in
+/// sync.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::Args)]
+pub struct ProofsHistoryWindowArg {
+    /// The window to span blocks for proofs history. Value is the number of blocks.
+    /// Default is 1 month of blocks based on 2 seconds block time
+    /// (`30 * 24 * 60 * 60 / 2 = 1_296_000`).
+    #[arg(
+        long = "proofs-history.window",
+        default_value_t = DEFAULT_PROOFS_HISTORY_WINDOW,
+        value_name = "PROOFS_HISTORY_WINDOW"
+    )]
+    pub window: u64,
+}
+
+impl Default for ProofsHistoryWindowArg {
+    fn default() -> Self {
+        Self { window: DEFAULT_PROOFS_HISTORY_WINDOW }
+    }
+}
+
+/// Validate `--proofs-history.backfill-batch-size`. Must be `>= 1`; no upper cap — operators
+/// can tune above the default when their environment supports it.
+pub fn parse_backfill_batch_size(raw: &str) -> Result<usize, String> {
+    let n: usize = raw.parse().map_err(|e| format!("not a non-negative integer: {e}"))?;
+    if n >= 1 { Ok(n) } else { Err("must be >= 1".to_string()) }
+}
+
+/// Shared backfill args. Used by `op-proofs backfill` (explicit) and `op-proofs init`
+/// (implicit post-init backfill) so the flag names, defaults, and parsers stay in sync.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::Args)]
+pub struct ProofsHistoryBackfillArgs {
+    /// Number of blocks committed per MDBX write transaction (>= 1).
+    ///
+    /// Larger N amortizes commit/fsync; trade-off is higher peak RSS
+    /// and up to N blocks of progress lost on crash. Very large N can
+    /// also exceed MDBX's per-tx dirty-page ceiling on storage-heavy
+    /// blocks — the batch fails cleanly (whole tx rolls back) and can
+    /// be retried with a lower value. Default 25 measured ~2.6×
+    /// throughput vs K=1 on op-mainnet — the sweet spot on the K
+    /// sweep before dirty-page pressure starts slowing cursor reads.
+    #[arg(
+        long = "proofs-history.backfill-batch-size",
+        value_name = "N",
+        default_value_t = DEFAULT_BACKFILL_BATCH_SIZE,
+        value_parser = parse_backfill_batch_size,
+    )]
+    pub backfill_batch_size: usize,
+
+    /// Use the trie-state snapshot to accelerate per-block reads during
+    /// backfill. If no snapshot exists, one is bootstrapped at the current
+    /// `earliest` before the backfill loop begins.
+    ///
+    /// Defaults to `true`. Pass `--proofs-history.use-snapshot false` to
+    /// force the non-snapshot path (per-block reads via the reth DB).
+    #[arg(
+        long = "proofs-history.use-snapshot",
+        value_name = "BOOL",
+        default_value_t = true,
+        default_missing_value = "true",
+        num_args = 0..=1,
+        action = clap::ArgAction::Set,
+    )]
+    pub use_snapshot: bool,
+}
+
+impl Default for ProofsHistoryBackfillArgs {
+    fn default() -> Self {
+        Self { backfill_batch_size: DEFAULT_BACKFILL_BATCH_SIZE, use_snapshot: true }
+    }
 }
 
 /// Parameters for rollup configuration
@@ -41,6 +167,18 @@ pub struct RollupArgs {
     #[arg(long = "rollup.compute-pending-block")]
     pub compute_pending_block: bool,
 
+    /// Seconds between two L2 blocks, which dates the RPC's pending block
+    ///
+    /// The op-reth binary defaults it to the superchain registry's block time for a registry
+    /// chain. Without either, the RPC uses the chain's alloy-chains hint, else 2 s.
+    #[arg(
+        id = "rollup_block_time",
+        long = "rollup.block-time",
+        value_name = "SECONDS",
+        value_parser = clap::value_parser!(u64).range(1..)
+    )]
+    pub block_time: Option<u64>,
+
     /// enables discovery v4 if provided
     #[arg(long = "rollup.discovery.v4", default_value = "false")]
     pub discovery_v4: bool,
@@ -49,22 +187,61 @@ pub struct RollupArgs {
     #[arg(long = "rollup.enable-tx-conditional", default_value = "false")]
     pub enable_tx_conditional: bool,
 
-    /// Enable experimental SDM support for integration tests.
+    /// Retain RPC-submitted transactions in the local pool after forwarding them
+    /// to the sequencer.
     ///
-    /// SDM is not scheduled for Jovian or Karst; leave this disabled for production networks.
-    #[arg(long = "rollup.sdm-enabled", default_value = "false")]
-    pub sdm_enabled: bool,
+    /// This flag only has an effect when `rollup.sequencer` is present.
+    #[arg(long = "rollup.retain-forwarded-txs", default_value_t = false)]
+    pub retain_forwarded_txs: bool,
 
-    /// HTTP endpoint for the supervisor. When not set, interop transaction validation is disabled.
-    #[arg(long = "rollup.supervisor-http", value_name = "SUPERVISOR_HTTP_URL")]
-    pub supervisor_http: Option<String>,
-
-    /// Safety level for the supervisor
+    /// Local operator opt-in for SDM `PostExec` production at process boot. The admin RPC
+    /// (`admin_setOperatorSdmOptIn`) can still toggle it at runtime. Defaults to disabled.
     #[arg(
-        long = "rollup.supervisor-safety-level",
+        long = "rollup.operator-sdm-opt-in",
+        env = "OP_RETH_OPERATOR_SDM_OPT_IN",
+        action = clap::ArgAction::Set,
+        default_value_t = false
+    )]
+    pub operator_sdm_opt_in: bool,
+
+    /// Enables the deterministic SDM fixed-refund policy used by acceptance tests, optionally
+    /// injecting excessive refunds for calls to the supplied address.
+    #[arg(long = "testing.sdm-fixed-policy", value_name = "ADDRESS", hide = true)]
+    #[doc(hidden)]
+    pub testing_sdm_fixed_policy: Option<Option<Address>>,
+
+    /// HTTP endpoint(s) for the interop filter, used to validate the interop messages referenced
+    /// by incoming transactions. Repeat the flag to configure multiple endpoints; each check is
+    /// fanned out to all of them and combined by quorum agreement (see
+    /// `--rollup.interop-min-responses`). When none are set, interop transaction validation is
+    /// disabled: a node that builds blocks will then include transactions carrying invalid
+    /// interop messages, producing invalid blocks. It is only safe to leave this unset on nodes
+    /// that do not build blocks.
+    #[arg(long = "rollup.interop-http", value_name = "INTEROP_HTTP_URL")]
+    pub interop_http: Vec<String>,
+
+    /// Minimum number of definitive verdicts required to decide an interop check across the
+    /// configured `--rollup.interop-http` endpoints. A transaction is accepted only when this many
+    /// endpoints return a definitive verdict and all of them agree it is valid; if they disagree
+    /// the transaction is rejected.
+    ///
+    /// Defaults to the number of endpoints (unanimity, fail-closed). Note this means any single
+    /// unreachable or out-of-sync endpoint blocks ALL interop admission until it recovers, so
+    /// adding endpoints under the default REDUCES availability. Set a majority quorum (e.g.
+    /// N/2+1) to tolerate a degraded endpoint while still only accepting on unanimous
+    /// agreement among responders.
+    ///
+    /// Disagreement detection is best-effort: once the quorum is reached the remaining endpoints
+    /// are not awaited, so a slow dissenter beyond the quorum may go unseen.
+    #[arg(long = "rollup.interop-min-responses", value_name = "INTEROP_MIN_RESPONSES")]
+    pub interop_min_responses: Option<usize>,
+
+    /// Safety level for interop filter validation.
+    #[arg(
+        long = "rollup.interop-safety-level",
         default_value_t = SafetyLevel::CrossUnsafe,
     )]
-    pub supervisor_safety_level: SafetyLevel,
+    pub interop_safety_level: SafetyLevel,
 
     /// Optional headers to use when connecting to the sequencer.
     #[arg(long = "rollup.sequencer-headers", requires = "sequencer")]
@@ -82,11 +259,20 @@ pub struct RollupArgs {
     #[arg(long, default_value_t = 1_000_000)]
     pub min_suggested_priority_fee: u64,
 
+    /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
+    ///
+    /// When set, the payload builder stops including mempool transactions once the block's total
+    /// uncompressed transaction size would exceed this value. This bounds the size of the
+    /// `engine_getPayload` response so it stays within the limits assumed by consensus-layer
+    /// clients (e.g. the common 10 MiB JSON payload cap). Unset means no limit.
+    #[arg(long = "rollup.max-uncompressed-block-size", value_name = "MAX_UNCOMPRESSED_BLOCK_SIZE")]
+    pub max_uncompressed_block_size: Option<u64>,
+
     /// A URL pointing to a secure websocket subscription that streams out flashblocks.
     ///
     /// If given, the flashblocks are received to build pending block. All request with "pending"
     /// block tag will use the pending state based on flashblocks.
-    #[arg(long, alias = "websocket-url")]
+    #[arg(long, aliases = ["websocket-url", "subblocks-url"])]
     pub flashblocks_url: Option<Url>,
 
     /// Enable flashblock consensus client to drive the chain forward
@@ -94,7 +280,12 @@ pub struct RollupArgs {
     /// When enabled, the flashblock consensus client will process flashblock sequences and submit
     /// them to the engine API to advance the chain.
     /// Requires `flashblocks_url` to be set.
-    #[arg(long, default_value_t = false, requires = "flashblocks_url")]
+    #[arg(
+        long,
+        alias = "subblocks-consensus",
+        default_value_t = false,
+        requires = "flashblocks_url"
+    )]
     pub flashblock_consensus: bool,
 
     /// If true, initialize external-proofs exex to save and serve trie nodes to provide proofs
@@ -108,39 +299,16 @@ pub struct RollupArgs {
     )]
     pub proofs_history: bool,
 
-    /// The path to the storage DB for proofs history.
-    #[arg(long = "proofs-history.storage-path", value_name = "PROOFS_HISTORY_STORAGE_PATH")]
-    pub proofs_history_storage_path: Option<PathBuf>,
+    /// Shared with every `op-proofs` CLI subcommand — see
+    /// [`ProofsHistoryStorageArgs`].
+    #[command(flatten)]
+    pub history: ProofsHistoryStorageArgs,
 
-    /// The window to span blocks for proofs history. Value is the number of blocks.
-    /// Default is 1 month of blocks based on 2 seconds block time.
-    /// 30 * 24 * 60 * 60 / 2 = `1_296_000`
-    #[arg(
-        long = "proofs-history.window",
-        default_value_t = 1_296_000,
-        value_name = "PROOFS_HISTORY_WINDOW"
-    )]
-    pub proofs_history_window: u64,
+    /// Shared with the `op-proofs prune` subcommand — see
+    /// [`ProofsHistoryWindowArg`].
+    #[command(flatten)]
+    pub proofs_history_window: ProofsHistoryWindowArg,
 
-    /// Interval between proof-storage prune runs. Accepts human-friendly durations
-    /// like "100s", "5m", "1h". Defaults to 15s.
-    ///
-    /// - Shorter intervals prune smaller batches more often, so each prune run tends to be faster
-    ///   and the blocking pause for writes is shorter, at the cost of more frequent pauses.
-    /// - Longer intervals prune larger batches less often, which reduces how often pruning runs,
-    ///   but each run can take longer and block writes for longer.
-    ///
-    /// A shorter interval is preferred so that prune
-    /// runs stay small and don’t stall writes for too long.
-    ///
-    /// CLI: `--proofs-history.prune-interval 10m`
-    #[arg(
-        long = "proofs-history.prune-interval",
-        value_name = "PROOFS_HISTORY_PRUNE_INTERVAL",
-        default_value = "15s",
-        value_parser = humantime::parse_duration
-    )]
-    pub proofs_history_prune_interval: Duration,
     /// Verification interval: perform full block execution every N blocks for data integrity.
     /// - 0: Disabled (Default) (always use fast path with pre-computed data from notifications)
     /// - 1: Always verify (always execute blocks, slowest)
@@ -157,18 +325,17 @@ pub struct RollupArgs {
     )]
     pub proofs_history_verification_interval: u64,
 
-    /// Storage schema version for proofs history. Defaults to v1.
-    ///
-    /// Use `v2` to enable the changeset + history-bitmap schema, which supports
-    /// history-aware reads at any block number within the proof window.
-    ///
-    /// CLI: `--proofs-history.storage-version v2`
+    /// Parallel readers that warm the proofs storage's page cache ahead of persistence (0 to
+    /// 64). `0` (default) disables warming. Warming reads the pages each buffered block and the
+    /// next prunes will touch, so the single-threaded persistence transaction waits on fewer disk
+    /// reads.
     #[arg(
-        long = "proofs-history.storage-version",
-        value_name = "PROOFS_HISTORY_STORAGE_VERSION",
-        default_value = "v1"
+        long = "proofs-history.prefetch-threads",
+        value_name = "THREADS",
+        default_value_t = 0,
+        value_parser = clap::value_parser!(u64).range(0..=64),
     )]
-    pub proofs_history_storage_version: ProofsStorageVersion,
+    pub proofs_history_prefetch_threads: u64,
 }
 
 impl Default for RollupArgs {
@@ -177,22 +344,26 @@ impl Default for RollupArgs {
             sequencer: None,
             disable_txpool_gossip: false,
             compute_pending_block: false,
+            block_time: None,
             discovery_v4: false,
             enable_tx_conditional: false,
-            sdm_enabled: false,
-            supervisor_http: None,
-            supervisor_safety_level: SafetyLevel::CrossUnsafe,
+            retain_forwarded_txs: false,
+            operator_sdm_opt_in: false,
+            testing_sdm_fixed_policy: None,
+            interop_http: Vec::new(),
+            interop_min_responses: None,
+            interop_safety_level: SafetyLevel::CrossUnsafe,
             sequencer_headers: Vec::new(),
             historical_rpc: None,
             min_suggested_priority_fee: 1_000_000,
+            max_uncompressed_block_size: None,
             flashblocks_url: None,
             flashblock_consensus: false,
             proofs_history: false,
-            proofs_history_storage_path: None,
-            proofs_history_window: 1_296_000,
-            proofs_history_prune_interval: Duration::from_secs(15),
+            history: ProofsHistoryStorageArgs { storage_path: None, storage_version: None },
+            proofs_history_window: ProofsHistoryWindowArg::default(),
             proofs_history_verification_interval: 0,
-            proofs_history_storage_version: ProofsStorageVersion::V1,
+            proofs_history_prefetch_threads: 0,
         }
     }
 }
@@ -214,6 +385,59 @@ mod tests {
         let default_args = RollupArgs::default();
         let args = CommandParser::<RollupArgs>::parse_from(["reth"]).args;
         assert_eq!(args, default_args);
+    }
+
+    #[test]
+    fn test_proofs_storage_version_accepts_only_v2() {
+        for args in [
+            &["reth", "--proofs-history.storage-version=v2"][..],
+            &["reth", "--proofs-history.storage-version", "v2"],
+        ] {
+            let args = CommandParser::<RollupArgs>::parse_from(args).args;
+            assert_eq!(args.history.storage_version, Some(ProofsStorageVersion::V2));
+        }
+
+        for version in ["v1", "V2", "v3"] {
+            let err = CommandParser::<RollupArgs>::try_parse_from([
+                "reth".to_string(),
+                format!("--proofs-history.storage-version={version}"),
+            ])
+            .err()
+            .unwrap_or_else(|| panic!("storage version {version} should be rejected"));
+            assert!(err.to_string().contains("only `v2` is supported"), "unexpected error: {err}");
+        }
+    }
+
+    #[test]
+    fn test_proofs_history_prefetch_threads() {
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--proofs-history.prefetch-threads",
+            "8",
+        ])
+        .args;
+        assert_eq!(args.proofs_history_prefetch_threads, 8);
+        assert!(
+            CommandParser::<RollupArgs>::try_parse_from([
+                "reth",
+                "--proofs-history.prefetch-threads",
+                "65",
+            ])
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn test_parse_optimism_block_time_args() {
+        let expected_args = RollupArgs { block_time: Some(5), ..Default::default() };
+        let args =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.block-time", "5"]).args;
+        assert_eq!(args, expected_args);
+
+        assert!(
+            CommandParser::<RollupArgs>::try_parse_from(["reth", "--rollup.block-time", "0"])
+                .is_err()
+        );
     }
 
     #[test]
@@ -261,6 +485,94 @@ mod tests {
             CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.enable-tx-conditional"])
                 .args;
         assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_optimism_enable_txpool_admission() {
+        assert!(!RollupArgs::default().retain_forwarded_txs);
+
+        let expected_args = RollupArgs { retain_forwarded_txs: true, ..Default::default() };
+        let args =
+            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.retain-forwarded-txs"]).args;
+        assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_interop_multiple_endpoints() {
+        let expected_args = RollupArgs {
+            interop_http: vec!["http://a:1".into(), "http://b:2".into(), "http://c:3".into()],
+            interop_min_responses: Some(2),
+            ..Default::default()
+        };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.interop-http",
+            "http://a:1",
+            "--rollup.interop-http",
+            "http://b:2",
+            "--rollup.interop-http",
+            "http://c:3",
+            "--rollup.interop-min-responses",
+            "2",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_max_uncompressed_block_size() {
+        let expected_args =
+            RollupArgs { max_uncompressed_block_size: Some(7_340_032), ..Default::default() };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.max-uncompressed-block-size",
+            "7340032",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_subblocks_aliases() {
+        let expected_args = RollupArgs {
+            flashblocks_url: Some("wss://localhost:8546".parse().unwrap()),
+            flashblock_consensus: true,
+            ..Default::default()
+        };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--subblocks-url",
+            "wss://localhost:8546",
+            "--subblocks-consensus",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+    }
+
+    #[test]
+    fn test_parse_optimism_operator_sdm_opt_in() {
+        let expected_args = RollupArgs { operator_sdm_opt_in: true, ..Default::default() };
+        let args = CommandParser::<RollupArgs>::parse_from([
+            "reth",
+            "--rollup.operator-sdm-opt-in",
+            "true",
+        ])
+        .args;
+        assert_eq!(args, expected_args);
+    }
+
+    /// The opt-in is also configurable via the `OP_RETH_OPERATOR_SDM_OPT_IN` environment variable.
+    /// Asserted through clap's arg metadata rather than by setting the variable in the process,
+    /// which would race with the other `RollupArgs` parse tests running in parallel.
+    #[test]
+    fn test_operator_sdm_opt_in_is_bound_to_env_var() {
+        use clap::CommandFactory;
+        let command = CommandParser::<RollupArgs>::command();
+        let arg = command
+            .get_arguments()
+            .find(|arg| arg.get_id().as_str() == "operator_sdm_opt_in")
+            .expect("operator_sdm_opt_in arg should exist");
+        assert_eq!(arg.get_env(), Some(std::ffi::OsStr::new("OP_RETH_OPERATOR_SDM_OPT_IN")));
     }
 
     #[test]

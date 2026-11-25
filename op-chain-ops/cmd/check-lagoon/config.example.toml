@@ -1,0 +1,45 @@
+# Example config for check-lagoon. Pass with --config <path>.
+# Keys are the flag names. CLI flags and CHECK_LAGOON_* env vars override anything set here.
+# Each command ignores keys it doesn't register, so a single file can serve both.
+
+# --- Used by both `roundtrip` and `failsafe` ---
+l2-a = "http://localhost:9545"
+l2-b = "http://localhost:9546"
+account = ""
+# Durations are strings parsed by time.ParseDuration.
+relay-timeout = "2m"
+
+# --- Used only by `roundtrip` ---
+# Number of A->B->A round-trips to perform.
+iterations = 3
+
+# --- Used only by top-level `all` ---
+json = false
+
+# --- Used only by `failsafe` ---
+# How long to wait for the initiating message to propagate before the blocked relay.
+propagation-wait = "6s"
+# Dotted flag names (--filter.admin-rpc, --filter.jwt-secret) map to a [filter] table.
+# Add one entry per op-interop-filter instance; jwt-secret values are 32-byte hex (0x optional).
+[filter]
+admin-rpc = ["http://localhost:8420", "http://localhost:8421"]
+jwt-secret = ["0x<32-byte-hex-secret-1>", "0x<32-byte-hex-secret-2>"]
+
+# --- Used by `sdm` subcommands; top-level `all` reads the account, fund, rollup-rpc-a/b, contract-a/b, and opt-in keys ---
+[sdm]
+l2 = "http://localhost:9545"
+l2-verifier = ""
+rollup-rpc = ""
+rollup-rpc-a = ""
+rollup-rpc-b = ""
+# Required by `sdm all`; top-level `all` derives one when empty.
+account = ""
+l2-fund-amount = "20000000000000000"
+contract = ""
+contract-a = ""
+contract-b = ""
+# Enable the producer's SDM opt-in for the duration of the check if it is off.
+opt-in = false
+json = false
+# `sdm block` and `sdm verifier` only.
+block = 0

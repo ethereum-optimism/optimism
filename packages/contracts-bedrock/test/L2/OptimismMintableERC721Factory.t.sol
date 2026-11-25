@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { OptimismMintableERC721 } from "src/L2/OptimismMintableERC721.sol";
 
 /// @title OptimismMintableERC721Factory_TestInit
@@ -20,7 +21,7 @@ abstract contract OptimismMintableERC721Factory_TestInit is CommonTest {
     {
         bytes memory constructorArgs =
             abi.encode(address(l2ERC721Bridge), deploy.cfg().l1ChainID(), _remote, _name, _symbol);
-        bytes memory bytecode = abi.encodePacked(type(OptimismMintableERC721).creationCode, constructorArgs);
+        bytes memory bytecode = abi.encodePacked(DeployUtils.getCode("OptimismMintableERC721"), constructorArgs);
         bytes32 salt = keccak256(abi.encode(_remote, _name, _symbol));
         bytes32 hash = keccak256(
             abi.encodePacked(bytes1(0xff), address(l2OptimismMintableERC721Factory), salt, keccak256(bytecode))

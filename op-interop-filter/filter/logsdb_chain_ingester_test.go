@@ -4,19 +4,26 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/ptr"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 )
 
 // =============================================================================
@@ -43,6 +50,7 @@ func newTestLogsDBChainIngester(t *testing.T, cfg testIngesterConfig) *LogsDBCha
 
 	ingester := &LogsDBChainIngester{
 		log:              logger,
+		clock:            clock.SystemClock,
 		metrics:          metrics.NoopMetrics,
 		chainID:          cfg.chainID,
 		ethClient:        cfg.ethClient,
@@ -51,6 +59,8 @@ func newTestLogsDBChainIngester(t *testing.T, cfg testIngesterConfig) *LogsDBCha
 		backfillDuration: 0,     // No backfill by default in tests
 		pollInterval:     100 * time.Millisecond,
 		rollupCfg:        cfg.rollupCfg,
+		fetchConcurrency: 4,
+		startRetry:       retry.Fixed(time.Millisecond),
 		ctx:              ctx,
 		cancel:           cancel,
 	}
@@ -115,6 +125,54 @@ func createTestReceipts(blockNum uint64, logCount int) gethTypes.Receipts {
 	return receipts
 }
 
+type delayedFetchEthClient struct {
+	*MockEthClient
+
+	mu        sync.Mutex
+	delays    map[uint64]time.Duration
+	completed []uint64
+}
+
+func (m *delayedFetchEthClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
+	if delay := m.delays[number]; delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	blockInfo, err := m.MockEthClient.InfoByNumber(ctx, number)
+	m.mu.Lock()
+	m.completed = append(m.completed, number)
+	m.mu.Unlock()
+	return blockInfo, err
+}
+
+func (m *delayedFetchEthClient) Completed() []uint64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]uint64(nil), m.completed...)
+}
+
+func (m *delayedFetchEthClient) ResetCompleted() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.completed = nil
+}
+
+type backfillProgressMetrics struct {
+	metrics.Metricer
+
+	chainID  uint64
+	progress float64
+}
+
+func (m *backfillProgressMetrics) RecordBackfillProgress(chainID uint64, progress float64) {
+	m.chainID = chainID
+	m.progress = progress
+}
+
 // =============================================================================
 // LogsDBChainIngester Integration Tests
 // =============================================================================
@@ -151,98 +209,17 @@ func TestLogsDBChainIngester_InitLogsDB(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestLogsDBChainIngester_SealParentBlock(t *testing.T) {
+func TestLogsDBChainIngester_IngestBlockRange_WritesInOrder(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	tempDir := t.TempDir()
 
-	// Set up mock client with a parent block
-	mockClient := NewMockEthClient()
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
+	mockClient := &delayedFetchEthClient{
+		MockEthClient: NewMockEthClient(),
+		delays:        map[uint64]time.Duration{100: 50 * time.Millisecond},
+	}
 
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	// Initialize logsDB first
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	// Seal the parent block
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	// Verify the block was sealed
-	latestBlock, ok := ingester.LatestBlock()
-	require.True(t, ok)
-	require.Equal(t, uint64(99), latestBlock.Number)
-
-	// Note: earliestIngestedBlock is NOT set in sealParentBlock anymore.
-	// It's now set in ingestBlock when the first block with actual log data is ingested.
-	// The anchor block is just a checkpoint, not a block with queryable log data.
-	require.False(t, ingester.earliestIngestedBlockSet.Load(), "sealParentBlock should not set earliestIngestedBlock")
-}
-
-func TestLogsDBChainIngester_IngestBlock(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	// Set up mock client with blocks
-	mockClient := NewMockEthClient()
-
-	// Parent block (will be sealed first)
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
-
-	// Block to ingest
-	block100 := createTestBlock(100, 1200, parentBlock.Hash())
-	receipts100 := createTestReceipts(100, 2) // 2 logs
-	mockClient.AddBlock(block100, receipts100)
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	// Initialize and seal parent
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	// Ingest block 100
-	err = ingester.ingestBlock(100)
-	require.NoError(t, err)
-
-	// Verify the block was sealed
-	latestBlock, ok := ingester.LatestBlock()
-	require.True(t, ok)
-	require.Equal(t, uint64(100), latestBlock.Number)
-	require.Equal(t, block100.Hash(), latestBlock.Hash)
-
-	// Verify timestamp
-	ts, ok := ingester.LatestTimestamp()
-	require.True(t, ok)
-	require.Equal(t, uint64(1200), ts)
-}
-
-func TestLogsDBChainIngester_IngestMultipleBlocks(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	// Create a chain of 5 blocks
 	parentHash := common.Hash{}
-	for i := uint64(99); i <= 103; i++ {
+	for i := uint64(99); i <= 101; i++ {
 		block := createTestBlock(i, 1000+i*2, parentHash)
 		parentHash = block.Hash()
 
@@ -259,29 +236,76 @@ func TestLogsDBChainIngester_IngestMultipleBlocks(t *testing.T) {
 		ethClient: mockClient,
 		rollupCfg: testRollupConfig(901, 0, 1000),
 	})
+	ingester.fetchConcurrency = 2
 
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
+	require.NoError(t, ingester.initLogsDB())
 	t.Cleanup(func() { ingester.logsDB.Close() })
+	mockClient.ResetCompleted()
 
-	// Seal parent block 99
-	err = ingester.sealParentBlock(99)
+	nextBlock, _, err := ingester.ingestBlockRange(100, 101, clock.SystemClock.Now())
 	require.NoError(t, err)
+	require.Equal(t, uint64(102), nextBlock)
+	require.Equal(t, []uint64{101, 100}, mockClient.Completed())
 
-	// Ingest blocks 100-103
-	for blockNum := uint64(100); blockNum <= 103; blockNum++ {
-		err = ingester.ingestBlock(blockNum)
-		require.NoError(t, err)
-	}
-
-	// Verify final state
 	latestBlock, ok := ingester.LatestBlock()
 	require.True(t, ok)
-	require.Equal(t, uint64(103), latestBlock.Number)
+	require.Equal(t, uint64(101), latestBlock.Number)
+}
 
-	ts, ok := ingester.LatestTimestamp()
+func TestLogsDBChainIngester_IngestBlockRange_FetchFailureReturnsFailingBlock(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	tempDir := t.TempDir()
+
+	mockClient := NewMockEthClient()
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	block101 := createTestBlock(101, 1202, block100.Hash())
+	mockClient.AddBlock(parentBlock, nil)
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+	mockClient.AddBlock(block101, createTestReceipts(101, 1))
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   tempDir,
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	ingester.fetchConcurrency = 2
+
+	require.NoError(t, ingester.initLogsDB())
+	t.Cleanup(func() { ingester.logsDB.Close() })
+
+	nextBlock, _, err := ingester.ingestBlockRange(100, 102, clock.SystemClock.Now())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "block 102 not found")
+	require.Equal(t, uint64(102), nextBlock)
+
+	latestBlock, ok := ingester.LatestBlock()
 	require.True(t, ok)
-	require.Equal(t, uint64(1206), ts) // 1000 + 103*2
+	require.Equal(t, uint64(101), latestBlock.Number)
+}
+
+func TestLogsDBChainIngester_RecordIngestionProgressCountsCompletedBlock(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(901)
+	recorder := &backfillProgressMetrics{Metricer: metrics.NoopMetrics}
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   chainID,
+		dataDir:   t.TempDir(),
+		ethClient: NewMockEthClient(),
+		rollupCfg: testRollupConfig(901, 0, 0),
+	})
+	ingester.metrics = recorder
+	ingester.startTimestamp = 400
+	ingester.backfillDuration = 0
+	ingester.earliestIngestedBlock.Store(100)
+	ingester.earliestIngestedBlockSet.Store(true)
+
+	ingester.recordIngestionProgress(200, 200)
+
+	require.Equal(t, uint64(901), recorder.chainID)
+	require.Equal(t, 1.0, recorder.progress)
 }
 
 func TestLogsDBChainIngester_Ready(t *testing.T) {
@@ -317,18 +341,40 @@ func TestLogsDBChainIngester_Ready(t *testing.T) {
 	// Still not ready - no blocks sealed
 	require.False(t, ingester.Ready())
 
-	// Seal parent and ingest block 100
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	// Still not ready - latest timestamp is 1198 (block 99), startTimestamp is 1200
-	require.False(t, ingester.Ready())
-
 	err = ingester.ingestBlock(100)
 	require.NoError(t, err)
 
 	// Now ready - latestTimestamp (1200) >= startTimestamp (1200)
 	require.True(t, ingester.Ready())
+}
+
+func TestLogsDBChainIngester_IsValidInitiatingTimestamp(t *testing.T) {
+	tests := []struct {
+		name        string
+		lagoonTime  *uint64
+		timestamp   uint64
+		expectValid bool
+	}{
+		{name: "no activation", timestamp: 104},
+		{name: "before activation", lagoonTime: ptr.New(uint64(101)), timestamp: 100},
+		{name: "activation block", lagoonTime: ptr.New(uint64(101)), timestamp: 102},
+		{name: "after activation block", lagoonTime: ptr.New(uint64(101)), timestamp: 104, expectValid: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := testRollupConfig(901, 0, 100)
+			cfg.LagoonTime = test.lagoonTime
+			ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+				chainID:   eth.ChainIDFromUInt64(901),
+				dataDir:   t.TempDir(),
+				ethClient: NewMockEthClient(),
+				rollupCfg: cfg,
+			})
+
+			require.Equal(t, test.expectValid, ingester.IsValidInitiatingTimestamp(test.timestamp))
+		})
+	}
 }
 
 func TestLogsDBChainIngester_ErrorState(t *testing.T) {
@@ -381,256 +427,24 @@ func TestLogsDBChainIngester_Contains(t *testing.T) {
 	})
 
 	// Contains should fail when logsDB not initialized
-	_, err := ingester.Contains(types.ContainsQuery{})
-	require.ErrorIs(t, err, types.ErrUninitialized)
+	_, err := ingester.Contains(messages.ContainsQuery{})
+	require.ErrorIs(t, err, interop.ErrUninitialized)
 
 	err = ingester.initLogsDB()
 	require.NoError(t, err)
 	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	// Seal parent and ingest block
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
 
 	err = ingester.ingestBlock(100)
 	require.NoError(t, err)
 
 	// Query for non-existent log should return ErrConflict
-	_, err = ingester.Contains(types.ContainsQuery{
+	_, err = ingester.Contains(messages.ContainsQuery{
 		Timestamp: 1200,
 		BlockNum:  100,
 		LogIdx:    99, // Doesn't exist
-		Checksum:  types.MessageChecksum{0xFF},
+		Checksum:  messages.MessageChecksum{0xFF},
 	})
-	require.ErrorIs(t, err, types.ErrConflict)
-}
-
-func TestLogsDBChainIngester_ReorgDetection(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	// Create blocks
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
-
-	block100 := createTestBlock(100, 1200, parentBlock.Hash())
-	mockClient.AddBlock(block100, createTestReceipts(100, 1))
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	err = ingester.ingestBlock(100)
-	require.NoError(t, err)
-
-	// Now try to ingest a block with wrong parent hash (simulating a reorg)
-	reorgBlock := createTestBlock(101, 1202, common.Hash{0xDE, 0xAD}) // Wrong parent
-	mockClient.AddBlock(reorgBlock, createTestReceipts(101, 1))
-
-	err = ingester.ingestBlock(101)
-	require.NoError(t, err) // ingestBlock doesn't return error, it sets error state
-
-	// Check that error state was set
-	ingesterErr := ingester.Error()
-	require.NotNil(t, ingesterErr)
-	require.Equal(t, ErrorReorg, ingesterErr.Reason)
-}
-
-func TestLogsDBChainIngester_QueryMethods(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
-
-	block100 := createTestBlock(100, 1200, parentBlock.Hash())
-	mockClient.AddBlock(block100, createTestReceipts(100, 1))
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	// Uninitialized queries should fail
-	_, err := ingester.GetExecMsgsAtTimestamp(1200)
-	require.ErrorIs(t, err, types.ErrUninitialized)
-	_, ok := ingester.BlockHashAt(100)
-	require.False(t, ok)
-
-	err = ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	err = ingester.ingestBlock(100)
-	require.NoError(t, err)
-
-	// GetExecMsgsAtTimestamp: existing timestamp
-	msgs, err := ingester.GetExecMsgsAtTimestamp(1200)
-	require.NoError(t, err)
-	_ = msgs
-
-	// GetExecMsgsAtTimestamp: non-existent timestamp
-	msgs, err = ingester.GetExecMsgsAtTimestamp(9999)
-	require.NoError(t, err)
-	require.Empty(t, msgs)
-
-	// BlockHashAt: existing block
-	hash, ok := ingester.BlockHashAt(100)
-	require.True(t, ok)
-	require.Equal(t, block100.Hash(), hash)
-
-	// BlockHashAt: non-existent block
-	_, ok = ingester.BlockHashAt(999)
-	require.False(t, ok)
-}
-
-// =============================================================================
-// Integration Test: Full Ingestion Flow with Real LogsDB
-// =============================================================================
-
-func TestLogsDBChainIngester_Integration_RealLogsDB(t *testing.T) {
-	// This test exercises the full ingestion flow:
-	// 1. Create MockEthClient with test blocks
-	// 2. Initialize LogsDBChainIngester with real logsDB
-	// 3. Ingest multiple blocks
-	// 4. Verify data can be queried back
-
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	// Create a chain of 10 blocks
-	numBlocks := 10
-	startBlock := uint64(100)
-	startTimestamp := uint64(2000)
-
-	parentHash := common.Hash{0x00}
-	for i := 0; i < numBlocks+1; i++ { // +1 for parent block
-		blockNum := startBlock - 1 + uint64(i)
-		timestamp := startTimestamp + uint64(i)*2
-
-		block := createTestBlock(blockNum, timestamp, parentHash)
-		parentHash = block.Hash()
-
-		var receipts gethTypes.Receipts
-		if blockNum >= startBlock {
-			receipts = createTestReceipts(blockNum, 1)
-		}
-		mockClient.AddBlock(block, receipts)
-	}
-
-	// Set head block
-	headBlock := createTestBlock(startBlock+uint64(numBlocks)-1, startTimestamp+uint64(numBlocks)*2-2, common.Hash{})
-	mockClient.SetHeadBlock(headBlock)
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	// Initialize
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	// Seal parent block
-	err = ingester.sealParentBlock(startBlock - 1)
-	require.NoError(t, err)
-
-	// Ingest all blocks
-	for blockNum := startBlock; blockNum < startBlock+uint64(numBlocks); blockNum++ {
-		err = ingester.ingestBlock(blockNum)
-		require.NoError(t, err)
-	}
-
-	// Verify final state
-	latestBlock, ok := ingester.LatestBlock()
-	require.True(t, ok)
-	require.Equal(t, startBlock+uint64(numBlocks)-1, latestBlock.Number)
-
-	latestTs, ok := ingester.LatestTimestamp()
-	require.True(t, ok)
-	// Block 109 (i=10) has timestamp = 2000 + 10*2 = 2020
-	expectedTs := startTimestamp + uint64(numBlocks)*2
-	require.Equal(t, expectedTs, latestTs)
-
-	// Verify block hashes
-	for blockNum := startBlock; blockNum < startBlock+uint64(numBlocks); blockNum++ {
-		hash, ok := ingester.BlockHashAt(blockNum)
-		require.True(t, ok)
-		require.NotEqual(t, common.Hash{}, hash)
-	}
-}
-
-// =============================================================================
-// initIngestion Tests
-// =============================================================================
-
-func TestLogsDBChainIngester_InitIngestion_FreshStart(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	// L2 chain starts at block 100, timestamp 1000
-	// startTimestamp=1100, backfillDuration=200s -> backfillTimestamp=900 (before genesis)
-	// This should cause TargetBlockNumber to fail and fall back to genesis.
-	l2StartBlock := uint64(100)
-	l2StartTimestamp := uint64(1000)
-
-	headBlock := createTestBlock(200, 1200, common.Hash{0x99})
-	mockClient.AddBlock(headBlock, nil)
-	mockClient.SetHeadBlock(headBlock)
-
-	// Need parent block for sealing (block 99)
-	parentBlock := createTestBlock(l2StartBlock-1, l2StartTimestamp-2, common.Hash{0x98})
-	mockClient.AddBlock(parentBlock, nil)
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, l2StartBlock, l2StartTimestamp),
-	})
-
-	// Set up for backfill that goes before genesis (but no underflow)
-	ingester.startTimestamp = 1100
-	ingester.backfillDuration = 200 * time.Second // backfillTimestamp = 900 < genesis (1000)
-
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	// Call initIngestion - should fall back to L2 start block since backfill is before genesis
-	nextBlock, err := ingester.initIngestion()
-	require.NoError(t, err)
-
-	// Should start from L2 start block (genesis fallback)
-	startingBlock := ingester.calculateStartingBlock()
-	require.Equal(t, l2StartBlock, startingBlock)
-	require.Equal(t, startingBlock, nextBlock)
+	require.ErrorIs(t, err, interop.ErrConflict)
 }
 
 func TestLogsDBChainIngester_CalculateStartingBlock_BackfillUnderflow(t *testing.T) {
@@ -661,72 +475,6 @@ func TestLogsDBChainIngester_CalculateStartingBlock_BackfillUnderflow(t *testing
 	require.Equal(t, l2StartBlock, startingBlock)
 }
 
-func TestLogsDBChainIngester_InitIngestion_ResumeFromExistingDB(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	// Set up blocks
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
-
-	block100 := createTestBlock(100, 1200, parentBlock.Hash())
-	mockClient.AddBlock(block100, createTestReceipts(100, 1))
-
-	block101 := createTestBlock(101, 1202, block100.Hash())
-	mockClient.AddBlock(block101, createTestReceipts(101, 1))
-
-	headBlock := createTestBlock(200, 3000, common.Hash{0x99})
-	mockClient.AddBlock(headBlock, nil)
-	mockClient.SetHeadBlock(headBlock)
-
-	// First ingester: seal some blocks
-	ingester1 := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	err := ingester1.initLogsDB()
-	require.NoError(t, err)
-
-	err = ingester1.sealParentBlock(99)
-	require.NoError(t, err)
-
-	err = ingester1.ingestBlock(100)
-	require.NoError(t, err)
-
-	err = ingester1.ingestBlock(101)
-	require.NoError(t, err)
-
-	// Close first ingester
-	err = ingester1.logsDB.Close()
-	require.NoError(t, err)
-
-	// Second ingester: should resume from existing DB
-	ingester2 := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	err = ingester2.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester2.logsDB.Close() })
-
-	// Call initIngestion - should resume from block 102
-	nextBlock, err := ingester2.initIngestion()
-	require.NoError(t, err)
-	require.Equal(t, uint64(102), nextBlock) // Should resume after block 101
-
-	// Verify earliest block was found
-	require.True(t, ingester2.earliestIngestedBlockSet.Load())
-	require.Equal(t, uint64(100), ingester2.earliestIngestedBlock.Load())
-}
-
 func TestLogsDBChainIngester_InitIngestion_ErrorGettingHead(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(901)
 	tempDir := t.TempDir()
@@ -751,150 +499,120 @@ func TestLogsDBChainIngester_InitIngestion_ErrorGettingHead(t *testing.T) {
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
+// flakyHeadEthClient fails InfoByLabel for the first failures calls.
+type flakyHeadEthClient struct {
+	*MockEthClient
+
+	failures atomic.Int32
+}
+
+func (m *flakyHeadEthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
+	if m.failures.Add(-1) >= 0 {
+		return nil, context.DeadlineExceeded
+	}
+	return m.MockEthClient.InfoByLabel(ctx, label)
+}
+
+func TestLogsDBChainIngester_Start_FailsWhenRPCStaysDown(t *testing.T) {
+	mockClient := &flakyHeadEthClient{MockEthClient: NewMockEthClient()}
+	mockClient.failures.Store(startAttempts)
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   eth.ChainIDFromUInt64(901),
+		dataDir:   t.TempDir(),
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	t.Cleanup(func() { _ = ingester.Stop() })
+
+	require.ErrorIs(t, ingester.Start(), context.DeadlineExceeded)
+	require.Zero(t, mockClient.failures.Load(), "Start must try exactly startAttempts times")
+}
+
+func TestLogsDBChainIngester_Start_RetriesUntilRPCAvailable(t *testing.T) {
+	mockClient := &flakyHeadEthClient{MockEthClient: NewMockEthClient()}
+	mockClient.failures.Store(startAttempts - 1)
+
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	mockClient.AddBlock(parentBlock, nil)
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+	mockClient.SetHeadBlock(block100)
+
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   eth.ChainIDFromUInt64(901),
+		dataDir:   t.TempDir(),
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	ingester.startTimestamp = 1200
+	ingester.pollInterval = 10 * time.Millisecond
+	t.Cleanup(func() { _ = ingester.Stop() })
+
+	require.NoError(t, ingester.Start())
+	require.Eventually(t, ingester.Ready, 5*time.Second, 10*time.Millisecond)
+}
+
+type ingestionLagMetrics struct {
+	metrics.Metricer
+
+	mu   sync.Mutex
+	lags []float64
+}
+
+func (m *ingestionLagMetrics) RecordIngestionLagSeconds(_ uint64, lagSeconds float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lags = append(m.lags, lagSeconds)
+}
+
+func (m *ingestionLagMetrics) recorded() []float64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]float64(nil), m.lags...)
+}
+
+// The ingestion lag alert must fire when the EL dies after start-up.
+func TestLogsDBChainIngester_IngestionLagGrowsWhileHeadUnavailable(t *testing.T) {
+	mockClient := NewMockEthClient()
+	parentBlock := createTestBlock(99, 1198, common.Hash{})
+	block100 := createTestBlock(100, 1200, parentBlock.Hash())
+	mockClient.AddBlock(parentBlock, nil)
+	mockClient.AddBlock(block100, createTestReceipts(100, 1))
+	mockClient.SetHeadBlock(block100)
+
+	m := &ingestionLagMetrics{Metricer: metrics.NoopMetrics}
+	clk := clock.NewDeterministicClock(time.Unix(1210, 0))
+	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
+		chainID:   eth.ChainIDFromUInt64(901),
+		dataDir:   t.TempDir(),
+		ethClient: mockClient,
+		rollupCfg: testRollupConfig(901, 0, 1000),
+	})
+	ingester.metrics = m
+	ingester.clock = clk
+	ingester.startTimestamp = 1200
+	ingester.pollInterval = time.Second
+	t.Cleanup(func() { _ = ingester.Stop() })
+
+	require.NoError(t, ingester.Start())
+	require.Eventually(t, func() bool {
+		clk.AdvanceTime(time.Second)
+		return ingester.Ready()
+	}, 5*time.Second, 10*time.Millisecond)
+
+	mockClient.SetInfoByLabelErr(context.DeadlineExceeded)
+	clk.AdvanceTime(time.Hour)
+	expectedLag := clk.Now().Sub(time.Unix(1200, 0)).Seconds()
+	require.Eventually(t, func() bool {
+		lags := m.recorded()
+		return len(lags) > 0 && lags[len(lags)-1] == expectedLag
+	}, 5*time.Second, 10*time.Millisecond, "ingestion lag must keep updating while the head is unavailable")
+}
+
 // =============================================================================
 // Error Injection Tests
 // =============================================================================
-
-func TestLogsDBChainIngester_IngestBlock_NonSequentialError(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
-
-	block100 := createTestBlock(100, 1200, parentBlock.Hash())
-	mockClient.AddBlock(block100, createTestReceipts(100, 1))
-
-	// Block 102 (skipping 101)
-	block102 := createTestBlock(102, 1204, block100.Hash())
-	mockClient.AddBlock(block102, createTestReceipts(102, 1))
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	err = ingester.ingestBlock(100)
-	require.NoError(t, err)
-
-	// Try to ingest block 102 (skipping 101) - should fail
-	err = ingester.ingestBlock(102)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "expected to ingest block 101 but got 102")
-}
-
-func TestLogsDBChainIngester_IngestBlock_RPCError(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	// Set RPC error - block 100 is not in mock, will fail
-	err = ingester.ingestBlock(100)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to get block info")
-}
-
-func TestLogsDBChainIngester_IngestBlock_ReceiptsError(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
-
-	block100 := createTestBlock(100, 1200, parentBlock.Hash())
-	mockClient.AddBlock(block100, nil) // No receipts added
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	// Set receipts error
-	mockClient.SetFetchReceiptsErr(context.DeadlineExceeded)
-
-	err = ingester.ingestBlock(100)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to get receipts")
-}
-
-func TestLogsDBChainIngester_IngestBlock_ErrorStateSkipsIngestion(t *testing.T) {
-	chainID := eth.ChainIDFromUInt64(901)
-	tempDir := t.TempDir()
-
-	mockClient := NewMockEthClient()
-
-	parentBlock := createTestBlock(99, 1198, common.Hash{})
-	mockClient.AddBlock(parentBlock, nil)
-
-	block100 := createTestBlock(100, 1200, parentBlock.Hash())
-	mockClient.AddBlock(block100, createTestReceipts(100, 1))
-
-	ingester := newTestLogsDBChainIngester(t, testIngesterConfig{
-		chainID:   chainID,
-		dataDir:   tempDir,
-		ethClient: mockClient,
-		rollupCfg: testRollupConfig(901, 0, 1000),
-	})
-
-	err := ingester.initLogsDB()
-	require.NoError(t, err)
-	t.Cleanup(func() { ingester.logsDB.Close() })
-
-	err = ingester.sealParentBlock(99)
-	require.NoError(t, err)
-
-	// Set error state before ingestion
-	ingester.SetError(ErrorReorg, "test error")
-
-	// ingestBlock should return nil without doing anything
-	err = ingester.ingestBlock(100)
-	require.NoError(t, err)
-
-	// Block 100 should NOT have been ingested
-	latestBlock, ok := ingester.LatestBlock()
-	require.True(t, ok)
-	require.Equal(t, uint64(99), latestBlock.Number) // Still at parent block
-}
 
 func TestLogsDBChainIngester_ErrorTypes(t *testing.T) {
 	require.Equal(t, "data_corruption", ErrorDataCorruption.String())

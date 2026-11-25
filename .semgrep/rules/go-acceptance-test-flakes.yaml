@@ -1,0 +1,283 @@
+# Static checks for recurring flake patterns in op-acceptance-tests / op-devstack.
+#
+# Scoped narrowly to test code; do not enable for production code paths.
+# Each rule maps to a numbered entry (F1..F14) in docs/ai/flake-prevention.md.
+#
+# Run locally:
+#   semgrep scan --config .semgrep/rules/go-acceptance-test-flakes.yaml \
+#                op-acceptance-tests/ op-devstack/
+#
+# To skip a true-positive intentionally (rare — use only after discussing in review):
+#   // nosemgrep: <rule-id>
+
+rules:
+  # ----- F1: fatal assertion inside a polling/retry callback -----
+  # require.NoError / require.Equal / etc. inside require.Eventually / assert.Eventually
+  # callbacks turns a transient error into a permanent test failure on first hiccup
+  # and often leaves the system in an unrecoverable state.
+  - id: flake-require-in-eventually
+    languages: [go]
+    severity: ERROR
+    paths:
+      include:
+        - "op-acceptance-tests/"
+        - "op-devstack/"
+    message: |
+      `require.*` / `assert.*` calls inside a polling callback (Eventually, EventuallyWithT,
+      EventuallyFn, retry.Do) make the first transient failure fatal — the retry loop
+      cannot recover. Convert to `if err != nil { return false }` (or `t.Logf` + return).
+      See docs/ai/flake-prevention.md#f1.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              require.Eventually($T, func(...) bool {
+                ...
+                require.$F(...)
+                ...
+              }, ...)
+          - pattern: |
+              require.Eventually($T, func(...) bool {
+                ...
+                assert.$F(...)
+                ...
+              }, ...)
+          - pattern: |
+              require.EventuallyWithT($T, func(...) {
+                ...
+                require.$F(...)
+                ...
+              }, ...)
+          - pattern: |
+              require.EventuallyWithT($T, func(...) {
+                ...
+                assert.$F(...)
+                ...
+              }, ...)
+          - pattern: |
+              assert.Eventually($T, func(...) bool {
+                ...
+                assert.$F(...)
+                ...
+              }, ...)
+          - pattern: |
+              retry.Do($CTX, $N, $STRAT, func() (...) {
+                ...
+                require.$F(...)
+                ...
+              })
+      - metavariable-pattern:
+          metavariable: $F
+          patterns:
+            - pattern-either:
+                - pattern: NoError
+                - pattern: NoErrorf
+                - pattern: Equal
+                - pattern: Equalf
+                - pattern: "True"
+                - pattern: "False"
+                - pattern: NotNil
+                - pattern: Nil
+
+  # ----- F2: require.* inside a non-test goroutine -----
+  # require.* calls FailNow which only exits the current goroutine. The test then
+  # hangs until package timeout instead of failing with the underlying error.
+  - id: flake-require-in-goroutine
+    languages: [go]
+    severity: ERROR
+    paths:
+      include:
+        - "op-acceptance-tests/"
+        - "op-devstack/"
+    message: |
+      `require.*` inside a spawned goroutine calls FailNow, which only exits the
+      goroutine. The main test will hang until package timeout. Send errors back to
+      the test via a channel or use `t.Errorf` (non-fatal). See docs/ai/flake-prevention.md#f2.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              go func(...) {
+                ...
+                require.$F(...)
+                ...
+              }(...)
+          - pattern: |
+              go func(...) {
+                ...
+                t.Fatal(...)
+                ...
+              }(...)
+          - pattern: |
+              go func(...) {
+                ...
+                t.FailNow(...)
+                ...
+              }(...)
+      - metavariable-pattern:
+          metavariable: $F
+          patterns:
+            - pattern-either:
+                - pattern: NoError
+                - pattern: NoErrorf
+                - pattern: Equal
+                - pattern: Equalf
+                - pattern: "True"
+                - pattern: "False"
+                - pattern: NotNil
+                - pattern: Nil
+                - pattern: Fail
+                - pattern: FailNow
+
+  # ----- F8: time.Sleep in test code -----
+  # Already banned by writing-acceptance-tests.md; enforce it.
+  - id: flake-sleep-in-test
+    languages: [go]
+    severity: ERROR
+    paths:
+      include:
+        - "op-acceptance-tests/tests/"
+        - "op-devstack/dsl/"
+        - "op-devstack/presets/"
+    message: |
+      `time.Sleep` in tests or DSL methods masks a missing wait. Replace with an
+      explicit `WaitFor*` on the actual postcondition. See docs/ai/flake-prevention.md#f8.
+      If you genuinely need to pace a polling loop, do it inside `wait.For` / `retry.Do`
+      backoff configuration, not as a free-standing Sleep. Use `// nosemgrep: flake-sleep-in-test`
+      with an explanatory comment for the rare cases where no chain event exists to wait on.
+    patterns:
+      - pattern: time.Sleep(...)
+      - pattern: clock.SystemClock.SleepCtx(...)
+
+  # NOTE: a `<-time.After(d)`-as-sleep rule was prototyped here but dropped.
+  # Semgrep's Go pattern parser doesn't accept `case <-... :` / `select {...}`
+  # as a `pattern-not-inside` argument cleanly, and the bare `<-time.After(...)`
+  # pattern fires on every legitimate `select { case <-time.After(d): ... }`
+  # timeout — 100% false-positive in the current tree. Re-introduce only with
+  # a working select exclusion.
+
+  # ----- F6: hand-rolled sync check bypassing the preset's auto-budget -----
+  # Calling NewSingleChainMultiNodeWithoutCheck (or the *WithoutCheck variants)
+  # then running a manual MatchedFn / ReachedFn defeats the preset's auto-detected
+  # ELSync budget extension. Use the auto-budgeted entry point.
+  - id: flake-without-check-with-manual-budget
+    languages: [go]
+    severity: ERROR
+    paths:
+      include:
+        - "op-acceptance-tests/"
+    message: |
+      `*WithoutCheck` paired with a hand-rolled `MatchedFn`/`ReachedFn` typically
+      undoes the preset's automatic ELSync budget extension (4x). Use the matching
+      `New*MultiNode` / `New*` entry point that runs the auto-budgeted check.
+      See docs/ai/flake-prevention.md#f6.
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $SYS := presets.$NEW(...)
+              ...
+              dsl.MatchedFn(...)
+          - pattern: |
+              $SYS := presets.$NEW(...)
+              ...
+              dsl.ReachedFn(...)
+      - metavariable-pattern:
+          metavariable: $NEW
+          pattern-regex: ".*WithoutCheck.*"
+
+  # ----- F10: defer ordering deadlock (cancel before Wait) -----
+  # Defers run LIFO. `defer cancel()` written BEFORE `defer wg.Wait()` registers
+  # cancel first → Wait pops first → Wait blocks because cancel hasn't fired.
+  # $CANCEL is regex-restricted to common cancellation-function names; otherwise
+  # this rule false-fires on every `defer wg.Wait(); ... defer wg.Done()` pair.
+  - id: flake-defer-cancel-before-wait
+    languages: [go]
+    severity: ERROR
+    paths:
+      include:
+        - "op-acceptance-tests/"
+        - "op-devstack/"
+    message: |
+      `defer $CANCEL()` written BEFORE `defer $WG.Wait()` deadlocks at cleanup —
+      defers run LIFO, so Wait pops first and blocks waiting on a goroutine that
+      is itself waiting on a context that cancel hasn't fired yet.
+      Collapse to a single deferred closure: `defer func() { cancel(); wg.Wait() }()`.
+      See docs/ai/flake-prevention.md#f10.
+    patterns:
+      - pattern: |
+          defer $CANCEL()
+          ...
+          defer $WG.Wait()
+      - metavariable-regex:
+          metavariable: $CANCEL
+          regex: "^(cancel|cancelCtx|cancelFn|stop|stopFn|cleanup|close|shutdown)[A-Za-z0-9_]*$"
+
+  # ----- F14: MarkFlaky must reference a tracking issue -----
+  # MarkFlaky without a citation becomes invisible debt; require the call (or
+  # an adjacent comment) to mention an issue/PR number. We exempt the devtest
+  # package because it contains unit tests *of* the MarkFlaky feature itself,
+  # and the sysgo runtime helpers that wrap MarkFlaky for runtime-conditional
+  # skips (callers supply the reason, including the #NNNN citation).
+  - id: flake-markflaky-without-issue
+    languages: [go]
+    severity: WARNING
+    paths:
+      include:
+        - "op-acceptance-tests/"
+        - "op-devstack/"
+      exclude:
+        - "op-devstack/devtest/"
+        - "op-devstack/sysgo/mixed_runtime.go"
+    message: |
+      `MarkFlaky` is acceptable only as a documented band-aid. Add an inline
+      comment citing the GitHub issue tracking the root-cause fix (`// flake: #12345`).
+      Lint considers any `#NNNN` token in the call or the immediately preceding
+      comment line sufficient. See docs/ai/flake-prevention.md#f14.
+    patterns:
+      - pattern: $X.MarkFlaky(...)
+      - pattern-not-regex: '#[0-9]{3,}'
+
+  # ----- F3 partial: TOCTOU on UnsafeHead -> StartSequencer -----
+  # Reads UnsafeHead, then immediately uses the hash in StartSequencer. The head
+  # can advance between calls. Should be wrapped in a retry on "stale head" error.
+  - id: flake-toctou-start-sequencer
+    languages: [go]
+    severity: WARNING
+    paths:
+      include:
+        - "op-acceptance-tests/"
+        - "op-devstack/"
+    message: |
+      Reading the unsafe head and immediately passing its hash to StartSequencer
+      is a TOCTOU race — the head may advance between the two RPCs. Wrap in a
+      retry loop that re-reads on "block hash does not match" errors.
+      See docs/ai/flake-prevention.md#f3.
+    pattern-either:
+      - pattern: |
+          $H, $E := $N.UnsafeHead(...)
+          ...
+          $N.StartSequencer(..., $H.Hash, ...)
+      - pattern: |
+          $H, $E := $N.HeadBlockRef(...)
+          ...
+          $N.StartSequencer(..., $H.Hash, ...)
+
+  # ----- Short hardcoded test timeout -----
+  # context.WithTimeout(..., D) where D is a string literal under 30s in test code
+  # is a frequent flake source under CI load. Not a hard error; flag for review.
+  - id: flake-short-test-timeout
+    languages: [go]
+    severity: INFO
+    paths:
+      include:
+        - "op-acceptance-tests/tests/"
+    message: |
+      Short context timeout (<30s) in acceptance test code is brittle under CI
+      load. Either use the preset's default timeout, or budget more generously
+      (the cost of overshooting is small; the cost of flaking is high).
+    pattern-either:
+      - pattern: context.WithTimeout($CTX, 1*time.Second)
+      - pattern: context.WithTimeout($CTX, 2*time.Second)
+      - pattern: context.WithTimeout($CTX, 3*time.Second)
+      - pattern: context.WithTimeout($CTX, 5*time.Second)
+      - pattern: context.WithTimeout($CTX, 10*time.Second)
+      - pattern: context.WithTimeout($CTX, 15*time.Second)
+      - pattern: context.WithTimeout($CTX, 20*time.Second)

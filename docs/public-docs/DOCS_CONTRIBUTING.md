@@ -12,7 +12,10 @@ Thanks for taking the time to contribute! ❤️
   - [Contributing Process](#contributing-process)
     - [File Architecture](#file-architecture)
     - [Content Guidelines](#content-guidelines)
+    - [Shared snippets](#shared-snippets)
     - [Local Testing](#local-testing)
+    - [Docs lints](#docs-lints)
+    - [Documenting unreleased changes](#documenting-unreleased-changes)
   - [Pull Request Process](#pull-request-process)
     - [Before Submitting](#before-submitting)
     - [Submission Guidelines](#submission-guidelines)
@@ -34,15 +37,15 @@ All contributions, pull requests, and issues should be in English at this time.
 - Basic knowledge of Git and GitHub
 - Familiarity with Markdown
 - Understanding of technical documentation principles
-- Node.js and npm installed
+- [mise](https://mise.jdx.dev) installed, then `mise install bun just` from the monorepo root
 
 ### Development Setup
-1. Install [pnpm](https://pnpm.io/installation)
-2. Run `pnpm i` to install dependencies
-3. Run `pnpm dev` to start development server
-4. Visit [localhost:3000](http://localhost:3000)
+1. From the monorepo root, run `just public-docs` to start the development server
+2. Visit [localhost:3000](http://localhost:3000)
 
 You can now start changing content and see the website updated live each time you save a new file. 🤓
+
+`just public-docs` installs the docs dependencies with `bun install` and runs the [Mintlify CLI](https://www.mintlify.com/docs/installation) (pinned in `package.json`) on the `bun` pinned in `mise.toml`, so it needs no Node. From `docs/public-docs`, `bun run dev` does the same once dependencies are installed. Pass extra `mint dev` flags through, e.g. `just public-docs --port 3333`.
 
 ## Contributing Process
 
@@ -55,11 +58,119 @@ See the [mintlify docs](https://www.mintlify.com/docs/organize/navigation).
 ### Content Guidelines
 We use [mintlify](https://www.mintlify.com/docs) to power our docs.
 
-Please refer to our comprehensive [Style Guide](STYLE_GUIDE.md) for detailed formatting instructions.
+Please refer to our comprehensive [Style Guide](https://docs.optimism.io/op-stack/contribute/style-guide) ([source](op-stack/contribute/style-guide.mdx)) for detailed formatting instructions.
+
+Before adding new content, check the [Content Guide](https://docs.optimism.io/op-stack/contribute/content-guide) ([source](op-stack/contribute/content-guide.mdx)) — it defines what belongs on docs.optimism.io, the canonical home for each content type, and how to mark third-party content.
+
+### Shared snippets
+
+Every fact should be stated once and referenced everywhere else. When the same
+block of prose (a warning, a disclaimer, a preamble) appears on more than one
+page, extract it into a [Mintlify snippet](https://www.mintlify.com/docs/create/reusable-snippets)
+instead of copying it. `snippets/` is Mintlify's reserved folder: files there
+never render as standalone pages.
+
+**Placement rule**
+
+- Machine-written snippets live under `snippets/generated/` and carry
+  do-not-edit provenance headers. They are owned by generation pipelines; hand
+  edits will fail drift checks.
+- Hand-maintained shared prose lives at the `snippets/` root, in a kebab-case
+  file, with a leading `{/* ... */}` comment naming its purpose, its usage, and
+  its consumer pages (precedents: `snippets/third-party-content.mdx`,
+  `snippets/op-geth-eol.mdx`). Keep the consumer list in the header comment up
+  to date when you add or remove an import.
+
+**Import forms**
+
+- Plain include: the page imports the snippet as a default export and renders
+  it as a component.
+
+  ```mdx
+  import OpGethEol from "/snippets/op-geth-eol.mdx"
+
+  <OpGethEol />
+  ```
+
+- Parameterized include: the snippet exports an arrow-function component taking
+  props, imported by name (precedent: `snippets/normative-spec.mdx`).
+
+  ```mdx
+  import { NormativeSpec } from "/snippets/normative-spec.mdx"
+
+  <NormativeSpec what="..." title="..." href="..." />
+  ```
+
+**Extraction rule**
+
+Only extract verbatim or near-verbatim blocks. Audience-specific framing stays
+on the page, outside the snippet. If the copies have drifted, reconcile the
+wording against the source of truth first, then extract; do not parameterize
+prose that ought to read differently per audience.
 
 ### Local Testing
 
-Follow these [docs](https://www.mintlify.com/docs/installation) for local changes.
+Preview local changes with `just public-docs` (see [Development Setup](#development-setup)).
+
+### Docs lints
+
+Three deterministic checks apply to every change that touches
+`docs/public-docs/`. The first two guard `docs.json` (navigation + redirects);
+the third guards the generated component reference. They run in CI on every
+docs pull request (the CI job is tracked in
+[ethereum-optimism/solutions#1518](https://github.com/ethereum-optimism/solutions/issues/1518);
+until it lands, running them locally before pushing is the gate):
+
+- **Nav validator** (`scripts/lint/validate-nav.ts`): every `.mdx` on disk must
+  be reachable from `docs.json` navigation or explicitly allowlisted in
+  `scripts/lint/nav-allowlist.json` with a reason string; no duplicate nav
+  entries; no nav entries without a file.
+- **Redirect lint** (`scripts/lint/validate-redirects.ts`): a page you delete or
+  move must gain a redirect **in the same PR** (see the
+  [Redirects Guide](REDIRECTS_GUIDE.md)); no chained redirects; no redirects to
+  non-existent targets; no duplicate redirect sources; no redirect source that
+  shadows a live page; no internal links to non-existent paths.
+- **Reference lint** (`scripts/lint/validate-reference.ts`): enforces the
+  [Component reference](https://docs.optimism.io/op-stack/contribute/content-guide#component-reference)
+  convention. Every page under the top-level `reference/` directory opens with a generated
+  `DO NOT EDIT` header (hand-written content belongs in a guide); every
+  `<Unreleased>` callout names a covered component and a valid version if
+  any (a callout whose release has since been tagged is a warning here and a
+  failure in the weekly CI sweep, which runs the lint with `--strict`, so
+  the callout gets removed); every tag in a generator manifest is a real git
+  tag.
+
+Run them locally before pushing:
+
+```bash
+# from docs/public-docs
+bun run lint:nav
+bun run lint:redirects
+bun run lint:reference
+
+# or from the monorepo root
+bun docs/public-docs/scripts/lint/validate-nav.ts
+bun docs/public-docs/scripts/lint/validate-redirects.ts
+bun docs/public-docs/scripts/lint/validate-reference.ts
+```
+
+Violations that pre-date the checks are grandfathered in
+`scripts/lint/nav-allowlist.json` and `scripts/lint/redirect-lint-baseline.json`.
+Those files only shrink: if your PR fixes a grandfathered violation, remove its
+entry in the same PR (a stale entry fails the check). Never add a baseline entry
+to silence a new violation — add the missing redirect or nav entry instead;
+the allowlist is reserved for pages that are deliberately unlisted, with the
+reason recorded.
+
+### Documenting unreleased changes
+
+The site deploys from `develop`; components ship from release tags. When a
+component PR changes behavior, update the hand-written guide in the same PR
+and wrap the changed statement in `<Unreleased component="…" />` (add
+`version="…"` if the release is already known; see `snippets/unreleased.mdx`).
+Do not touch generated reference pages; they regenerate at the next finalized
+tag, and the `develop` version regenerates on every merge. Full rules:
+[Component reference › Documenting unreleased changes](https://docs.optimism.io/op-stack/contribute/content-guide#documenting-unreleased-changes).
 
 ## Pull Request Process
 

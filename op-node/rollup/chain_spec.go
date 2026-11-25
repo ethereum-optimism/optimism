@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // maxChannelBankSize is the amount of memory space, in number of bytes,
@@ -149,7 +149,7 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 			s.currentFork = forks.Karst
 		}
 		if s.config.IsInterop(block.Time) {
-			s.currentFork = forks.Interop
+			s.currentFork = forks.Lagoon
 		}
 		log.Info("Current hardfork version detected", "forkName", s.currentFork)
 		return
@@ -178,7 +178,7 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 		foundActivationBlock = s.config.IsJovianActivationBlock(block.Time)
 	case forks.Karst:
 		foundActivationBlock = s.config.IsKarstActivationBlock(block.Time)
-	case forks.Interop:
+	case forks.Lagoon:
 		foundActivationBlock = s.config.IsInteropActivationBlock(block.Time)
 	}
 

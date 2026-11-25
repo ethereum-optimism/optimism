@@ -26,7 +26,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
@@ -213,8 +212,7 @@ abstract contract Setup is FeatureFlags {
         resolveFeaturesFromEnv();
         deploy.cfg().setDevFeatureBitmap(devFeatureBitmap);
 
-        // If the OPTIMISM_PORTAL_INTEROP dev feature is enabled, set the useInterop flag to true
-        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+        if (Config.sysFeatureInterop()) {
             deploy.cfg().setUseInterop(true);
         }
 
@@ -448,7 +446,9 @@ abstract contract Setup is FeatureFlags {
                 gasPayingTokenSymbol: deploy.cfg().gasPayingTokenSymbol(),
                 nativeAssetLiquidityAmount: deploy.cfg().nativeAssetLiquidityAmount(),
                 liquidityControllerOwner: deploy.cfg().liquidityControllerOwner(),
-                devFeatureBitmap: devFeatureBitmap
+                devFeatureBitmap: devFeatureBitmap,
+                l2ToL2MessageExpiryPeriod: 0,
+                settlementChainID: 0
             })
         );
 
@@ -495,30 +495,24 @@ abstract contract Setup is FeatureFlags {
         vm.label(_addr, Preinstalls.getName(_addr));
     }
 
+    /// @notice Labels all predeploys with their name.
+    /// @dev Iterates over all predeploy records and labels the proxy with the name.
     function _labelPredeploys() internal {
-        labelPredeploy(Predeploys.L2_STANDARD_BRIDGE);
-        labelPredeploy(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        labelPredeploy(Predeploys.L2_TO_L1_MESSAGE_PASSER);
-        labelPredeploy(Predeploys.SEQUENCER_FEE_WALLET);
-        labelPredeploy(Predeploys.L2_ERC721_BRIDGE);
-        labelPredeploy(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
-        labelPredeploy(Predeploys.PROXY_ADMIN);
-        labelPredeploy(Predeploys.BASE_FEE_VAULT);
-        labelPredeploy(Predeploys.L1_FEE_VAULT);
-        labelPredeploy(Predeploys.OPERATOR_FEE_VAULT);
-        labelPredeploy(Predeploys.L1_BLOCK_ATTRIBUTES);
-        labelPredeploy(Predeploys.GAS_PRICE_ORACLE);
-        labelPredeploy(Predeploys.LEGACY_MESSAGE_PASSER);
-        labelPredeploy(Predeploys.GOVERNANCE_TOKEN);
-        labelPredeploy(Predeploys.EAS);
-        labelPredeploy(Predeploys.SCHEMA_REGISTRY);
-        labelPredeploy(Predeploys.WETH);
-        labelPredeploy(Predeploys.SUPERCHAIN_ETH_BRIDGE);
-        labelPredeploy(Predeploys.ETH_LIQUIDITY);
-        labelPredeploy(Predeploys.NATIVE_ASSET_LIQUIDITY);
-        labelPredeploy(Predeploys.LIQUIDITY_CONTROLLER);
-        labelPredeploy(Predeploys.CONDITIONAL_DEPLOYER);
-        labelPredeploy(Predeploys.L2_DEV_FEATURE_FLAGS);
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            // TODO: Remove this once the deprecated predeploys are removed.
+            // if (records[i].isDeprecated) continue;
+
+            if (records[i].proxy == Predeploys.L1_BLOCK_NUMBER) {
+                vm.label(records[i].proxy, "L1Block");
+                continue;
+            }
+            if (records[i].proxy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
+                vm.label(records[i].proxy, "L2ToL1MessagePasser");
+                continue;
+            }
+            vm.label(records[i].proxy, Predeploys.implName(records[i]));
+        }
     }
 
     function _labelPreinstalls() internal {

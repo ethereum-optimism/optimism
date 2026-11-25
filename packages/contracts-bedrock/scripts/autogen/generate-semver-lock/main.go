@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -21,6 +22,7 @@ type SemverLockOutput struct {
 }
 
 type SemverLockResult struct {
+	ArtifactPath     string
 	ContractKey      string
 	SemverLockOutput SemverLockOutput
 }
@@ -37,12 +39,26 @@ func main() {
 	}
 
 	// Create the output map
-	output := make(map[string]SemverLockOutput)
+	output := make(map[string]*SemverLockResult)
 	for _, result := range results {
 		if result == nil {
 			continue
 		}
-		output[result.ContractKey] = result.SemverLockOutput
+		if existing, ok := output[result.ContractKey]; ok {
+			if existing.SemverLockOutput != result.SemverLockOutput {
+				fmt.Printf(
+					"Conflicting semver lock entries for %s:\n  %s: %+v\n  %s: %+v\n",
+					result.ContractKey,
+					existing.ArtifactPath,
+					existing.SemverLockOutput,
+					result.ArtifactPath,
+					result.SemverLockOutput,
+				)
+				os.Exit(1)
+			}
+			continue
+		}
+		output[result.ContractKey] = result
 	}
 
 	// Get and sort the keys
@@ -55,7 +71,7 @@ func main() {
 	// Create a sorted map for output
 	sortedOutput := make(map[string]SemverLockOutput)
 	for _, k := range keys {
-		sortedOutput[k] = output[k]
+		sortedOutput[k] = output[k].SemverLockOutput
 	}
 
 	// Write to JSON file
@@ -86,6 +102,12 @@ func processFile(file string) (*SemverLockResult, []error) {
 
 	// Only apply to files in the src directory.
 	if !strings.HasPrefix(sourceFilePath, "src/") {
+		return nil, nil
+	}
+
+	// Only canonical Contract.json artifacts should contribute to semver-lock.
+	// Profile-suffixed duplicates like Contract.dispute.json are ignored.
+	if filepath.Base(file) != contractName+".json" {
 		return nil, nil
 	}
 
@@ -150,7 +172,8 @@ func processFile(file string) (*SemverLockResult, []error) {
 	sourceCodeHash := fmt.Sprintf("0x%x", crypto.Keccak256Hash(trimmedSourceCode))
 
 	return &SemverLockResult{
-		ContractKey: contractKey,
+		ArtifactPath: file,
+		ContractKey:  contractKey,
 		SemverLockOutput: SemverLockOutput{
 			InitCodeHash:   initCodeHash,
 			SourceCodeHash: sourceCodeHash,

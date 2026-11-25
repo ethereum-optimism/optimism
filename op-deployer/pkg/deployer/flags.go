@@ -4,32 +4,39 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/urfave/cli/v2"
 )
 
 const (
-	EnvVarPrefix             = flags.EnvVarPrefix
-	L1RPCURLFlagName         = flags.L1RPCURLFlagName
-	CacheDirFlagName         = flags.CacheDirFlagName
-	L1ChainIDFlagName        = flags.L1ChainIDFlagName
-	ArtifactsLocatorFlagName = flags.ArtifactsLocatorFlagName
-	L2ChainIDsFlagName       = flags.L2ChainIDsFlagName
-	WorkdirFlagName          = flags.WorkdirFlagName
-	OutdirFlagName           = flags.OutdirFlagName
-	PrivateKeyFlagName       = flags.PrivateKeyFlagName
-	IntentTypeFlagName       = flags.IntentTypeFlagName
-	VerifierAPIKeyFlagName   = flags.VerifierAPIKeyFlagName
-	EtherscanAPIKeyFlagName  = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
-	InputFileFlagName        = flags.InputFileFlagName
-	ContractNameFlagName     = flags.ContractNameFlagName
-	VerifierTypeFlagName     = flags.VerifierTypeFlagName
-	VerifierUrlFlagName      = flags.VerifierUrlFlagName
-	UseForgeFlagName         = flags.UseForgeFlagName
+	EnvVarPrefix              = flags.EnvVarPrefix
+	L1RPCURLFlagName          = flags.L1RPCURLFlagName
+	CacheDirFlagName          = flags.CacheDirFlagName
+	L1ChainIDFlagName         = flags.L1ChainIDFlagName
+	ArtifactsLocatorFlagName  = flags.ArtifactsLocatorFlagName
+	L2ChainIDsFlagName        = flags.L2ChainIDsFlagName
+	WorkdirFlagName           = flags.WorkdirFlagName
+	OutdirFlagName            = flags.OutdirFlagName
+	PrivateKeyFlagName        = flags.PrivateKeyFlagName
+	PrestateFlagName          = flags.PrestateFlagName
+	IntentTypeFlagName        = flags.IntentTypeFlagName
+	VerifierAPIKeyFlagName    = flags.VerifierAPIKeyFlagName
+	EtherscanAPIKeyFlagName   = flags.EtherscanAPIKeyFlagName // Deprecated: use VerifierAPIKeyFlagName
+	InputFileFlagName         = flags.InputFileFlagName
+	ContractNameFlagName      = flags.ContractNameFlagName
+	VerifierTypeFlagName      = flags.VerifierTypeFlagName
+	VerifierUrlFlagName       = flags.VerifierUrlFlagName
+	UseForgeFlagName          = flags.UseForgeFlagName
+	GenesisTimeOffsetFlagName = flags.GenesisTimeOffsetFlagName
+
+	ReceiptQueryIntervalFlagName  = flags.ReceiptQueryIntervalFlagName
+	DeployMockSP1VerifierFlagName = flags.DeployMockSP1VerifierFlagName
 )
 
 var (
@@ -79,16 +86,16 @@ var (
 		Usage:   "Private key of the deployer account.",
 		EnvVars: PrefixEnvVar("PRIVATE_KEY"),
 	}
+	PrestateFlag = &cli.StringFlag{
+		Name:    PrestateFlagName,
+		Usage:   "Selected permissionless-game absolute prestate hash. Fails if a differing intent value is set.",
+		EnvVars: PrefixEnvVar("DISPUTE_ABSOLUTE_PRESTATE"),
+	}
 	DeploymentTargetFlag = &cli.StringFlag{
 		Name:    "deployment-target",
-		Usage:   fmt.Sprintf("Where to deploy L1 contracts. Options: %s, %s, %s, %s", DeploymentTargetLive, DeploymentTargetGenesis, DeploymentTargetCalldata, DeploymentTargetNoop),
+		Usage:   fmt.Sprintf("Where to deploy L1 contracts. Options: %s, %s", DeploymentTargetLive, DeploymentTargetGenesis),
 		EnvVars: PrefixEnvVar("DEPLOYMENT_TARGET"),
 		Value:   string(DeploymentTargetLive),
-	}
-	OpProgramSvcUrlFlag = &cli.StringFlag{
-		Name:    "op-program-svc-url",
-		Usage:   "URL of the OP Program SVC",
-		EnvVars: PrefixEnvVar("OP_PROGRAM_SVC_URL"),
 	}
 	IntentTypeFlag = &cli.StringFlag{
 		Name: IntentTypeFlagName,
@@ -120,36 +127,52 @@ var (
 	}
 	VerifierFlag = &cli.StringFlag{
 		Name:    VerifierTypeFlagName,
-		Usage:   "contract verifier type(s) to use. Comma-separated for multiple verifiers. Options: etherscan (default), blockscout, custom. Example: etherscan,blockscout",
+		Usage:   "contract verifier type(s) to use. Comma-separated for multiple verifiers. Options: etherscan, blockscout, custom. Defaults to etherscan and blockscout",
 		EnvVars: PrefixEnvVar("VERIFIER_TYPE"),
-		Value:   "etherscan",
+		Value:   "etherscan,blockscout",
 	}
 	VerifierUrlFlag = &cli.StringFlag{
 		Name:    VerifierUrlFlagName,
 		Usage:   "verifier URL (optional for blockscout, required for custom, ignored for etherscan)",
 		EnvVars: PrefixEnvVar("VERIFIER_URL"),
 	}
-	AutoVerifyFlag = &cli.BoolFlag{
-		Name:    "verify",
-		Usage:   "automatically verify contracts after deployment",
-		EnvVars: PrefixEnvVar("VERIFY"),
+	NoVerifyFlag = &cli.BoolFlag{
+		Name:    "no-verify",
+		Usage:   "skip automatic contract verification after deployment",
+		EnvVars: PrefixEnvVar("NO_VERIFY"),
 		Value:   false,
 	}
+	// UseForgeFlag is kept, hidden, through the v0.9 line so that callers who pass it keep working.
 	UseForgeFlag = &cli.BoolFlag{
 		Name:    UseForgeFlagName,
-		Usage:   "use Forge instead of script.Host for deployment scripts",
+		Usage:   "deprecated: forge always runs the deployment scripts, so true has no effect and false is refused",
 		EnvVars: PrefixEnvVar("USE_FORGE"),
+		Hidden:  true,
+	}
+	ReceiptQueryIntervalFlag = &cli.DurationFlag{
+		Name:    ReceiptQueryIntervalFlagName,
+		Usage:   "for tests: how often to poll for each broadcast's receipt, from 50ms to 1s; 0 uses the default of 1s",
+		EnvVars: PrefixEnvVar("RECEIPT_QUERY_INTERVAL"),
+		Value:   broadcaster.DefaultReceiptQueryInterval,
+		Hidden:  true,
+	}
+	DeployMockSP1VerifierFlag = &cli.BoolFlag{
+		Name: DeployMockSP1VerifierFlagName,
+		Usage: "deploy a mock SP1 verifier for the ZK dispute game, on an L1 without a release verifier, " +
+			"in a genesis or live. Development only: the mock accepts every proof.",
+		EnvVars: PrefixEnvVar("DEPLOY_MOCK_SP1_VERIFIER"),
 		Value:   false,
 	}
-	ValidateFlag = &cli.StringFlag{
-		Name:    "validate",
-		Usage:   "automatically validate deployment after apply. Specify validator version (e.g., v2.0.0) or 'auto' to auto-detect from state.json. If not specified, validation is skipped.",
-		EnvVars: PrefixEnvVar("VALIDATE"),
-		Value:   "",
+	GenesisTimeOffsetFlag = &cli.Uint64Flag{
+		Name: GenesisTimeOffsetFlagName,
+		Usage: "Offset in seconds added to the L1 anchor block's timestamp to produce the committed L2 genesis " +
+			"timestamp. A zero offset starts genesis at the anchor timestamp; nodes produce catch-up blocks for " +
+			"elapsed block times. Use a larger offset to schedule genesis after deployment.",
+		EnvVars: PrefixEnvVar("GENESIS_TIME_OFFSET"),
 	}
 )
 
-var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
+var GlobalFlags = append([]cli.Flag{CacheDirFlag}, logcli.CLIFlags(EnvVarPrefix)...)
 
 var InitFlags = []cli.Flag{
 	L1ChainIDFlag,
@@ -158,24 +181,37 @@ var InitFlags = []cli.Flag{
 	IntentTypeFlag,
 }
 
+var PrepareFlags = []cli.Flag{
+	WorkdirFlag,
+	PrivateKeyFlag,
+	L1RPCURLFlag,
+	GenesisTimeOffsetFlag,
+}
+
+var ContinueFlags = []cli.Flag{
+	WorkdirFlag,
+	PrivateKeyFlag,
+	L1RPCURLFlag,
+	ReceiptQueryIntervalFlag,
+}
+
 var ApplyFlags = []cli.Flag{
 	L1RPCURLFlag,
 	WorkdirFlag,
 	PrivateKeyFlag,
 	DeploymentTargetFlag,
-	OpProgramSvcUrlFlag,
-	AutoVerifyFlag,
+	NoVerifyFlag,
 	VerifierAPIKeyFlag,
 	VerifierFlag,
 	VerifierUrlFlag,
 	UseForgeFlag,
-	ValidateFlag,
+	ReceiptQueryIntervalFlag,
+	DeployMockSP1VerifierFlag,
 }
 
-var UpgradeFlags = []cli.Flag{
-	L1RPCURLFlag,
-	PrivateKeyFlag,
-	DeploymentTargetFlag,
+var PrestateFlags = []cli.Flag{
+	WorkdirFlag,
+	PrestateFlag,
 }
 
 var VerifyFlags = []cli.Flag{
@@ -190,4 +226,18 @@ var VerifyFlags = []cli.Flag{
 
 func PrefixEnvVar(name string) []string {
 	return op_service.PrefixEnvVar(EnvVarPrefix, name)
+}
+
+// CheckUseForgeFlag warns that --use-forge has no effect. It refuses --use-forge=false, which asked
+// for the removed Go script host, rather than run forge against the caller's explicit choice.
+func CheckUseForgeFlag(cliCtx *cli.Context, l log.Logger) error {
+	if !cliCtx.IsSet(UseForgeFlagName) {
+		return nil
+	}
+	if !cliCtx.Bool(UseForgeFlagName) {
+		return fmt.Errorf("--%[1]s=false (or %[2]s=false) is no longer supported: the Go script host was removed and forge always runs the deployment scripts; drop --%[1]s or unset %[2]s",
+			UseForgeFlagName, UseForgeFlag.EnvVars[0])
+	}
+	l.Warn(fmt.Sprintf("--%s is deprecated and has no effect: forge always runs the deployment scripts. A later release removes the flag", UseForgeFlagName))
+	return nil
 }

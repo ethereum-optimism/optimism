@@ -7,7 +7,9 @@ resolve_pr_target_branch() {
   local url
   local curl_args=(-fsSL)
 
-  if [ -n "${GH_TOKEN:-}" ]; then
+  if [ -n "${REPO_GITHUB_TOKEN:-}" ]; then
+    curl_args+=(-H "Authorization: Bearer ${REPO_GITHUB_TOKEN}")
+  elif [ -n "${GH_TOKEN:-}" ]; then
     curl_args+=(-H "Authorization: Bearer ${GH_TOKEN}")
   elif [ -n "${GITHUB_TOKEN:-}" ]; then
     curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
@@ -35,9 +37,9 @@ resolve_pr_target_branch() {
 TARGET_BRANCH=""
 
 # In merge queues, CIRCLE_BRANCH is gh-readonly-queue/<base>/pr-<n>-<sha>.
-# Extract the base branch via regex; BASH_REMATCH[1] captures the first
-# parenthesised group, i.e. the <base> segment between the slashes.
-if [[ "${CIRCLE_BRANCH:-}" =~ ^gh-readonly-queue/([^/]+)/ ]]; then
+# Extract the base branch via regex; BASH_REMATCH[1] captures <base>, which may
+# itself contain slashes.
+if [[ "${CIRCLE_BRANCH:-}" =~ ^gh-readonly-queue/(.+)/pr-[0-9]+- ]]; then
   TARGET_BRANCH="${BASH_REMATCH[1]}"
 elif [ -n "${CIRCLE_PULL_REQUEST:-}" ]; then
   # PR jobs must fail closed if GitHub cannot return the true base branch.

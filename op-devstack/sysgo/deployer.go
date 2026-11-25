@@ -1,38 +1,77 @@
 package sysgo
 
 import (
+	"crypto/ecdsa"
+	"fmt"
 	"math/big"
+	"os"
 	"path/filepath"
 	"slices"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/params/forks"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
+	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/params/forks"
-	"github.com/holiman/uint256"
 )
 
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
 const funderMnemonicIndex = 10_000
+
+// FunderKey returns the private key of the genesis-prefunded funder account.
+// Every sysgo runtime prefunds this account at genesis (see the WithPrefundedAccount
+// calls in this package), so tests hand out funds from a prefunded EOA
+// (dsl.NewFunderEOA) rather than a hosted faucet service. Setup transactions
+// using this key must be included before NewFunderEOA snapshots its nonce; the
+// FunderEOA must own the key exclusively thereafter.
+func FunderKey(keys devkeys.Keys) (*ecdsa.PrivateKey, error) {
+	return keys.Secret(devkeys.UserKey(funderMnemonicIndex))
+}
+
 const devFeatureBitmapKey = "devFeatureBitmap"
+const DevstackL1ForkEnvVar = "DEVSTACK_L1_FORK"
+
+// defaultL1Fork is the L1 fork devstack activates at genesis unless DevstackL1ForkEnvVar is set.
+// It is at least the newest execution fork that go-ethereum schedules on mainnet, which a test
+// enforces, so that test L1s move to a fork after the testnets activate it and before mainnet does.
+const defaultL1Fork = forks.Osaka
+
+// proxyImplementationSlot is the EIP-1967 proxy implementation storage slot used
+// by every L2 predeploy proxy (`bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1)`).
+// Mirrors Constants.PROXY_IMPLEMENTATION_ADDRESS in packages/contracts-bedrock.
+var proxyImplementationSlot = common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
 
 type DeployerOption func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder)
+
+// DefaultL1BlockTime is the L1 block time in seconds, unless a test sets it with WithL1BlockTime.
+// It is above the default 2s L2 block time, so many L1 epochs still span more than one L2 block.
+const DefaultL1BlockTime = 3
 
 func WithForkAtL1Genesis(fork forks.Fork) DeployerOption {
 	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
@@ -46,20 +85,44 @@ func WithForkAtL1Offset(fork forks.Fork, offset uint64) DeployerOption {
 	}
 }
 
-func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
-	// Once we get the latest changes from op-geth we can change this to
-	// params.DefaultBlobSchedule.
-	builder.L1().WithL1BlobSchedule(&params.BlobScheduleConfig{
+func defaultL1BlobSchedule() *params.BlobScheduleConfig {
+	return &params.BlobScheduleConfig{
 		Cancun: params.DefaultCancunBlobConfig,
-		Osaka:  params.DefaultOsakaBlobConfig,
 		Prague: params.DefaultPragueBlobConfig,
 		BPO1:   params.DefaultBPO1BlobConfig,
 		BPO2:   params.DefaultBPO2BlobConfig,
 		BPO3:   params.DefaultBPO3BlobConfig,
 		BPO4:   params.DefaultBPO4BlobConfig,
-	})
+		// Upstream defaults are not available yet, so keep the latest parameters.
+		BPO5: params.DefaultBPO4BlobConfig,
+	}
 }
 
+func WithDefaultBPOBlobSchedule(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	builder.L1().WithL1BlobSchedule(defaultL1BlobSchedule())
+}
+
+// parseL1Fork accepts both Ethereum upgrade names and their geth execution-layer names.
+// It offers no BPO selectors. BPO3 and later would not work: go-ethereum's Engine API serves them
+// only through its Amsterdam methods, which the fake-PoS drivers call only once Amsterdam is active.
+func parseL1Fork(value string) (forks.Fork, error) {
+	fork, ok := map[string]forks.Fork{
+		"pectra":      forks.Prague,
+		"prague":      forks.Prague,
+		"fusaka":      forks.Osaka,
+		"osaka":       forks.Osaka,
+		"glamsterdam": forks.Amsterdam,
+		"amsterdam":   forks.Amsterdam,
+	}[value]
+	if ok {
+		return fork, nil
+	}
+	return 0, fmt.Errorf("unsupported L1 fork %q", value)
+}
+
+// WithKarstAtOffset activates Karst at the offset (a nil offset deactivates it) and deactivates
+// every later fork. It overrides any earlier option that activates a later fork, including
+// PresetConfig.InteropAtGenesis.
 func WithKarstAtOffset(offset *uint64) DeployerOption {
 	return func(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
@@ -71,6 +134,14 @@ func WithKarstAtOffset(offset *uint64) DeployerOption {
 func WithKarstAtGenesis(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
 	for _, l2Cfg := range builder.L2s() {
 		l2Cfg.WithForkAtGenesis(opforks.Karst)
+	}
+}
+
+// WithKeepKarstUpgradeGas opts the L2 chains out of reverting the Karst activation block's
+// one-time upgrade gas, so post-activation blocks keep the inflated gas limit.
+func WithKeepKarstUpgradeGas(p devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+	for _, l2Cfg := range builder.L2s() {
+		l2Cfg.WithKeepKarstUpgradeGas()
 	}
 }
 
@@ -153,17 +224,21 @@ type worldBuilder struct {
 
 	// options
 	deployerPipelineOptions []DeployerPipelineOption
+	genesisAnchorGameType   *gameTypes.GameType
+	intent                  *state.Intent
+
+	// preForkPredeployAllocs, when non-nil, is overlaid onto every L2 chain's
+	// genesis predeploy accounts before the genesis and rollup config are built.
+	preForkPredeployAllocs types.GenesisAlloc
 
 	builder intentbuilder.Builder
 
 	output          *state.State
 	outL1Genesis    *core.Genesis
 	l2Chains        []eth.ChainID
-	outL2Genesis    map[eth.ChainID]*core.Genesis
+	outL2Genesis    map[eth.ChainID]*opgenesis.Genesis
 	outL2RollupCfg  map[eth.ChainID]*rollup.Config
 	outL2Deployment map[eth.ChainID]*L2Deployment
-
-	outFullCfgSet depset.FullConfigSetMerged
 
 	outSuperchainDeployment *SuperchainDeployment
 }
@@ -227,12 +302,22 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 
 		l1StartTimestamp := uint64(time.Now().Unix()) + 1
 		l1Config.WithTimestamp(l1StartTimestamp)
+		l1Config.WithBlockTime(DefaultL1BlockTime)
+		// Amsterdam state gas raises live OPCM deployment above 50 million gas.
+		l1Config.WithGasLimit(60_000_000)
 
-		l1Config.WithL1ForkAtGenesis(forks.Prague) // activate pectra on L1
+		l1Fork := defaultL1Fork
+		if value, ok := os.LookupEnv(DevstackL1ForkEnvVar); ok {
+			var err error
+			l1Fork, err = parseL1Fork(value)
+			p.Require().NoError(err, "invalid %s", DevstackL1ForkEnvVar)
+		}
+		l1Config.WithL1BlobSchedule(defaultL1BlobSchedule())
+		l1Config.WithL1ForkAtGenesis(l1Fork)
 
-		faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+		funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 		p.Require().NoError(err, "need funder addr")
-		l1Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+		l1Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 
 		// We use the L1 chain ID to identify the superchain-wide roles.
 		addrFor := intentbuilder.RoleToAddrProvider(p, keys, l1ChainID)
@@ -259,9 +344,9 @@ func WithPrefundedL2(l1ChainID, l2ChainID eth.ChainID) DeployerOption {
 		// l2configurator L1ProxyAdminOwner must be also populated
 		intentbuilder.WithDevkeyL1Roles(p, keys, l2Config, l1ChainID)
 		{
-			faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+			funderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 			p.Require().NoError(err, "need funder addr")
-			l2Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+			l2Config.WithPrefundedAccount(funderAddr, *eth.BillionEther.ToU256())
 		}
 		{
 			addrFor := intentbuilder.RoleToAddrProvider(p, keys, l2ChainID)
@@ -283,9 +368,13 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 			bitmap = currentValue.(common.Hash)
 		}
 		builder.WithGlobalOverride(devFeatureBitmapKey, devfeatures.EnableDevFeature(bitmap, flag))
-		if flag == devfeatures.OptimismPortalInteropFlag {
-			builder.WithUseInterop(true)
-		}
+	}
+}
+
+// WithUseInterop deploys the L2s with the interop predeploys when Lagoon is active at genesis.
+func WithUseInterop() DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithUseInterop(true)
 	}
 }
 
@@ -293,7 +382,7 @@ func WithDevFeatureEnabled(flag common.Hash) DeployerOption {
 func WithInteropAtGenesis() DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithForkAtGenesis(opforks.Interop)
+			l2Cfg.WithForkAtGenesis(opforks.Lagoon)
 		}
 	}
 }
@@ -345,6 +434,13 @@ func WithDeployerMatchL1PAO() DeployerPipelineOption {
 	}
 }
 
+// WithL1BlockTime sets the L1 block time in seconds.
+func WithL1BlockTime(seconds uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		builder.L1().WithBlockTime(seconds)
+	}
+}
+
 // WithL2BlockTimes sets per-chain L2 block times. The map keys are L2 chain
 // IDs and values are the desired block time in seconds for that chain.
 func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) DeployerOption {
@@ -353,6 +449,16 @@ func WithL2BlockTimes(blockTimes map[eth.ChainID]uint64) DeployerOption {
 			if bt, ok := blockTimes[l2Cfg.ChainID()]; ok {
 				l2Cfg.WithBlockTime(bt)
 			}
+		}
+	}
+}
+
+// WithUniformL2BlockTimes sets the same L2 block time (in seconds) on every
+// configured L2 chain.
+func WithUniformL2BlockTimes(seconds uint64) DeployerOption {
+	return func(_ devtest.T, _ devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithBlockTime(seconds)
 		}
 	}
 }
@@ -366,15 +472,90 @@ func WithFinalizationPeriodSeconds(n uint64) DeployerOption {
 	}
 }
 
+// WithProofMaturityDelaySeconds sets the per-chain proof maturity delay. The delay is bounded by
+// the OptimismPortal implementation, so the bounds are widened when the requested value falls
+// outside the standard range. This only takes effect when the implementations are deployed by
+// this devstack run.
 func WithProofMaturityDelaySeconds(n uint64) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		if n < standard.MinProofMaturityDelaySeconds {
+			builder.WithGlobalOverride("minProofMaturityDelaySeconds", n)
+		}
+		if n > standard.MaxProofMaturityDelaySeconds {
+			builder.WithGlobalOverride("maxProofMaturityDelaySeconds", n)
+		}
 		builder.WithGlobalOverride("proofMaturityDelaySeconds", uint64(n))
 	}
 }
 
+// WithDisputeGameFinalityDelaySeconds sets the per-chain dispute game finality delay. The delay is bounded by
+// the AnchorStateRegistry implementation, so the bounds are widened when the requested value falls
+// outside the standard range. This only takes effect when the implementations are deployed by
+// this devstack run.
 func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
 	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		if seconds < standard.MinDisputeGameFinalityDelaySeconds {
+			builder.WithGlobalOverride("minDisputeGameFinalityDelaySeconds", seconds)
+		}
+		if seconds > standard.MaxDisputeGameFinalityDelaySeconds {
+			builder.WithGlobalOverride("maxDisputeGameFinalityDelaySeconds", seconds)
+		}
 		builder.WithGlobalOverride("disputeGameFinalityDelaySeconds", seconds)
+	}
+}
+
+// WithWithdrawalDelaySeconds sets the per-chain DelayedWETH withdrawal delay. The delay is bounded by
+// the DelayedWETH implementation, so the bounds are widened when the requested value falls
+// outside the standard range. This only takes effect when the implementations are deployed by
+// this devstack run.
+func WithWithdrawalDelaySeconds(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		if seconds < standard.MinWithdrawalDelaySeconds {
+			builder.WithGlobalOverride("minWithdrawalDelaySeconds", seconds)
+		}
+		if seconds > standard.MaxWithdrawalDelaySeconds {
+			builder.WithGlobalOverride("maxWithdrawalDelaySeconds", seconds)
+		}
+		builder.WithGlobalOverride("faultGameWithdrawalDelay", seconds)
+	}
+}
+
+// WithFaultGameMaxClockDuration overrides the fault dispute game's maximum chess-clock
+// duration, i.e. how long an unchallenged game takes to become resolvable
+// (dsl.StandardBridge.GameResolutionDelay). Shrinking it lets a test wait a game out in
+// wall-clock time instead of skipping it with time travel, which matters when the test also
+// depends on L2 origin adoption (time travel advances L1 only, so a large jump stalls
+// deposits for the size of the jump).
+//
+// The game contracts enforce
+// `max(2*clockExtension, clockExtension+preimageOracleChallengePeriod) <= maxClockDuration`,
+// checked in the game constructor and again in initialize(). With the standard
+// clockExtension (10800s) and challenge period (86400s), any max clock duration below
+// ~97200s makes game creation revert with InvalidClockExtension, so shrinking this value
+// requires shrinking the other two as well - see WithFaultGameClockExtension and
+// WithPreimageOracleChallengePeriod.
+func WithFaultGameMaxClockDuration(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("faultGameMaxClockDuration", seconds)
+	}
+}
+
+// WithFaultGameClockExtension overrides the fault dispute game's clock extension. Must be
+// non-zero (DeployImplementations rejects zero) and small enough to satisfy the
+// maxClockDuration relationship documented on WithFaultGameMaxClockDuration.
+func WithFaultGameClockExtension(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("faultGameClockExtension", seconds)
+	}
+}
+
+// WithPreimageOracleChallengePeriod overrides the large-preimage-proposal challenge period
+// of the shared PreimageOracle. It feeds the game's clock-extension bound (see
+// WithFaultGameMaxClockDuration), so it must be shrunk alongside a shortened max clock
+// duration.
+func WithPreimageOracleChallengePeriod(seconds uint64) DeployerOption {
+	return func(p devtest.T, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("preimageOracleChallengePeriod", seconds)
 	}
 }
 
@@ -387,23 +568,61 @@ func WithCustomGasToken(name, symbol string, initialLiquidity *big.Int, liquidit
 }
 
 func (wb *worldBuilder) buildL1Genesis() {
-	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis outer config")
-	wb.require.NotNil(wb.output.L1StateDump, "must have L1 genesis alloc")
+	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis")
+	wb.outL1Genesis = wb.output.L1DevGenesis
+}
 
-	genesisOuter := wb.output.L1DevGenesis
-	genesisAlloc := wb.output.L1StateDump.Data.Accounts
-	genesisCfg := *genesisOuter
-	genesisCfg.StateHash = nil
-	genesisCfg.Alloc = genesisAlloc
-
-	wb.outL1Genesis = &genesisCfg
+func (wb *worldBuilder) finalizeL2Allocs() {
+	for _, ch := range wb.output.Chains {
+		wb.require.NoError(pipeline.PrefundL2DevGenesis(
+			&pipeline.Env{Logger: wb.logger}, wb.intent, wb.output, ch.ID))
+		if wb.preForkPredeployAllocs != nil {
+			wb.require.NotNil(ch.Allocs, "chain must have allocs to overlay pre-fork state onto")
+			for addr, acct := range wb.preForkPredeployAllocs {
+				// Permit2's bytecode contains chain-id-derived immutables (cached
+				// domain separator), so the frozen snapshot's Permit2 is only
+				// valid for its source chain. Keep each chain's own Permit2.
+				// Other chain-agnostic preinstalls are safe to overlay wholesale.
+				if addr == predeploys.Permit2Addr {
+					continue
+				}
+				// Proxied predeploys have chain-specific storage (owners,
+				// balances, mappings, etc.) that the frozen snapshot would
+				// clobber. For these, only overlay the EIP-1967 implementation
+				// slot so the proxy delegates to the frozen pre-fork
+				// implementation while keeping each chain's own state.
+				// Non-proxied predeploys (WETH, GovernanceToken, etc.) and
+				// non-predeploy entries (implementation contracts at 0xc0d3…,
+				// preinstalls, deployer EOA, …) are overlaid wholesale.
+				if p, ok := predeploys.PredeploysByAddress[addr]; ok && !p.ProxyDisabled {
+					existing, ok := ch.Allocs.Data.Accounts[addr]
+					wb.require.Truef(ok, "predeploy %s missing from chain genesis allocs", addr)
+					implSlot, ok := acct.Storage[proxyImplementationSlot]
+					if !ok {
+						// No pre-fork implementation to pin: this proxy had no
+						// implementation in the frozen state. Leave
+						// the chain's own proxy state; the fork's NUT bundle
+						// installs the implementation at activation.
+						continue
+					}
+					if existing.Storage == nil {
+						existing.Storage = make(map[common.Hash]common.Hash, 1)
+					}
+					existing.Storage[proxyImplementationSlot] = implSlot
+					ch.Allocs.Data.Accounts[addr] = existing
+					continue
+				}
+				ch.Allocs.Data.Accounts[addr] = acct
+			}
+		}
+	}
 }
 
 func (wb *worldBuilder) buildL2Genesis() {
-	wb.outL2Genesis = make(map[eth.ChainID]*core.Genesis)
+	wb.outL2Genesis = make(map[eth.ChainID]*opgenesis.Genesis)
 	wb.outL2RollupCfg = make(map[eth.ChainID]*rollup.Config)
 	for _, ch := range wb.output.Chains {
-		l2Genesis, l2RollupCfg, err := inspect.GenesisAndRollup(wb.output, ch.ID)
+		l2Genesis, l2RollupCfg, err := pipeline.RenderGenesisAndRollup(wb.output, ch.ID, wb.intent)
 		wb.require.NoError(err, "need L2 genesis and rollup")
 		id := eth.ChainIDFromBytes32(ch.ID)
 		wb.outL2Genesis[id] = l2Genesis
@@ -428,63 +647,130 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 	}
 }
 
-func (wb *worldBuilder) buildFullConfigSet() {
-	// If no chain has interop active, the dep set will be nil here,
-	// so we should skip building the full config set.
-	if wb.output.InteropDepSet == nil {
-		return
-	}
-
-	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
-		depset.StaticTimestamp(wb.outL1Genesis.Timestamp))
-	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, wb.output.InteropDepSet)
-	wb.require.NoError(err)
-	wb.outFullCfgSet = fullCfgSet
-}
-
-func (wb *worldBuilder) Build() {
-	st := &state.State{
-		Version: 1,
-	}
-
-	// Work-around of op-deployer design issue.
-	// We use the same deployer key for all L1 and L2 chains we deploy here.
+func (wb *worldBuilder) Build(startL1 func(*L1Network) (*L1Geth, *L1CLNode)) *L1Network {
 	deployerKey, err := wb.keys.Secret(devkeys.DeployerRole.Key(big.NewInt(0)))
 	wb.require.NoError(err, "need deployer key")
-
 	intent, err := wb.builder.Build()
 	wb.require.NoError(err)
-
-	pipelineOpts := deployer.ApplyPipelineOpts{
+	wb.intent = intent
+	st := &state.State{Version: 1}
+	opts := deployer.ApplyPipelineOpts{
 		DeploymentTarget:   deployer.DeploymentTargetGenesis,
-		L1RPCUrl:           "",
-		DeployerPrivateKey: deployerKey,
-		Intent:             intent,
-		State:              st,
-		Logger:             wb.logger,
-		StateWriter:        wb, // direct output back here
+		DeployerPrivateKey: deployerKey, Intent: intent, State: st,
+		Logger: wb.logger, StateWriter: wb, DeployMockSP1Verifier: true,
+		AllowUnoptimizedContracts: true,
+		ReceiptQueryInterval:      100 * time.Millisecond,
 	}
 	for _, opt := range wb.deployerPipelineOptions {
-		opt(wb, intent, &pipelineOpts)
+		opt(wb, intent, &opts)
 	}
-
-	err = deployer.ApplyPipeline(wb.p.Ctx(), pipelineOpts)
-	wb.require.NoError(err)
-
-	wb.require.NotNil(wb.output, "expected state-write to output")
-
-	for _, id := range wb.output.Chains {
-		chainID := eth.ChainIDFromBytes32(id.ID)
-		wb.l2Chains = append(wb.l2Chains, chainID)
+	prepareDeployment := wb.genesisAnchorGameType != nil
+	for _, chain := range intent.Chains {
+		params, err := pipeline.ResolveChainProofParams(intent, chain)
+		wb.require.NoError(err)
+		requirements, err := pipeline.ResolveInitialDeployRequirements(params.DisputeGameType)
+		wb.require.NoError(err)
+		prepareDeployment = prepareDeployment || requirements.Permissionless
 	}
-
+	deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
+	intent.L1DevGenesisParams.Prefund[deployerAddr] = (*hexutil.U256)(millionEth)
+	wb.require.NoError(deployer.ApplyL1DevGenesis(wb.p.Ctx(), opts))
+	wb.output = st
 	wb.buildL1Genesis()
+	l1BlockTime := wb.builder.L1().BlockTime()
+	wb.require.NotZero(l1BlockTime, "L1 block time must be set")
+	l1Net := &L1Network{
+		name: "l1", chainID: eth.ChainIDFromUInt64(intent.L1ChainID),
+		genesis: wb.outL1Genesis, blockTime: l1BlockTime,
+	}
+	l1EL, l1CL := startL1(l1Net)
+	intent.OPCMAddress = &st.ImplementationsDeployment.OpcmV2Impl
+	intent.SuperchainConfigProxy = &st.SuperchainDeployment.SuperchainConfigProxy
+	intent.SuperchainRoles = nil
+	opts.DeploymentTarget = deployer.DeploymentTargetLive
+	opts.L1RPCUrl = l1EL.UserRPC()
+	opts.DeployMockSP1Verifier = false
+	if prepareDeployment {
+		wb.prepareAndDeployChains(opts, l1CL)
+		opts.State = wb.output
+	}
+	wb.require.NoError(deployer.ApplyPipeline(wb.p.Ctx(), opts))
+	if !prepareDeployment {
+		wb.finalizeL2Allocs()
+	}
+	for _, chain := range wb.output.Chains {
+		wb.l2Chains = append(wb.l2Chains, eth.ChainIDFromBytes32(chain.ID))
+	}
 	wb.buildL2Genesis()
 	wb.buildL2DeploymentOutputs()
-	wb.buildFullConfigSet()
+	return l1Net
 }
 
-// WriteState is a callback used by deployer.ApplyPipeline to write the output
+func (wb *worldBuilder) prepareAndDeployChains(opts deployer.ApplyPipelineOpts, l1CL *L1CLNode) {
+	workdir := wb.p.TempDir()
+	privateKey := hexutil.Encode(crypto.FromECDSA(opts.DeployerPrivateKey))
+	liveIntent := *wb.intent
+	liveIntent.L1DevGenesisParams = nil
+	liveIntent.Chains = make([]*state.ChainIntent, len(wb.intent.Chains))
+	for i, chain := range wb.intent.Chains {
+		liveChain := *chain
+		liveChain.L2DevGenesisParams = nil
+		liveIntent.Chains[i] = &liveChain
+	}
+	wb.require.NoError(liveIntent.WriteToFile(filepath.Join(workdir, "intent.toml")))
+	wb.require.NoError(pipeline.WriteState(workdir, &state.State{Version: 1}))
+	client, err := ethclient.DialContext(wb.p.Ctx(), opts.L1RPCUrl)
+	wb.require.NoError(err)
+	defer client.Close()
+	wb.require.Eventually(func() bool {
+		_, err := client.HeaderByNumber(wb.p.Ctx(), big.NewInt(int64(rpc.SafeBlockNumber)))
+		return err == nil
+	}, 30*time.Second, 100*time.Millisecond, "L1 must publish a safe head before preparation")
+	// geth rejects receipt queries until its first indexing pass. prepare and continue run forge on an
+	// anvil fork of this L1, forge's receipt queries reach geth through the fork, and forge gives up
+	// after a few retries.
+	wb.require.NoError(geth.WaitUntilTransactionNotFound(client, common.Hash{}, 30*time.Second))
+
+	// Keep the safe anchor at genesis until preparation commits the L2 timestamp.
+	l1CL.fakepos.Stop()
+	wb.require.NoError(deployer.Prepare(wb.p.Ctx(), deployer.PrepareConfig{
+		Workdir: workdir, Logger: wb.logger, PrivateKey: privateKey,
+		L1RPCUrl: opts.L1RPCUrl, CacheDir: opts.CacheDir,
+		AllowUnoptimizedContracts: true,
+	}))
+	st, err := pipeline.ReadState(workdir)
+	wb.require.NoError(err)
+	wb.output = st
+	wb.finalizeL2Allocs()
+	wb.require.NoError(pipeline.ComputeGenesisOutputRoots(
+		&pipeline.Env{Logger: wb.logger}, wb.intent, st))
+	if wb.genesisAnchorGameType != nil && *wb.genesisAnchorGameType == gameTypes.CannonKonaGameType {
+		// Legacy game fixtures need block-zero anchors before their game is enabled.
+		for _, chain := range st.Chains {
+			genesis, _, err := pipeline.RenderGenesisAndRollup(st, chain.ID, wb.intent)
+			wb.require.NoError(err)
+			header := genesis.ToBlock().Header()
+			wb.require.NotNil(header.WithdrawalsHash)
+			root, err := rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(header), *header.WithdrawalsHash)
+			wb.require.NoError(err)
+			chain.StartingAnchorRoot = &state.StartingAnchorProposal{
+				Root: common.Hash(root), L2SequenceNumber: 0,
+			}
+		}
+	}
+	wb.require.NoError(pipeline.WriteState(workdir, st))
+	wb.require.NoError(deployer.Prestate(wb.p.Ctx(), deployer.PrestateConfig{
+		Workdir: workdir, Logger: wb.logger,
+	}))
+	l1CL.fakepos.Start()
+	wb.require.NoError(deployer.Continue(wb.p.Ctx(), deployer.ContinueConfig{
+		Workdir: workdir, Logger: wb.logger, PrivateKey: privateKey, L1RPCUrl: opts.L1RPCUrl,
+	}))
+	wb.output, err = pipeline.ReadState(workdir)
+	wb.require.NoError(err)
+}
+
+// WriteState receives the applied deployment state.
 func (wb *worldBuilder) WriteState(st *state.State) error {
 	wb.output = st
 	return nil

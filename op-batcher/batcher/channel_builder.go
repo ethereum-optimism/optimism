@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -172,7 +172,7 @@ func (c *ChannelBuilder) AddBlock(block SizedBlock) (*derive.L1BlockInfo, error)
 		return nil, c.FullErr()
 	}
 
-	l1info, err := c.co.AddBlock(c.rollupCfg, block.Block)
+	l1info, err := c.co.AddBlock(c.rollupCfg, block.ExecutionPayload)
 	if errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrCompressorFull) {
 		c.setFullErr(err)
 		return l1info, c.FullErr()

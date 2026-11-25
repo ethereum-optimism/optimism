@@ -5,6 +5,7 @@ use crate::{
     constants::{BASE_FEE_RECIPIENT, L1_FEE_RECIPIENT, OPERATOR_FEE_RECIPIENT},
     transaction::{OpTransactionError, OpTxTr, deposit::DEPOSIT_TRANSACTION_TYPE},
 };
+use op_alloy_consensus::OpTxType;
 use revm::{
     context::{
         LocalContextTr,
@@ -19,15 +20,16 @@ use revm::{
     handler::{
         EthFrame, EvmTr, FrameResult, Handler, MainnetHandler,
         evm::FrameTr,
+        handle_reservoir_remaining_gas,
         handler::EvmTrError,
         post_execution::{self, reimburse_caller},
         pre_execution::{calculate_caller_fee, validate_account_nonce_and_code_with_components},
     },
     inspector::{Inspector, InspectorEvmTr, InspectorHandler},
     interpreter::{
-        Gas, InitialAndFloorGas, interpreter::EthInterpreter, interpreter_action::FrameInit,
+        GasTracker, InitialAndFloorGas, interpreter::EthInterpreter, interpreter_action::FrameInit,
     },
-    primitives::{U256, hardfork::SpecId},
+    primitives::U256,
 };
 use std::{boxed::Box, vec::Vec};
 
@@ -78,6 +80,12 @@ where
     type Error = ERROR;
     type HaltReason = OpHaltReason;
 
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::validate_env`
+    ///
+    /// Deposits return before `validation::validate_env`; non-deposits add the
+    /// `enveloped_tx` requirement and then delegate. Re-check changes to the upstream
+    /// default and `revm_handler::validation::validate_env`. Other handler validation,
+    /// including `validate_initial_tx_gas`, still applies to deposits.
     fn validate_env(&self, evm: &mut Self::Evm) -> Result<(), Self::Error> {
         // Do not perform any extra validation for deposit transactions, they are pre-verified on
         // L1.
@@ -102,6 +110,15 @@ where
         self.mainnet.validate_env(evm)
     }
 
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3
+    /// `revm_handler::Handler::validate_against_state_and_deduct_caller`
+    ///
+    /// UPSTREAM-MIRROR(copy): revm-handler@43.0.3
+    /// `revm_handler::pre_execution::validate_against_state_and_deduct_caller`
+    ///
+    /// The non-deposit arm copies the upstream helper with the L1-fee deduction inserted
+    /// before `calculate_caller_fee`; the deposit arm replaces the default entirely.
+    /// Re-derive both sources when either upstream body changes.
     fn validate_against_state_and_deduct_caller(
         &self,
         evm: &mut Self::Evm,
@@ -125,7 +142,7 @@ where
             // Mind value should be added first before subtracting the effective balance spending.
             let mut new_balance = caller
                 .balance()
-                .saturating_add(U256::from(tx.mint().unwrap_or_default()))
+                .saturating_add(tx.mint().unwrap_or_default())
                 .saturating_sub(effective_balance_spending);
 
             if cfg.is_balance_check_disabled() {
@@ -182,82 +199,111 @@ where
         Ok(())
     }
 
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::tx_gas`
+    ///
+    /// Deposits are force-included from L1 and are exempt from EIP-7825's per-transaction gas
+    /// limit cap (<https://specs.optimism.io/protocol/karst/overview.html#execution-layer>), so
+    /// the deposit arm reproduces the upstream body with the cap lifted and everything else
+    /// delegates to the default. Re-derive the deposit arm when the upstream body changes.
+    ///
+    /// `validate_initial_tx_gas` is not overridden and still reads the cap, so under EIP-8037 a
+    /// deposit's intrinsic and floor gas are still checked against it.
+    fn tx_gas(&self, evm: &mut Self::Evm, init_and_floor_gas: &InitialAndFloorGas) -> GasTracker {
+        if evm.ctx_ref().tx().tx_type() != DEPOSIT_TRANSACTION_TYPE {
+            return self.mainnet.tx_gas(evm, init_and_floor_gas);
+        }
+
+        // With no OP fork enabling EIP-8037, an uncapped split is the whole exemption: all
+        // regular gas, empty reservoir.
+        let tx_gas_limit = evm.ctx_ref().tx().gas_limit();
+        let (remaining, reservoir) =
+            init_and_floor_gas.initial_gas_and_reservoir(tx_gas_limit, u64::MAX);
+        GasTracker::new(tx_gas_limit, remaining, reservoir)
+    }
+
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::last_frame_result`
+    ///
+    /// Structure and comments are taken verbatim from the upstream default: the frame is
+    /// settled into the transaction-level gas exactly as upstream does, and the
+    /// Bedrock/Regolith deposit rules are applied on top of the settled result. Re-derive as
+    /// (old upstream default -> new upstream default) applied onto this body, leaving the
+    /// deposit branch byte-identical.
     fn last_frame_result(
         &mut self,
         evm: &mut Self::Evm,
         frame_result: &mut <<Self::Evm as EvmTr>::Frame as FrameTr>::FrameResult,
+        parent_gas: &mut GasTracker,
     ) -> Result<(), Self::Error> {
         let ctx = evm.ctx();
         let tx = ctx.tx();
         let is_deposit = tx.tx_type() == DEPOSIT_TRANSACTION_TYPE;
+        let is_system_transaction = tx.is_system_transaction();
         let tx_gas_limit = tx.gas_limit();
         let is_regolith = ctx.cfg().spec().is_enabled_in(OpSpecId::REGOLITH);
 
-        let instruction_result = frame_result.interpreter_result().result;
-        let gas = frame_result.gas_mut();
-        let remaining = gas.remaining();
-        let refunded = gas.refunded();
-        let reservoir = gas.reservoir();
-        let state_gas_spent = gas.state_gas_spent();
+        let instruction_result = frame_result.instruction_result();
 
-        // Spend the gas limit. Gas is reimbursed when the tx returns successfully.
-        *gas = Gas::new_spent(tx_gas_limit);
+        // All regular gas was forwarded to the first frame: consume it on the
+        // transaction-level gas; the settle below returns the frame's unused part.
+        parent_gas.spend_all();
 
-        if instruction_result.is_ok() {
-            // On Optimism, deposit transactions report gas usage uniquely to other
-            // transactions due to them being pre-paid on L1.
-            //
-            // Hardfork Behavior:
-            // - Bedrock (success path):
-            //   - Deposit transactions (non-system) report their gas limit as the usage. No
-            //     refunds.
-            //   - Deposit transactions (system) report 0 gas used. No refunds.
-            //   - Regular transactions report gas usage as normal.
-            // - Regolith (success path):
-            //   - Deposit transactions (all) report their gas used as normal. Refunds enabled.
-            //   - Regular transactions report their gas used as normal.
-            if !is_deposit || is_regolith {
-                // Return unused regular gas and unused reservoir gas.
-                gas.erase_cost(remaining);
-                gas.record_refund(refunded);
-            } else if is_deposit && tx.is_system_transaction() {
+        // Settle the frame into the transaction-level gas like a parent frame.
+        handle_reservoir_remaining_gas(
+            instruction_result,
+            parent_gas,
+            frame_result.gas_mut().tracker_mut(),
+        );
+
+        // Refund the EIP-2780 refundable first-frame charge when no account
+        // leaf was created, exactly like `EthFrame::return_result` refunds
+        // the upfront CALL/CREATE state charges of inner frames.
+        if let Some(charge) = frame_result.refundable_state_gas(evm.ctx().cfg().gas_params()) {
+            parent_gas.refill_reservoir(charge);
+            // Unlike an inner frame's caller, the transaction ends here: an
+            // exceptional halt consumes all regular gas, including the
+            // spilled portion the refill just credited back to `remaining`.
+            if instruction_result.is_halt() {
+                parent_gas.spend_all();
+            }
+        }
+
+        // On Optimism, deposit transactions report gas usage uniquely to other
+        // transactions due to them being pre-paid on L1.
+        //
+        // Hardfork Behavior:
+        // - Bedrock:
+        //   - Deposit transactions (non-system) report their gas limit as the usage. No refunds.
+        //   - Deposit transactions (system) report 0 gas used. No refunds.
+        //   - Regular transactions report gas usage as normal.
+        // - Regolith:
+        //   - Deposit transactions (all) report their gas used as normal. Refunds enabled.
+        //   - Regular transactions report their gas used as normal.
+        //
+        // The settle and refund above already returned the frame's unused regular gas and its
+        // refund counter; a pre-Regolith deposit gets neither, so take both back. This runs last
+        // so that no upstream credit, present or future, can hand gas back to such a deposit.
+        if is_deposit && !is_regolith {
+            parent_gas.spend_all();
+            parent_gas.set_refunded(0);
+            if is_system_transaction && instruction_result.is_ok() {
                 // System transactions were a special type of deposit transaction in
                 // the Bedrock hardfork that did not incur any gas costs.
-                gas.erase_cost(tx_gas_limit);
-            }
-        } else if instruction_result.is_revert() {
-            // On Optimism, deposit transactions report gas usage uniquely to other
-            // transactions due to them being pre-paid on L1.
-            //
-            // Hardfork Behavior:
-            // - Bedrock (revert path):
-            //   - Deposit transactions (all) report the gas limit as the amount of gas used on
-            //     failure. No refunds.
-            //   - Regular transactions receive a refund on remaining gas as normal.
-            // - Regolith (revert path):
-            //   - Deposit transactions (all) report the actual gas used as the amount of gas used
-            //     on failure. Refunds on remaining gas enabled.
-            //   - Regular transactions receive a refund on remaining gas as normal.
-            if !is_deposit || is_regolith {
-                // Return unused regular gas.
-                gas.erase_cost(remaining);
+                parent_gas.erase_cost(tx_gas_limit);
             }
         }
 
-        if instruction_result.is_ok() {
-            // Restore state_gas_spent on successful paths (lost by Gas::new_spent overwrite).
-            gas.set_state_gas_spent(state_gas_spent);
-            gas.set_reservoir(reservoir);
-        } else {
-            // On failure - zero execution state gas: [bal-devnet notes](<https://notes.ethereum.org/@ethpandaops/bal-devnet-4#Changes-vs-bal-devnet-3>)
-            // and [specs](<https://github.com/ethereum/EIPs/pull/11476>)
-            gas.set_state_gas_spent(0);
-            gas.set_reservoir(state_gas_spent + reservoir);
-        }
+        // The frame result carries the transaction-level gas onward to the
+        // post-execution phase.
+        *frame_result.gas_mut().tracker_mut() = *parent_gas;
 
         Ok(())
     }
 
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::reimburse_caller`
+    ///
+    /// Delegates to upstream `post_execution::reimburse_caller`, adding the operator-fee
+    /// refund for non-deposits. Re-check that the upstream helper's signature and semantics
+    /// still make the added refund a pure addition.
     fn reimburse_caller(
         &self,
         evm: &mut Self::Evm,
@@ -275,12 +321,15 @@ where
         reimburse_caller(evm.ctx(), frame_result.gas(), additional_refund).map_err(From::from)
     }
 
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::refund`
+    ///
+    /// Same as upstream except that pre-Regolith deposits get no refund at all.
     fn refund(
         &self,
         evm: &mut Self::Evm,
         frame_result: &mut <<Self::Evm as EvmTr>::Frame as FrameTr>::FrameResult,
         eip7702_refund: i64,
-    ) {
+    ) -> Result<(), Self::Error> {
         frame_result.gas_mut().record_refund(eip7702_refund);
 
         let is_deposit = evm.ctx().tx().tx_type() == DEPOSIT_TRANSACTION_TYPE;
@@ -289,12 +338,19 @@ where
         // Prior to Regolith, deposit transactions did not receive gas refunds.
         let is_gas_refund_disabled = is_deposit && !is_regolith;
         if !is_gas_refund_disabled {
-            frame_result.gas_mut().set_final_refund(
-                evm.ctx().cfg().spec().into_eth_spec().is_enabled_in(SpecId::LONDON),
-            );
+            frame_result
+                .gas_mut()
+                .set_final_refund(evm.ctx().cfg().gas_params().max_refund_quotient());
         }
+
+        Ok(())
     }
 
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::reward_beneficiary`
+    ///
+    /// Returns early for deposits, otherwise calls the upstream implementation and then pays
+    /// the three OP vaults. Re-check on any change to how upstream computes the beneficiary
+    /// reward or to the gas fields this reads (`used`, `reservoir`).
     fn reward_beneficiary(
         &self,
         evm: &mut Self::Evm,
@@ -344,6 +400,11 @@ where
         Ok(())
     }
 
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::execution_result`
+    ///
+    /// Reproduces the upstream teardown (`take_error`, `post_execution::output`, `commit_tx`,
+    /// clearing local state and the frame stack) with the post-Regolith halted-deposit
+    /// redirect and the L1-cost clear added. A new teardown step upstream must be added here.
     fn execution_result(
         &mut self,
         evm: &mut Self::Evm,
@@ -372,61 +433,22 @@ where
         Ok(exec_result)
     }
 
+    /// UPSTREAM-MIRROR(override): revm-handler@43.0.3 `revm_handler::Handler::catch_error`
+    ///
+    /// Re-derive upstream error-path cleanup, currently `journal.discard_tx()`,
+    /// when the default or journal semantics change.
     fn catch_error(
         &self,
         evm: &mut Self::Evm,
         error: Self::Error,
     ) -> Result<ExecutionResult<Self::HaltReason>, Self::Error> {
-        let is_deposit = evm.ctx().tx().tx_type() == DEPOSIT_TRANSACTION_TYPE;
-        let is_tx_error = error.is_tx_error();
-        let mut output = Err(error);
-
-        // Deposit transaction can't fail so we manually handle it here.
-        if is_tx_error && is_deposit {
-            let ctx = evm.ctx();
-            let spec = ctx.cfg().spec();
-            let tx = ctx.tx();
-            let caller = tx.caller();
-            let mint = tx.mint();
-            let is_system_tx = tx.is_system_transaction();
-            let gas_limit = tx.gas_limit();
-            let journal = evm.ctx().journal_mut();
-
-            // discard all changes of this transaction
-            // Default JournalCheckpoint is the first checkpoint and will wipe all changes.
-            journal.checkpoint_revert(JournalCheckpoint::default());
-
-            // If the transaction is a deposit transaction and it failed
-            // for any reason, the caller nonce must be bumped, and the
-            // gas reported must be altered depending on the Hardfork. This is
-            // also returned as a special Halt variant so that consumers can more
-            // easily distinguish between a failed deposit and a failed
-            // normal transaction.
-
-            // Increment sender nonce and account balance for the mint amount. Deposits
-            // always persist the mint amount, even if the transaction fails.
-            let mut acc = journal.load_account_mut(caller)?;
-            acc.bump_nonce();
-            acc.incr_balance(U256::from(mint.unwrap_or_default()));
-
-            drop(acc); // Drop acc to avoid borrow checker issues.
-
-            // We can now commit the changes.
-            journal.commit_tx();
-
-            // The gas used of a failed deposit post-regolith is the gas
-            // limit of the transaction. pre-regolith, it is the gas limit
-            // of the transaction for non system transactions and 0 for system
-            // transactions.
-            let gas_used =
-                if spec.is_enabled_in(OpSpecId::REGOLITH) || !is_system_tx { gas_limit } else { 0 };
-            // clear the journal
-            output = Ok(ExecutionResult::Halt {
-                reason: OpHaltReason::FailedDeposit,
-                gas: ResultGas::default().with_total_gas_spent(gas_used),
-                logs: Vec::new(),
-            })
-        }
+        let output = if error.is_tx_error() {
+            self.catch_error_tx_error(evm, error)
+        } else {
+            // A non-tx error is not attributable to the transaction's validity: discard the tx's
+            // journal changes and surface the error, regardless of tx type.
+            self.discard_and_surface_error(evm, error)
+        };
 
         // do the cleanup
         evm.ctx().chain_mut().clear_tx_l1_cost();
@@ -434,6 +456,96 @@ where
         evm.frame_stack().clear();
 
         output
+    }
+}
+
+impl<EVM, ERROR, FRAME> OpHandler<EVM, ERROR, FRAME>
+where
+    EVM: EvmTr<Context: OpContextTr, Frame = FRAME>,
+    ERROR: EvmTrError<EVM> + From<OpTransactionError> + FromStringError + IsTxError,
+    FRAME: FrameTr<FrameResult = FrameResult, FrameInit = FrameInit>,
+{
+    /// Handles a transaction-validity error (`is_tx_error()` true), branching on the tx type.
+    fn catch_error_tx_error(
+        &self,
+        evm: &mut EVM,
+        error: ERROR,
+    ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
+        // An unsupported type byte can't be a deposit, so a `try_from` failure is handled as a
+        // non-deposit failure, the same as the non-deposit arm below.
+        let Ok(tx_type) = OpTxType::try_from(evm.ctx().tx().tx_type()) else {
+            return self.discard_and_surface_error(evm, error);
+        };
+
+        match tx_type {
+            OpTxType::Deposit => self.catch_error_failed_deposit(evm),
+            OpTxType::Legacy |
+            OpTxType::Eip2930 |
+            OpTxType::Eip1559 |
+            OpTxType::Eip7702 |
+            OpTxType::PostExec => self.discard_and_surface_error(evm, error),
+        }
+    }
+
+    /// Discards a failed transaction's journal changes and surfaces `error`.
+    ///
+    /// The failed tx's changes must be discarded and its `transaction_id` advanced, as
+    /// `EthHandler::catch_error` does upstream. Otherwise the failed tx's partial state and
+    /// EIP-2929 warm/cold stamps persist in the shared journal and leak into the next tx executed
+    /// on the same EVM.
+    fn discard_and_surface_error(
+        &self,
+        evm: &mut EVM,
+        error: ERROR,
+    ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
+        evm.ctx().journal_mut().discard_tx();
+        Err(error)
+    }
+
+    /// Handles a failed deposit transaction. A deposit is never rejected: it still bumps the
+    /// caller nonce, persists the mint, and is reported as a dedicated `FailedDeposit` halt so
+    /// consumers can distinguish it from a failed normal transaction. See the deposits spec:
+    /// <https://specs.optimism.io/protocol/deposits.html#execution>.
+    fn catch_error_failed_deposit(
+        &self,
+        evm: &mut EVM,
+    ) -> Result<ExecutionResult<OpHaltReason>, ERROR> {
+        let ctx = evm.ctx();
+        let spec = ctx.cfg().spec();
+        let tx = ctx.tx();
+        let caller = tx.caller();
+        let mint = tx.mint();
+        let is_system_tx = tx.is_system_transaction();
+        let gas_limit = tx.gas_limit();
+        let journal = evm.ctx().journal_mut();
+
+        // Discard all changes of this transaction. The default `JournalCheckpoint` is the first
+        // checkpoint and will wipe all changes.
+        journal.checkpoint_revert(JournalCheckpoint::default());
+
+        // Increment sender nonce and account balance for the mint amount. Deposits always persist
+        // the mint amount, even if the transaction fails. The balance saturates at `U256::MAX`,
+        // as in `validate_against_state_and_deduct_caller`.
+        let mut acc = journal.load_account_mut(caller)?;
+        acc.bump_nonce();
+        let balance = acc.balance().saturating_add(mint.unwrap_or_default());
+        acc.set_balance(balance);
+
+        drop(acc); // Drop acc to avoid borrow checker issues.
+
+        // We can now commit the changes.
+        journal.commit_tx();
+
+        // The gas used of a failed deposit post-regolith is the gas limit of the transaction.
+        // Pre-regolith it is the gas limit for non-system transactions and 0 for system
+        // transactions.
+        let gas_used =
+            if spec.is_enabled_in(OpSpecId::REGOLITH) || !is_system_tx { gas_limit } else { 0 };
+        Ok(ExecutionResult::Halt {
+            reason: OpHaltReason::FailedDeposit,
+            gas: ResultGas::default().with_total_gas_spent(gas_used),
+            logs: Vec::new(),
+        })
     }
 }
 
@@ -462,13 +574,18 @@ mod tests {
     };
     use alloy_primitives::uint;
     use revm::{
+        ExecuteEvm,
+        bytecode::Bytecode,
         context::{BlockEnv, CfgEnv, Context, TxEnv},
-        context_interface::result::InvalidTransaction,
+        context_interface::{cfg::GasParams, result::InvalidTransaction},
         database::InMemoryDB,
         database_interface::EmptyDB,
         handler::EthFrame,
-        interpreter::{CallOutcome, InstructionResult, InterpreterResult},
-        primitives::{Address, B256, Bytes, bytes},
+        inspector::{InspectEvm, NoOpInspector},
+        interpreter::{CallOutcome, CreateOutcome, Gas, InstructionResult, InterpreterResult},
+        primitives::{
+            Address, B256, Bytes, bytes, eip7825::TX_GAS_LIMIT_CAP, hardfork::SpecId, keccak256,
+        },
         state::AccountInfo,
     };
     use rstest::rstest;
@@ -490,9 +607,154 @@ mod tests {
         let mut handler =
             OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
 
-        handler.last_frame_result(&mut evm, &mut exec_result).unwrap();
-        handler.refund(&mut evm, &mut exec_result, 0);
+        // The transaction-level gas the handler settles the frame into, built the same way
+        // `Handler::run` does for a transaction with no intrinsic gas.
+        let mut tx_gas = handler.tx_gas(&mut evm, &InitialAndFloorGas::new(0, 0));
+
+        handler.last_frame_result(&mut evm, &mut exec_result, &mut tx_gas).unwrap();
+        handler.refund(&mut evm, &mut exec_result, 0).unwrap();
         *exec_result.gas()
+    }
+
+    /// Like [`call_last_frame_return`], but wraps the result in a top-level CREATE frame.
+    ///
+    /// `charged_create_state_gas` is what the CREATE path records when it charged the
+    /// conditional EIP-8037 `create_state_gas`; the refund is driven off that flag.
+    fn create_last_frame_return(
+        ctx: OpContext<EmptyDB>,
+        instruction_result: InstructionResult,
+        gas: Gas,
+        created_address: Option<Address>,
+        charged_create_state_gas: bool,
+    ) -> Gas {
+        let mut evm = ctx.build_op();
+
+        let mut outcome = CreateOutcome::new(
+            InterpreterResult { result: instruction_result, output: Bytes::new(), gas },
+            created_address,
+        );
+        outcome.charged_create_state_gas = charged_create_state_gas;
+        let mut exec_result = FrameResult::Create(outcome);
+
+        let mut handler =
+            OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
+
+        // The transaction-level gas the handler settles the frame into, built the same way
+        // `Handler::run` does for a transaction with no intrinsic gas.
+        let mut tx_gas = handler.tx_gas(&mut evm, &InitialAndFloorGas::new(0, 0));
+
+        handler.last_frame_result(&mut evm, &mut exec_result, &mut tx_gas).unwrap();
+        handler.refund(&mut evm, &mut exec_result, 0).unwrap();
+        *exec_result.gas()
+    }
+
+    /// Cfg on the newest OP fork with EIP-8037 (Amsterdam) state gas enabled and the
+    /// matching gas params — an Amsterdam analog would activate on top of an upcoming fork.
+    fn amsterdam_cfg() -> CfgEnv<OpSpecId> {
+        let mut cfg = CfgEnv::new_with_spec(OpSpecId::KARST).with_enable_amsterdam_eip8037(true);
+        cfg.set_gas_params(GasParams::new_spec(SpecId::AMSTERDAM));
+        cfg
+    }
+
+    /// Gas as a frame might leave it: limit 100 with 10 regular gas spent, and 30 state
+    /// gas charged against an initial reservoir of 50.
+    fn gas_with_state_usage() -> Gas {
+        let mut gas = Gas::new_with_regular_gas_and_reservoir(100, 50);
+        assert!(gas.record_regular_cost(10));
+        assert!(gas.record_state_cost(30));
+        assert_eq!(gas.reservoir(), 20);
+        assert_eq!(gas.state_gas_spent(), 30);
+        gas
+    }
+
+    #[test]
+    fn test_failed_create_refills_reservoir_with_create_state_gas() {
+        let cfg = amsterdam_cfg();
+        let create_state_gas = cfg.gas_params().create_state_gas();
+        assert!(create_state_gas > 0, "create_state_gas must be nonzero for this test to bite");
+
+        let ctx = Context::op()
+            .with_tx(OpTransaction::builder().base(TxEnv::builder().gas_limit(100)).build_fill())
+            .with_cfg(cfg);
+
+        let gas = create_last_frame_return(
+            ctx,
+            InstructionResult::Revert,
+            gas_with_state_usage(),
+            None,
+            true,
+        );
+        // Unused regular gas is returned on revert.
+        assert_eq!(gas.remaining(), 90);
+        assert_eq!(gas.total_gas_spent(), 10);
+        // State changes rolled back: the pre-tx reservoir (50 = 20 + 30 spent state gas) is
+        // recovered, and the intrinsic `create_state_gas` charged at tx entry is refunded on
+        // top because the top-level CREATE failed (EIP-8037).
+        assert_eq!(gas.reservoir(), 50 + create_state_gas);
+        // `refill_reservoir` books the refund as negative state gas spent; the post-execution
+        // accounting reconciles it against the intrinsic charge.
+        assert_eq!(gas.state_gas_spent(), -(create_state_gas as i64));
+    }
+
+    #[test]
+    fn test_failed_create_without_eip8037_only_recovers_reservoir() {
+        let ctx = Context::op()
+            .with_tx(OpTransaction::builder().base(TxEnv::builder().gas_limit(100)).build_fill())
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::KARST));
+
+        // Without EIP-8037 the CREATE never charges `create_state_gas`.
+        let gas = create_last_frame_return(
+            ctx,
+            InstructionResult::Revert,
+            gas_with_state_usage(),
+            None,
+            false,
+        );
+        assert_eq!(gas.remaining(), 90);
+        assert_eq!(gas.total_gas_spent(), 10);
+        // No EIP-8037: the pre-tx reservoir is recovered, but no create_state_gas refund.
+        assert_eq!(gas.reservoir(), 50);
+        assert_eq!(gas.state_gas_spent(), 0);
+    }
+
+    #[test]
+    fn test_successful_create_keeps_state_gas_spent() {
+        let ctx = Context::op()
+            .with_tx(OpTransaction::builder().base(TxEnv::builder().gas_limit(100)).build_fill())
+            .with_cfg(amsterdam_cfg());
+
+        let gas = create_last_frame_return(
+            ctx,
+            InstructionResult::Return,
+            gas_with_state_usage(),
+            Some(Address::repeat_byte(0x11)),
+            true,
+        );
+        assert_eq!(gas.remaining(), 90);
+        assert_eq!(gas.total_gas_spent(), 10);
+        // Success: state gas was genuinely consumed — no recovery, no refill.
+        assert_eq!(gas.reservoir(), 20);
+        assert_eq!(gas.state_gas_spent(), 30);
+    }
+
+    #[test]
+    fn test_revert_recovers_reservoir_from_negative_state_gas() {
+        let ctx = Context::op()
+            .with_tx(OpTransaction::builder().base(TxEnv::builder().gas_limit(100)).build_fill())
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::KARST));
+
+        let mut ret_gas = Gas::new_with_regular_gas_and_reservoir(100, 50);
+        assert!(ret_gas.record_regular_cost(10));
+        // 0→x→0 storage restoration refilled more than this frame charged: net-negative
+        // state gas spent (reservoir 75, state_gas_spent -25).
+        ret_gas.refill_reservoir(25);
+
+        let gas = call_last_frame_return(ctx, InstructionResult::Revert, ret_gas);
+        assert_eq!(gas.remaining(), 90);
+        // Signed recovery: 75 + (-25) = 50, the pre-tx reservoir. An unsigned addition
+        // would have inflated the reservoir to 100 here.
+        assert_eq!(gas.reservoir(), 50);
+        assert_eq!(gas.state_gas_spent(), 0);
     }
 
     #[test]
@@ -561,6 +823,24 @@ mod tests {
     }
 
     #[test]
+    fn test_revert_gas_deposit_tx_pre_regolith() {
+        let ctx = Context::op()
+            .with_tx(
+                OpTransaction::builder()
+                    .base(TxEnv::builder().gas_limit(100))
+                    .source_hash(B256::from([1u8; 32]))
+                    .build_fill(),
+            )
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::BEDROCK));
+        let gas = call_last_frame_return(ctx, InstructionResult::Revert, Gas::new(90));
+        // Pre-Regolith deposits are pre-paid on L1: a revert still reports the gas limit as
+        // used, so the frame's unused gas is not returned.
+        assert_eq!(gas.remaining(), 0);
+        assert_eq!(gas.total_gas_spent(), 100);
+        assert_eq!(gas.refunded(), 0);
+    }
+
+    #[test]
     fn test_consume_gas_sys_deposit_tx() {
         let ctx = Context::op()
             .with_tx(
@@ -577,13 +857,16 @@ mod tests {
         assert_eq!(gas.refunded(), 0);
     }
 
-    #[test]
-    fn test_commit_mint_value() {
+    /// A mint that overflows the balance saturates at `U256::MAX`.
+    #[rstest]
+    #[case::no_overflow(U256::from(1000), U256::from(1010))]
+    #[case::overflow(U256::MAX - U256::from(1), U256::MAX)]
+    fn test_commit_mint_value(#[case] start_balance: U256, #[case] expected_balance: U256) {
         let caller = Address::ZERO;
         let mut db = InMemoryDB::default();
         db.insert_account_info(
             caller,
-            AccountInfo { balance: U256::from(1000), ..Default::default() },
+            AccountInfo { balance: start_balance, ..Default::default() },
         );
 
         let mut ctx = Context::op()
@@ -597,7 +880,7 @@ mod tests {
             .with_cfg(CfgEnv::new_with_spec(OpSpecId::REGOLITH));
         ctx.modify_tx(|tx| {
             tx.deposit.source_hash = B256::from([1u8; 32]);
-            tx.deposit.mint = Some(10);
+            tx.deposit.mint = Some(U256::from(10));
         });
 
         let mut evm = ctx.build_op();
@@ -610,7 +893,7 @@ mod tests {
 
         // Check the account balance is updated.
         let account = evm.ctx().journal_mut().load_account(caller).unwrap();
-        assert_eq!(account.info.balance, U256::from(1010));
+        assert_eq!(account.info.balance, expected_balance);
     }
 
     #[test]
@@ -1331,6 +1614,129 @@ mod tests {
         assert_eq!(
             handler.validate_env(&mut evm),
             Err(EVMError::Transaction(OpTransactionError::MissingEnvelopedTx))
+        );
+    }
+
+    /// Runtime that reads 16 distinct cold storage slots (`PUSH1 n; SLOAD; POP` x16, then
+    /// `STOP`), costing ~33.7k gas — comfortably more than the capped budget in the test below
+    /// and comfortably less than the uncapped one.
+    fn cold_sload_burner_runtime() -> Bytes {
+        let mut code = Vec::new();
+        for slot in 0u8..16 {
+            code.extend_from_slice(&[0x60, slot, 0x54, 0x50]);
+        }
+        code.push(0x00);
+        Bytes::from(code)
+    }
+
+    /// A deposit above the EIP-7825 cap must execute on its whole gas limit (see
+    /// `OpHandler::tx_gas`). Deposits skip `validate_env`, so there is no rejection to observe;
+    /// the test measures execution instead: a payload costing more than the capped budget must
+    /// still complete, on both the plain and the inspected path.
+    #[rstest]
+    #[case::transact(false)]
+    #[case::inspect(true)]
+    fn deposit_is_exempt_from_the_tx_gas_limit_cap(#[case] inspect: bool) {
+        // An explicit low cap keeps the burner payload cheap while reproducing the real shape:
+        // capped budget = 30_000 - 21_000 intrinsic = 9_000 gas, which the payload exceeds.
+        const CAP: u64 = 30_000;
+        const DEPOSIT_GAS_LIMIT: u64 = 200_000;
+        let target = Address::from([0x44; 20]);
+
+        let runtime = cold_sload_burner_runtime();
+        let mut db = InMemoryDB::default();
+        db.insert_account_info(
+            target,
+            AccountInfo {
+                code_hash: keccak256(&runtime),
+                code: Some(Bytecode::new_raw(runtime)),
+                ..Default::default()
+            },
+        );
+
+        // Karst is Osaka-based, so EIP-7825 is live; the explicit cap only lowers it.
+        let mut cfg = CfgEnv::new_with_spec(OpSpecId::KARST);
+        cfg.tx_gas_limit_cap = Some(CAP);
+
+        let mut evm = Context::op()
+            .with_db(db)
+            .with_cfg(cfg)
+            .with_block(BlockEnv { gas_limit: 60_000_000, ..Default::default() })
+            .build_op_with_inspector(NoOpInspector);
+
+        let deposit = OpTransaction::builder()
+            .base(TxEnv::builder().gas_limit(DEPOSIT_GAS_LIMIT).call(target))
+            .source_hash(B256::from([0x11; 32]))
+            .build_fill();
+
+        let result = if inspect { evm.inspect_tx(deposit) } else { evm.transact(deposit) }
+            .expect("this deposit must not be rejected")
+            .result;
+
+        assert!(
+            result.is_success(),
+            "the deposit must receive its full gas limit, not the capped budget; got {result:?}",
+        );
+        assert!(
+            result.tx_gas_used() > CAP,
+            "the payload must actually exceed the cap or this test proves nothing; used {}",
+            result.tx_gas_used(),
+        );
+    }
+
+    /// Pins both arms of `OpHandler::tx_gas` on the split itself: a full run cannot observe the
+    /// non-deposit arm, because `validate_env` rejects a non-deposit above the cap before the
+    /// split is computed.
+    #[rstest]
+    #[case::explicit_cap(Some(30_000), 200_000)]
+    #[case::spec_derived_cap(None, 2 * TX_GAS_LIMIT_CAP)]
+    fn tx_gas_lifts_the_cap_for_deposits_only(
+        #[case] resting_cap: Option<u64>,
+        #[case] gas_limit: u64,
+    ) {
+        // Karst is Osaka-based, so an unset cap resolves to the EIP-7825 constant.
+        let cap = resting_cap.unwrap_or(TX_GAS_LIMIT_CAP);
+        let intrinsic = InitialAndFloorGas::new(21_000, 0);
+        let mut cfg = CfgEnv::new_with_spec(OpSpecId::KARST);
+        cfg.tx_gas_limit_cap = resting_cap;
+        let handler =
+            OpHandler::<_, EVMError<_, OpTransactionError>, EthFrame<EthInterpreter>>::new();
+
+        let deposit = OpTransaction::builder()
+            .base(TxEnv::builder().gas_limit(gas_limit))
+            .source_hash(B256::from([0x11; 32]))
+            .build_fill();
+        let mut evm = Context::op().with_cfg(cfg.clone()).with_tx(deposit).build_op();
+        let gas = handler.tx_gas(&mut evm, &intrinsic);
+        assert_eq!((gas.remaining(), gas.reservoir()), (gas_limit - 21_000, 0));
+
+        let non_deposit =
+            OpTransaction::builder().base(TxEnv::builder().gas_limit(gas_limit)).build_fill();
+        let mut evm = Context::op().with_cfg(cfg).with_tx(non_deposit).build_op();
+        let gas = handler.tx_gas(&mut evm, &intrinsic);
+        assert_eq!((gas.remaining(), gas.reservoir()), (cap - 21_000, gas_limit - cap));
+    }
+
+    /// The cap keeps applying to every other transaction driven through op-revm directly.
+    #[test]
+    fn non_deposit_above_the_tx_gas_limit_cap_is_rejected() {
+        let mut evm = Context::op()
+            .with_cfg(CfgEnv::new_with_spec(OpSpecId::KARST))
+            .with_block(BlockEnv { gas_limit: 60_000_000, ..Default::default() })
+            .build_op();
+        let tx = OpTransaction::builder()
+            .base(TxEnv::builder().gas_limit(TX_GAS_LIMIT_CAP + 1).call(Address::ZERO))
+            .build_fill();
+
+        let err = evm.transact(tx).expect_err("a non-deposit above the cap must be rejected");
+        assert!(
+            matches!(
+                err,
+                EVMError::Transaction(OpTransactionError::Base(
+                    InvalidTransaction::TxGasLimitGreaterThanCap { .. }
+                ))
+            ),
+            "expected TxGasLimitGreaterThanCap, got {err:?}",
         );
     }
 }

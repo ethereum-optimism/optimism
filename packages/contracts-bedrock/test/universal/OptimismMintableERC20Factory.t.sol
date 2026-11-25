@@ -12,6 +12,7 @@ import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC2
 
 // Libraries
 import { SemverComp } from "src/libraries/SemverComp.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -35,7 +36,7 @@ abstract contract OptimismMintableERC20Factory_TestInit is CommonTest {
         returns (address)
     {
         bytes memory constructorArgs = abi.encode(address(l2StandardBridge), _remote, _name, _symbol, _decimals);
-        bytes memory bytecode = abi.encodePacked(type(OptimismMintableERC20).creationCode, constructorArgs);
+        bytes memory bytecode = abi.encodePacked(DeployUtils.getCode("OptimismMintableERC20"), constructorArgs);
         bytes32 salt = keccak256(abi.encode(_remote, _name, _symbol, _decimals));
         bytes32 hash = keccak256(
             abi.encodePacked(bytes1(0xff), address(l2OptimismMintableERC20Factory), salt, keccak256(bytecode))

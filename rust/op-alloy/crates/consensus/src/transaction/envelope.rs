@@ -13,14 +13,6 @@ use alloy_primitives::{B256, Bytes, Signature, TxHash};
 
 /// The Ethereum [EIP-2718] Transaction Envelope, modified for OP Stack chains.
 ///
-/// # Note:
-///
-/// This enum distinguishes between tagged and untagged legacy transactions, as
-/// the in-protocol merkle tree may commit to EITHER 0-prefixed or raw.
-/// Therefore we must ensure that encoding returns the precise byte-array that
-/// was decoded, preserving the presence or absence of the `TransactionType`
-/// flag.
-///
 /// [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 #[derive(Debug, Clone, TransactionEnvelope)]
 #[envelope(tx_type_name = OpTxType, typed = OpTypedTransaction, serde_cfg(feature = "serde"))]
@@ -43,7 +35,10 @@ pub enum OpTxEnvelope {
     Deposit(Sealed<TxDeposit>),
     /// A [`TxPostExec`] tagged with type 0x7D.
     #[envelope(ty = 0x7D)]
-    #[serde(serialize_with = "crate::post_exec::serde_post_exec_tx_rpc")]
+    #[serde(
+        serialize_with = "crate::post_exec::serde_post_exec_tx_rpc",
+        deserialize_with = "crate::post_exec::serde_post_exec_tx_rpc_de"
+    )]
     PostExec(Sealed<TxPostExec>),
 }
 
@@ -73,6 +68,25 @@ impl OpTransaction for OpTxEnvelope {
 
     fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
         self.as_post_exec()
+    }
+}
+
+// Unused in-tree (callers lower to `OpTxEnvelope` first), but required by downstream chains with
+// their own extended envelope: once that envelope implements `OpTransaction`, it gets
+// `Recovered<_>` for free. The orphan rule forbids the downstream crate from writing this impl
+// itself — both the trait and `Recovered` are foreign there, and the local envelope only appears
+// in a covered position. Do not remove as dead code.
+impl<T: OpTransaction> OpTransaction for alloy_consensus::transaction::Recovered<T> {
+    fn is_deposit(&self) -> bool {
+        self.inner().is_deposit()
+    }
+
+    fn as_deposit(&self) -> Option<&Sealed<TxDeposit>> {
+        self.inner().as_deposit()
+    }
+
+    fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
+        self.inner().as_post_exec()
     }
 }
 
@@ -799,8 +813,78 @@ pub mod serde_bincode_compat {
 mod tests {
     use super::*;
     use alloc::vec;
-    use alloy_consensus::{SignableTransaction, Transaction};
+    use alloy_consensus::{SignableTransaction, Transaction, TxLegacy};
     use alloy_primitives::{Address, B256, Bytes, Signature, TxKind, U256, hex};
+    use alloy_rlp::Decodable;
+
+    /// A `TxDeposit` RLP body without its `0x7E` type byte must not decode as a deposit through
+    /// the envelope's untyped dispatch, on either the EIP-2718 or the network (RLP) entry point.
+    #[test]
+    fn bare_deposit_body_is_rejected() {
+        let canonical = TxDeposit {
+            source_hash: B256::with_last_byte(2),
+            from: Address::repeat_byte(0x42),
+            to: TxKind::Call(Address::repeat_byte(0x43)),
+            mint: U256::from(u128::MAX),
+            value: U256::from(1_000_000_000_000_000_000u128),
+            gas_limit: 50_000,
+            is_system_transaction: false,
+            input: Bytes::new(),
+        }
+        .encoded_2718();
+        assert_eq!(canonical[0], 0x7E);
+        let bare = &canonical[1..];
+        assert_eq!(bare[0], 0xF8, "input really is an untyped RLP list");
+
+        assert!(
+            OpTxEnvelope::decode_2718_exact(bare).is_err(),
+            "a deposit body without its 0x7E type byte must be rejected"
+        );
+        assert!(OpTxEnvelope::decode(&mut &bare[..]).is_err(), "same via network decoding");
+
+        // The properly tagged deposit still decodes.
+        let tagged = OpTxEnvelope::decode_2718_exact(&canonical).expect("tagged deposit decodes");
+        assert!(tagged.is_deposit());
+    }
+
+    /// The same for the `0x7D` post-exec type.
+    #[test]
+    fn bare_post_exec_body_is_rejected() {
+        let canonical = crate::build_post_exec_tx(1, vec![]).encoded_2718();
+        assert_eq!(canonical[0], crate::POST_EXEC_TX_TYPE_ID);
+        let bare = &canonical[1..];
+        assert!(bare[0] > 0x7F, "bare payload must not look like a type byte");
+
+        assert!(
+            OpTxEnvelope::decode_2718_exact(bare).is_err(),
+            "a post-exec body without its 0x7D type byte must be rejected"
+        );
+        assert!(OpTxEnvelope::decode(&mut &bare[..]).is_err(), "same via network decoding");
+        assert!(
+            OpTxEnvelope::decode_2718_exact(&canonical).unwrap().as_post_exec().is_some(),
+            "the tagged post-exec transaction still decodes"
+        );
+    }
+
+    /// Legacy is the one variant with a genuine untyped form; it must keep decoding through the
+    /// untyped dispatch.
+    #[test]
+    fn untyped_legacy_still_decodes() {
+        let tx = TxLegacy {
+            chain_id: Some(1),
+            nonce: 2,
+            gas_price: 3,
+            gas_limit: 21_000,
+            to: Address::repeat_byte(0x11).into(),
+            value: U256::from(4u64),
+            input: Bytes::new(),
+        };
+        let encoded =
+            OpTxEnvelope::Legacy(tx.into_signed(Signature::test_signature())).encoded_2718();
+        assert!(encoded[0] > 0x7F, "legacy transactions are untyped");
+        let decoded = OpTxEnvelope::decode_2718_exact(&encoded).expect("legacy decodes");
+        assert!(matches!(decoded, OpTxEnvelope::Legacy(_)));
+    }
 
     #[test]
     fn test_tx_gas_limit() {
@@ -837,7 +921,7 @@ mod tests {
         let tx = TxDeposit {
             source_hash: B256::left_padding_from(&[0xde, 0xad]),
             from: Address::left_padding_from(&[0xbe, 0xef]),
-            mint: 1,
+            mint: U256::from(1),
             gas_limit: 2,
             to: TxKind::Call(Address::left_padding_from(&[3])),
             value: U256::from(4_u64),
@@ -861,7 +945,7 @@ mod tests {
             input: Bytes::new(),
             source_hash: U256::MAX.into(),
             from: Address::random(),
-            mint: u128::MAX,
+            mint: U256::from(u128::MAX),
             is_system_transaction: false,
         };
         let tx_envelope = OpTxEnvelope::Deposit(tx.seal_slow());

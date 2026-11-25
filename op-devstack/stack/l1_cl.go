@@ -11,5 +11,6 @@ type L1CLNode interface {
 	Common
 	ChainID() eth.ChainID
 
+	BeaconHTTPAddr() string
 	BeaconClient() apis.BeaconClient
 }

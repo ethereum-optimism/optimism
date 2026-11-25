@@ -33,17 +33,12 @@ func SetStartBlockLiveStrategy(ctx context.Context, intent *state.Intent, env *E
 
 	var headerBlockRef *state.L1BlockRefJSON
 	if thisIntent.L1StartBlockHash != nil {
-		var l1BRJ state.L1BlockRefJSON
-		if err := l1Client.CallContext(ctx, &l1BRJ, "eth_getBlockByHash", thisIntent.L1StartBlockHash.Hex(), false); err != nil {
-			return fmt.Errorf("failed to get L1 block header for block: %w", err)
-		}
-		headerBlockRef = &l1BRJ
+		headerBlockRef, err = FetchL1BlockRefByHash(ctx, l1Client, *thisIntent.L1StartBlockHash)
 	} else {
-		var l1BRJ state.L1BlockRefJSON
-		if err := l1Client.CallContext(ctx, &l1BRJ, "eth_getBlockByNumber", "latest", false); err != nil {
-			return fmt.Errorf("failed to get L1 block header for block: %w", err)
-		}
-		headerBlockRef = &l1BRJ
+		headerBlockRef, err = FetchL1BlockRefByNumber(ctx, l1Client, "latest")
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get L1 block header for block: %w", err)
 	}
 	thisChainState.StartBlock = headerBlockRef
 

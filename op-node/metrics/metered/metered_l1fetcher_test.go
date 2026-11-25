@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -85,8 +86,8 @@ func TestDurationRecorded(t *testing.T) {
 		{
 			method: "FetchReceipts",
 			call: func(t *testing.T, fetcher *MeteredL1Fetcher, inner *testutils.MockL1Source) {
-				rcpts := types.Receipts{
-					&types.Receipt{},
+				rcpts := optypes.Receipts{
+					&optypes.Receipt{},
 				}
 				inner.ExpectFetchReceipts(hash, info, rcpts, expectedErr)
 

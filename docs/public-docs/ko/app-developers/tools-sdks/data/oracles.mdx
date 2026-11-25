@@ -1,0 +1,156 @@
+---
+title: 오라클
+description: 다양한 오라클에 대해 알아보고, 이를 사용하여 오프체인 데이터를 온체인에서 이용하는 방법과 난수 생성 방법을 알아봅니다.
+diataxis: reference
+---
+<Info>
+  이 페이지에는 아래에 설명된 특정 [포함 기준](#inclusion-criteria)을 충족하는 제공업체가 포함되어 있습니다. 서드파티 오라클의 추가 목록은 [커뮤니티 오라클 페이지](https://github.com/ethereum-optimism/developers/blob/main/community/tools/oracles.md)를 참조하십시오.
+</Info>
+
+이 참조 가이드는 Optimism에서 구축할 때 사용할 수 있는 다양한 오라클을 소개합니다. [오라클](https://ethereum.org/en/developers/docs/oracles/)은 오프체인 데이터를 온체인에 제공합니다. 이를 통해 블록체인에서 실행되는 코드가 다양한 정보에 접근할 수 있습니다.
+예를 들어, ETH를 담보로 받는 [스테이블코인](https://ethereum.org/en/stablecoins/)은 ETH/USD 환율을 알아야 합니다.
+
+*   주어진 양의 ETH에 대해 사용자에게 스테이블코인을 얼마나 지급할 수 있는가?
+*   담보가 부족하여 청산해야 하는 예치금이 있는가?
+
+## 보안 및 탈중앙화
+
+오라클마다 보안 가정과 탈중앙화 수준이 다릅니다.
+일반적으로 오라클은 정보를 생산하는 조직이 직접 운영하거나, 정확한 정보를 제공하는 주체에게 보상하고 잘못된 정보를 제공하는 주체에게 불이익을 주는 메커니즘을 갖추고 있습니다.
+
+## 오라클의 유형
+
+오라클에는 두 가지 유형이 있습니다.
+
+1.  **Push 오라클**은 지속적으로 업데이트되며, 항상 최신 정보를 온체인에서 이용할 수 있습니다.
+
+2.  **Pull 오라클**은 컨트랙트가 정보를 요청할 때만 업데이트됩니다.
+    Pull 오라클은 다시 두 가지 유형으로 나뉩니다.
+    1.  두 개의 트랜잭션이 필요한 이중 트랜잭션 오라클.
+        첫 번째 트랜잭션은 정보 요청으로, 일반적으로 오라클이 이벤트를 발생시키고, 이 이벤트가 오프체인 메커니즘을 트리거하여 (자체 트랜잭션을 통해) 응답을 제공하게 합니다.
+        두 번째 트랜잭션은 오라클의 결과를 실제로 온체인에서 읽어 사용합니다.
+    2.  하나의 트랜잭션만 필요한 단일 트랜잭션 오라클. 이 방식에서는 정보를 요청하는 트랜잭션에 콜백(주소 및 결과를 전달할 call data)이 포함됩니다.
+        오라클이 업데이트되면(이 역시 트랜잭션을 통해 이루어지지만, 사용자가 보내는 트랜잭션은 아닙니다), 오라클은 콜백을 사용하여 컨트랙트에 결과를 알립니다.
+
+## 난수 생성(RNG)
+
+블록체인 애플리케이션에서 난수 생성은 스마트 컨트랙트가 편향되지 않은 무작위 값에 접근할 수 있도록 보장합니다. 이는 생성형 NFT, 게임, commit & reveal 방식 등 특정 사용 사례에 필수적입니다. 신뢰할 수 있는 제3자 사용, blockhash 기반 방식, 검증 가능한 랜덤 함수(Verifiable Random Functions, VRF), 양자 난수 등 다양한 접근 방식이 있습니다. 각 방식은 단순성, 보안, 신뢰 가정 사이에 트레이드오프가 있으므로, 개발자는 자신의 사용 사례에 가장 적합한 옵션을 선택할 수 있습니다.
+
+## 오라클 목록
+
+### Gas 오라클
+
+OP Mainnet은 [gas 가격 및 관련 파라미터](/ko/op-stack/transactions/fees)에 대한 정보를 제공하는 [Gas Price Oracle](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/GasPriceOracle.sol)을 제공합니다.
+또한 트랜잭션을 보내기 전에 트랜잭션의 총비용을 계산해 줄 수도 있습니다.
+
+이 컨트랙트는 `0x420000000000000000000000000000000000000F` 주소에 있는 predeploy입니다.
+
+*   [OP Mainnet에서](https://explorer.optimism.io/address/0x420000000000000000000000000000000000000F#readContract)
+*   [OP Sepolia에서](https://testnet-explorer.optimism.io/address/0x420000000000000000000000000000000000000F)
+
+이것은 push 오라클입니다.
+OP Mainnet(및 testnet)은 gas 가격 파라미터가 변경될 때마다 해당 파라미터를 온체인에서 업데이트합니다.
+변동성이 클 수 있는 L1 gas 가격은 5분에 한 번만 push되며, 매번 최대 20%까지만 변경될 수 있습니다.
+
+*   [Blocknative](https://docs.blocknative.com/gas-prediction)는 OP Mainnet 및 Base를 포함한 일부 OP Stack 체인에 대해 gas 가격 분포를 예측하는 예측 모델링 기반의 실시간 gas 추정을 제공합니다. 이 [API](https://docs.blocknative.com/gas-prediction)는 Ethereum Mainnet에서도 base fee 비용을 추정하는 데 사용할 수 있습니다.
+
+### API3
+
+[API3 Market](https://market.api3.org/optimism)은 [Optimism Mainnet](https://market.api3.org/optimism) 및 [Testnet](https://market.api3.org/optimism-sepolia-testnet)에서 200개 이상의 가격 피드에 대한 접근을 제공합니다. 가격 피드는 네이티브 push 오라클로 작동하며, Market UI를 통해 즉시 활성화할 수 있습니다.
+
+가격 피드는 서명된 데이터를 사용하는 [퍼스트파티 오라클](https://docs.api3.org/oev-searchers/glossary.html#first-party-oracles)의 집계를 통해 제공되며, [OEV 회수](https://docs.api3.org/dapps/integration/security-considerations.html#oracle-extractable-value-oev)를 지원합니다.
+기존 데이터 피드와 달리, [API3 가격 피드](https://docs.api3.org/oev-searchers/in-depth/#dapps-catalog)를 읽으면 dApp이 가격 피드를 업데이트할 권리를 searcher 봇에게 경매로 판매할 수 있어, DeFi 머니 마켓의 사용자와 LP를 위해 더 효율적인 청산 프로세스를 지원합니다. 회수된 OEV는 dApp에 반환됩니다.
+
+API3의 QRNG는 양자역학에 기반한 진정한 난수를 dApp에 무료로 제공합니다. 자세한 내용은 [API3 웹사이트](https://api3.org/)에서 확인할 수 있습니다.
+
+### Chainlink
+
+[Chainlink](https://chain.link/)는 검증 가능한 웹을 구동하는 업계 표준 탈중앙화 컴퓨팅 플랫폼입니다.
+Chainlink는 은행, DeFi, 글로벌 무역, 게임 및 기타 주요 분야를 위한 검증 가능한 애플리케이션과 높은 무결성을 갖춘 시장을 지원합니다.
+
+Chainlink는 다수의 [가격 피드](https://docs.chain.link/docs/optimism-price-feeds/)를 제공합니다.
+이 피드는 프로덕션 네트워크인 [OP Mainnet](https://docs.chain.link/data-feeds/price-feeds/addresses?network=optimism\&page=1#optimism-mainnet)에서 사용할 수 있습니다.
+
+*   Data Feeds: Chainlink Data Feeds는 DeFi 등에서 고유한 스마트 컨트랙트 사용 사례를 지원하기 위한 안전하고 신뢰할 수 있으며 탈중앙화된 오프체인 데이터 소스를 제공합니다.
+*   Automation: Chainlink Automation은 매우 안정적이고 성능이 뛰어난 스마트 컨트랙트 자동화 솔루션으로, 개발자가 검증 가능하고 탈중앙화되며 비용 효율적인 방식으로 운영을 신속하게 확장하여 차세대 앱을 구축할 수 있게 해 줍니다.
+*   CCIP: Chainlink CCIP는 크로스체인 토큰 전송과 임의 메시지 전송을 지원하는 안전한 상호운용성(interoperability) 프로토콜을 제공합니다.
+
+이것은 push 오라클입니다. Chainlink 피드 사용 방법은 [Using Data Feeds 가이드](https://docs.chain.link/docs/get-the-latest-price/)를 참조하십시오.
+
+*   Chainlink VRF는 블록체인 기반 애플리케이션을 위한 암호학적으로 안전한 무작위성을 제공합니다. 자세한 내용은 [여기](https://chain.link/vrf)를 참조하십시오.
+
+### Chronicle
+
+Ethereum 최초의 오라클인 Chronicle의 탈중앙화 오라클 네트워크는 원래 DAI 개발을 위해 MakerDAO 내부에서 구축되었으며, 현재는 OP Mainnet 및 OP Stack 체인의 빌더들이 사용할 수 있습니다.
+
+*   **데이터 피드**: 빌더는 암호화폐 자산, 수익률, RWA를 포함한 65개 이상의 데이터 피드 중에서 선택할 수 있습니다. Chronicle의 데이터는 맞춤 구축된 데이터 모델을 통해 수집되며, Coinbase, Binance, Uniswap, Curve 등 토큰이 활발하게 거래되는 시장과 같은 Tier 1 주요 소스만 활용합니다.
+*   **투명성 및 무결성**: Chronicle의 오라클 네트워크는 완전히 투명하고 검증 가능합니다. [The Chronicle](https://chroniclelabs.org/dashboard/oracle/DAI/USD?blockchain=OPT\&txn=0x53e60e6e79eb938e5ca3ca6c56b0795e003dd6b3a17cfd810ca5042b3d33b680\&contract=0x104916d38828DA8B83a88A1775Aa058e1F0B1647)을 통해 데이터 소스와 모든 Validator/Signer의 신원을 포함하여 모든 오라클의 데이터 공급망을 실시간 및 과거 기록으로 확인할 수 있습니다. 사용자는 'verify' 기능을 사용하여 모든 오라클 업데이트의 무결성에 대해 암호학적으로 이의를 제기할 수 있습니다. 데이터는 Gitcoin, Etherscan, Infura, DeFi Saver, MakerDAO를 포함한 [Validator 커뮤니티](https://chroniclelabs.org/validators)가 독립적으로 수집합니다.
+*   **Gas 효율성:** Schnorr 기반 오라클 아키텍처를 개척한 Chronicle의 오라클은 다른 오라클 제공업체보다 업데이트당 gas를 60-80% 적게 사용합니다. 업데이트당 최저 비용 덕분에 Push 오라클 업데이트를 더 자주 수행할 수 있어, 더 정확하고 세분화된 데이터 보고가 보장됩니다.
+
+모든 오라클 구현은 필요에 맞게 맞춤화됩니다. 기존 데이터 모델 중 하나를 구현하거나, [Discord](https://discord.gg/CjgvJ9EspJ) 또는 [이메일](mailto:gm@chroniclelabs.org)로 Chronicle에 연락하여 맞춤 오라클 데이터 피드를 개발할 수 있습니다. 개발자는 [문서](https://docs.chroniclelabs.org/)를 통해 Chronicle Protocol의 아키텍처와 고유한 설계 선택에 대해 더 깊이 알아볼 수 있습니다.
+
+### Gelato
+
+[Gelato VRF](https://www.gelato.network/)를 사용하면 Optimism의 스마트 컨트랙트가 검증 가능한 무작위성에 접근할 수 있습니다. Gelato VRF는 신뢰할 수 있는 탈중앙화 난수 소스인 Drand를 활용하여 블록체인 애플리케이션에 진정한 무작위성을 제공합니다.
+
+Gelato VRF(Verifiable Random Function)는 EVM 호환 블록체인에서 신뢰할 수 있는 무작위성을 제공합니다. 간단한 개요는 다음과 같습니다.
+
+*   컨트랙트 배포: 난수를 요청하기 위한 인터페이스로 GelatoVRFConsumerBase.sol을 사용합니다.
+*   무작위성 요청: RequestedRandomness 이벤트를 발생시켜 난수가 필요하다는 신호를 보냅니다.
+*   처리: Gelato VRF가 Drand에서 난수를 가져옵니다.
+*   전달: fulfillRandomness 함수가 요청한 컨트랙트에 난수를 전달합니다.
+
+통합할 준비가 되셨습니까? [Gelato VRF 빠른 시작 가이드](https://docs.gelato.network/web3-services/vrf/quick-start)로 이동하십시오.
+
+### Pyth Network
+
+Pyth Network는 암호화폐, FX 페어, 주식, ETF, 원자재 전반에 걸쳐 400개 이상의 저지연, 고정확도 가격 피드를 제공하는 금융 오라클 네트워크입니다.
+
+*   Pyth의 가격 데이터는 거래소, 마켓 메이커, 금융 서비스 제공업체를 포함한 [95개 이상의 퍼스트파티 소스](https://pyth.network/publishers)에서 수집됩니다.
+*   Pyth [Price Feeds](https://www.pyth.network/developers/price-feed-ids)는 자산의 실시간 현물 가격과 함께 해당 가격에 대한 신뢰 구간 밴드를 제공합니다.
+*   Pyth [TradingView](https://docs.pyth.network/guides/how-to-create-tradingview-charts) 통합을 통해 사용자는 자신의 웹사이트와 UI에서 Pyth 가격을 조회하고 표시할 수 있습니다.
+
+[OP Mainnet 및 Sepolia(EVM Stable)](https://www.pyth.network/developers/price-feed-ids)용 Pyth Price Feed ID 전체 카탈로그를 살펴볼 수 있습니다.
+
+*   Pyth Entropy를 사용하면 개발자가 블록체인에서 안전한 난수를 빠르고 쉽게 생성할 수 있습니다. 자세한 내용은 [여기](https://pyth.network/blog/secure-random-numbers-for-blockchains)를 참조하십시오.
+
+### RedStone
+
+[RedStone](https://redstone.finance/)은 대출 시장, 무기한 선물(Perpetuals), 옵션, 스테이블코인, 수익률 애그리게이터 및 기타 새로운 유형의 DeFi 프로토콜을 위한 유연한 데이터 피드를 제공합니다. 이 인프라는 충분히 실전 검증되었으며 mainnet 전반에서 수억 달러 규모의 자산을 보호하고 있습니다.
+
+빌더는 3가지 전용 모델 중에서 데이터를 사용하는 방식을 선택할 수 있습니다.
+
+*   [RedStone Core](https://docs.redstone.finance/docs/dapps/redstone-pull/)(pull 오라클) - 10초 미만의 업데이트 시간, 폭넓은 피드 범위를 제공하며 대부분의 사용 사례에 가장 적합합니다. 모든 [Core Price Feeds](https://app.redstone.finance/#/app/tokens)는 OP Mainnet 및 OP Sepolia에서 사용할 수 있습니다.
+*   [RedStone Classic](https://docs.redstone.finance/docs/dapps/redstone-push/)(push 오라클) - 전통적인 오라클 인터페이스를 위해 설계된 프로토콜용으로, heartbeat와 편차 임계값을 맞춤 설정할 수 있습니다.
+*   [Hybrid (push + push) ERC7412](https://docs.redstone.finance/docs/dapps/redstone-erc7412/) - 특히 무기한 선물과 옵션을 위한 모델로, 가장 높은 업데이트 빈도와 선행 매매(front-running) 방지 기능을 제공합니다.
+
+통합에 관심이 있으십니까? RedStone 팀에 [연락하십시오](https://discord.com/invite/PVxBZKFr46)!
+
+### Stork
+
+[Stork](https://stork.network)는 OP Mainnet 및 OP Stack 체인의 DeFi 애플리케이션을 위해 초저지연, 높은 가동 시간, 폭넓은 자산 범위를 갖춘 가격 피드를 제공합니다.
+
+* **초저지연**: Stork는 초저지연으로 가격 데이터를 제공하여, 변동성이 높은 기간에도 프로토콜이 기능을 유지하고 시간에 민감한 거래 작업을 지원할 수 있도록 합니다.
+* **높은 신뢰성**: 동급 최고의 가동 시간과 신뢰성을 바탕으로, Stork는 일관된 데이터 가용성이 필요한 무기한 선물 시장, 대출 프로토콜, DeFi 생태계를 지원합니다.
+* **Day 1 자산 지원**: 새로운 디지털 자산에 대한 가격 피드를 첫날부터 사용할 수 있어, 프로토콜이 토큰 생성 이벤트 직후 바로 새로운 시장을 출시할 수 있습니다.
+* **폭넓은 범위**: Stork는 암호화폐 자산, 주식, ETF, 원자재 전반에 걸친 포괄적인 자산 범위를 제공하여, 파생상품 거래부터 담보 대출까지 다양한 DeFi 사용 사례를 지원합니다.
+
+시작하려면 [Stork 문서](https://docs.stork.network)를 방문하십시오.
+
+### DIA
+
+[DIA](https://www.diadata.org/)는 Optimism을 위해 검증 가능한 가격 피드를 제공하는 크로스체인 무신뢰(trustless) 오라클 네트워크입니다. DIA는 주요 시장에서 원시 거래 데이터를 직접 수집하고 온체인에서 계산하여 완전한 투명성과 데이터 무결성을 보장합니다.
+
+- 소스부터 대상 스마트 컨트랙트까지 완전한 검증 가능성.
+- 100개 이상의 주요 시장에서 직접 데이터를 수집하여 중개자 위험 제거.
+- 모든 주요 자산군에 걸쳐 20,000개 이상의 자산 지원.
+- 맞춤 소스와 방법론을 통한 맞춤형 오라클 구성.
+
+시작하려면:
+
+- [Optimism 오라클 통합 가이드 살펴보기](https://www.diadata.org/docs/guides/chain-specific-guide/optimism)
+- [맞춤 오라클 요청하기](https://www.diadata.org/docs/guides/how-to-guides/request-a-custom-oracle)
+
+## 다음 단계
+
+*   다른 개발자 도구를 찾고 계십니까? 더 많은 옵션을 살펴보려면 [앱 구축 개요](/ko/app-developers/guides/building-apps)를 참조하십시오!

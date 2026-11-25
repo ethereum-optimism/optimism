@@ -1,3 +1,3 @@
-DEPRECATED_TARGETS := elf go1-24 go1-25 clean
+DEPRECATED_TARGETS := diff-hello-elf clean
 
 include ../../justfiles/deprecated.mk

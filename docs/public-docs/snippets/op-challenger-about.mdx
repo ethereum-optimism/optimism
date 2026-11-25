@@ -1,0 +1,25 @@
+{/*
+  Shared op-challenger role description. This snippet is the single home for
+  the "what the challenger is and does" block that the setup pages share;
+  the conceptual deep-dive stays on /op-stack/fault-proofs/challenger.
+  Page-specific framing (guide leads, tutorial step context) stays on the
+  consumer page, outside the snippet.
+
+  Usage:
+    import OpChallengerAbout from "/snippets/op-challenger-about.mdx"
+
+    <OpChallengerAbout />
+
+  Consumer pages (keep this list in sync):
+    chain-operators/guides/configuration/op-challenger-config-guide.mdx
+    chain-operators/tutorials/create-l2-rollup/op-challenger-setup.mdx
+*/}
+
+The challenger is a critical fault proofs component that monitors dispute games and challenges invalid claims to protect your OP Stack chain. See the [op-challenger explainer](/op-stack/fault-proofs/challenger) for a general overview of this fault proofs feature.
+
+The challenger is responsible for:
+
+*   Monitoring dispute games created by the fault proof system
+*   Challenging invalid claims in dispute games
+*   Defending valid state transitions
+*   Resolving games when possible

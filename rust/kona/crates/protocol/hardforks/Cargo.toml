@@ -16,7 +16,7 @@ workspace = true
 
 [dependencies]
 # Workspace
-kona-protocol.workspace = true
+kona-genesis.workspace = true
 
 # Alloy
 alloy-eips.workspace = true
@@ -49,7 +49,7 @@ std = [
 	"alloy-eips/std",
 	"alloy-primitives/std",
 	"anyhow/std",
-	"kona-protocol/std",
+	"kona-genesis/std",
 	"once_cell/std",
 	"op-alloy-consensus/std",
 	"serde/std",

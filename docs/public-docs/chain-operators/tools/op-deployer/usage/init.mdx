@@ -1,6 +1,7 @@
 ---
 title: Init Command
 description: Learn how to initialize intent and state files for your OP Stack deployment.
+diataxis: reference
 ---
 
 The `init` command is used to create a new intent and state file in the specified directory. This command is the
@@ -38,12 +39,8 @@ configType = "standard"
 l1ChainID = 11155420
 fundDevAccounts = false
 useInterop = false
-l1ContractsLocator = "tag://op-contracts/v1.8.0-rc.4"
-l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
-
-[superchainRoles]
-  proxyAdminOwner = "0xeAAA3fd0358F476c86C26AE77B7b89a069730570"
-  guardian = "0xeAAA3fd0358F476c86C26AE77B7b89a069730570"
+l1ContractsLocator = "embedded"
+l2ContractsLocator = "embedded"
 
 [[chains]]
   id = "0x0000000000000000000000000000000000000000000000000000000000002390"
@@ -69,6 +66,9 @@ l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
 Before you can use your intent file for a deployment, you will need to update all zero values to whatever is
 appropriate for your chain. For dev environments, it is ok to use all EOAs/hot-wallets.
 </Warning>
+
+OP Deployer rejects an intent file that contains a key it does not know, and names the key in the error. The only
+exceptions are the free-form `globalDeployOverrides` and `deployOverrides` tables.
 
 ## Production Setup
 

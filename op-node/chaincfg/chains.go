@@ -5,9 +5,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/superchain"
-
+	registry "github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-core/superchain/bundle"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/superchain"
 )
 
 // OPSepolia loads the op-sepolia rollup config. This is intended for tests that need an arbitrary, valid rollup config.
@@ -23,14 +24,13 @@ func mustLoadRollupConfig(name string) *rollup.Config {
 	return cfg
 }
 
+// L2ChainIDToNetworkDisplayName maps chain IDs to registry chain names. It is built from the
+// registry's chain index alone — the index key is the chain ID (pinned by
+// TestAllEmbeddedConfigsDecodeStrictly) — so no chain config is parsed.
 var L2ChainIDToNetworkDisplayName = func() map[string]string {
 	out := make(map[string]string)
-	for _, netCfg := range superchain.Chains {
-		cfg, err := netCfg.Config()
-		if err != nil {
-			panic(fmt.Errorf("failed to load chain config: %w", err))
-		}
-		out[fmt.Sprintf("%d", cfg.ChainID)] = netCfg.Name
+	for chainID, netCfg := range bundle.Chains {
+		out[fmt.Sprintf("%d", chainID)] = netCfg.Name
 	}
 	return out
 }()
@@ -38,7 +38,7 @@ var L2ChainIDToNetworkDisplayName = func() map[string]string {
 // AvailableNetworks returns the selection of network configurations that is available by default.
 func AvailableNetworks() []string {
 	var networks []string
-	for _, cfg := range superchain.Chains {
+	for _, cfg := range bundle.Chains {
 		networks = append(networks, cfg.Name+"-"+cfg.Network)
 	}
 	sort.Strings(networks)
@@ -58,10 +58,10 @@ func handleLegacyName(name string) string {
 
 // ChainByName returns a chain, from known available configurations, by name.
 // ChainByName returns nil when the chain name is unknown.
-func ChainByName(name string) *superchain.ChainConfig {
+func ChainByName(name string) *registry.ChainConfig {
 	// Handle legacy name aliases
 	name = handleLegacyName(name)
-	for _, chainCfg := range superchain.Chains {
+	for _, chainCfg := range bundle.Chains {
 		if !strings.EqualFold(chainCfg.Name+"-"+chainCfg.Network, name) {
 			continue
 		}
@@ -80,7 +80,7 @@ func GetRollupConfig(name string) (*rollup.Config, error) {
 	if chainCfg == nil {
 		return nil, fmt.Errorf("invalid network: %q", name)
 	}
-	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainCfg.ChainID)
+	rollupCfg, err := superchain.LoadOPStackRollupConfig(chainCfg.ChainID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load rollup config: %w", err)
 	}

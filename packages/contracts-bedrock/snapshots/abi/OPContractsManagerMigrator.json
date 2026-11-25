@@ -107,12 +107,57 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_BridgeHookNotSupported",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_ChainAlreadyMigrated",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_ChainIdsNotAscending",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_CustomGasTokenNotSupported",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerMigrator_InteropNotEnabled",
+    "name": "OPContractsManagerMigrator_DisputeGameFinalityDelayMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_DisputeGameNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_DuplicateL2ChainId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidAbsolutePrestate",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidInitBond",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_InvalidStartingAnchorRoot",
     "type": "error"
   },
   {
@@ -122,7 +167,12 @@
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerMigrator_NoChains",
+    "name": "OPContractsManagerMigrator_InvalidZKDisputeGameConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_NotEnoughChains",
     "type": "error"
   },
   {
@@ -137,7 +187,27 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerMigrator_SuperchainConfigNeedsUpgrade",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerMigrator_SystemPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_WithdrawalDelayMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerMigrator_ZeroL2ChainId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SemverComp_InvalidSemverParts",
     "type": "error"
   }
 ]

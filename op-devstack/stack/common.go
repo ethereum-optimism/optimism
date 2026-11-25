@@ -1,9 +1,8 @@
 package stack
 
 import (
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type Common interface {

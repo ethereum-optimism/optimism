@@ -6,13 +6,14 @@ import (
 	"sync"
 	"time"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var inboxDepth = 100_000
@@ -23,7 +24,7 @@ var ErrLogNotFound = errors.New("log not found")
 var updateInterval = 1 * time.Second
 
 type UpdaterClient interface {
-	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error)
+	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, optypes.Receipts, error)
 }
 
 var _ UpdaterClient = &sources.EthClient{}
@@ -44,6 +45,11 @@ type RPCUpdater struct {
 	// the duration after the terminal state is set that the job is considered expired
 	expireTime time.Duration
 
+	// messageExpiryWindow is the interop message expiry window in seconds,
+	// sourced from the dependency set. A message is expired if the executing
+	// block timestamp exceeds the initiating message timestamp by more than this.
+	messageExpiryWindow uint64
+
 	inbox  chan *Job
 	closed chan struct{}
 
@@ -57,16 +63,18 @@ func NewUpdater(
 	chainID eth.ChainID,
 	client UpdaterClient,
 	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash],
+	messageExpiryWindow uint64,
 	log log.Logger) *RPCUpdater {
 	return &RPCUpdater{
 		chainID: chainID,
 		client:  client,
 		log:     log.New("component", "rpc_updater", "chain_id", chainID),
 		// inbox depth is set very deep to allow spikes in job creation plus generous buffer
-		inbox:      make(chan *Job, inboxDepth),
-		closed:     make(chan struct{}),
-		expireTime: 2 * time.Minute,
-		finalized:  finalized,
+		inbox:               make(chan *Job, inboxDepth),
+		closed:              make(chan struct{}),
+		expireTime:          2 * time.Minute,
+		finalized:           finalized,
+		messageExpiryWindow: messageExpiryWindow,
 	}
 }
 
@@ -90,14 +98,14 @@ func (t *RPCUpdater) Run(ctx context.Context) {
 			t.jobs.Store(job.ID(), job)
 		case <-processTicker.C:
 			t.log.Trace("processing jobs")
-			t.processJobs()
+			t.processJobs(ctx)
 			t.log.Trace("processed jobs done")
 		}
 	}
 }
 
 // processJobs handles updating all jobs in the map
-func (t *RPCUpdater) processJobs() {
+func (t *RPCUpdater) processJobs(ctx context.Context) {
 	var toUpdate []*Job
 	var toExpire []JobID
 
@@ -118,7 +126,7 @@ func (t *RPCUpdater) processJobs() {
 
 	// Update jobs that need updating
 	for _, job := range toUpdate {
-		err := t.UpdateJob(job)
+		err := t.UpdateJob(ctx, job)
 		if err != nil {
 			t.log.Error("error updating job", "error", err, "job", job.String())
 		}
@@ -176,15 +184,15 @@ func (t *RPCUpdater) ShouldExpire(job *Job) bool {
 	return false
 }
 
-func (t *RPCUpdater) UpdateJob(job *Job) error {
-	t.UpdateJobStatus(job)
+func (t *RPCUpdater) UpdateJob(ctx context.Context, job *Job) error {
+	t.UpdateJobStatus(ctx, job)
 	job.UpdateLastEvaluated(time.Now())
 	t.log.Debug("updated job", "job", job.String())
 	return nil
 }
 
-func (t *RPCUpdater) UpdateJobStatus(job *Job) {
-	blockInfo, receipts, err := t.client.FetchReceiptsByNumber(context.Background(), job.initiating.BlockNumber)
+func (t *RPCUpdater) UpdateJobStatus(ctx context.Context, job *Job) {
+	blockInfo, receipts, err := t.client.FetchReceiptsByNumber(ctx, job.initiating.BlockNumber)
 	if err != nil {
 		t.log.Error("error getting block receipts", "error", err)
 		job.UpdateStatus(jobStatusUnknown)
@@ -194,9 +202,9 @@ func (t *RPCUpdater) UpdateJobStatus(job *Job) {
 	// Add the block hash to the job's initiating hashes
 	job.AddInitiatingHash(blockInfo.Hash())
 
-	log, err := t.findLogEvent(receipts, job)
+	log, err := t.findLogEvent(receipts.Geth(), job)
 	if err == ErrLogNotFound {
-		t.log.Error("log not found", "error", err)
+		t.log.Warn("initiating log not found", "job", job.String())
 		job.UpdateStatus(jobStatusInvalid)
 		return
 	} else if err != nil {
@@ -204,13 +212,44 @@ func (t *RPCUpdater) UpdateJobStatus(job *Job) {
 		job.UpdateStatus(jobStatusUnknown)
 		return
 	}
-	// now to confirm the log event matches
-	actualHash := crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(log))
-	if actualHash != job.executingPayload {
-		t.log.Error("log hash mismatch", "expected", job.executingPayload, "got", actualHash)
+
+	// Origin must match the initiating message's declared origin address.
+	if log.Address != job.initiating.Origin {
+		t.log.Warn("initiating log origin mismatch", "expected", job.initiating.Origin, "got", log.Address)
 		job.UpdateStatus(jobStatusInvalid)
 		return
 	}
+
+	// The initiating block timestamp must match the timestamp bound into the message identifier.
+	if blockInfo.Time() != job.initiating.Timestamp {
+		t.log.Warn("initiating timestamp mismatch", "expected", job.initiating.Timestamp, "got", blockInfo.Time())
+		job.UpdateStatus(jobStatusTimestampMismatch)
+		return
+	}
+
+	// Payload hash must match (binds the message contents).
+	actualHash := crypto.Keccak256Hash(messages.LogToMessagePayload(log))
+	if actualHash != job.executingPayload {
+		t.log.Warn("log hash mismatch", "expected", job.executingPayload, "got", actualHash)
+		job.UpdateStatus(jobStatusInvalid)
+		return
+	}
+
+	// Expiry invariants: an executing message cannot precede its initiating
+	// message, and must be executed within the message expiry window.
+	if job.executingTimestamp < job.initiating.Timestamp {
+		t.log.Warn("executing message precedes initiating message",
+			"executing_ts", job.executingTimestamp, "initiating_ts", job.initiating.Timestamp)
+		job.UpdateStatus(jobStatusInvalid)
+		return
+	}
+	if job.executingTimestamp-job.initiating.Timestamp > t.messageExpiryWindow {
+		t.log.Warn("executing message is expired",
+			"executing_ts", job.executingTimestamp, "initiating_ts", job.initiating.Timestamp, "window", t.messageExpiryWindow)
+		job.UpdateStatus(jobStatusExpired)
+		return
+	}
+
 	job.UpdateStatus(jobStatusValid)
 }
 

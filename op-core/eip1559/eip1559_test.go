@@ -48,6 +48,71 @@ func TestValidateHolocene1559Params(t *testing.T) {
 	}
 }
 
+type forkChecker struct {
+	holocene bool
+	jovian   bool
+}
+
+func (f forkChecker) IsHolocene(uint64) bool { return f.holocene }
+func (f forkChecker) IsJovian(uint64) bool   { return f.jovian }
+
+// TestValidateOptimismExtraData covers the fork dispatch only: that the schedule selects the
+// right per-fork validator. Each validator's own edge cases are covered by its dedicated test
+// (e.g. TestValidateHoloceneExtraData).
+func TestValidateOptimismExtraData(t *testing.T) {
+	holoceneExtra := EncodeHoloceneExtraData(250, 6)
+	jovianExtra := EncodeJovianExtraData(250, 6, 7)
+
+	tests := []struct {
+		name     string
+		fc       forkChecker
+		extra    []byte
+		expected string
+	}{
+		{
+			name:  "pre-Holocene requires empty",
+			fc:    forkChecker{},
+			extra: nil,
+		},
+		{
+			name:     "pre-Holocene rejects non-empty",
+			fc:       forkChecker{},
+			extra:    []byte{0x00},
+			expected: "extraData must be empty before Holocene",
+		},
+		{
+			name:  "Holocene routes to Holocene validator",
+			fc:    forkChecker{holocene: true},
+			extra: holoceneExtra,
+		},
+		{
+			name:  "Jovian routes to Jovian validator",
+			fc:    forkChecker{holocene: true, jovian: true},
+			extra: jovianExtra,
+		},
+		{
+			// Holocene-sized extraData is valid length for Holocene but wrong for Jovian, so a
+			// Jovian-active check rejecting it confirms dispatch to the Jovian validator.
+			name:     "Jovian rejects Holocene-sized extraData",
+			fc:       forkChecker{holocene: true, jovian: true},
+			extra:    holoceneExtra,
+			expected: "Jovian extraData should be 17 bytes, got 9",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateOptimismExtraData(tc.fc, 0, tc.extra)
+			if tc.expected == "" && err != nil {
+				t.Errorf("Expected no error, but got: %v", err)
+			}
+			if tc.expected != "" && (err == nil || err.Error() != tc.expected) {
+				t.Errorf("Expected error: %s, but got: %v", tc.expected, err)
+			}
+		})
+	}
+}
+
 func TestValidateHoloceneExtraData(t *testing.T) {
 	tests := []struct {
 		name     string

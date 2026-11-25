@@ -8,6 +8,11 @@ interface IResourceMetering {
         uint64 prevBlockNum;
     }
 
+    struct PublishedParams {
+        uint64 prevPublishedGas;
+        uint64 prevBlockNum;
+    }
+
     struct ResourceConfig {
         uint32 maxResourceLimit;
         uint8 elasticityMultiplier;
@@ -22,6 +27,8 @@ interface IResourceMetering {
     event Initialized(uint8 version);
 
     function params() external view returns (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum); // nosemgrep
+
+    function publishedParams() external view returns (PublishedParams memory);
 
     function __constructor__() external;
 }

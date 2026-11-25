@@ -1,0 +1,123 @@
+---
+title: Fee vault 운영
+description: OP Stack 체인에서 fee vault를 구성, 모니터링하고 출금하는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+import FeeVaultAddresses from "/ko/snippets/fee-vault-addresses.mdx"
+
+이 가이드는 OP Stack 체인에서 fee vault를 관리하는 운영 측면을 다룹니다. fee vault의 작동 방식에 대한 개념적 개요는 [Fee vault](/ko/op-stack/transactions/fee-vaults)를 참조하세요.
+
+## 사전 요구 사항
+
+- **ProxyAdminOwner** 계정에 대한 접근 권한 (구성 변경에 필요)
+- L2 체인의 RPC 엔드포인트
+- `cast` CLI 도구 설치 ([Foundry](https://book.getfoundry.sh/getting-started/installation))
+
+## Fee vault 주소
+
+<FeeVaultAddresses />
+
+## Vault 상태 확인
+
+### 현재 잔액 보기
+
+```bash
+export L2_RPC=<L2_RPC>
+export VAULT=<VAULT_ADDRESS>
+
+cast balance $VAULT --rpc-url $L2_RPC
+```
+
+### 구성 보기
+
+```bash
+# Recipient address
+cast call $VAULT "recipient()" --rpc-url $L2_RPC
+
+# Minimum withdrawal amount (in wei)
+cast call $VAULT "minWithdrawalAmount()" --rpc-url $L2_RPC
+
+# Withdrawal network (0 = L1, 1 = L2)
+cast call $VAULT "withdrawalNetwork()" --rpc-url $L2_RPC
+
+# Total native token withdrawn historically
+cast call $VAULT "totalProcessed()" --rpc-url $L2_RPC
+```
+
+## 구성 업데이트
+
+<Warning>
+  구성을 변경하려면 **ProxyAdminOwner** 계정이 필요합니다. 체인이 ProxyAdminOwner로 multisig를 사용하는 경우 이러한 호출은 multisig를 통해 실행해야 합니다.
+</Warning>
+
+### 수령인 설정
+
+```bash
+export L2_RPC=<L2_RPC>
+export VAULT=<VAULT_ADDRESS>
+export PK=<PROXY_ADMIN_OWNER_PRIVATE_KEY>
+
+cast send --rpc-url $L2_RPC --private-key $PK \
+  $VAULT "setRecipient(address)" <NEW_RECIPIENT_ADDRESS>
+```
+
+### 최소 출금 금액 설정
+
+```bash
+cast send --rpc-url $L2_RPC --private-key $PK \
+  $VAULT "setMinWithdrawalAmount(uint256)" <AMOUNT_IN_WEI>
+```
+
+### 출금 네트워크 설정
+
+<Warning>
+CGT 체인에서는 fee vault가 L2 수령인과 함께 L2(`withdrawalNetwork = 1`)로 출금해야 합니다. 배포 시에는 CGT 체인에 대해 L1이 거부되지만 `setWithdrawalNetwork`는 이를 거부하지 않습니다. 배포 후 0으로 설정하면 `L2ToL1MessagePasser`가 CGT 체인에서 네이티브 토큰 값을 거부하므로, 0이 아닌 금액의 `withdraw()` 호출이 revert됩니다.
+</Warning>
+
+```bash
+# 0 = L1, 1 = L2
+cast send --rpc-url $L2_RPC --private-key $PK \
+  $VAULT "setWithdrawalNetwork(uint8)" <0_OR_1>
+```
+
+## 수수료 출금
+
+출금은 **무허가(permissionless)** 방식입니다. vault 잔액이 최소 임계값을 충족하면 누구나 출금을 실행할 수 있습니다.
+
+### 출금 실행
+
+```bash
+cast send --rpc-url $L2_RPC --private-key $PK \
+  $VAULT "withdraw()"
+```
+
+이 명령은 **vault 잔액 전체**를 구성된 수령인에게 출금합니다.
+
+### 네트워크별 출금 동작
+
+- **L2 출금 (`withdrawalNetwork = 1`)**: 자금이 L2의 수령인에게 즉시 전송됩니다. 트랜잭션은 단일 단계로 완료됩니다.
+- **L1 출금 (`withdrawalNetwork = 0`)**: `L2ToL1MessagePasser`를 통해 L2에서 L1으로의 출금이 시작됩니다. `withdraw()`를 호출한 후에도 다음을 수행해야 합니다.
+  1. 출금이 L2 output root에 포함될 때까지 대기
+  2. L1에서 출금 증명
+  3. 최종 확정(finalization) 기간 대기
+  4. L1에서 출금 최종 확정
+
+  L1 출금 완료에 대한 자세한 내용은 [출금 흐름](/ko/op-stack/bridging/withdrawal-flow)을 참조하세요.
+
+## 배포 시 초기 구성
+
+fee vault 수령인, 최소 출금 금액, 출금 네트워크는 `op-deployer`로 체인을 배포할 때 구성됩니다. 이러한 파라미터 설정에 대한 자세한 내용은 [op-deployer 설정 가이드](/ko/chain-operators/tutorials/create-l2-rollup/op-deployer-setup)를 참조하세요.
+
+## 모니터링
+
+fee vault를 정기적으로 모니터링하는 것이 좋습니다.
+
+- **Vault 잔액**: 잔액을 추적하여 출금을 실행할 수 있는 시점을 파악합니다.
+- **`totalProcessed`**: 시간 경과에 따른 누적 출금액을 모니터링하여 수익 추세를 파악합니다.
+
+## 다음 단계
+
+- 프로토콜 수준에서 vault가 작동하는 방식을 이해하려면 [fee vault 설명](/ko/op-stack/transactions/fee-vaults)을 읽어보세요.
+- 수수료 파라미터를 조정하는 방법은 [트랜잭션 수수료 101](/ko/chain-operators/guides/management/transaction-fees-101)을 참조하세요.
+- 자세한 수수료 계산은 [수수료 구성 요소 및 공식](/ko/op-stack/transactions/fees)을 검토하세요.

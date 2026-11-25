@@ -6,10 +6,9 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type Includer interface {
@@ -18,7 +17,7 @@ type Includer interface {
 
 type IncludedTx struct {
 	Transaction *types.Transaction
-	Receipt     *types.Receipt
+	Receipt     *optypes.Receipt
 }
 
 // EL represents an EVM execution layer.
@@ -41,39 +40,11 @@ func NewReliableEL(el EL, blockTime time.Duration) EL {
 }
 
 type ReceiptGetter interface {
-	TransactionReceipt(context.Context, common.Hash) (*types.Receipt, error)
+	TransactionReceipt(context.Context, common.Hash) (*optypes.Receipt, error)
 }
 
 type Sender interface {
 	SendTransaction(context.Context, *types.Transaction) error
-}
-
-// Budget tracks costs throughout a tranaction's lifecycle.
-type Budget interface {
-	// BeforeResubmit is called before the transaction is resubmitted. It allows the cost to be
-	// re-estimated in case of any changes (e.g., nonce increments affecting DA cost).
-	BeforeResubmit(oldBudgetedCost eth.ETH, tx *types.Transaction) (newBudgetedCost eth.ETH, err error)
-	// AfterCancel is called after the transaction is canceled, providing a chance to refund the
-	// cost.
-	AfterCancel(budgetedCost eth.ETH, tx *types.Transaction)
-	// AfterIncluded is called after the transaction is included, giving an opportunity to refund
-	// the difference between the budgeted cost and the actual cost.
-	AfterIncluded(budgetedCost eth.ETH, tx *IncludedTx)
-}
-
-type UnlimitedBudget struct{}
-
-var _ Budget = UnlimitedBudget{}
-
-func (UnlimitedBudget) AfterCancel(_ eth.ETH, _ *types.Transaction) {}
-func (UnlimitedBudget) AfterIncluded(_ eth.ETH, _ *IncludedTx)      {}
-func (n UnlimitedBudget) BeforeResubmit(oldCost eth.ETH, _ *types.Transaction) (eth.ETH, error) {
-	return oldCost, nil
-}
-
-type BasicBudget interface {
-	Credit(eth.ETH) eth.ETH
-	Debit(eth.ETH) (eth.ETH, error)
 }
 
 type ResubmitterObserver interface {
@@ -106,13 +77,4 @@ func NewPkSigner(pk *ecdsa.PrivateKey, chainID *big.Int) *PkSigner {
 		pk:      pk,
 		chainID: chainID,
 	}
-}
-
-type OPCostOracle interface {
-	// OPCost returns the total OP-specific costs for tx, such as the L1 cost and operator cost.
-	OPCost(*types.Transaction) *big.Int
-}
-
-type RPCClient interface {
-	BatchCallContext(context.Context, []rpc.BatchElem) error
 }

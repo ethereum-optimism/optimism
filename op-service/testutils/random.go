@@ -143,14 +143,19 @@ func RandomTo(rng *rand.Rand) *common.Address {
 	return &to
 }
 
-func isIsthmusSigner(signer types.Signer) bool {
-	isthusSigner := types.NewIsthmusSigner(signer.ChainID())
-	return signer.Equal(isthusSigner)
+// signerSupportsSetCode reports whether the signer accepts EIP-7702 set-code
+// transactions. It probes via SignatureValues instead of comparing against a
+// concrete signer, so it recognizes every signer from Prague on, including
+// the one types.LatestSignerForChainID returns.
+func signerSupportsSetCode(signer types.Signer) bool {
+	var sig [crypto.SignatureLength]byte
+	_, _, _, err := signer.SignatureValues(types.NewTx(&types.SetCodeTx{}), sig[:])
+	return err == nil
 }
 
 func RandomTx(rng *rand.Rand, baseFee *big.Int, signer types.Signer) *types.Transaction {
 	txTypeList := []int{types.LegacyTxType, types.AccessListTxType, types.DynamicFeeTxType}
-	if isIsthmusSigner(signer) {
+	if signerSupportsSetCode(signer) {
 		txTypeList = append(txTypeList, types.SetCodeTxType)
 	}
 	txType := txTypeList[rng.Intn(len(txTypeList))]
@@ -360,7 +365,7 @@ func RandomBlockPrependTxsWithTime(rng *rand.Rand, txCount int, t uint64, ptxs .
 		chainIDInt++
 	}
 	chainID := big.NewInt(chainIDInt)
-	signer := types.NewIsthmusSigner(chainID)
+	signer := types.NewPragueSigner(chainID)
 	txs := make([]*types.Transaction, 0, txCount+len(ptxs))
 	txs = append(txs, ptxs...)
 	for i := 0; i < txCount; i++ {
@@ -374,11 +379,15 @@ func RandomBlockPrependTxsWithTime(rng *rand.Rand, txCount int, t uint64, ptxs .
 		receipts = append(receipts, r)
 	}
 	header.GasUsed = cumulativeGasUsed
-	header.GasLimit = cumulativeGasUsed + uint64(rng.Int63n(int64(cumulativeGasUsed)))
-	body := types.Body{
-		Transactions: txs,
+	header.GasLimit = cumulativeGasUsed
+	if cumulativeGasUsed > 0 {
+		header.GasLimit += uint64(rng.Int63n(int64(cumulativeGasUsed)))
 	}
-	block := types.NewBlock(header, &body, receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+	header.TxHash = types.DeriveSha(types.Transactions(txs), trie.NewStackTrie(nil))
+	header.ReceiptHash = types.DeriveSha(types.Receipts(receipts), trie.NewStackTrie(nil))
+	header.Bloom = types.MergeBloom(receipts)
+	header.UncleHash = types.EmptyUncleHash
+	block := types.NewBlockWithHeader(header).WithBody(types.Body{Transactions: txs})
 	logIndex := uint(0)
 	for i, r := range receipts {
 		r.BlockHash = block.Hash()

@@ -9,8 +9,7 @@ use alloy_primitives::Address;
 use crate::FJORD_MAX_SEQUENCER_DRIFT;
 use crate::{
     AddressList, AltDAConfig, BaseFeeConfig, ChainGenesis, GRANITE_CHANNEL_TIMEOUT, HardForkConfig,
-    Roles, RollupConfig, SuperchainLevel, base_fee_params, base_fee_params_canyon,
-    params::base_fee_config,
+    OP_MAINNET_BASE_FEE_CONFIG, Roles, RollupConfig,
 };
 
 /// L1 chain configuration from the `alloy-genesis` crate.
@@ -32,8 +31,12 @@ pub type L1ChainConfig = alloy_genesis::ChainConfig;
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+// Reject any registry key the struct does not model, so a superchain-registry field that is added
+// but not wired up here fails loudly at deserialization (or at KONA_SYNC_SUPERCHAIN=true
+// regeneration) instead of being silently dropped. Mirrors HardForkConfig, which is already strict.
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ChainConfig {
-    /// Chain name (e.g. "Base")
+    /// Chain name (e.g. "OP Mainnet")
     #[cfg_attr(feature = "serde", serde(rename = "Name", alias = "name"))]
     pub name: String,
     /// L1 chain ID
@@ -48,9 +51,6 @@ pub struct ChainConfig {
     /// Chain explorer HTTP endpoint
     #[cfg_attr(feature = "serde", serde(rename = "Explorer", alias = "explorer"))]
     pub explorer: String,
-    /// Level of integration with the superchain.
-    #[cfg_attr(feature = "serde", serde(rename = "SuperchainLevel", alias = "superchain_level"))]
-    pub superchain_level: SuperchainLevel,
     /// Whether the chain is governed by optimism.
     #[cfg_attr(
         feature = "serde",
@@ -123,23 +123,17 @@ pub struct ChainConfig {
 impl ChainConfig {
     /// Returns the base fee params for the chain.
     pub fn base_fee_params(&self) -> BaseFeeParams {
-        self.optimism
-            .as_ref()
-            .map(|op| op.pre_canyon_params())
-            .unwrap_or_else(|| base_fee_params(self.chain_id))
+        self.base_fee_config().pre_canyon_params()
     }
 
     /// Returns the canyon base fee params for the chain.
     pub fn canyon_base_fee_params(&self) -> BaseFeeParams {
-        self.optimism
-            .as_ref()
-            .map(|op| op.post_canyon_params())
-            .unwrap_or_else(|| base_fee_params_canyon(self.chain_id))
+        self.base_fee_config().post_canyon_params()
     }
 
-    /// Returns the base fee config for the chain.
+    /// Returns the base fee config for the chain, defaulting to OP Mainnet's.
     pub fn base_fee_config(&self) -> BaseFeeConfig {
-        self.optimism.as_ref().map(|op| *op).unwrap_or_else(|| base_fee_config(self.chain_id))
+        self.optimism.unwrap_or(OP_MAINNET_BASE_FEE_CONFIG)
     }
 
     /// Loads the rollup config for the OP-Stack chain given the chain config and address list.
@@ -186,6 +180,7 @@ impl ChainConfig {
             #[cfg(feature = "rollup_config_override")]
             fjord_max_sequencer_drift: FJORD_MAX_SEQUENCER_DRIFT,
             chain_op_config: self.base_fee_config(),
+            settlement_chain_id: 0,
             alt_da_config: self.alt_da.clone(),
         }
     }
@@ -195,6 +190,25 @@ impl ChainConfig {
 #[cfg(feature = "serde")]
 mod tests {
     use super::*;
+    use alloc::string::ToString;
+
+    #[test]
+    fn base_fee_config_defaults_to_op_mainnet() {
+        let config = ChainConfig::default();
+        assert_eq!(config.base_fee_config(), OP_MAINNET_BASE_FEE_CONFIG);
+        assert_eq!(config.base_fee_params(), crate::OP_MAINNET_BASE_FEE_PARAMS);
+        assert_eq!(config.canyon_base_fee_params(), crate::OP_MAINNET_BASE_FEE_PARAMS_CANYON);
+
+        let custom = BaseFeeConfig {
+            eip1559_elasticity: 10,
+            eip1559_denominator: 50,
+            eip1559_denominator_canyon: 250,
+        };
+        let config = ChainConfig { optimism: Some(custom), ..Default::default() };
+        assert_eq!(config.base_fee_config(), custom);
+        assert_eq!(config.base_fee_params(), custom.pre_canyon_params());
+        assert_eq!(config.canyon_base_fee_params(), custom.post_canyon_params());
+    }
 
     #[test]
     fn test_chain_config_json() {
@@ -204,7 +218,6 @@ mod tests {
             "PublicRPC": "https://mainnet.base.org",
             "SequencerRPC": "https://mainnet-sequencer.base.org",
             "Explorer": "https://explorer.base.org",
-            "SuperchainLevel": 1,
             "GovernedByOptimism": false,
             "SuperchainTime": 0,
             "DataAvailabilityType": "eth-da",
@@ -290,6 +303,14 @@ mod tests {
     }
 
     #[test]
+    fn test_chain_config_rejects_superchain_level() {
+        let mut toml_src = include_str!("../../tests/fixtures/rehearsal-0-bn-0.toml").to_string();
+        toml_src.insert_str(0, "superchain_level = 0\n");
+        let err = toml::from_str::<ChainConfig>(&toml_src).unwrap_err();
+        assert!(err.to_string().contains("unknown field `superchain_level`"));
+    }
+
+    #[test]
     fn test_chain_config_without_interop_skipped_in_json() {
         // ChainConfig::default() has interop: None; serializing must omit the key entirely.
         let cfg = ChainConfig::default();
@@ -297,6 +318,9 @@ mod tests {
         assert!(!json.contains("interop"), "expected `interop` key to be omitted; got: {json}");
     }
 
+    // Guards the `deny_unknown_fields` attribute on ChainConfig: an otherwise-valid config with one
+    // extra top-level key must be rejected. (The rest of the config must deserialize cleanly so the
+    // parser reaches the unknown key and that is the sole error.)
     #[test]
     fn test_chain_config_unknown_field_json() {
         let raw: &str = r#"
@@ -305,7 +329,6 @@ mod tests {
             "PublicRPC": "https://mainnet.base.org",
             "SequencerRPC": "https://mainnet-sequencer.base.org",
             "Explorer": "https://explorer.base.org",
-            "SuperchainLevel": 1,
             "GovernedByOptimism": false,
             "SuperchainTime": 0,
             "DataAvailabilityType": "eth-da",
@@ -324,9 +347,9 @@ mod tests {
                 "holocene_time": 1736445601
             },
             "optimism": {
-            "eip1559Elasticity": "0x6",
-            "eip1559Denominator": "0x32",
-            "eip1559DenominatorCanyon": "0xfa"
+                "eip1559Elasticity": 6,
+                "eip1559Denominator": 50,
+                "eip1559DenominatorCanyon": 250
             },
             "alt_da": null,
             "genesis": {
@@ -378,6 +401,9 @@ mod tests {
         "#;
 
         let err = serde_json::from_str::<ChainConfig>(raw).unwrap_err();
-        assert_eq!(err.classify(), serde_json::error::Category::Data);
+        assert!(
+            err.to_string().contains("unknown field `unknown_field`"),
+            "expected deny_unknown_fields to reject the extra key, got: {err}"
+        );
     }
 }

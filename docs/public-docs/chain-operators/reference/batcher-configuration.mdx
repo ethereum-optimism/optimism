@@ -1,0 +1,63 @@
+---
+title: Batcher configuration reference
+description: Reference for all op-batcher configuration options, covering CLI flags, environment variables, and default values.
+diataxis: reference
+---
+
+import OpBatcherFlags from '/snippets/generated/op-batcher-flags.mdx';
+import { ConfigReferencePreamble } from '/snippets/config-reference-preamble.mdx';
+
+This page catalogues every configuration option for the op-batcher, the service
+that posts L2 sequencer data to L1 to make it available for verifiers.
+
+<ConfigReferencePreamble component="op-batcher" />
+
+For guidance on choosing values — the batcher policy, cost tuning, multi-blob
+transactions, and sequencer throttling — see the
+[batcher configuration guide](/chain-operators/guides/configuration/batcher).
+
+## Flags
+
+<OpBatcherFlags />
+
+## Throttling
+
+The `throttle.*` flags control how the batcher limits data availability (DA)
+usage when a backlog builds up. When the amount of sequenced data that has not
+yet been posted to L1 (the `unsafe_da_bytes` metric) exceeds
+`--throttle.unsafe-da-bytes-lower-threshold`, the batcher instructs block
+builders — over the `--l2-eth-rpc` endpoints, plus any endpoints listed in
+`--throttle.additional-endpoints` — to limit transaction and block DA sizes,
+scaling between the configured upper and lower size limits as the backlog
+grows.
+
+`--throttle.controller-type` selects how throttling intensity ramps with the
+backlog: `step`, `linear`, `quadratic` (the default), or the experimental
+`pid` controller, which is tuned with the six `throttle.pid-*` flags.
+
+For the design of the throttling subsystem, including the PID controller, see
+[`op-batcher/throttling.md`](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/throttling.md)
+in the monorepo.
+
+## Notes on selected flags
+
+### batch-type
+
+Span batches (`--batch-type=1`) aggregate consecutive L2 blocks into a single
+batch for better compression. See the
+[span batch feature page](/op-stack/features/span-batches) to learn more.
+
+### data-availability-type
+
+<Info>
+  Setting this flag to `auto` allows the batcher to automatically switch
+  between `calldata` and `blobs` based on the current L1 gas price.
+</Info>
+
+### altda.*
+
+The `altda.*` flags configure Alt-DA mode, a Beta feature of the OP Stack.
+While it has received initial review from core contributors, it is still
+undergoing testing, and may have bugs or other issues. See the
+[Alt-DA mode guide](/chain-operators/guides/features/alt-da-mode-guide) for
+setup instructions.

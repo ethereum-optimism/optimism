@@ -11,8 +11,8 @@ use alloy_primitives::B256;
 use futures_util::{FutureExt, Stream, StreamExt};
 use metrics::{Counter, Gauge, Histogram};
 use op_alloy_rpc_types_engine::OpFlashblockPayloadBase;
-use reth_evm::ConfigureEvm;
 use reth_metrics::Metrics;
+use reth_optimism_evm::ConfigurePostExecEvm;
 use reth_primitives_traits::{AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy};
 use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
 use reth_tasks::TaskExecutor;
@@ -54,7 +54,7 @@ pub struct CanonicalBlockNotification {
 pub struct FlashBlockService<
     N: NodePrimitives,
     S,
-    EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
+    EvmConfig: ConfigurePostExecEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>,
     Provider,
 > {
     /// Incoming flashblock stream.
@@ -97,7 +97,7 @@ where
     N: NodePrimitives,
     N::Receipt: FlashblockCachedReceipt,
     S: Stream<Item = eyre::Result<FlashBlock>> + Unpin + 'static,
-    EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>
+    EvmConfig: ConfigurePostExecEvm<Primitives = N, NextBlockEnvCtx: From<OpFlashblockPayloadBase> + Unpin>
         + Clone
         + 'static,
     Provider: StateProviderFactory
@@ -306,17 +306,34 @@ where
                             // Process first flashblock
                             self.process_flashblock(flashblock);
 
-                            // Batch process all other immediately available flashblocks
+                            // Batch process all other immediately available flashblocks, stopping
+                            // at an error so it gets the same backoff as one received alone.
+                            let mut stream_error = false;
                             while let Some(result) = self.incoming_flashblock_rx.next().now_or_never().flatten() {
                                 match result {
                                     Ok(fb) => self.process_flashblock(fb),
-                                    Err(err) => warn!(target: "flashblocks", %err, "Error receiving flashblock"),
+                                    Err(err) => {
+                                        self.metrics.stream_errors.increment(1);
+                                        warn!(
+                                            target: "flashblocks",
+                                            %err,
+                                            retry_period = CONNECTION_BACKOUT_PERIOD.as_secs(),
+                                            "Error receiving flashblock"
+                                        );
+                                        stream_error = true;
+                                        break;
+                                    }
                                 }
                             }
 
+                            // Schedules the flashblocks already received before backing off.
                             self.try_start_build_job();
+                            if stream_error {
+                                sleep(CONNECTION_BACKOUT_PERIOD).await;
+                            }
                         }
                         Some(Err(err)) => {
+                            self.metrics.stream_errors.increment(1);
                             warn!(
                                 target: "flashblocks",
                                 %err,
@@ -404,7 +421,7 @@ where
         }
 
         if let Err(err) = self.sequences.insert_flashblock(flashblock) {
-            trace!(target: "flashblocks", %err, "Failed to insert flashblock");
+            debug!(target: "flashblocks", %err, "Failed to insert flashblock");
         }
     }
 
@@ -522,6 +539,8 @@ struct FlashBlockServiceMetrics {
     current_block_height: Gauge,
     /// Current flashblock index.
     current_index: Gauge,
+    /// Number of errors from the subblocks stream, idle-timeout reconnects included.
+    stream_errors: Counter,
     /// Number of reorgs detected during canonical block reconciliation.
     reorg_count: Counter,
     /// Number of build results discarded due to state invalidation (reorg during build).

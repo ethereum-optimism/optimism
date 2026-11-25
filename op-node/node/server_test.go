@@ -13,18 +13,17 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 func TestOutputAtBlock(t *testing.T) {
@@ -105,8 +104,7 @@ func TestOutputAtBlock(t *testing.T) {
 	safeReader := &mockSafeDBReader{}
 	status := randomSyncStatus(rand.New(rand.NewSource(123)))
 	drClient.ExpectBlockRefWithStatus(0xdcdc89, ref, status, nil)
-	m := &opmetrics.NoopRPCMetrics{}
-	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, m, "0.0")
+	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, "0.0")
 	require.NoError(t, server.Start())
 	defer func() {
 		require.NoError(t, server.Stop())
@@ -141,8 +139,7 @@ func TestVersion(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	m := &opmetrics.NoopRPCMetrics{}
-	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, m, "0.0")
+	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, "0.0")
 	assert.NoError(t, server.Start())
 	defer func() {
 		require.NoError(t, server.Stop())
@@ -169,13 +166,12 @@ func TestDependencySet(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	m := &opmetrics.NoopRPCMetrics{}
 	depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 		eth.ChainIDFromUInt64(1): {},
 		eth.ChainIDFromUInt64(2): {},
 	})
 	require.NoError(t, err)
-	server := newRPCServer(rpcCfg, rollupCfg, depSet, l2Client, drClient, safeReader, log, m, "0.0")
+	server := newRPCServer(rpcCfg, rollupCfg, depSet, l2Client, drClient, safeReader, log, "0.0")
 	assert.NoError(t, server.Start())
 	defer func() {
 		require.NoError(t, server.Stop())
@@ -220,8 +216,7 @@ func TestSyncStatus(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	m := &opmetrics.NoopRPCMetrics{}
-	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, m, "0.0")
+	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, "0.0")
 	assert.NoError(t, server.Start())
 	defer func() {
 		require.NoError(t, server.Stop())
@@ -263,8 +258,7 @@ func TestSafeHeadAtL1Block(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	m := &opmetrics.NoopRPCMetrics{}
-	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, m, "0.0")
+	server := newRPCServer(rpcCfg, rollupCfg, nil, l2Client, drClient, safeReader, log, "0.0")
 	require.NoError(t, server.Start())
 	defer func() {
 		require.NoError(t, server.Stop())
@@ -343,4 +337,31 @@ func (m *mockSafeDBReader) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) 
 
 func (m *mockSafeDBReader) ExpectSafeHeadAtL1(l1BlockNum uint64, l1 eth.BlockID, safeHead eth.BlockID, err error) {
 	m.Mock.On("SafeHeadAtL1", l1BlockNum).Return(l1, safeHead, &err)
+}
+
+func (m *mockSafeDBReader) L1AtSafeHead(ctx context.Context, targetL2Num uint64) (l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	r := m.Mock.MethodCalled("L1AtSafeHead", targetL2Num)
+	return r[0].(eth.BlockID), r[1].(eth.BlockID), *r[2].(*error)
+}
+
+func (m *mockSafeDBReader) ExpectL1AtSafeHead(targetL2Num uint64, l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	m.Mock.On("L1AtSafeHead", targetL2Num).Return(l1, safeHead, &err)
+}
+
+func (m *mockSafeDBReader) FirstEntry(ctx context.Context) (l1 eth.BlockID, l2 eth.BlockID, err error) {
+	r := m.Mock.MethodCalled("FirstEntry")
+	return r[0].(eth.BlockID), r[1].(eth.BlockID), *r[2].(*error)
+}
+
+func (m *mockSafeDBReader) ExpectFirstEntry(l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	m.Mock.On("FirstEntry").Return(l1, safeHead, &err)
+}
+
+func (m *mockSafeDBReader) LastEntry(ctx context.Context) (l1 eth.BlockID, l2 eth.BlockID, err error) {
+	r := m.Mock.MethodCalled("LastEntry")
+	return r[0].(eth.BlockID), r[1].(eth.BlockID), *r[2].(*error)
+}
+
+func (m *mockSafeDBReader) ExpectLastEntry(l1 eth.BlockID, safeHead eth.BlockID, err error) {
+	m.Mock.On("LastEntry").Return(l1, safeHead, &err)
 }

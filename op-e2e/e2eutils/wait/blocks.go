@@ -15,10 +15,14 @@ import (
 )
 
 // BlockCaller is a subset of the [ethclient.Client] interface
-// encompassing methods that query for block information.
+// encompassing methods that query for block headers.
 type BlockCaller interface {
-	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	BlockNumber(ctx context.Context) (uint64, error)
+}
+
+type OutputAtBlockCaller interface {
+	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
 }
 
 func ForBlock(ctx context.Context, client BlockCaller, n uint64) error {
@@ -42,11 +46,11 @@ func ForBlock(ctx context.Context, client BlockCaller, n uint64) error {
 
 func ForBlockWithTimestamp(ctx context.Context, client BlockCaller, target uint64) error {
 	_, err := AndGet(ctx, time.Second, func() (uint64, error) {
-		head, err := client.BlockByNumber(ctx, nil)
+		head, err := client.HeaderByNumber(ctx, nil)
 		if err != nil {
 			return 0, err
 		}
-		return head.Time(), nil
+		return head.Time, nil
 	}, func(actual uint64) bool {
 		return actual >= target
 	})
@@ -96,12 +100,54 @@ func ForSafeBlock(ctx context.Context, rollupClient dial.RollupClientInterface, 
 	return err
 }
 
-func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Block, error) {
+func ForOutputAtBlock(ctx context.Context, rollupClient OutputAtBlockCaller, n uint64) (*eth.OutputResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	var lastErr error
+	output, err := AndGet(ctx, 500*time.Millisecond, func() (*eth.OutputResponse, error) {
+		output, err := rollupClient.OutputAtBlock(ctx, n)
+		if err != nil {
+			lastErr = err
+			return nil, nil
+		}
+		return output, nil
+	}, func(output *eth.OutputResponse) bool {
+		return output != nil
+	})
+	if err != nil && lastErr != nil {
+		return nil, fmt.Errorf("timed out waiting for L2 output at block %d: %w: %w", n, lastErr, err)
+	}
+	return output, err
+}
+
+func ForOutputAtBlockRPC(ctx context.Context, client *rpc.Client, blockNum any) error {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	var lastErr error
+	_, err := AndGet(ctx, 500*time.Millisecond, func() (bool, error) {
+		var output eth.OutputResponse
+		if err := client.CallContext(ctx, &output, "optimism_outputAtBlock", blockNum); err != nil {
+			lastErr = err
+			return false, nil
+		}
+		return true, nil
+	}, func(success bool) bool {
+		return success
+	})
+	if err != nil && lastErr != nil {
+		return fmt.Errorf("timed out waiting for L2 output at block %v: %w: %w", blockNum, lastErr, err)
+	}
+	return err
+}
+
+func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Header, error) {
 	safeBlockNumber := big.NewInt(rpc.SafeBlockNumber.Int64())
-	var current *types.Block
+	var current *types.Header
 	var err error
 	for {
-		current, err = client.BlockByNumber(ctx, safeBlockNumber)
+		current, err = client.HeaderByNumber(ctx, safeBlockNumber)
 		if err != nil {
 			// If block is not found (e.g. upon startup of chain, when there is no "safe block" yet)
 			// then it may be found later. Keep wait loop running.
@@ -121,7 +167,7 @@ func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Block, er
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			next, err := client.BlockByNumber(ctx, safeBlockNumber)
+			next, err := client.HeaderByNumber(ctx, safeBlockNumber)
 			if err != nil {
 				// If block is not found (e.g. upon startup of chain, when there is no "safe block" yet)
 				// then it may be found later. Keep wait loop running.
@@ -130,7 +176,7 @@ func ForNextSafeBlock(ctx context.Context, client BlockCaller) (*types.Block, er
 				}
 				return nil, err
 			}
-			if next.NumberU64() > current.NumberU64() {
+			if next.Number.Cmp(current.Number) > 0 {
 				return next, nil
 			}
 			time.Sleep(500 * time.Millisecond)

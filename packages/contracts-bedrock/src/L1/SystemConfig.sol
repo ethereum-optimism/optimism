@@ -64,9 +64,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     ///         layout from the way that `solc` lays out storage. The `op-node` uses a storage
     ///         proof to fetch this value.
     /// @dev    NOTE: this value will be migrated to another storage slot in a future version.
-    ///         User input should not be placed in storage in this contract until this migration
-    ///         happens. It is unlikely that keccak second preimage resistance will be broken,
-    ///         but it is better to be safe than sorry.
+    ///         Owner-set values in mapping slots (`isFeatureEnabled`, `privateConfig`) cannot
+    ///         reach this slot without a keccak second preimage.
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /// @notice Storage slot that the L1CrossDomainMessenger address is stored at.
@@ -92,8 +91,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Storage slot that the OPCM address is stored at.
     bytes32 public constant OPCM_SLOT = bytes32(uint256(keccak256("systemconfig.opcm")) - 1);
 
-    /// @notice Storage slot that the batch inbox address is stored at.
-    bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+    /// @notice Legacy slot for the batch inbox address, which lives only in the rollup config.
+    bytes32 internal constant LEGACY_BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
@@ -103,8 +102,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     ///         optimizations and improvements are made to the system at large.
     uint64 internal constant MAX_GAS_LIMIT = 500_000_000;
 
-    /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
-    ///         Deprecated since the Ecotone network upgrade
+    /// @notice Fixed L2 gas overhead. Ignored by op-node after Ecotone.
+    /// @custom:deprecated No longer writable, and `setGasConfigEcotone` emits zero in its place.
+    ///                    Retained so offchain readers of the getter keep working.
     uint256 public overhead;
 
     /// @notice Dynamic L2 gas overhead. Used as part of the L2 fee calculation.
@@ -158,6 +158,11 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Bytes32 feature flag name to boolean enabled value.
     mapping(bytes32 => bool) public isFeatureEnabled;
 
+    /// @notice Configuration of the private chains of this chain's settlement group (OP Private),
+    ///         by private chain ID and update type. Each value uses the same encoding as the
+    ///         `ConfigUpdate` data for that update type. See `setPrivateConfig`.
+    mapping(uint256 => mapping(UpdateType => bytes)) public privateConfig;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
@@ -169,14 +174,24 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param enabled Whether the feature is enabled.
     event FeatureSet(bytes32 indexed feature, bool indexed enabled);
 
+    /// @notice Emitted when the configuration of a private chain is updated. Same shape as
+    ///         `ConfigUpdate`, plus the private chain's ID.
+    /// @param version    SystemConfig version.
+    /// @param chainId    Chain ID of the private chain.
+    /// @param updateType Type of update.
+    /// @param data       Encoded update data, same encoding as `ConfigUpdate` for `updateType`.
+    event PrivateConfigUpdate(
+        uint256 indexed version, uint256 indexed chainId, UpdateType indexed updateType, bytes data
+    );
+
     /// @notice Thrown when attempting to enable/disable a feature when already enabled/disabled,
     ///         respectively.
     error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
-    /// @custom:semver 3.14.2
+    /// @custom:semver 4.4.0
     function version() public pure virtual returns (string memory) {
-        return "3.14.2";
+        return "4.4.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -196,8 +211,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param _gasLimit          Initial gas limit.
     /// @param _unsafeBlockSigner Initial unsafe block signer address.
     /// @param _config            Initial ResourceConfig.
-    /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
-    ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     /// @param _l2ChainId         The L2 chain ID that this SystemConfig configures.
     /// @param _superchainConfig  The SuperchainConfig contract address.
@@ -209,7 +222,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         IResourceMetering.ResourceConfig memory _config,
-        address _batchInbox,
         SystemConfig.Addresses memory _addresses,
         uint256 _l2ChainId,
         ISuperchainConfig _superchainConfig
@@ -230,7 +242,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         _setGasLimit(_gasLimit);
 
         Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
-        Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
         Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
         Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
@@ -239,6 +250,10 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         Storage.setAddress(DELAYED_WETH_SLOT, _addresses.delayedWETH);
         Storage.setAddress(OPCM_SLOT, _addresses.opcm);
         _setStartBlock();
+
+        // TODO(#22141): Remove these writes and LEGACY_BATCH_INBOX_SLOT after U20.
+        overhead = 0;
+        Storage.setAddress(LEGACY_BATCH_INBOX_SLOT, address(0));
 
         _setResourceConfig(_config);
 
@@ -331,11 +346,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         });
     }
 
-    /// @notice Getter for the BatchInbox address.
-    function batchInbox() external view returns (address addr_) {
-        addr_ = Storage.getAddress(BATCH_INBOX_SLOT);
-    }
-
     /// @notice Getter for the StartBlock number.
     function startBlock() external view returns (uint256 startBlock_) {
         startBlock_ = Storage.getUint(START_BLOCK_SLOT);
@@ -377,27 +387,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
     }
 
-    /// @notice Updates gas config. Can only be called by the owner.
-    ///         Deprecated in favor of setGasConfigEcotone since the Ecotone upgrade.
-    /// @param _overhead New overhead value.
-    /// @param _scalar   New scalar value.
-    function setGasConfig(uint256 _overhead, uint256 _scalar) external onlyOwner {
-        _setGasConfig(_overhead, _scalar);
-    }
-
-    /// @notice Internal function for updating the gas config.
-    /// @param _overhead New overhead value.
-    /// @param _scalar   New scalar value.
-    function _setGasConfig(uint256 _overhead, uint256 _scalar) internal {
-        require((uint256(0xff) << 248) & _scalar == 0, "SystemConfig: scalar exceeds max.");
-
-        overhead = _overhead;
-        scalar = _scalar;
-
-        bytes memory data = abi.encode(_overhead, _scalar);
-        emit ConfigUpdate(VERSION, UpdateType.FEE_SCALARS, data);
-    }
-
     /// @notice Updates gas config as of the Ecotone upgrade. Can only be called by the owner.
     /// @param _basefeeScalar     New basefeeScalar value.
     /// @param _blobbasefeeScalar New blobbasefeeScalar value.
@@ -414,7 +403,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         scalar = (uint256(0x01) << 248) | (uint256(_blobbasefeeScalar) << 32) | _basefeeScalar;
 
-        bytes memory data = abi.encode(overhead, scalar);
+        // Emit zero for the deprecated overhead, which op-node ignores after Ecotone. The word
+        // stays because consumers expect 64 bytes of event data.
+        bytes memory data = abi.encode(uint256(0), scalar);
         emit ConfigUpdate(VERSION, UpdateType.FEE_SCALARS, data);
     }
 
@@ -499,6 +490,21 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit ConfigUpdate(VERSION, UpdateType.DA_FOOTPRINT_GAS_SCALAR, data);
     }
 
+    /// @notice Updates the configuration of a private chain of this chain's settlement group (OP
+    ///         Private). Can only be called by the owner. Stores `_data` in `privateConfig` and
+    ///         emits `PrivateConfigUpdate`. It does not emit `ConfigUpdate` and does not change
+    ///         this chain's own configuration, so nodes of this chain ignore it.
+    ///         `_data` uses the same encoding as the `ConfigUpdate` data for `_updateType`, e.g.
+    ///         `abi.encode(address)` for `UNSAFE_BLOCK_SIGNER`. The contract does not validate
+    ///         `_chainId`, `_updateType` or `_data`. Nodes of the private chain validate them.
+    /// @param _chainId    Chain ID of the private chain.
+    /// @param _updateType Type of update.
+    /// @param _data       Encoded update data.
+    function setPrivateConfig(uint256 _chainId, UpdateType _updateType, bytes calldata _data) external onlyOwner {
+        privateConfig[_chainId][_updateType] = _data;
+        emit PrivateConfigUpdate(VERSION, _chainId, _updateType, _data);
+    }
+
     /// @notice Sets the start block in a backwards compatible way. Proxies
     ///         that were initialized before the startBlock existed in storage
     ///         can have their start block set by a user provided override.
@@ -564,28 +570,23 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         // Handle feature-specific safety logic here.
         if (_feature == Features.ETH_LOCKBOX) {
-            // It would probably better to check that the ETHLockbox contract is set inside the
-            // OptimismPortal2 contract before you're allowed to enable the feature here, but the
-            // portal checks that the feature is set before allowing you to set the lockbox, so
-            // these checks are good enough.
-
-            // Lockbox shouldn't be unset if the ethLockbox address is still configured in the
-            // OptimismPortal2 contract. Doing so would cause the system to start keeping ETH in
-            // the portal. This check means there's no way to stop using ETHLockbox at the moment
-            // after it's been configured (which is expected).
-            if (
-                isFeatureEnabled[_feature] && !_enabled
-                    && address(IOptimismPortal2(payable(optimismPortal())).ethLockbox()) != address(0)
-            ) {
+            // ETHLockbox cannot be disabled.
+            if (!_enabled) {
                 revert SystemConfig_InvalidFeatureState();
             }
 
-            // Lockbox can't be set or unset if the system is currently paused because it would
-            // change the pause identifier which would potentially cause the system to become
-            // unpaused unexpectedly.
-            if (paused()) {
+            // Enabling ETH_LOCKBOX switches paused() from the OptimismPortal identifier to the
+            // ETHLockbox identifier. Refuse while the OptimismPortal identifier is paused so the
+            // chain cannot become unpaused unexpectedly.
+            if (superchainConfig.paused(optimismPortal())) {
                 revert SystemConfig_InvalidFeatureState();
             }
+        }
+
+        // INTEROP cannot be disabled as the OPCM relies on it to reject re-migrating a
+        // member of an interop set.
+        if (_feature == Features.INTEROP && !_enabled) {
+            revert SystemConfig_InvalidFeatureState();
         }
 
         // Set the feature.
@@ -595,20 +596,12 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit FeatureSet(_feature, _enabled);
     }
 
-    /// @notice Returns the current pause state for this network. If the network is using
-    ///         ETHLockbox, the system is paused if either the global pause is active or the pause
-    ///         is active where the ETHLockbox address is used as the identifier. If the network is
-    ///         not using ETHLockbox, the system is paused if either the global pause is active or
-    ///         the pause is active where the OptimismPortal address is used as the identifier.
+    /// @notice Returns the current pause state for this network. The pause state is resolved
+    ///         through the ETHLockbox, which is paused if either the global pause is active or the
+    ///         pause is active where the ETHLockbox address is used as the identifier.
     /// @return bool True if the system is paused, false otherwise.
     function paused() public view returns (bool) {
-        // Determine the appropriate chain identifier based on the feature flags.
-        address identifier = isFeatureEnabled[Features.ETH_LOCKBOX]
-            ? address(IOptimismPortal2(payable(optimismPortal())).ethLockbox())
-            : address(optimismPortal());
-
-        // Check if either global or local pause is active.
-        return superchainConfig.paused(address(0)) || superchainConfig.paused(identifier);
+        return IOptimismPortal2(payable(optimismPortal())).ethLockbox().paused();
     }
 
     /// @notice Returns the guardian address of the SuperchainConfig.

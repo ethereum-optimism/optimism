@@ -11,15 +11,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/flags"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
-func printVerificationSummary(logger log.Logger, verified, skipped, partiallyVerified, failed int, partiallyVerifiedContracts, failedContracts map[string][]string) {
+func printVerificationSummary(logger log.Logger, verified, skipped, partiallyVerified, failed, unavailable int, partiallyVerifiedContracts, failedContracts map[string][]string) {
 	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	logger.Info("Verification Summary")
 	logger.Info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	logger.Info("Results", "verified", verified, "skipped", skipped, "partially_verified", partiallyVerified, "failed", failed)
+	logger.Info("Results", "verified", verified, "skipped", skipped, "partially_verified", partiallyVerified, "failed", failed, "unavailable", unavailable)
 
 	if len(partiallyVerifiedContracts) > 0 {
 		logger.Info("Partially verified contracts by verifier (forge cannot upgrade to full verification - this is expected behavior per foundry-rs/foundry#8638):")
@@ -43,6 +43,8 @@ func printVerificationSummary(logger log.Logger, verified, skipped, partiallyVer
 
 	if failed > 0 {
 		logger.Warn(fmt.Sprintf("Failed to verify %d contracts", failed))
+	} else if unavailable > 0 {
+		logger.Warn(fmt.Sprintf("Contract verification unavailable for %d verifiers", unavailable))
 	} else if partiallyVerified > 0 && verified == 0 && skipped == 0 {
 		logger.Info("All contracts are partially verified (forge cannot upgrade to full verification - this is expected behavior per foundry-rs/foundry#8638)")
 	} else if skipped > 0 {
@@ -54,9 +56,9 @@ func printVerificationSummary(logger log.Logger, verified, skipped, partiallyVer
 }
 
 func VerifyCLI(cliCtx *cli.Context) error {
-	logCfg := oplog.ReadCLIConfig(cliCtx)
-	l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-	oplog.SetGlobalLogHandler(l.Handler())
+	logCfg := logcli.ReadCLIConfig(cliCtx)
+	l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+	logcli.SetGlobalLogHandler(l.Handler())
 
 	l1RPCUrl := cliCtx.String(flags.L1RPCURLFlagName)
 	verifierAPIKey := cliCtx.String(flags.VerifierAPIKeyFlagName)
@@ -117,7 +119,7 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	}
 	l.Info("Downloaded artifacts")
 
-	bundle, err := GetBundleFromFile(inputFile)
+	bundle, err := GetBundleFromFile(l, inputFile)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve bundle: %w", err)
 	}
@@ -189,7 +191,7 @@ func VerifyCLI(cliCtx *cli.Context) error {
 		}
 	}
 
-	printVerificationSummary(l, totalVerified, totalSkipped, totalPartiallyVerified, totalFailed, allPartiallyVerifiedContracts, allFailedContracts)
+	printVerificationSummary(l, totalVerified, totalSkipped, totalPartiallyVerified, totalFailed, 0, allPartiallyVerifiedContracts, allFailedContracts)
 
 	if totalFailed > 0 {
 		return fmt.Errorf("failed to verify %d contracts", totalFailed)

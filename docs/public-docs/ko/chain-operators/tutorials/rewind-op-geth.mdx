@@ -1,0 +1,57 @@
+---
+title: op-geth 되감기 방법
+description: op-geth 노드를 이전 chain head로 되감는 방법을 알아봅니다.
+diataxis: how-to
+---
+
+## 개요 
+
+이 튜토리얼에서는 단일 op-geth 인스턴스를 이전 chain head로 되감는 방법을 알아봅니다. 
+이는 분기된 node를 수정하거나, 이전 체인 상태에서 archival state 또는 safedb를 다시 생성할 때 유용합니다.
+
+## op-geth 되감기
+
+다음 단계에 따라 op-geth node를 되감습니다.
+
+<Steps>
+  <Step title="CL 종료">
+    op-geth 인스턴스를 구동하는 모든 CL 클라이언트는 이후 되감기 작업을 방해하지 않도록 중지해야 합니다. 
+    일반적으로 로컬에서 실행 중인 `op-node` 또는 `kona-node` 애플리케이션, Docker 컨테이너 또는 Kubernetes 클러스터의 pod입니다.
+
+    <Note>
+        해당 앱을 동기화하여 pod를 다시 확장해 버리는 ArgoCD 같은 도구가 동작하고 있지 않은지 확인하십시오.
+    </Note>
+  </Step>
+  <Step title="되감기 대상 결정">
+    되감을 블록 번호/해시를 이미 알고 있다면 다음 단계로 진행할 수 있습니다.
+
+    되감을 *timestamp*만 알고 있다면 다음 명령으로 해당 블록을 찾을 수 있습니다.
+
+    ```bash
+    cast find-block 1741890000 -r <ETH_RPC_URL>
+    ```
+
+    여기서 `<ETH_RPC_URL>`은 op-geth node의 RPC 엔드포인트를 가리킵니다. 예를 들어 기본 포트를 사용하는 로컬 인스턴스라면 `http://localhost:8545`입니다. `1741890000`은 예시 unix timestamp입니다. 사람이 읽는 시간을 unix timestamp로 변환하려면 https://www.epochconverter.com/ 등을 사용할 수 있습니다.
+  </Step>
+  <Step title="op-geth 되감기">
+    JWT secret과 *open* 및 *admin* 포트(기본값 `8545` 및 `8551`)가 필요합니다. 
+    그런 다음 [monorepo](https://github.com/ethereum-optimism/optimism/tree/develop/op-wheel)의 `op-wheel` 명령을 사용하여 되감기를 실행할 수 있습니다.
+
+    ```bash
+    # save JWT secret to env var
+    export JWT="YourJWTSecret123"
+    # assuming default ports 8545 and 8551 and local endpoint
+    go run ./op-wheel/cmd engine rewind \
+    --engine.open http://localhost:8545 \
+    --engine http://localhost:8551 \
+    --engine.jwt-secret $JWT \
+    --log.level DEBUG \
+    --set-head --to 8460000
+    ```
+
+    이 명령은 op-geth node를 블록 번호 `8460000`인 블록으로 되감습니다. 올바른 블록 번호는 2단계에서 결정해 두어야 합니다.
+  </Step>
+    <Step title="CL 시작">
+        이제 CL 클라이언트를 다시 시작할 수 있습니다. 클라이언트는 되감긴 block head부터 동기화합니다. 
+    </Step>        
+</Steps>

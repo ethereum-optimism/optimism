@@ -8,14 +8,14 @@ import (
 
 func withSuperRootGamesAtGenesisDeployerFeatures(cfg PresetConfig) PresetConfig {
 	cfg.DeployerOptions = append([]DeployerOption{
-		WithDevFeatureEnabled(devfeatures.OptimismPortalInteropFlag),
+		WithUseInterop(),
 		WithDevFeatureEnabled(devfeatures.SuperRootGamesMigrationFlag),
 	}, cfg.DeployerOptions...)
 	return cfg
 }
 
 // NewSingleChainSuperRootAtGenesisRuntimeWithConfig builds a single-chain
-// supernode runtime with SUPER_PERMISSIONED_CANNON installed in the
+// supernode runtime with SUPER_PERMISSIONED installed in the
 // permissioned slot at initial deploy.
 func NewSingleChainSuperRootAtGenesisRuntimeWithConfig(t devtest.T, cfg PresetConfig) *MultiChainRuntime {
 	cfg = withSuperRootGamesAtGenesisDeployerFeatures(cfg)

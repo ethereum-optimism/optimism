@@ -6,7 +6,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -21,14 +21,17 @@ type CLIConfig struct {
 	L1BeaconAddr               string
 	L1BeaconFallbackAddrs      []string
 	RPCConfig                  oprpc.CLIConfig
-	LogConfig                  oplog.CLIConfig
+	LogConfig                  logcli.CLIConfig
 	MetricsConfig              opmetrics.CLIConfig
 	PprofConfig                oppprof.CLIConfig
 	RawCtx                     *cli.Context
 	InteropActivationTimestamp *uint64
 	// InteropLogBackfillDepth is the duration (e.g. 168h) to extend initiating-message log ingestion
-	// backward from the tip before interop message validation runs. Zero disables.
+	// backward from the tip before interop message validation runs. Set to zero to disable.
 	InteropLogBackfillDepth time.Duration
+	// DependencySetPath is the path to a JSON dependency-set file shared by every chain
+	// managed by the supernode. Empty means fall back to per-chain registry lookup.
+	DependencySetPath string
 }
 
 func (c *CLIConfig) Check() error {
@@ -68,11 +71,12 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		L1BeaconAddr:            ctx.String(flags.L1BeaconAddr.Name),
 		L1BeaconFallbackAddrs:   ctx.StringSlice(flags.L1BeaconFallbackAddrs.Name),
 		RPCConfig:               oprpc.ReadCLIConfig(ctx),
-		LogConfig:               oplog.ReadCLIConfig(ctx),
+		LogConfig:               logcli.ReadCLIConfig(ctx),
 		MetricsConfig:           opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:             oppprof.ReadCLIConfig(ctx),
 		RawCtx:                  ctx,
 		InteropLogBackfillDepth: ctx.Duration("interop.log-backfill-depth"),
+		DependencySetPath:       ctx.Path(flags.DependencySet.Name),
 	}
 	if ctx.IsSet("interop.activation-timestamp") {
 		ts := ctx.Uint64("interop.activation-timestamp")

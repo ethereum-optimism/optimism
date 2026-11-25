@@ -1,10 +1,13 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/lmittmann/w3"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -13,72 +16,65 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
+var sp1VerifierMethod = w3.MustNewFunc("sp1Verifier()", "address")
+
+type sp1VerifierOverride struct {
+	SP1Verifier common.Address `json:"sp1Verifier"`
+}
+
+// ResolveSuperchainProofParams merges the standard superchain-level proof parameters with the
+// intent's global deploy overrides. These are the inputs the implementations are deployed with;
+// per-chain values are resolved by ResolveChainProofParams.
+func ResolveSuperchainProofParams(intent *state.Intent) (state.SuperchainProofParams, error) {
+	return jsonutil.MergeJSON(
+		state.SuperchainProofParams{
+			MinProposalSizeBytes:               standard.MinProposalSizeBytes,
+			ChallengePeriodSeconds:             standard.ChallengePeriodSeconds,
+			MinProofMaturityDelaySeconds:       standard.MinProofMaturityDelaySeconds,
+			MaxProofMaturityDelaySeconds:       standard.MaxProofMaturityDelaySeconds,
+			MinDisputeGameFinalityDelaySeconds: standard.MinDisputeGameFinalityDelaySeconds,
+			MaxDisputeGameFinalityDelaySeconds: standard.MaxDisputeGameFinalityDelaySeconds,
+			MinWithdrawalDelaySeconds:          standard.MinWithdrawalDelaySeconds,
+			MaxWithdrawalDelaySeconds:          standard.MaxWithdrawalDelaySeconds,
+			DisputeMaxGameDepth:                standard.DisputeMaxGameDepth,
+			DisputeSplitDepth:                  standard.DisputeSplitDepth,
+			DisputeClockExtension:              standard.DisputeClockExtension,
+			DisputeMaxClockDuration:            standard.DisputeMaxClockDuration,
+			MIPSVersion:                        standard.MIPSVersion,
+			DevFeatureBitmap:                   common.Hash{},
+		},
+		intent.GlobalDeployOverrides,
+	)
+}
+
 func DeployImplementations(env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
-
-	if !shouldDeployImplementations(intent, st) {
+	input, err := implementationsInput(env, intent, st)
+	if err != nil {
+		return err
+	}
+	if input == nil {
 		lgr.Info("implementations deployment not needed")
 		return nil
 	}
 
 	lgr.Info("deploying implementations")
-
-	proofParams, err := jsonutil.MergeJSON(
-		state.SuperchainProofParams{
-			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
-			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
-			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
-			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
-			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			DisputeMaxGameDepth:             standard.DisputeMaxGameDepth,
-			DisputeSplitDepth:               standard.DisputeSplitDepth,
-			DisputeClockExtension:           standard.DisputeClockExtension,
-			DisputeMaxClockDuration:         standard.DisputeMaxClockDuration,
-			MIPSVersion:                     standard.MIPSVersion,
-			DevFeatureBitmap:                common.Hash{},
-		},
-		intent.GlobalDeployOverrides,
-	)
-	if err != nil {
-		return fmt.Errorf("error merging proof params from overrides: %w", err)
+	// With the mock requested, only an sp1Verifier override selects a verifier.
+	if env.DeployMockSP1Verifier && input.SP1Verifier != (common.Address{}) {
+		lgr.Warn("not deploying the mock SP1 verifier: the sp1Verifier override takes precedence",
+			"sp1Verifier", input.SP1Verifier)
 	}
-
-	var dio opcm.DeployImplementationsOutput
-	input := opcm.DeployImplementationsInput{
-		WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
-		MinProposalSizeBytes:            new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
-		ChallengePeriodSeconds:          new(big.Int).SetUint64(proofParams.ChallengePeriodSeconds),
-		ProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.ProofMaturityDelaySeconds),
-		DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
-		MipsVersion:                     new(big.Int).SetUint64(proofParams.MIPSVersion),
-		DevFeatureBitmap:                proofParams.DevFeatureBitmap,
-		FaultGameV2MaxGameDepth:         new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
-		FaultGameV2SplitDepth:           new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
-		FaultGameV2ClockExtension:       new(big.Int).SetUint64(proofParams.DisputeClockExtension),
-		FaultGameV2MaxClockDuration:     new(big.Int).SetUint64(proofParams.DisputeMaxClockDuration),
-		SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxy,
-		SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
-		L1ProxyAdminOwner:               st.SuperchainRoles.SuperchainProxyAdminOwner,
-		Challenger:                      st.SuperchainRoles.Challenger,
-	}
-
-	if env.UseForge {
-		lgr.Info("using Forge for DeployImplementations")
-		forgeEnv := &opcm.ForgeEnv{
-			Client:     env.ForgeClient,
-			Context:    env.Context,
-			L1RPCUrl:   env.L1RPCUrl,
-			PrivateKey: env.PrivateKey,
-		}
-		dio, err = opcm.DeployImplementationsViaForge(forgeEnv, input)
+	if env.DeployMockSP1Verifier && input.SP1Verifier == (common.Address{}) {
+		input.SP1Verifier, err = deployMockSP1Verifier(env)
 		if err != nil {
 			return err
 		}
-	} else {
-		dio, err = env.Scripts.DeployImplementations.Run(input)
-		if err != nil {
-			return fmt.Errorf("error deploying implementations: %w", err)
-		}
+	}
+	lgr.Info("using SP1 verifier", "address", input.SP1Verifier)
+
+	dio, err := opcm.DeployImplementations(env.Forge, *input)
+	if err != nil {
+		return err
 	}
 
 	st.ImplementationsDeployment = &addresses.ImplementationsContracts{
@@ -103,11 +99,173 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		PermissionedDisputeGameImpl:      dio.PermissionedDisputeGameImpl,
 		ZkDisputeGameImpl:                dio.ZkDisputeGameImpl,
 		StorageSetterImpl:                dio.StorageSetterImpl,
+		SP1PlonkAdapterImpl:              dio.SP1PlonkAdapterSingleton,
 		SuperFaultDisputeGameImpl:        dio.SuperFaultDisputeGameImpl,
 		SuperPermissionedDisputeGameImpl: dio.SuperPermissionedDisputeGameImpl,
 	}
+	if input.SP1Verifier != (common.Address{}) {
+		st.SP1Verifier = &input.SP1Verifier
+	}
 
 	return nil
+}
+
+// implementationsInput returns the DeployImplementations input, or nil when the implementations
+// are already deployed. It selects the SP1 verifier and checks the one of reused implementations;
+// zero means the mock when env.DeployMockSP1Verifier is set.
+func implementationsInput(env *Env, intent *state.Intent, st *state.State) (*opcm.DeployImplementationsInput, error) {
+	if env.DeployMockSP1Verifier {
+		if err := CheckMockSP1Verifier(intent.L1ChainID); err != nil {
+			return nil, err
+		}
+	}
+
+	requestedSP1Verifier, hasSP1VerifierOverride, err := parseSP1VerifierOverride(intent.GlobalDeployOverrides)
+	if err != nil {
+		return nil, err
+	}
+	if hasSP1VerifierOverride && requestedSP1Verifier == (common.Address{}) {
+		return nil, fmt.Errorf("sp1Verifier override must not be zero")
+	}
+	proofParams, err := ResolveSuperchainProofParams(intent)
+	if err != nil {
+		return nil, fmt.Errorf("error merging proof params from overrides: %w", err)
+	}
+	selectedSP1Verifier := requestedSP1Verifier
+	if intent.OPCMAddress == nil && !hasSP1VerifierOverride && !env.DeployMockSP1Verifier {
+		// A generated genesis contains no release-approved verifier, so it must be selected explicitly.
+		if env.IsGenesis {
+			return nil, fmt.Errorf("sp1Verifier must be specified for genesis deployments; for development, " +
+				"set ApplyPipelineOpts.DeployMockSP1Verifier (CLI: --deploy-mock-sp1-verifier)")
+		}
+		selectedSP1Verifier, err = standard.SP1VerifierFor(intent.L1ChainID)
+		if err != nil {
+			return nil, fmt.Errorf("sp1Verifier must be specified on L1 chain ID %d (%w); for a development L1, "+
+				"set ApplyPipelineOpts.DeployMockSP1Verifier (CLI: --deploy-mock-sp1-verifier)", intent.L1ChainID, err)
+		}
+	}
+
+	if !shouldDeployImplementations(intent, st) {
+		if hasSP1VerifierOverride {
+			if env.IsGenesis {
+				if st.SP1Verifier == nil || *st.SP1Verifier == (common.Address{}) {
+					return nil, fmt.Errorf("reused genesis implementations do not record an SP1 verifier")
+				}
+				if requestedSP1Verifier != *st.SP1Verifier {
+					return nil, fmt.Errorf("sp1Verifier %s does not match %s recorded for the reused implementations", requestedSP1Verifier, *st.SP1Verifier)
+				}
+			} else {
+				if err := validateReusedSP1Verifier(env, st.ImplementationsDeployment.SP1PlonkAdapterImpl, requestedSP1Verifier); err != nil {
+					return nil, err
+				}
+			}
+		} else if intent.OPCMAddress == nil {
+			if st.SP1Verifier == nil || *st.SP1Verifier == (common.Address{}) {
+				return nil, fmt.Errorf("reused implementations do not record an SP1 verifier")
+			}
+		}
+		return nil, nil
+	}
+
+	return &opcm.DeployImplementationsInput{
+		MinWithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.MinWithdrawalDelaySeconds),
+		MaxWithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.MaxWithdrawalDelaySeconds),
+		MinProposalSizeBytes:               new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
+		ChallengePeriodSeconds:             new(big.Int).SetUint64(proofParams.ChallengePeriodSeconds),
+		MinProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.MinProofMaturityDelaySeconds),
+		MaxProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.MaxProofMaturityDelaySeconds),
+		MinDisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.MinDisputeGameFinalityDelaySeconds),
+		MaxDisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.MaxDisputeGameFinalityDelaySeconds),
+		MipsVersion:                        new(big.Int).SetUint64(proofParams.MIPSVersion),
+		DevFeatureBitmap:                   proofParams.DevFeatureBitmap,
+		FaultGameV2MaxGameDepth:            new(big.Int).SetUint64(proofParams.DisputeMaxGameDepth),
+		FaultGameV2SplitDepth:              new(big.Int).SetUint64(proofParams.DisputeSplitDepth),
+		FaultGameV2ClockExtension:          new(big.Int).SetUint64(proofParams.DisputeClockExtension),
+		FaultGameV2MaxClockDuration:        new(big.Int).SetUint64(proofParams.DisputeMaxClockDuration),
+		SuperchainConfigProxy:              st.SuperchainDeployment.SuperchainConfigProxy,
+		SuperchainProxyAdmin:               st.SuperchainDeployment.SuperchainProxyAdminImpl,
+		L1ProxyAdminOwner:                  st.SuperchainRoles.SuperchainProxyAdminOwner,
+		Challenger:                         st.SuperchainRoles.Challenger,
+		SP1Verifier:                        selectedSP1Verifier,
+	}, nil
+}
+
+func parseSP1VerifierOverride(overrides map[string]any) (common.Address, bool, error) {
+	value, found := overrides["sp1Verifier"]
+	if !found {
+		return common.Address{}, false, nil
+	}
+
+	parsed, err := jsonutil.MergeJSON(sp1VerifierOverride{}, map[string]any{"sp1Verifier": value})
+	if err != nil {
+		return common.Address{}, false, fmt.Errorf("invalid sp1Verifier override: %w", err)
+	}
+	return parsed.SP1Verifier, true, nil
+}
+
+func validateReusedSP1Verifier(env *Env, adapter common.Address, requested common.Address) error {
+	if adapter == (common.Address{}) {
+		if requested != (common.Address{}) {
+			return fmt.Errorf("sp1Verifier %s does not match reused implementations without an SP1PlonkAdapter", requested)
+		}
+		return nil
+	}
+
+	deployed, err := readReusedSP1Verifier(env, adapter)
+	if err != nil {
+		return err
+	}
+	if requested != deployed {
+		return fmt.Errorf("sp1Verifier %s does not match %s used by reused SP1PlonkAdapter %s", requested, deployed, adapter)
+	}
+	return nil
+}
+
+func readReusedSP1Verifier(env *Env, adapter common.Address) (common.Address, error) {
+	if adapter == (common.Address{}) {
+		return common.Address{}, fmt.Errorf("cannot read sp1Verifier from a zero SP1PlonkAdapter address")
+	}
+
+	if env.L1Client == nil {
+		return common.Address{}, fmt.Errorf("cannot read sp1Verifier from reused implementations without an L1 client")
+	}
+
+	ctx := env.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	calldata, err := sp1VerifierMethod.EncodeArgs()
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to encode SP1PlonkAdapter.sp1Verifier call: %w", err)
+	}
+	result, err := env.L1Client.CallContract(ctx, ethereum.CallMsg{To: &adapter, Data: calldata}, nil)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to read sp1Verifier from reused SP1PlonkAdapter %s: %w", adapter, err)
+	}
+	var deployed common.Address
+	if err := sp1VerifierMethod.DecodeReturns(result, &deployed); err != nil {
+		return common.Address{}, fmt.Errorf("failed to decode sp1Verifier from reused SP1PlonkAdapter %s: %w", adapter, err)
+	}
+	return deployed, nil
+}
+
+// CheckMockSP1Verifier refuses the mock SP1 verifier on an L1 that has a release verifier, for
+// every deployment target.
+func CheckMockSP1Verifier(l1ChainID uint64) error {
+	if _, err := standard.SP1VerifierFor(l1ChainID); err == nil {
+		return fmt.Errorf("L1 chain ID %d has a release SP1 verifier; the mock SP1 verifier is only for development L1s", l1ChainID)
+	}
+	return nil
+}
+
+// deployMockSP1Verifier deploys MockSP1Verifier: into the genesis state, or to the live L1 with
+// forge's deployer.
+func deployMockSP1Verifier(env *Env) (common.Address, error) {
+	if env.IsGenesis {
+		return opcm.DeployMockSP1VerifierGenesis(env.Forge)
+	}
+	env.Logger.Warn("deploying the accept-all mock SP1 verifier to a live L1; development use only")
+	return opcm.DeployMockSP1VerifierLive(env.Forge)
 }
 
 func shouldDeployImplementations(intent *state.Intent, st *state.State) bool {

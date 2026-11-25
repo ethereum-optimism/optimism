@@ -1,16 +1,17 @@
 //! The driver of the kona derivation pipeline.
 
-use crate::{DriverError, DriverPipeline, DriverResult, Executor, PipelineCursor, TipCursor};
+use crate::{
+    DriverError, DriverMetrics, DriverPhase, DriverPipeline, DriverResult, Executor,
+    NoopDriverMetrics, PipelineCursor, TipCursor,
+};
 use alloc::{sync::Arc, vec::Vec};
-use alloy_consensus::BlockBody;
 use alloy_primitives::{B256, Bytes};
-use alloy_rlp::Decodable;
 use core::fmt::Debug;
 use kona_derive::{Pipeline, PipelineError, PipelineErrorKind, Signal, SignalReceiver};
 use kona_executor::BlockBuildingOutcome;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
-use op_alloy_consensus::{OpBlock, OpTxEnvelope, OpTxType};
+use op_alloy_consensus::OpTxType;
 use spin::RwLock;
 
 /// The Rollup Driver entrypoint.
@@ -73,7 +74,7 @@ where
     /// This cache contains the [`BlockBuildingOutcome`] and raw transaction data
     /// from the last successfully executed block. It's used for efficiency and
     /// debugging purposes. `None` when no block has been executed yet.
-    pub safe_head_artifacts: Option<(BlockBuildingOutcome, Vec<Bytes>)>,
+    pub safe_head_artifacts: Option<(BlockBuildingOutcome<E::Receipt>, Vec<Bytes>)>,
 }
 
 impl<E, DP, P> Driver<E, DP, P>
@@ -158,16 +159,17 @@ where
     /// - **Reset**: Reorg detected, pipeline reset and derivation continues
     /// - **Other Critical**: Fatal pipeline errors that stop derivation
     ///
-    /// ## Execution Errors  
-    /// - **Pre-Holocene**: Block execution failures cause block to be discarded
-    /// - **Holocene+**: Failed blocks are retried as deposit-only blocks
+    /// ## Execution Errors
+    /// - Errors that establish an invalid payload are discarded before Holocene
+    /// - After Holocene, invalid payloads are retried as deposit-only blocks
     ///   - Strips non-deposit transactions and flushes invalidated channel
     ///   - If deposit-only block also fails, returns critical error
+    /// - Provider, database, and internal errors return without invalidating the channel
     ///
     /// ## Other Errors
     /// - **`MissingOrigin`**: Pipeline origin not available when expected
-    /// - **`BlockConversion`**: Failed to convert block format
-    /// - **RLP**: Failed to decode transaction data
+    /// - **`FromBlock`**: Failed to derive the L2 block info from the executed header and L1 info
+    ///   deposit
     ///
     /// # Behavior Details
     ///
@@ -177,7 +179,7 @@ where
     /// 2. Produce payload attributes from pipeline
     /// 3. Execute payload with executor
     /// 4. Handle execution failures with retry logic
-    /// 5. Construct complete block and update cursor
+    /// 5. Compute the L2 block info and update cursor
     /// 6. Cache artifacts and continue
     ///
     /// ## Target Handling
@@ -213,8 +215,32 @@ where
     pub async fn advance_to_target(
         &mut self,
         cfg: &RollupConfig,
-        mut target: Option<u64>,
+        target: Option<u64>,
     ) -> DriverResult<(L2BlockInfo, B256), E::Error> {
+        self.advance_to_target_with_metrics(cfg, target, &NoopDriverMetrics).await
+    }
+
+    /// Advances the derivation pipeline to the target block number, reporting per-phase progress
+    /// to the provided [`DriverMetrics`] collector.
+    ///
+    /// This is the instrumented form of [`Self::advance_to_target`]. Each loop iteration reports
+    /// [`DriverPhase::PayloadDerivation`] around payload production and
+    /// [`DriverPhase::BlockExecution`] around block execution (including any Holocene deposit-only
+    /// retry). Iterations that reach the target, exhaust the data source, or discard a block may
+    /// report a [`DriverMetrics::phase_start`] without a matching [`DriverMetrics::phase_end`]; see
+    /// the [`DriverMetrics`] contract for details.
+    ///
+    /// See [`Self::advance_to_target`] for the full description of arguments, return value, and
+    /// error behavior.
+    pub async fn advance_to_target_with_metrics<M>(
+        &mut self,
+        cfg: &RollupConfig,
+        mut target: Option<u64>,
+        metrics: &M,
+    ) -> DriverResult<(L2BlockInfo, B256), E::Error>
+    where
+        M: DriverMetrics + Sync,
+    {
         loop {
             // Check if we have reached the target block number.
             let pipeline_cursor = self.cursor.read();
@@ -226,6 +252,7 @@ where
                 return Ok((tip_cursor.l2_safe_head, tip_cursor.l2_safe_head_output_root));
             }
 
+            metrics.phase_start(DriverPhase::PayloadDerivation);
             let mut attributes = match self.pipeline.produce_payload(tip_cursor.l2_safe_head).await
             {
                 Ok(attrs) => attrs.take_inner(),
@@ -251,12 +278,19 @@ where
                     return Err(DriverError::Pipeline(e));
                 }
             };
+            metrics.phase_end(DriverPhase::PayloadDerivation);
 
             self.executor.update_safe_head(tip_cursor.l2_safe_head_header.clone());
+
+            metrics.phase_start(DriverPhase::BlockExecution);
             let outcome = match self.executor.execute_payload(attributes.clone()).await {
                 Ok(outcome) => outcome,
                 Err(e) => {
                     error!(target: "client", "Failed to execute L2 block: {}", e);
+
+                    if !E::is_invalid_payload_error(&e) {
+                        return Err(DriverError::Executor(e));
+                    }
 
                     if cfg.is_holocene_active(attributes.payload_attributes.timestamp) {
                         // Retry with a deposit-only block.
@@ -293,27 +327,13 @@ where
                     }
                 }
             };
-
-            // Construct the block.
-            let block = OpBlock {
-                header: outcome.header.inner().clone(),
-                body: BlockBody {
-                    transactions: attributes
-                        .transactions
-                        .as_ref()
-                        .unwrap_or(&Vec::new())
-                        .iter()
-                        .map(|tx| OpTxEnvelope::decode(&mut tx.as_ref()).map_err(DriverError::Rlp))
-                        .collect::<DriverResult<Vec<OpTxEnvelope>, E::Error>>()?,
-                    ommers: Vec::new(),
-                    withdrawals: None,
-                },
-            };
+            metrics.phase_end(DriverPhase::BlockExecution);
 
             // Get the pipeline origin and update the tip cursor.
             let origin = self.pipeline.origin().ok_or(PipelineError::MissingOrigin.crit())?;
-            let l2_info = L2BlockInfo::from_block_and_genesis(
-                &block,
+            let l2_info = L2BlockInfo::from_header_and_first_tx(
+                &outcome.header,
+                attributes.transactions.as_ref().and_then(|txs| txs.first()),
                 &self.pipeline.rollup_config().genesis,
             )?;
             let tip_cursor = TipCursor::new(

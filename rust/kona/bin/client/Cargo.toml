@@ -15,8 +15,8 @@ kona-preimage.workspace = true
 kona-executor.workspace = true
 kona-proof.workspace = true
 kona-proof-interop.workspace = true
-kona-std-fpvm.workspace = true
-kona-std-fpvm-proc.workspace = true
+kona-std-fpvm = { workspace = true, optional = true }
+kona-std-fpvm-proc = { workspace = true, optional = true }
 
 # Protocol
 kona-derive.workspace = true
@@ -56,16 +56,22 @@ thiserror.workspace = true
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 kona-preimage = { workspace = true, features = ["std"] }
+# Package-scoped test builds otherwise get the no_std busy-poll `block_on`.
+kona-proof = { workspace = true, features = ["std"] }
 sha2.workspace = true
 
 [features]
-default = [ "client-tracing" ]
-client-tracing = [ "kona-std-fpvm/tracing" ]
+default = [ "client-tracing", "fpvm" ]
+# kona-std-fpvm needs std off the FPVM targets (mips64/riscv64); only the binaries use it.
+fpvm = [ "dep:kona-std-fpvm", "dep:kona-std-fpvm-proc" ]
+client-tracing = [ "fpvm", "kona-std-fpvm/tracing" ]
 
 [[bin]]
 name = "kona-client"
 path = "src/kona.rs"
+required-features = [ "fpvm" ]
 
 [[bin]]
 name = "kona-client-int"
 path = "src/kona_interop.rs"
+required-features = [ "fpvm" ]

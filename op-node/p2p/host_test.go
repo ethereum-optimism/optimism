@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -29,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -121,7 +121,7 @@ func TestP2PFull(t *testing.T) {
 	runCfgB := &testutils.MockRuntimeConfig{P2PSeqAddress: common.Address{0x42}}
 
 	logA := testlog.Logger(t, log.LevelError).New("host", "A")
-	nodeA, err := NewNodeP2P(context.Background(), &rollup.Config{}, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics, clock.SystemClock)
+	nodeA, err := NewNodeP2P(context.Background(), &rollup.Config{}, logA, &confA, &mockGossipIn{}, runCfgA, metrics.NoopMetrics, clock.SystemClock)
 	require.NoError(t, err)
 	defer nodeA.Close()
 
@@ -150,7 +150,7 @@ func TestP2PFull(t *testing.T) {
 
 	logB := testlog.Logger(t, log.LevelError).New("host", "B")
 
-	nodeB, err := NewNodeP2P(context.Background(), &rollup.Config{}, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics, clock.SystemClock)
+	nodeB, err := NewNodeP2P(context.Background(), &rollup.Config{}, logB, &confB, &mockGossipIn{}, runCfgB, metrics.NoopMetrics, clock.SystemClock)
 	require.NoError(t, err)
 	defer nodeB.Close()
 	hostB := nodeB.Host()
@@ -322,7 +322,7 @@ func TestDiscovery(t *testing.T) {
 	resourcesCtx, resourcesCancel := context.WithCancel(context.Background())
 	defer resourcesCancel()
 
-	nodeA, err := NewNodeP2P(context.Background(), rollupCfg, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics, clock.SystemClock)
+	nodeA, err := NewNodeP2P(context.Background(), rollupCfg, logA, &confA, &mockGossipIn{}, runCfgA, metrics.NoopMetrics, clock.SystemClock)
 	require.NoError(t, err)
 	defer nodeA.Close()
 	hostA := nodeA.Host()
@@ -337,7 +337,7 @@ func TestDiscovery(t *testing.T) {
 	confB.DiscoveryDB = discDBC
 
 	// Start B
-	nodeB, err := NewNodeP2P(context.Background(), rollupCfg, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics, clock.SystemClock)
+	nodeB, err := NewNodeP2P(context.Background(), rollupCfg, logB, &confB, &mockGossipIn{}, runCfgB, metrics.NoopMetrics, clock.SystemClock)
 	require.NoError(t, err)
 	defer nodeB.Close()
 	hostB := nodeB.Host()
@@ -352,7 +352,7 @@ func TestDiscovery(t *testing.T) {
 		}})
 
 	// Start C
-	nodeC, err := NewNodeP2P(context.Background(), rollupCfg, logC, &confC, &mockGossipIn{}, nil, runCfgC, metrics.NoopMetrics, clock.SystemClock)
+	nodeC, err := NewNodeP2P(context.Background(), rollupCfg, logC, &confC, &mockGossipIn{}, runCfgC, metrics.NoopMetrics, clock.SystemClock)
 	require.NoError(t, err)
 	defer nodeC.Close()
 	hostC := nodeC.Host()
@@ -408,4 +408,29 @@ func TestP2PMocknet(t *testing.T) {
 	require.Equal(t, hostA.Network().Connectedness(hostB.ID()), network.Connected)
 	require.Equal(t, hostA.Network().Connectedness(hostC.ID()), network.Connected)
 	require.Equal(t, hostB.Network().Connectedness(hostC.ID()), network.Connected)
+}
+
+// TestStaticPeerRedialUsesConfiguredAddrs covers a static peer whose configured address has expired from
+// the peerstore while the peer moved: only an old address it advertised is left. The reconnect has to dial
+// the configured /dns4 address again instead of retrying the old one forever.
+func TestStaticPeerRedialUsesConfiguredAddrs(t *testing.T) {
+	hostB, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = hostB.Close() })
+	port, err := hostB.Addrs()[0].ValueForProtocol(ma.P_TCP)
+	require.NoError(t, err)
+
+	hostA, err := libp2p.New(libp2p.NoListenAddrs)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = hostA.Close() })
+	e := &extraHost{Host: hostA, log: testlog.Logger(t, log.LevelError)}
+
+	static := &peer.AddrInfo{ID: hostB.ID(), Addrs: []ma.Multiaddr{ma.StringCast("/dns4/localhost/tcp/" + port)}}
+	stale := ma.StringCast("/ip4/127.0.0.1/tcp/1")
+	hostA.Peerstore().AddAddr(hostB.ID(), stale, time.Hour)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, e.dialStaticPeer(ctx, static))
+	require.Equal(t, network.Connected, hostA.Network().Connectedness(hostB.ID()))
 }

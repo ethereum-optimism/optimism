@@ -14,13 +14,13 @@ import (
 
 func TestInteropSystemNoop(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	_ = presets.NewMinimal(t)
+	_ = presets.NewMinimalNoFaultProofs(t)
 	t.Log("noop")
 }
 
 func TestSmokeTest(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewMinimal(t)
+	sys := presets.NewMinimalNoFaultProofs(t)
 	require := t.Require()
 	ctx := t.Ctx()
 
@@ -55,7 +55,7 @@ func TestSmokeTest(gt *testing.T) {
 
 func TestSmokeTestFailure(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := presets.NewMinimal(t)
+	sys := presets.NewMinimalNoFaultProofs(t)
 	require := t.Require()
 	ctx := t.Ctx()
 

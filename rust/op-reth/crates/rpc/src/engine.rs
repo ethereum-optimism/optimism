@@ -10,15 +10,18 @@ use derive_more::Constructor;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{RpcResult, server::RpcModule};
 use op_alloy_rpc_types_engine::OpExecutionPayloadV4;
-use reth_chainspec::EthereumHardforks;
 use reth_node_api::{EngineApiValidator, EngineTypes};
-use reth_optimism_payload_builder::OpExecData;
+use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_payload_builder::{OpEngineTypes, OpExecData, OpPayloadAttrs};
 use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::EngineApi;
-use reth_storage_api::{BlockReader, HeaderProvider, StateProviderFactory};
+use reth_storage_api::{BalProvider, BlockReader, HeaderProvider, StateProviderFactory};
 use reth_transaction_pool::TransactionPool;
 use tracing::{debug, trace};
 
+/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-2 `reth_rpc_engine_api::capabilities::CAPABILITIES`
+///
+/// Advertised capabilities must stay in step with the methods declared on [`OpEngineApi`].
 /// The list of all supported Engine capabilities available over the engine endpoint.
 ///
 /// Spec: <https://specs.optimism.io/protocol/exec-engine.html>
@@ -30,6 +33,7 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
     "engine_getPayloadV2",
     "engine_getPayloadV3",
     "engine_getPayloadV4",
+    "engine_getPayloadV5",
     "engine_newPayloadV2",
     "engine_newPayloadV3",
     "engine_newPayloadV4",
@@ -46,6 +50,11 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
 /// <https://specs.optimism.io/protocol/exec-engine.html#engine-api>
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "engine"), server_bounds(Engine::PayloadAttributes: jsonrpsee::core::DeserializeOwned))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "engine", client_bounds(Engine::PayloadAttributes: jsonrpsee::core::Serialize + Clone), server_bounds(Engine::PayloadAttributes: jsonrpsee::core::DeserializeOwned)))]
+/// UPSTREAM-MIRROR(set): reth@op-v2.7.0-2 `reth_rpc_api::EngineApi`
+///
+/// Re-declares the engine RPC surface rather than extending upstream's trait. A method added
+/// upstream produces no diff here, so compare the method sets on each bump and update
+/// [`OP_ENGINE_CAPABILITIES`] alongside.
 pub trait OpEngineApi<Engine: EngineTypes> {
     /// Sends the given payload to the execution layer client, as specified for the Shanghai fork.
     ///
@@ -179,6 +188,22 @@ pub trait OpEngineApi<Engine: EngineTypes> {
         payload_id: PayloadId,
     ) -> RpcResult<Engine::ExecutionPayloadEnvelopeV4>;
 
+    /// Returns the most recent version of the payload that is available in the corresponding
+    /// payload build process at the time of receiving this call.
+    ///
+    /// See also <https://github.com/ethereum/execution-apis/blob/main/src/engine/osaka.md#engine_getpayloadv5>
+    ///
+    /// Note:
+    /// > Provider software MAY stop the corresponding build process after serving this call.
+    ///
+    /// OP modifications:
+    /// - the response type is extended to [`EngineTypes::ExecutionPayloadEnvelopeV5`].
+    #[method(name = "getPayloadV5")]
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<Engine::ExecutionPayloadEnvelopeV5>;
+
     /// Returns the execution payload bodies by the given hash.
     ///
     /// See also <https://github.com/ethereum/execution-apis/blob/6452a6b194d7db269bf1dbd087a267251d3cc7f8/src/engine/shanghai.md#engine_getpayloadbodiesbyhashv1>
@@ -228,30 +253,27 @@ pub trait OpEngineApi<Engine: EngineTypes> {
 
 /// The Engine API implementation that grants the Consensus layer access to data and
 /// functions in the Execution layer that are crucial for the consensus process.
+///
+/// Rejecting invalid derived transactions at `engine_forkchoiceUpdated` depends on the node's
+/// payload service being wrapped in `reth_optimism_node::DerivedPayloadServiceBuilder`.
 #[derive(Debug, Constructor)]
-pub struct OpEngineApi<Provider, EngineT: EngineTypes, Pool, Validator, ChainSpec> {
-    inner: EngineApi<Provider, EngineT, Pool, Validator, ChainSpec>,
+pub struct OpEngineApi<Provider, Pool, Validator> {
+    inner: EngineApi<Provider, OpEngineTypes, Pool, Validator, OpChainSpec>,
 }
 
-impl<Provider, PayloadT, Pool, Validator, ChainSpec> Clone
-    for OpEngineApi<Provider, PayloadT, Pool, Validator, ChainSpec>
-where
-    PayloadT: EngineTypes,
-{
+impl<Provider, Pool, Validator> Clone for OpEngineApi<Provider, Pool, Validator> {
     fn clone(&self) -> Self {
         Self { inner: self.inner.clone() }
     }
 }
 
 #[async_trait::async_trait]
-impl<Provider, EngineT, Pool, Validator, ChainSpec> OpEngineApiServer<EngineT>
-    for OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
+impl<Provider, Pool, Validator> OpEngineApiServer<OpEngineTypes>
+    for OpEngineApi<Provider, Pool, Validator>
 where
-    Provider: HeaderProvider + BlockReader + StateProviderFactory + 'static,
-    EngineT: EngineTypes<ExecutionData = OpExecData>,
+    Provider: HeaderProvider + BlockReader + StateProviderFactory + BalProvider + 'static,
     Pool: TransactionPool + 'static,
-    Validator: EngineApiValidator<EngineT>,
-    ChainSpec: EthereumHardforks + Send + Sync + 'static,
+    Validator: EngineApiValidator<OpEngineTypes>,
 {
     async fn new_payload_v2(&self, payload: ExecutionPayloadInputV2) -> RpcResult<PayloadStatus> {
         trace!(target: "rpc::engine", "Serving engine_newPayloadV2");
@@ -296,7 +318,7 @@ where
     async fn fork_choice_updated_v1(
         &self,
         fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<EngineT::PayloadAttributes>,
+        payload_attributes: Option<OpPayloadAttrs>,
     ) -> RpcResult<ForkchoiceUpdated> {
         Ok(self.inner.fork_choice_updated_v1_metered(fork_choice_state, payload_attributes).await?)
     }
@@ -304,7 +326,7 @@ where
     async fn fork_choice_updated_v2(
         &self,
         fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<EngineT::PayloadAttributes>,
+        payload_attributes: Option<OpPayloadAttrs>,
     ) -> RpcResult<ForkchoiceUpdated> {
         trace!(target: "rpc::engine", "Serving engine_forkchoiceUpdatedV2");
         Ok(self.inner.fork_choice_updated_v2_metered(fork_choice_state, payload_attributes).await?)
@@ -313,7 +335,7 @@ where
     async fn fork_choice_updated_v3(
         &self,
         fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<EngineT::PayloadAttributes>,
+        payload_attributes: Option<OpPayloadAttrs>,
     ) -> RpcResult<ForkchoiceUpdated> {
         trace!(target: "rpc::engine", "Serving engine_forkchoiceUpdatedV3");
         Ok(self.inner.fork_choice_updated_v3_metered(fork_choice_state, payload_attributes).await?)
@@ -322,7 +344,7 @@ where
     async fn get_payload_v2(
         &self,
         payload_id: PayloadId,
-    ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV2> {
+    ) -> RpcResult<<OpEngineTypes as EngineTypes>::ExecutionPayloadEnvelopeV2> {
         debug!(target: "rpc::engine", id = %payload_id, "Serving engine_getPayloadV2");
         Ok(self.inner.get_payload_v2_metered(payload_id).await?)
     }
@@ -330,7 +352,7 @@ where
     async fn get_payload_v3(
         &self,
         payload_id: PayloadId,
-    ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV3> {
+    ) -> RpcResult<<OpEngineTypes as EngineTypes>::ExecutionPayloadEnvelopeV3> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV3");
         Ok(self.inner.get_payload_v3_metered(payload_id).await?)
     }
@@ -338,9 +360,17 @@ where
     async fn get_payload_v4(
         &self,
         payload_id: PayloadId,
-    ) -> RpcResult<EngineT::ExecutionPayloadEnvelopeV4> {
+    ) -> RpcResult<<OpEngineTypes as EngineTypes>::ExecutionPayloadEnvelopeV4> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadV4");
         Ok(self.inner.get_payload_v4_metered(payload_id).await?)
+    }
+
+    async fn get_payload_v5(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<<OpEngineTypes as EngineTypes>::ExecutionPayloadEnvelopeV5> {
+        trace!(target: "rpc::engine", "Serving engine_getPayloadV5");
+        Ok(self.inner.get_payload_v5_metered(payload_id).await?)
     }
 
     async fn get_payload_bodies_by_hash_v1(
@@ -373,13 +403,25 @@ where
     }
 }
 
-impl<Provider, EngineT, Pool, Validator, ChainSpec> IntoEngineApiRpcModule
-    for OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
+impl<Provider, Pool, Validator> IntoEngineApiRpcModule for OpEngineApi<Provider, Pool, Validator>
 where
-    EngineT: EngineTypes,
-    Self: OpEngineApiServer<EngineT>,
+    Self: OpEngineApiServer<OpEngineTypes>,
 {
     fn into_rpc_module(self) -> RpcModule<()> {
         self.into_rpc().remove_context()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OP_ENGINE_CAPABILITIES;
+
+    /// Osaka `engine_getPayloadV5` must be advertised: once Osaka/Karst is active the CL fetches
+    /// payloads via V5, and an unadvertised method is rejected with -38005 "Unsupported fork".
+    /// V4 stays advertised — V5 is additive (`newPayload` remains V4).
+    #[test]
+    fn advertises_get_payload_v5() {
+        assert!(OP_ENGINE_CAPABILITIES.contains(&"engine_getPayloadV5"));
+        assert!(OP_ENGINE_CAPABILITIES.contains(&"engine_getPayloadV4"));
     }
 }

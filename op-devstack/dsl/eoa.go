@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -19,7 +21,6 @@ import (
 	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -40,7 +41,7 @@ type EOA struct {
 // InitMessage represents an initiating message that has been sent and included on chain.
 type InitMessage struct {
 	Tx      *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 // BlockNumber returns the block number from the receipt.
@@ -75,7 +76,7 @@ func (m *InitMessage) String() string {
 type ExecMessage struct {
 	Init    *InitMessage
 	Tx      *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
-	Receipt *types.Receipt
+	Receipt *optypes.Receipt
 }
 
 // BlockNumber returns the block number from the receipt.
@@ -150,6 +151,8 @@ func (u *EOA) Plan() txplan.Option {
 		txplan.WithRetrySubmission(elClient, 5, retry.Exponential()),
 		txplan.WithRetryInclusion(elClient, 5, retry.Exponential()),
 		txplan.WithBlockInclusionInfo(elClient),
+		// AwaitTime rather than WaitForTime: a stuck chain fails this tx, not the whole test.
+		txintent.WithInteropDependencyWait(u.el.AwaitTime),
 	)
 }
 
@@ -230,6 +233,15 @@ func (u *EOA) WaitForBalance(v eth.ETH) {
 		actual := u.balance()
 		return actual == v
 	}, u.el.stackEL().TransactionTimeout(), time.Second, "awaiting balance to be updated")
+}
+
+// WaitForBalanceAtLeast waits until the balance is at least v. Prefer this over
+// WaitForBalance when the caller only cares about a lower bound (e.g. funding):
+// an exact wait hangs forever if another credit raises the balance past the target.
+func (u *EOA) WaitForBalanceAtLeast(v eth.ETH) {
+	u.t.Require().Eventuallyf(func() bool {
+		return !u.balance().Lt(v)
+	}, u.el.stackEL().TransactionTimeout(), time.Second, "awaiting balance to reach at least %s", v)
 }
 
 func (u *EOA) DeployEventLogger() common.Address {
@@ -388,7 +400,7 @@ func (u *EOA) SendInvalidExecMessage(initMsg *InitMessage) *ExecMessage {
 }
 
 // SendPackedRandomInitMessages batches random messages and initiates them via a single multicall
-func (u *EOA) SendPackedRandomInitMessages(rng *rand.Rand, eventLoggerAddress common.Address) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *types.Receipt, error) {
+func (u *EOA) SendPackedRandomInitMessages(rng *rand.Rand, eventLoggerAddress common.Address) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *optypes.Receipt, error) {
 	// Intent to initiate messages
 	eventCnt := 1 + rng.Intn(9)
 	initCalls := make([]txintent.Call, eventCnt)
@@ -405,7 +417,7 @@ func (u *EOA) SendPackedRandomInitMessages(rng *rand.Rand, eventLoggerAddress co
 }
 
 // SendPackedExecMessages batches every message and validates them via a single multicall
-func (u *EOA) SendPackedExecMessages(dependOn *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput]) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *types.Receipt, error) {
+func (u *EOA) SendPackedExecMessages(dependOn *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput]) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *optypes.Receipt, error) {
 	// Intent to validate message
 	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](u.Plan())
 	tx.Content.DependOn(&dependOn.Result)
@@ -486,7 +498,7 @@ func (u *EOA) ApproveToken(tokenAddr common.Address, spender common.Address, amo
 type SameTimestampPair struct {
 	eoa         *EOA
 	Trigger     *txintent.InitTrigger
-	Message     suptypes.Message
+	Message     messages.Message
 	eventLogger common.Address
 }
 
@@ -526,8 +538,8 @@ func (u *EOA) PrepareSameTimestampInit(
 	}
 	payload = append(payload, trigger.OpaqueData...)
 
-	msg := suptypes.Message{
-		Identifier: suptypes.Identifier{
+	msg := messages.Message{
+		Identifier: messages.Identifier{
 			Origin:      eventLogger,
 			BlockNumber: expectedBlockNum,
 			LogIndex:    expectedLogIdx,
@@ -556,8 +568,11 @@ func (p *SameTimestampPair) SubmitInit() *txplan.PlannedTx {
 // SubmitExecTo returns a planned exec transaction to the given EOA's chain,
 // referencing this init. The test harness assigns deterministic nonces and
 // includes the signed tx directly.
+//
+// The init is not on chain yet: waiting for it would block the tx that produces it.
 func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
+		executor.Plan(), txintent.WithoutInteropDependencyWait())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      p.Message,
@@ -572,7 +587,9 @@ func (p *SameTimestampPair) SubmitExecTo(executor *EOA) *txplan.PlannedTx {
 func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx {
 	invalidMsg := MakeInvalidLogIndex(p.Message)
 
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+	// See SubmitExecTo for why there is nothing to wait for.
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
+		executor.Plan(), txintent.WithoutInteropDependencyWait())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      invalidMsg,
@@ -580,16 +597,16 @@ func (p *SameTimestampPair) SubmitInvalidExecTo(executor *EOA) *txplan.PlannedTx
 	return tx.PlannedTx
 }
 
-// PrecomputeExecEventMessage computes the suptypes.Message that a CrossL2Inbox
+// PrecomputeExecEventMessage computes the messages.Message that a CrossL2Inbox
 // ExecutingMessage event will produce when executing the given referenced message.
 // This allows precomputing exec-referencing-exec chains before any blocks are built.
 func PrecomputeExecEventMessage(
-	referencedMsg suptypes.Message,
+	referencedMsg messages.Message,
 	execChainID eth.ChainID,
 	expectedBlockNum uint64,
 	expectedLogIdx uint32,
 	expectedTimestamp uint64,
-) suptypes.Message {
+) messages.Message {
 	// Build ABI-encoded Identifier data (5 x 32-byte words)
 	id := referencedMsg.Identifier
 	data := make([]byte, 0, 32*5)
@@ -606,12 +623,12 @@ func PrecomputeExecEventMessage(
 
 	// payload = topics || data (per LogToMessagePayload)
 	payload := make([]byte, 0, 32+32+32*5)
-	payload = append(payload, suptypes.ExecutingMessageEventTopic.Bytes()...)
+	payload = append(payload, messages.ExecutingMessageEventTopic.Bytes()...)
 	payload = append(payload, referencedMsg.PayloadHash.Bytes()...)
 	payload = append(payload, data...)
 
-	return suptypes.Message{
-		Identifier: suptypes.Identifier{
+	return messages.Message{
+		Identifier: messages.Identifier{
 			Origin:      predeploys.CrossL2InboxAddr,
 			BlockNumber: expectedBlockNum,
 			LogIndex:    expectedLogIdx,
@@ -625,8 +642,11 @@ func PrecomputeExecEventMessage(
 // SubmitExecForMessage returns a planned exec transaction referencing the given message.
 // Unlike SameTimestampPair.SubmitExecTo, this can reference any message including
 // precomputed exec event messages for exec-referencing-exec chains.
-func SubmitExecForMessage(msg suptypes.Message, executor *EOA) *txplan.PlannedTx {
-	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](executor.Plan())
+//
+// See SubmitExecTo for why there is nothing to wait for.
+func SubmitExecForMessage(msg messages.Message, executor *EOA) *txplan.PlannedTx {
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](
+		executor.Plan(), txintent.WithoutInteropDependencyWait())
 	tx.Content.Set(&txintent.ExecTrigger{
 		Executor: predeploys.CrossL2InboxAddr,
 		Msg:      msg,

@@ -19,6 +19,7 @@ func TestPermissionedGameType(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys, disputegame.WithFactoryPrivKey(sys.Cfg.Secrets.Proposer))
+	gameFactory.SkipIfPermissionedGameNotRegistered(ctx)
 
 	game := gameFactory.StartPermissionedGame(ctx, "sequencer", 1, common.Hash{0x01, 0xaa})
 

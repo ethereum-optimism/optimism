@@ -6,16 +6,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
-
 	conductorRpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
@@ -57,12 +56,13 @@ func (c *ConductorClient) initialize(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("no conductor RPC endpoint available: %w", err)
 	}
-	metricsOpt := rpc.WithRecorder(c.metrics.NewRecorder("conductor"))
-	conductorRpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), c.log, endpoint, metricsOpt)
+	conductorRpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), c.log, endpoint)
 	if err != nil {
 		return fmt.Errorf("failed to dial conductor RPC: %w", err)
 	}
-	c.apiClient.Value = conductorRpc.NewAPIClient(conductorRpcClient)
+	c.apiClient.Value = conductorRpc.NewAPIClient(client.NewBaseRPCClient(conductorRpcClient,
+		client.WithCallTimeout(c.cfg.ConductorRpcTimeout),
+		client.WithRPCRecorder(c.metrics.NewRecorder("conductor"))))
 	return nil
 }
 
@@ -96,6 +96,8 @@ func (c *ConductorClient) Leader(ctx context.Context) (bool, error) {
 // CommitUnsafePayload commits an unsafe payload to the conductor log.
 func (c *ConductorClient) CommitUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	if c.overrideLeader.Load() {
+		c.log.Warn("Leader override is set, not committing unsafe payload to conductor",
+			"number", uint64(payload.ExecutionPayload.BlockNumber), "hash", payload.ExecutionPayload.BlockHash)
 		return nil
 	}
 
@@ -114,6 +116,8 @@ func (c *ConductorClient) CommitUnsafePayload(ctx context.Context, payload *eth.
 // OverrideLeader implements conductor.SequencerConductor.
 func (c *ConductorClient) OverrideLeader(ctx context.Context) error {
 	c.overrideLeader.Store(true)
+	c.metrics.SetConductorOverride(true)
+	c.log.Warn("Conductor leader override set: unsafe payloads will not be committed to the conductor until op-node restarts")
 	return nil
 }
 

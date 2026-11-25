@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -41,7 +41,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 
 	sequencer.ActL2PipelineFull(t)
 
-	signer := types.LatestSigner(sd.L2Cfg.Config)
+	signer := types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID)
 	cl := engine.EthClient()
 	aliceTx := func() {
 		n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
@@ -93,7 +93,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 	// We passed the sequencer drift: we can still keep the old origin, but can't include any txs
 	sequencer.ActL2KeepL1Origin(t)
 	sequencer.ActL2StartBlock(t)
-	require.True(t, engine.EngineApi.ForcedEmpty(), "engine should not be allowed to include anything after sequencer drift is surpassed")
+	require.True(t, engine.ForcedEmpty(t), "engine should not be allowed to include anything after sequencer drift is surpassed")
 }
 
 // TestL2Sequencer_SequencerOnlyReorg regression-tests a Goerli halt where the sequencer

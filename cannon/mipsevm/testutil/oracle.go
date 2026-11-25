@@ -2,14 +2,11 @@ package testutil
 
 import (
 	"encoding/binary"
-	"encoding/hex"
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
@@ -60,77 +57,6 @@ func StaticPrecompileOracle(t *testing.T, precompile common.Address, requiredGas
 					t.Fatalf("invalid preimage request for %x", k)
 				}
 				return result
-			}
-			panic("unreachable")
-		},
-	}
-}
-
-func ClaimTestOracle(t *testing.T) (po mipsevm.PreimageOracle, stdOut string, stdErr string) {
-	s := uint64(0x00FFFFFF_00001000)
-	a := uint64(3)
-	b := uint64(4)
-
-	encodeU64 := func(x uint64) []byte {
-		return binary.BigEndian.AppendUint64(nil, x)
-	}
-
-	var diff []byte
-	diff = append(diff, crypto.Keccak256(encodeU64(a))...)
-	diff = append(diff, crypto.Keccak256(encodeU64(b))...)
-
-	preHash := crypto.Keccak256Hash(encodeU64(s))
-	diffHash := crypto.Keccak256Hash(diff)
-
-	images := make(map[[32]byte][]byte)
-	images[preimage.LocalIndexKey(0).PreimageKey()] = preHash[:]
-	images[preimage.LocalIndexKey(1).PreimageKey()] = diffHash[:]
-	images[preimage.LocalIndexKey(2).PreimageKey()] = encodeU64(s*a + b)
-
-	oracle := &TestOracle{
-		hint: func(v []byte) {
-			parts := strings.Split(string(v), " ")
-			require.Len(t, parts, 2)
-			p, err := hex.DecodeString(parts[1])
-			require.NoError(t, err)
-			require.Len(t, p, 32)
-			h := common.Hash(*(*[32]byte)(p))
-			switch parts[0] {
-			case "fetch-state":
-				require.Equal(t, h, preHash, "expecting request for pre-state pre-image")
-				images[preimage.Keccak256Key(preHash).PreimageKey()] = encodeU64(s)
-			case "fetch-diff":
-				require.Equal(t, h, diffHash, "expecting request for diff pre-images")
-				images[preimage.Keccak256Key(diffHash).PreimageKey()] = diff
-				images[preimage.Keccak256Key(crypto.Keccak256Hash(encodeU64(a))).PreimageKey()] = encodeU64(a)
-				images[preimage.Keccak256Key(crypto.Keccak256Hash(encodeU64(b))).PreimageKey()] = encodeU64(b)
-			default:
-				t.Fatalf("unexpected hint: %q", parts[0])
-			}
-		},
-		getPreimage: func(k [32]byte) []byte {
-			p, ok := images[k]
-			if !ok {
-				t.Fatalf("missing pre-image %s", k)
-			}
-			return p
-		},
-	}
-
-	return oracle, fmt.Sprintf("computing %d * %d + %d\nclaim %d is good!\n", s, a, b, s*a+b), "started!"
-}
-
-func AllocOracle(t *testing.T, numAllocs int, allocSize int) *TestOracle {
-	return &TestOracle{
-		hint: func(v []byte) {},
-		getPreimage: func(k [32]byte) []byte {
-			switch k {
-			case preimage.LocalIndexKey(0).PreimageKey():
-				return binary.LittleEndian.AppendUint64(nil, uint64(numAllocs))
-			case preimage.LocalIndexKey(1).PreimageKey():
-				return binary.LittleEndian.AppendUint64(nil, uint64(allocSize))
-			default:
-				t.Fatalf("invalid preimage request for %x", k)
 			}
 			panic("unreachable")
 		},

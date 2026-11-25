@@ -15,71 +15,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildDevFeatureBitmap(t *testing.T) {
-	interopBit := devfeatures.OptimismPortalInteropFlag
+func TestDevFeatureBitmapOverride(t *testing.T) {
+	bitmap := devfeatures.OPPrivateFlag
 
 	tests := []struct {
 		name       string
-		useInterop bool
-		bitmap     any
-		wantError  bool
+		override   any
 		wantBitmap common.Hash
 	}{
-		{
-			name:       "UseInterop=true, interop bit set: interop enabled",
-			useInterop: true,
-			bitmap:     interopBit,
-			wantError:  false,
-			wantBitmap: interopBit,
-		},
-		{
-			name:       "UseInterop=true, interop bit not set: interop not enabled",
-			useInterop: true,
-			bitmap:     common.Hash{},
-			wantError:  true,
-		},
-		{
-			name:       "UseInterop=false, interop bit set: interop not enabled",
-			useInterop: false,
-			bitmap:     interopBit,
-			wantError:  true,
-		},
-		{
-			name:       "UseInterop=false, interop bit not set: no-op",
-			useInterop: false,
-			bitmap:     common.Hash{},
-			wantError:  false,
-			wantBitmap: common.Hash{},
-		},
-		{
-			name:       "UseInterop=true, interop bit set (using hex string): interop enabled",
-			useInterop: true,
-			bitmap:     interopBit.Hex(),
-			wantError:  false,
-			wantBitmap: interopBit,
-		},
-		{
-			name:       "UseInterop=false, interop bit not set (using hex string): no-op",
-			useInterop: false,
-			bitmap:     common.Hash{}.Hex(),
-			wantError:  false,
-			wantBitmap: common.Hash{},
-		},
+		{name: "hash", override: bitmap, wantBitmap: bitmap},
+		{name: "hex string", override: bitmap.Hex(), wantBitmap: bitmap},
+		{name: "not set", override: nil, wantBitmap: common.Hash{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			intent := &state.Intent{
 				L1ContractsLocator:    &artifacts.Locator{},
-				UseInterop:            tt.useInterop,
-				GlobalDeployOverrides: map[string]any{"devFeatureBitmap": tt.bitmap},
+				GlobalDeployOverrides: map[string]any{"devFeatureBitmap": tt.override},
 			}
-			result, err := buildDevFeatureBitmap(intent)
-			if tt.wantError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tt.wantBitmap, result)
-			}
+			require.Equal(t, tt.wantBitmap, devFeatureBitmapOverride(intent))
 		})
 	}
 }
@@ -138,7 +92,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 					"operatorFeeVaultWithdrawalNetwork":        "remote",
 					"enableGovernance":                         true,
 					"governanceTokenOwner":                     "0x1111111111111111111111111111111111111111",
-					"l2GenesisInteropTimeOffset":               "0x1234",
+					"l2GenesisLagoonTimeOffset":                "0x1234",
 				},
 			},
 			chainIntent: &state.ChainIntent{},
@@ -158,7 +112,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				sched := standard.DefaultHardforkSchedule()
-				sched.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0x1234)
+				sched.L2GenesisLagoonTimeOffset = op_service.U64UtilPtr(0x1234)
 				return sched
 			},
 		},
@@ -182,7 +136,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 					"operatorFeeVaultWithdrawalNetwork":        "remote",
 					"enableGovernance":                         true,
 					"governanceTokenOwner":                     "0x1111111111111111111111111111111111111111",
-					"l2GenesisInteropTimeOffset":               "0x1234",
+					"l2GenesisLagoonTimeOffset":                "0x1234",
 				},
 			},
 			expectError: false,
@@ -201,7 +155,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				sched := standard.DefaultHardforkSchedule()
-				sched.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0x1234)
+				sched.L2GenesisLagoonTimeOffset = op_service.U64UtilPtr(0x1234)
 				return sched
 			},
 		},
@@ -210,7 +164,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			intent: &state.Intent{
 				L1ContractsLocator: &artifacts.Locator{},
 				GlobalDeployOverrides: map[string]any{
-					"l2GenesisInteropTimeOffset": "0x0",
+					"l2GenesisLagoonTimeOffset": "0x0",
 				},
 			},
 			chainIntent:       &state.ChainIntent{},
@@ -218,7 +172,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			expectedOverrides: defaultOverrides(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				schedule := standard.DefaultHardforkSchedule()
-				schedule.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0)
+				schedule.L2GenesisLagoonTimeOffset = op_service.U64UtilPtr(0)
 				return schedule
 			},
 		},
@@ -236,4 +190,17 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSettlementChainIDOverride(t *testing.T) {
+	intent := &state.Intent{L1ContractsLocator: &artifacts.Locator{}}
+	chainIntent := &state.ChainIntent{DeployOverrides: map[string]any{"settlementChainId": 1337}}
+	overrides, _, err := calculateL2GenesisOverrides(intent, chainIntent)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1337), overrides.SettlementChainID, "a chain override sets the settlement chain ID")
+
+	opPrivate := devfeatures.EnableDevFeature(common.Hash{}, devfeatures.OPPrivateFlag)
+	require.NoError(t, checkSettlementChainIDOverride(opPrivate, 1337))
+	require.NoError(t, checkSettlementChainIDOverride(common.Hash{}, 0), "a public chain needs no dev feature")
+	require.ErrorContains(t, checkSettlementChainIDOverride(common.Hash{}, 1337), "needs the OP_PRIVATE dev feature")
 }

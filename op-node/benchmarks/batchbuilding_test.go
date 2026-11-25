@@ -10,9 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -105,38 +105,28 @@ func channelOutByType(b *testing.B, batchType uint, cd compressorDetails) (deriv
 	return nil, fmt.Errorf("unsupported batch type: %d", batchType)
 }
 
-func randomBlock(cfg *rollup.Config, rng *rand.Rand, txCount int, timestamp uint64) (*types.Block, error) {
-	batch := derive.RandomSingularBatch(rng, txCount, cfg.L2ChainID)
+func randomBlock(cfg *rollup.Config, rng *rand.Rand, txCount int, timestamp uint64) (*eth.ExecutionPayload, error) {
+	batch := derivetest.RandomSingularBatch(rng, txCount, cfg.L2ChainID)
 	batch.Timestamp = timestamp
-	return singularBatchToBlock(cfg, batch)
+	return singularBatchToPayload(cfg, batch)
 }
 
-// singularBatchToBlock converts a singular batch to a block for use in the benchmarks. This function
+// singularBatchToPayload converts a singular batch to a payload for use in the benchmarks. This function
 // should only be used for testing purposes, as the batch input doesn't contain the necessary information
 // to build the full block (only non-deposit transactions and a subset of header fields are populated).
-func singularBatchToBlock(rollupCfg *rollup.Config, batch *derive.SingularBatch) (*types.Block, error) {
-	l1InfoTx, err := derive.L1InfoDeposit(rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
+func singularBatchToPayload(rollupCfg *rollup.Config, batch *derive.SingularBatch) (*eth.ExecutionPayload, error) {
+	l1InfoTx, err := derive.L1InfoDepositBytes(rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
 		InfoNum:  uint64(batch.EpochNum),
 		InfoHash: batch.EpochHash,
 	}, batch.Timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("could not build L1 Info transaction: %w", err)
 	}
-	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
-	for i, opaqueTx := range batch.Transactions {
-		var tx types.Transaction
-		err = tx.UnmarshalBinary(opaqueTx)
-		if err != nil {
-			return nil, fmt.Errorf("could not decode tx %d: %w", i, err)
-		}
-		txs = append(txs, &tx)
-	}
-	return types.NewBlockWithHeader(&types.Header{
-		ParentHash: batch.ParentHash,
-		Time:       batch.Timestamp,
-	}).WithBody(types.Body{
-		Transactions: txs,
-	}), nil
+	return &eth.ExecutionPayload{
+		ParentHash:   batch.ParentHash,
+		Timestamp:    eth.Uint64Quantity(batch.Timestamp),
+		Transactions: append([]eth.Data{l1InfoTx}, batch.Transactions...),
+	}, nil
 }
 
 // a test case for the benchmark controls the number of batches and transactions per batch,
@@ -196,7 +186,7 @@ func BenchmarkFinalBatchChannelOut(b *testing.B) {
 		cfg := &rollup.Config{L2ChainID: big.NewInt(333)}
 		rng := rand.New(rand.NewSource(0x543331))
 		// pre-generate batches to keep the benchmark from including the random generation
-		blocks := make([]*types.Block, tc.BatchCount)
+		blocks := make([]*eth.ExecutionPayload, tc.BatchCount)
 		t := time.Now()
 		for i := 0; i < tc.BatchCount; i++ {
 			// set the timestamp to increase with each batch
@@ -265,7 +255,7 @@ func BenchmarkIncremental(b *testing.B) {
 				b.StopTimer()
 				// prepare the batches
 				t := time.Now()
-				blocks := make([]*types.Block, tc.BatchCount)
+				blocks := make([]*eth.ExecutionPayload, tc.BatchCount)
 				for i := 0; i < tc.BatchCount; i++ {
 					// set the timestamp to increase with each batch
 					// to leverage optimizations in the Batch Linked List
@@ -325,7 +315,7 @@ func BenchmarkAllBatchesChannelOut(b *testing.B) {
 		cfg := &rollup.Config{L2ChainID: big.NewInt(333)}
 		rng := rand.New(rand.NewSource(0x543331))
 		// pre-generate batches to keep the benchmark from including the random generation
-		blocks := make([]*types.Block, tc.BatchCount)
+		blocks := make([]*eth.ExecutionPayload, tc.BatchCount)
 		t := time.Now()
 		for i := 0; i < tc.BatchCount; i++ {
 			// set the timestamp to increase with each batch
@@ -380,7 +370,7 @@ func BenchmarkGetRawSpanBatch(b *testing.B) {
 		batches := make([]*derive.SingularBatch, tc.BatchCount)
 		t := time.Now()
 		for i := 0; i < tc.BatchCount; i++ {
-			batches[i] = derive.RandomSingularBatch(rng, tc.txPerBatch, chainID)
+			batches[i] = derivetest.RandomSingularBatch(rng, tc.txPerBatch, chainID)
 			batches[i].Timestamp = uint64(t.Add(time.Duration(i) * time.Second).Unix())
 		}
 		b.Run(tc.String(), func(b *testing.B) {

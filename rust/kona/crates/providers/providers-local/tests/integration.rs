@@ -52,8 +52,8 @@ fn provider() -> BufferedL2Provider {
 #[rstest]
 #[tokio::test]
 async fn test_provider_initialization(provider: BufferedL2Provider) {
-    assert!(provider.current_head().await.is_none());
-    let stats = provider.cache_stats().await;
+    assert!(provider.current_head().is_none());
+    let stats = provider.cache_stats();
     assert_eq!(stats.capacity, 100);
     assert_eq!(stats.max_reorg_depth, 10);
     assert_eq!(stats.blocks_by_hash_len, 0);
@@ -67,7 +67,7 @@ async fn test_add_and_retrieve_single_block(provider: BufferedL2Provider) {
     let (block, l2_info) = create_test_block(1, hash, B256::ZERO);
 
     // Add block
-    provider.add_block(block.clone(), l2_info).await.unwrap();
+    provider.add_block(block.clone(), l2_info).unwrap();
 
     // Retrieve as mutable reference for trait methods
     let mut provider_mut = provider.clone();
@@ -92,7 +92,7 @@ async fn test_multiple_blocks_sequential(provider: BufferedL2Provider) {
     for i in 1..=10 {
         let hash = B256::from([i as u8; 32]);
         let (block, l2_info) = create_test_block(i, hash, parent_hash);
-        provider.add_block(block, l2_info).await.unwrap();
+        provider.add_block(block, l2_info).unwrap();
         parent_hash = hash;
     }
 
@@ -145,16 +145,16 @@ async fn test_chain_committed_event(provider: BufferedL2Provider) {
     let (block2, l2_info2) = create_test_block(2, hash2, hash1);
     let (block3, l2_info3) = create_test_block(3, hash3, hash2);
 
-    provider.add_block(block1, l2_info1).await.unwrap();
-    provider.add_block(block2, l2_info2).await.unwrap();
-    provider.add_block(block3, l2_info3).await.unwrap();
+    provider.add_block(block1, l2_info1).unwrap();
+    provider.add_block(block2, l2_info2).unwrap();
+    provider.add_block(block3, l2_info3).unwrap();
 
     // Send chain committed event
     let event =
         ChainStateEvent::ChainCommitted { new_head: hash3, committed: vec![hash1, hash2, hash3] };
 
-    provider.handle_chain_event(event).await.unwrap();
-    assert_eq!(provider.current_head().await, Some(hash3));
+    provider.handle_chain_event(event).unwrap();
+    assert_eq!(provider.current_head(), Some(hash3));
 }
 
 #[rstest]
@@ -165,13 +165,13 @@ async fn test_chain_reorg_shallow(provider: BufferedL2Provider) {
 
     // Add initial block
     let (block, l2_info) = create_test_block(1, old_head, B256::ZERO);
-    provider.add_block(block, l2_info).await.unwrap();
+    provider.add_block(block, l2_info).unwrap();
 
     // Simulate shallow reorg (depth 2)
     let event = ChainStateEvent::ChainReorged { old_head, new_head, depth: 2 };
 
-    provider.handle_chain_event(event).await.unwrap();
-    assert_eq!(provider.current_head().await, Some(new_head));
+    provider.handle_chain_event(event).unwrap();
+    assert_eq!(provider.current_head(), Some(new_head));
 }
 
 #[rstest]
@@ -182,7 +182,7 @@ async fn test_chain_reorg_deep_clears_cache(provider: BufferedL2Provider) {
         let hash = B256::from([i as u8; 32]);
         let parent_hash = if i == 1 { B256::ZERO } else { B256::from([(i - 1) as u8; 32]) };
         let (block, l2_info) = create_test_block(i, hash, parent_hash);
-        provider.add_block(block, l2_info).await.unwrap();
+        provider.add_block(block, l2_info).unwrap();
     }
 
     let old_head = B256::from([15; 32]);
@@ -192,14 +192,14 @@ async fn test_chain_reorg_deep_clears_cache(provider: BufferedL2Provider) {
     let event = ChainStateEvent::ChainReorged { old_head, new_head, depth: 11 };
 
     // This should fail because depth exceeds max_reorg_depth
-    let result = provider.handle_chain_event(event).await;
+    let result = provider.handle_chain_event(event);
     assert!(result.is_err());
 
     // To test cache clearing, we need a reorg within the limit but > 10
     // Since our max_reorg_depth is 10, let's test with exactly 10 which should clear cache
     let event2 = ChainStateEvent::ChainReorged { old_head, new_head, depth: 10 };
 
-    provider.handle_chain_event(event2).await.unwrap();
+    provider.handle_chain_event(event2).unwrap();
     // Note: Cache clearing happens when depth > 10 in the implementation,
     // so depth 10 won't clear. This is a design decision in the implementation.
 }
@@ -213,7 +213,7 @@ async fn test_chain_reorg_too_deep_error(provider: BufferedL2Provider) {
     // Simulate reorg deeper than max_reorg_depth (10)
     let event = ChainStateEvent::ChainReorged { old_head, new_head, depth: 15 };
 
-    let result = provider.handle_chain_event(event).await;
+    let result = provider.handle_chain_event(event);
     assert!(result.is_err());
     let err_msg = result.unwrap_err().to_string();
     assert!(
@@ -234,9 +234,9 @@ async fn test_chain_reverted_event(provider: BufferedL2Provider) {
     let (block2, l2_info2) = create_test_block(2, hash2, hash1);
     let (block3, l2_info3) = create_test_block(3, hash3, hash2);
 
-    provider.add_block(block1, l2_info1).await.unwrap();
-    provider.add_block(block2, l2_info2).await.unwrap();
-    provider.add_block(block3, l2_info3).await.unwrap();
+    provider.add_block(block1, l2_info1).unwrap();
+    provider.add_block(block2, l2_info2).unwrap();
+    provider.add_block(block3, l2_info3).unwrap();
 
     // Revert back to block 1
     let event = ChainStateEvent::ChainReverted {
@@ -245,8 +245,8 @@ async fn test_chain_reverted_event(provider: BufferedL2Provider) {
         reverted: vec![hash2, hash3],
     };
 
-    provider.handle_chain_event(event).await.unwrap();
-    assert_eq!(provider.current_head().await, Some(hash1));
+    provider.handle_chain_event(event).unwrap();
+    assert_eq!(provider.current_head(), Some(hash1));
 }
 
 #[rstest]
@@ -257,19 +257,19 @@ async fn test_cache_clear(provider: BufferedL2Provider) {
         let hash = B256::from([i as u8; 32]);
         let parent_hash = if i == 1 { B256::ZERO } else { B256::from([(i - 1) as u8; 32]) };
         let (block, l2_info) = create_test_block(i, hash, parent_hash);
-        provider.add_block(block, l2_info).await.unwrap();
+        provider.add_block(block, l2_info).unwrap();
     }
 
     // Verify blocks are in cache
-    let stats = provider.cache_stats().await;
+    let stats = provider.cache_stats();
     assert!(stats.blocks_by_hash_len > 0);
     assert!(stats.blocks_by_number_len > 0);
 
     // Clear cache
-    provider.clear_cache().await;
+    provider.clear_cache();
 
     // Verify cache is empty
-    let stats = provider.cache_stats().await;
+    let stats = provider.cache_stats();
     assert_eq!(stats.blocks_by_hash_len, 0);
     assert_eq!(stats.blocks_by_number_len, 0);
 }
@@ -282,10 +282,11 @@ async fn test_system_config_retrieval(mut provider: BufferedL2Provider) {
     // Add a block with system config data
     let hash = B256::from([1; 32]);
     let (block, l2_info) = create_test_block(1, hash, B256::ZERO);
-    provider.add_block(block, l2_info).await.unwrap();
+    provider.add_block(block, l2_info).unwrap();
 
     // Retrieve system config for genesis
-    let genesis_config = provider.system_config_by_number(0, config.clone()).await.unwrap();
+    let genesis_config =
+        provider.system_config_by_l2_hash(config.genesis.l2.hash, config.clone()).await.unwrap();
     // Just verify we got a config back
     // The default SystemConfig might have zero values, so we just check it exists
     let _ = genesis_config;
@@ -300,7 +301,7 @@ async fn test_provider_clone(provider: BufferedL2Provider) {
     // Add a block
     let hash = B256::from([1; 32]);
     let (block, l2_info) = create_test_block(1, hash, B256::ZERO);
-    provider.add_block(block, l2_info).await.unwrap();
+    provider.add_block(block, l2_info).unwrap();
 
     // Clone the provider
     let cloned = provider.clone();
@@ -327,11 +328,11 @@ async fn test_lru_cache_eviction(_provider: BufferedL2Provider) {
         let hash = B256::from([i as u8; 32]);
         let parent_hash = if i == 1 { B256::ZERO } else { B256::from([(i - 1) as u8; 32]) };
         let (block, l2_info) = create_test_block(i, hash, parent_hash);
-        small_provider.add_block(block, l2_info).await.unwrap();
+        small_provider.add_block(block, l2_info).unwrap();
     }
 
     // Cache stats should show at most 5 entries
-    let stats = small_provider.cache_stats().await;
+    let stats = small_provider.cache_stats();
     assert!(stats.blocks_by_hash_len <= 5);
     assert!(stats.blocks_by_number_len <= 5);
 }

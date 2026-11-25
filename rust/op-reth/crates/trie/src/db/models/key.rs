@@ -4,12 +4,48 @@ use reth_db::{
     models::sharded_key::ShardedKey,
     table::{Decode, Encode},
 };
-use reth_trie_common::StoredNibbles;
+use reth_trie_common::{Nibbles, StoredNibbles};
 use serde::{Deserialize, Serialize};
 
-/// Sharded key for hashed accounts history.
+/// Nibble-subkey layout shared by [`AccountTrieShardedKey`] and [`StorageTrieShardedKey`]: 64
+/// nibble bytes right-padded with `0x00`, followed by a 1-byte length suffix. Padding the path
+/// to a fixed width and placing nibble bytes ahead of the length byte makes MDBX's byte-wise
+/// sort agree with `Nibbles`' lex-by-nibble order.
+const NIBBLE_SUBKEY_LEN: usize = 65;
+/// Byte length of an encoded [`AccountTrieShardedKey`]: nibble subkey + 8 block number bytes.
+const ACCOUNT_TRIE_SHARDED_KEY_LEN: usize = NIBBLE_SUBKEY_LEN + 8;
+/// Byte length of an encoded [`StorageTrieShardedKey`]: hashed address + nibble subkey + block.
+const STORAGE_TRIE_SHARDED_KEY_LEN: usize = 32 + NIBBLE_SUBKEY_LEN + 8;
+
+/// Encode a nibble path into the fixed-size `[u8; 65]` subkey layout: 64 path bytes right-padded
+/// with `0x00`, followed by the actual nibble count in byte 64.
+fn encode_nibble_subkey(nibbles: &StoredNibbles) -> [u8; NIBBLE_SUBKEY_LEN] {
+    debug_assert!(nibbles.0.len() <= 64, "nibble path exceeds 64");
+    let mut buf = [0u8; NIBBLE_SUBKEY_LEN];
+    for (i, nibble) in nibbles.0.iter().enumerate() {
+        buf[i] = nibble;
+    }
+    buf[64] = nibbles.0.len() as u8;
+    buf
+}
+
+/// Inverse of [`encode_nibble_subkey`]: read the length byte at position 64 and reconstruct the
+/// [`StoredNibbles`] from the first `len` path bytes.
+fn decode_nibble_subkey(buf: &[u8; NIBBLE_SUBKEY_LEN]) -> StoredNibbles {
+    let len = buf[64] as usize;
+    StoredNibbles::from(Nibbles::from_nibbles_unchecked(&buf[..len]))
+}
+
+/// Sharded key for hashed accounts history, keyed by `(hashed_address, block)`.
 ///
-/// Wraps `ShardedKey<B256>` to provide `Encode`/`Decode` impls needed by MDBX.
+/// Encoded as a fixed-size 40-byte buffer:
+///
+/// ```text
+/// [hashed_address: 32 bytes] ++ [block_number: 8 BE bytes]
+/// ```
+///
+/// MDBX's byte-wise sort groups entries by address (full-width hash, so no padding needed),
+/// then orders ascending by block number.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Hash)]
 pub struct HashedAccountShardedKey(pub ShardedKey<B256>);
 
@@ -43,7 +79,15 @@ impl Decode for HashedAccountShardedKey {
     }
 }
 
-/// Keys Hashed Storage History by: Hashed Address + Sharded Key (Storage Key + Sharded Block).
+/// Sharded key for hashed storage history, keyed by `(hashed_address, storage_key, block)`.
+///
+/// Encoded as a 72-byte buffer:
+///
+/// ```text
+/// [hashed_address: 32 bytes] ++ [storage_key: 32 bytes] ++ [block_number: 8 BE bytes]
+/// ```
+///
+/// MDBX cursor walks group entries by address, then by storage key, then ascending by block.
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct HashedStorageShardedKey {
     /// The hashed address of the account owning the storage.
@@ -81,14 +125,15 @@ impl Decode for HashedStorageShardedKey {
 
 /// Sharded key for account trie history.
 ///
-/// Uses **length-prefixed encoding** to avoid sort ambiguity in MDBX:
+/// Encoded as a fixed-size 73-byte buffer. The nibble portion is right-padded with `0x00` and
+/// followed by a length byte so MDBX's byte-wise sort agrees with `Nibbles`' lex-by-nibble
+/// order:
 ///
 /// ```text
-/// [nibble_count: 1 byte] ++ [raw nibble bytes] ++ [block_number: 8 BE bytes]
+/// [nibbles: 64 bytes, right-padded 0x00] ++ [length: 1 byte] ++ [block_number: 8 BE bytes]
 /// ```
 ///
-/// See [`StorageTrieShardedKey`] for the same rationale
-/// applied to per-account storage tries.
+/// See [`StorageTrieShardedKey`] for the same layout extended with a per-account address.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Hash)]
 pub struct AccountTrieShardedKey {
     /// Trie path as nibbles.
@@ -105,47 +150,41 @@ impl AccountTrieShardedKey {
 }
 
 impl Encode for AccountTrieShardedKey {
-    type Encoded = Vec<u8>;
+    type Encoded = [u8; ACCOUNT_TRIE_SHARDED_KEY_LEN];
 
     fn encode(self) -> Self::Encoded {
-        let nibble_bytes: Vec<u8> = self.key.0.iter().collect();
-        let nibble_count = nibble_bytes.len() as u8;
-        let mut buf = Vec::with_capacity(1 + nibble_bytes.len() + 8);
-        buf.push(nibble_count);
-        buf.extend_from_slice(&nibble_bytes);
-        buf.extend_from_slice(&self.highest_block_number.to_be_bytes());
+        let mut buf = [0u8; ACCOUNT_TRIE_SHARDED_KEY_LEN];
+        buf[..NIBBLE_SUBKEY_LEN].copy_from_slice(&encode_nibble_subkey(&self.key));
+        buf[NIBBLE_SUBKEY_LEN..].copy_from_slice(&self.highest_block_number.to_be_bytes());
         buf
     }
 }
 
 impl Decode for AccountTrieShardedKey {
     fn decode(value: &[u8]) -> Result<Self, DatabaseError> {
-        // Minimum: 1 (count) + 0 (nibbles) + 8 (block) = 9
-        if value.len() < 9 {
-            return Err(DatabaseError::Decode);
-        }
-        let nibble_count = value[0] as usize;
-        let expected_len = 1 + nibble_count + 8;
-        if value.len() != expected_len {
-            return Err(DatabaseError::Decode);
-        }
-        let nibble_bytes = &value[1..1 + nibble_count];
-        let key =
-            StoredNibbles::from(reth_trie_common::Nibbles::from_nibbles_unchecked(nibble_bytes));
-        let block_bytes = &value[1 + nibble_count..];
-        let highest_block_number =
-            u64::from_be_bytes(block_bytes.try_into().map_err(|_| DatabaseError::Decode)?);
+        let bytes: &[u8; ACCOUNT_TRIE_SHARDED_KEY_LEN] =
+            value.try_into().map_err(|_| DatabaseError::Decode)?;
+        let nibble_buf: &[u8; NIBBLE_SUBKEY_LEN] =
+            bytes[..NIBBLE_SUBKEY_LEN].try_into().map_err(|_| DatabaseError::Decode)?;
+        let key = decode_nibble_subkey(nibble_buf);
+        let highest_block_number = u64::from_be_bytes(
+            bytes[NIBBLE_SUBKEY_LEN..].try_into().map_err(|_| DatabaseError::Decode)?,
+        );
         Ok(Self { key, highest_block_number })
     }
 }
 
-/// Keys Storage Trie History by: Hashed Address + Nibbles + Sharded Block.
+/// Sharded key for storage trie history, keyed by `(hashed_address, nibble_path, block)`.
 ///
-/// Uses **length-prefixed encoding** for the nibble portion to avoid sort
-/// ambiguity in MDBX (same rationale as [`AccountTrieShardedKey`]):
+/// Encoded as a fixed-size 105-byte buffer; the 32-byte hashed address sits at position 0 so
+/// MDBX cursor walks naturally group all entries for the same account, then sort by trie path
+/// (lex-by-nibble) and block number — see [`AccountTrieShardedKey`] for the nibble-subkey
+/// rationale.
 ///
 /// ```text
-/// [hashed_address: 32 bytes] ++ [nibble_count: 1 byte] ++ [nibble_bytes] ++ [block_number: 8 BE bytes]
+/// [hashed_address: 32 bytes] ++ [nibbles: 64 bytes, right-padded 0x00]
+///                            ++ [length: 1 byte]
+///                            ++ [block_number: 8 BE bytes]
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct StorageTrieShardedKey {
@@ -165,43 +204,43 @@ impl StorageTrieShardedKey {
 }
 
 impl Encode for StorageTrieShardedKey {
-    type Encoded = Vec<u8>;
+    type Encoded = [u8; STORAGE_TRIE_SHARDED_KEY_LEN];
+
     fn encode(self) -> Self::Encoded {
-        let nibble_bytes: Vec<u8> = self.key.0.iter().collect();
-        let nibble_count = nibble_bytes.len() as u8;
-        let mut buf = Vec::with_capacity(32 + 1 + nibble_bytes.len() + 8);
-        buf.extend_from_slice(self.hashed_address.as_slice());
-        buf.push(nibble_count);
-        buf.extend_from_slice(&nibble_bytes);
-        buf.extend_from_slice(&self.highest_block_number.to_be_bytes());
+        let mut buf = [0u8; STORAGE_TRIE_SHARDED_KEY_LEN];
+        buf[..32].copy_from_slice(self.hashed_address.as_slice());
+        buf[32..32 + NIBBLE_SUBKEY_LEN].copy_from_slice(&encode_nibble_subkey(&self.key));
+        buf[32 + NIBBLE_SUBKEY_LEN..].copy_from_slice(&self.highest_block_number.to_be_bytes());
         buf
     }
 }
 
 impl Decode for StorageTrieShardedKey {
     fn decode(value: &[u8]) -> Result<Self, DatabaseError> {
-        // Minimum: 32 (addr) + 1 (count) + 0 (nibbles) + 8 (block) = 41
-        if value.len() < 41 {
-            return Err(DatabaseError::Decode);
-        }
-        let hashed_address = B256::from_slice(&value[..32]);
-        let nibble_count = value[32] as usize;
-        let expected_len = 32 + 1 + nibble_count + 8;
-        if value.len() != expected_len {
-            return Err(DatabaseError::Decode);
-        }
-        let nibble_bytes = &value[33..33 + nibble_count];
-        let key =
-            StoredNibbles::from(reth_trie_common::Nibbles::from_nibbles_unchecked(nibble_bytes));
-        let block_bytes = &value[33 + nibble_count..];
-        let highest_block_number =
-            u64::from_be_bytes(block_bytes.try_into().map_err(|_| DatabaseError::Decode)?);
+        let bytes: &[u8; STORAGE_TRIE_SHARDED_KEY_LEN] =
+            value.try_into().map_err(|_| DatabaseError::Decode)?;
+        let hashed_address = B256::from_slice(&bytes[..32]);
+        let nibble_buf: &[u8; NIBBLE_SUBKEY_LEN] =
+            bytes[32..32 + NIBBLE_SUBKEY_LEN].try_into().map_err(|_| DatabaseError::Decode)?;
+        let key = decode_nibble_subkey(nibble_buf);
+        let highest_block_number = u64::from_be_bytes(
+            bytes[32 + NIBBLE_SUBKEY_LEN..].try_into().map_err(|_| DatabaseError::Decode)?,
+        );
         Ok(Self { hashed_address, key, highest_block_number })
     }
 }
 
-/// Keys Storage `ChangeSets` by: Block Number + Hashed Address.
-/// Replaces `BlockNumberAddress` which uses unhashed Address.
+/// Key for the storage `ChangeSets` table, keyed by `(block, hashed_address)`.
+///
+/// Encoded as a fixed-size 40-byte buffer:
+///
+/// ```text
+/// [block_number: 8 BE bytes] ++ [hashed_address: 32 bytes]
+/// ```
+///
+/// Block goes first so MDBX cursor walks iterate change sets in block order, with
+/// address-grouping within each block. Replaces upstream `BlockNumberAddress`, which keyed by
+/// the unhashed account address.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct BlockNumberHashedAddress(pub (BlockNumber, B256));
 
@@ -334,8 +373,51 @@ mod tests {
         let enc_a = key_a.encode();
         let enc_b = key_b.encode();
         assert_ne!(enc_a, enc_b, "different logical keys must never produce identical encodings");
-        // Empty nibbles (length 0) must sort before non-empty nibbles (length 8).
+        // Empty nibbles (all-zero padded path) must sort before non-empty paths whose first
+        // non-zero nibble is greater than zero.
         assert!(enc_b < enc_a, "empty nibbles must sort before non-empty nibbles");
+    }
+
+    /// Regression: under the old length-prefixed encoding, the length byte at position 0
+    /// dominated MDBX's byte-wise sort, so `[0x05]` (len=1) would have sorted before
+    /// `[0x01, 0x05]` (len=2) — opposite of the logical nibble lex order. The fixed-size
+    /// layout places nibble bytes first, so the actual path content drives ordering.
+    #[test]
+    fn account_trie_sort_follows_nibble_lex_order_not_length() {
+        let key_short = AccountTrieShardedKey::new(
+            StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x05])),
+            0,
+        );
+        let key_long = AccountTrieShardedKey::new(
+            StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x01, 0x05])),
+            0,
+        );
+
+        assert!(
+            key_long.encode() < key_short.encode(),
+            "[0x01, 0x05] must sort before [0x05] because nibble 0x01 < 0x05",
+        );
+    }
+
+    /// Storage-trie variant of the same regression.
+    #[test]
+    fn storage_trie_sort_follows_nibble_lex_order_not_length() {
+        let addr = B256::repeat_byte(0x44);
+        let key_short = StorageTrieShardedKey::new(
+            addr,
+            StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x05])),
+            0,
+        );
+        let key_long = StorageTrieShardedKey::new(
+            addr,
+            StoredNibbles::from(Nibbles::from_nibbles_unchecked([0x01, 0x05])),
+            0,
+        );
+
+        assert!(
+            key_long.encode() < key_short.encode(),
+            "[0x01, 0x05] must sort before [0x05] within the same address",
+        );
     }
 
     #[test]

@@ -1,0 +1,160 @@
+---
+title: batcher 구성하기
+description: 체인의 op-batcher를 구성하는 방법을 알아봅니다. batcher 정책, 비용 조정, 다중 blob 트랜잭션, sequencer 스로틀링을 다룹니다.
+diataxis: how-to
+---
+
+op-batcher는 L2 sequencer 데이터를 L1에 게시하여 검증자(verifier)가 해당 데이터를
+사용할 수 있도록 합니다. 이 가이드에서는 모든 OP Stack 체인이 준수해야 하는 정책 제약 조건과
+비용 및 안정성에 가장 큰 영향을 미치는 설정을 살펴봅니다.
+모든 CLI 플래그와 환경 변수의 목록은
+[batcher 구성 레퍼런스](/ko/chain-operators/reference/batcher-configuration)를 참고하십시오.
+
+## Batcher 정책
+
+batcher 정책은 L2 데이터를 L1에 게시하는 방식에 관한 상위 수준의 제약 조건과 책임을 정의합니다. 아래는 OP Stack에서 batcher를 구성하기 위한 [표준 가이드라인](/ko/op-stack/protocol/superchain-registry#what-is-a-standard-chain)입니다.
+
+| 파라미터                  | 설명                                                                                                    | 관리 주체           | 요구 사항                                                                                | 참고                                                                                                                                                                                                                                    |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 데이터 가용성 유형     | batcher가 L1에 트랜잭션 데이터를 게시할 때 **blobs**, **calldata**, **auto** 중 무엇을 사용할지 지정합니다.        | Batch submitter 주소 | Ethereum (Blobs 또는 Calldata)                                                               | - 대체 데이터 가용성(Alt-DA)은 아직 표준 구성에서 지원되지 않습니다.<br />- blob 트랜잭션과 calldata는 모두 L1에 의해 완전히 보호되므로, sequencer는 아무런 제한 없이 둘 사이를 자유롭게 전환할 수 있습니다. |
+| 배치 제출 빈도 | batcher가 집계된 트랜잭션 데이터를 (batcher 트랜잭션을 통해) L1에 얼마나 자주 제출할지 결정합니다. | Batch submitter 주소 | **1,800 L1 블록**(L1 블록 시간을 12초로 가정할 때 Ethereum 기준 6시간) 이하를 목표로 해야 함 | - 배치는 sequencing window가 닫히기 전에 게시되어야 합니다(기본값은 일반적으로 12시간).<br />- 각 배치가 적시에 완전히 커밋되도록 L1 네트워크 혼잡과 데이터 크기를 고려한 여유를 두십시오.              |
+
+*   **데이터 가용성 유형**:
+    *   **Calldata**는 일반적으로 더 단순하지만, gas 가격에 따라 Ethereum mainnet에서 더 비쌀 수 있습니다.
+    *   **Blobs**는 체인의 트랜잭션 양이 큰 데이터 청크를 채울 만큼 충분할 때 일반적으로 비용이 더 낮습니다.
+    *   `op-batcher`는 `--data-availability-type=<blobs|calldata|auto>` 플래그 또는 `OP_BATCHER_DATA_AVAILABILITY_TYPE` 환경 변수를 설정하여 이 방식들 사이를 전환할 수 있습니다. 이 플래그를 `auto`로 설정하면 batcher가 현재 L1 gas 가격에 따라 `calldata`와 `blobs` 사이를 자동으로 전환합니다.
+
+*   **배치 제출 빈도** (`OP_BATCHER_MAX_CHANNEL_DURATION` 및 관련 플래그):
+    *   표준 OP Chain은 보통 1–6시간 사이의 최대 채널 지속 시간을 목표로 합니다.
+    *   체인은 L2의 sequencing window(일반적으로 12시간)를 절대 초과해서는 안 됩니다.
+    *   더 긴 제출 주기(예: 5시간 또는 6시간)를 목표로 하는 경우, [safe head](https://specs.optimism.io/glossary.html#safe-l2-head)가 그 시간만큼 정체될 수 있다는 점에 유의하십시오.
+
+`op-batcher` 구성을 설정하거나 수정할 때 이러한 상위 수준의 "정책" 요구 사항을 반영하십시오. 각 CLI 플래그와 환경 변수에 대한 자세한 설명은 [batcher 구성 레퍼런스](/ko/chain-operators/reference/batcher-configuration)를 참고하십시오.
+
+## 권장 사항
+
+### `OP_BATCHER_MAX_CHANNEL_DURATION` 설정하기
+
+<Info>
+  `op-batcher` 내부의 기본값은 지정하지 않을 경우 여전히 `0`이며, 이는 채널 지속 시간 추적이 비활성화됨을 의미합니다.
+  처리량이 매우 낮은 체인의 경우, 이는 sequencing window에 가까워질 때까지 채널을 채운 뒤 sequencing window가 만료되기 `L1 SUB_SAFETY_MARGIN` L1 블록 전에 채널을 게시한다는 의미입니다.
+</Info>
+
+비용을 최소화하려면 `OP_BATCHER_MAX_CHANNEL_DURATION`을 5시간 목표에 해당하는 `1500` L1 블록으로 설정할 것을 권장합니다. 이 파라미터가 0이 아닌 경우, 배치가 L1에 제출되는 최대 간격(L1 블록 단위이며, 각 블록은 12초)을 의미합니다. 예를 들어 이 값을 5로 설정하면 batcher는 5\*12=60초마다 L1에 배치를 전송합니다. blob을 사용하는 경우 130kb blob은 전체 단위로 구매해야 하므로, 체인이 그 60초 동안 최소 \~130kb의 데이터를 생성하지 않으면 일부만 채워진 blob을 게시하게 되어 저장 공간이 낭비됩니다.
+
+*   배치는 OP 체인에서 기본값이 12시간인 sequencing window 내에 제출되어야 하므로, 5시간을 초과하는 값은 설정하지 않을 것을 권장합니다. 그렇지 않으면 체인에서 12시간 길이의 체인 reorg가 발생할 수 있습니다. 5시간은 안정성에 영향을 주지 않으면서 12시간 window 안에 여유 있게 들어가는, 권장 가능한 가장 긴 시간입니다.
+*   `OP_BATCHER_MAX_CHANNEL_DURATION`이 경과하기 전에 체인이 blob을 데이터로 가득 채우면, 그와 관계없이 배치가 제출됩니다. (예: OP Mainnet batcher가 `OP_BATCHER_MAX_CHANNEL_DURATION`을 5시간으로 설정했더라도, 실제로는 몇 분마다 배치를 제출합니다.)
+
+<Info>
+  `OP_BATCHER_MAX_CHANNEL_DURATION`을 `1500`으로 설정하면 수수료가 가장 저렴해지지만, 동시에 [safe head](https://specs.optimism.io/glossary.html#safe-l2-head)가 최대 5시간까지 정체될 수 있습니다.
+
+  *   이는 동작을 위해 safe head에 의존하는 체인 상의 앱에 부정적인 영향을 미칩니다. 많은 앱은 unsafe head만 따라가도 동작할 수 있지만, 중앙화 거래소나 서드파티 bridge는 입금(디파짓)과 출금을 처리하기 전에 트랜잭션이 safe로 표시될 때까지 기다리는 경우가 많습니다.
+  *   따라서 배치 게시 간격이 길어지면 특정 유형의 고보안 애플리케이션 운영에 상당한 지연이 발생할 수 있습니다.
+</Info>
+
+### 여러 blob을 사용하도록 batcher 구성하기
+
+<Info>
+  blob 혼잡이 발생한 경우 blob 수를 높게 설정하면 역효과가 날 수 있습니다. blob이 포함되기가 더 어려워지고 그에 따라 수수료가 인상되는데, 이는 항상 우선순위 수수료(priority fee)가 두 배로 늘어남을 의미하기 때문입니다.
+</Info>
+
+`op-batcher`는 단일 blob 트랜잭션당 여러 개의 blob을 전송할 수 있습니다. 이는 다중 프레임 채널을 사용하여 구현되며, 채널과 프레임에 대한 자세한 기술 내용은 [specs](https://specs.optimism.io/protocol/derivation.html?utm_source=op-docs&utm_medium=docs#frame-format)를 참고하십시오.
+
+6-blob batcher 트랜잭션을 활성화하기 위한 최소 batcher 구성(환경 변수 사용)은 다음과 같습니다.
+
+```
+  - OP_BATCHER_BATCH_TYPE=1 # span batches, optional
+  - OP_BATCHER_DATA_AVAILABILITY_TYPE=blobs
+  - OP_BATCHER_TARGET_NUM_FRAMES=6 # 6 blobs per tx
+  - OP_BATCHER_TXMGR_MIN_BASEFEE=2.0 # 2 gwei, might need to tweak, depending on gas market
+  - OP_BATCHER_TXMGR_MIN_TIP_CAP=2.0 # 2 gwei, might need to tweak, depending on gas market
+  - OP_BATCHER_RESUBMISSION_TIMEOUT=240s # wait 4 min before bumping fees
+```
+
+이 구성은 blob 트랜잭션을 활성화하고 목표 프레임 수를 6으로 설정하며, 이는 트랜잭션당 6개의 blob을 의미합니다.
+6-blob 트랜잭션이 얼마나 쉽게 포함될지 불확실하므로 최소 tip cap과 base fee도 2 gwei로 상향하며, 약간 더 높은 우선순위 수수료가 도움이 될 것입니다.
+현재 트랜잭션 풀 구현은 blob 트랜잭션을 교체할 때 수수료를 두 배로 올려야 하므로, 수수료를 인상하기 전에 포함될 시간을 더 주기 위해 재제출 타임아웃을 몇 분으로 늘립니다.
+
+다중 blob 트랜잭션은 합리적인 시간 안에 6개의 blob을 채울 만큼 트랜잭션 양이 충분한 중간 및 높은 처리량의 체인에 특히 유용합니다.
+체인에 적합한 blob 수를 결정하려면 채널 지속 시간당 체인이 생성하는 압축된 배치 데이터를 추정한 후 blob 용량(약 130 KB)으로 나누십시오. batcher 비용 조정 가이드의 [채널 크기 조정](/ko/use-cases/tune-batcher-costs#step-4-size-your-channels)에서 이 추정 방법과 이에 맞는 fee scalar 구성을 안내합니다. 체인 운영자를 위한 [배치 데이터를 blob으로 게시하기](/ko/chain-operators/guides/features/blobs) 가이드도 참고하십시오.
+
+### span batch를 사용하도록 `--batch-type=1` 설정하기
+
+Delta 네트워크 업그레이드에서 도입된 span batch는 OP Stack 체인의 오버헤드를 줄여 줍니다. 이는 트랜잭션이 드물고 처리량이 낮은 OP Stack 체인에 유용합니다.
+
+span batch는 일반 배치 데이터와 동일한 일관성 검사를 유지하면서, 연속된 L2 블록 구간을 더 효율적인 방식으로 표현하여 오버헤드를 줄입니다.
+
+Delta가 활성화되었는지 먼저 확인하는 방법을 포함한 단계별 안내는 [span batch 활성화하기](/ko/chain-operators/guides/features/enable-span-batches)를 참고하십시오.
+
+## Batcher의 sequencer 스로틀링
+
+이 기능은 batcher가 주도하는 sequencer 스로틀링(throttling) 제어 루프입니다. L1 DA 사용량이 갑자기 급증하여 사용 가능한 gas를 지나치게 소모하고 batcher 트랜잭션이 적체되는 것을 방지하기 위한 것입니다. batcher는 batcher 데이터가 너무 많이 쌓인 것을 감지하면 즉시 sequencer의 데이터 처리량을 제한할 수 있습니다.
+
+스로틀링 조절 수단은 두 가지입니다.
+
+1.  트랜잭션 스로틀링: 추정 압축 L1 DA 사용량이 특정 임계값을 초과하는 개별 트랜잭션을 건너뜁니다.
+2.  블록 스로틀링: 블록의 추정 총 L1 DA 사용량에 상한을 두어, 블록 생성 중 블록의 L1 DA 사용량을 특정 임계값 이상으로 늘리는 트랜잭션을 포함하지 않습니다.
+
+**기능 요구 사항**
+
+*   이 기능은 기본적으로 활성화되어 있으며, sequencer의 `op-reth` node가 `miner_setMaxDASize` RPC를 노출해야 합니다(아래와 같이 `miner` 네임스페이스를 활성화). `--throttle.unsafe-da-bytes-lower-threshold`(환경 변수 `OP_BATCHER_THROTTLE_UNSAFE_DA_BYTES_LOWER_THRESHOLD`)를 0으로 설정하면 비활성화할 수 있으며, 스로틀링을 끄기 위해 변경해야 하는 플래그는 이것 하나뿐입니다. batcher를 재시작할 때 필요한 RPC를 사용할 수 있도록, batcher를 업데이트하기 전에 sequencer의 `op-reth` node를 먼저 업데이트해야 합니다.
+*   conductor의 리더 인식(leader-aware) rpc 프록시 기능을 사용하는 경우 `op-conductor/v0.2.0`으로 업그레이드해야 합니다. 이 conductor 릴리스에는 `miner_setMaxDASize` RPC 프록시 지원이 포함되어 있습니다.
+
+**구성**
+
+<Info>
+  이 기능을 사용하려면 batcher가 항상 sequencer를 올바르게 따라가야 합니다. 그렇지 않으면 sequencer가 아닌 EL 클라이언트에 스로틀링 파라미터를 설정하게 됩니다. 즉, L2 rollup 및 EL 엔드포인트 플래그에 가능한 모든 sequencer를 나열하여 활성 sequencer 추종 모드를 올바르게 활성화해야 합니다.
+</Info>
+
+batcher는 기본적으로 아래에 설명된 파라미터로 스로틀링이 구성되어 있습니다(기본값을 재정의할 수 있는 해당 플래그도 함께 표기합니다).
+
+*   batcher가 sequencer에 스로틀링을 활성화하는 기준이 되는 대기 중인 블록 바이트 적체량: `--throttle.unsafe-da-bytes-lower/upper-threshold`(환경 변수 `OP_BATCHER_THROTTLE_UNSAFE_DA_BYTES_LOWER/UPPER_THRESHOLD`), 3\_200\_000 및 12\_800\_000(배치할 데이터의 batcher 적체량 3.2MB~12.8MB). 하한 임계값을 `0`으로 설정하면 스로틀링이 비활성화됩니다. 상한 임계값은 최대 스로틀링 강도에 도달하는 수준을 설정합니다.
+*   개별 트랜잭션 크기 스로틀링: `--throttle.tx-size-lower/upper-limit`(환경 변수 `OP_BATCHER_THROTTLE_TX_SIZE_LOWER/UPPER_LIMIT`), 150 및 20\_000. 각각 스로틀링이 최대/최소 강도일 때 트랜잭션의 추정 압축 크기 한도입니다.
+*   블록 크기 스로틀링: `--throttle.block-size-lower/upper-limit`(환경 변수 `OP_BATCHER_THROTTLE_BLOCK_SIZE_LOWER/UPPER_LIMIT`), 2\_000 및 130\_000. 각각 스로틀링이 최대/최소 강도일 때 블록의 추정 압축 크기 한도입니다.
+*  스로틀러 컨트롤러 유형: `--throttle.controller-type`(환경 변수 `OP_BATCHER_THROTTLE_CONTROLLER_TYPE`), 기본값은 `quadratic`입니다. 이는 스로틀링이 중간 강도일 때 트랜잭션 및 블록 크기 한도를 보간하는 방식을 결정합니다.
+
+자세한 내용은 [readme](https://github.com/ethereum-optimism/optimism/blob/develop/op-batcher/readme.md)를 참고하십시오.
+
+시작 시 batcher에 스로틀링이 활성화되어 있는데 통신 중인 sequencer의 `op-reth` node에 `miner_setMaxDASize` RPC가 활성화되어 있지 않으면, 다음과 같은 오류 메시지와 함께 실패합니다.
+
+```
+lvl=warn msg="Served miner_setMaxDASize" reqid=1 duration=11.22µs err="the method miner_setMaxDASize does not exist/is not available"
+In this case, make sure the miner API namespace is enabled for the correct transport protocol (HTTP or WS), see next paragraph.
+```
+
+`miner_setMaxDASize` RPC는 `op-reth`의 API 플래그에 `miner` 네임스페이스를 추가하여 활성화해야 합니다.
+
+```
+--http.api=web3,debug,eth,txpool,net,miner
+--ws.api=web3,debug,eth,txpool,net,miner
+```
+
+HTTP와 WS 모두에 추가할 것을 권장합니다.
+
+## 구성 예시
+
+다음은 batcher 구성의 기본 예시입니다. 최적의 batcher 구성은 체인마다 다르지만,
+아래에서 가장 중요한 변수 몇 가지가 구성된 모습을 확인할 수 있습니다.
+
+```
+  OP_BATCHER_WAIT_NODE_SYNC: true
+  OP_BATCHER_CHECK_RECENT_TXS_DEPTH: 5
+  OP_BATCHER_POLL_INTERVAL: "5s"
+  OP_BATCHER_BATCH_TYPE: "1" # span
+  OP_BATCHER_COMPRESSION_ALGO: brotli-10
+  OP_BATCHER_DATA_AVAILABILITY_TYPE: auto
+  OP_BATCHER_MAX_CHANNEL_DURATION: "150" # up to 30 min to fill blobs
+  OP_BATCHER_TARGET_NUM_FRAMES: "5" # 5 blobs, can go to 6 with Pectra activated on L1
+  OP_BATCHER_SUB_SAFETY_MARGIN: "300" # 1h safety margin to prevent seq window elapse
+  OP_BATCHER_NUM_CONFIRMATIONS: "4"
+  OP_BATCHER_NETWORK_TIMEOUT: "10s"
+  OP_BATCHER_TXMGR_MIN_BASEFEE: "2.0"
+  OP_BATCHER_TXMGR_MIN_TIP_CAP: "2.0"
+  OP_BATCHER_TXMGR_FEE_LIMIT_MULTIPLIER: 16 # allow up to 4 doublings
+  OP_BATCHER_MAX_PENDING_TX: "10"
+  OP_BATCHER_RESUBMISSION_TIMEOUT: "180s" # wait 3 min before bumping fees
+  OP_BATCHER_ACTIVE_SEQUENCER_CHECK_DURATION: 5s
+```
+
+`MAX_CHANNEL_DURATION`에 도달하기 전에 채널을 채우지 못하는 처리량이 낮은 체인은
+`MAX_CHANNEL_DURATION`을 늘려 gas를 절약할 수 있습니다. [권장 사항 섹션](#set-your--op_batcher_max_channel_duration)을 참고하십시오.

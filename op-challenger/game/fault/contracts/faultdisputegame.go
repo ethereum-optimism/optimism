@@ -57,12 +57,14 @@ var (
 	methodChallengeRootL2Block    = "challengeRootL2Block"
 	methodBondDistributionMode    = "bondDistributionMode"
 	methodCloseGame               = "closeGame"
+	methodAnchorStateRegistry     = "anchorStateRegistry"
 )
 
 var (
-	ErrSimulationFailed             = errors.New("tx simulation failed")
-	ErrChallengeL2BlockNotSupported = errors.New("contract version does not support challenging L2 block number")
-	ErrCloseGameNotSupported        = errors.New("contract version does not support closeGame")
+	ErrSimulationFailed                = errors.New("tx simulation failed")
+	ErrChallengeL2BlockNotSupported    = errors.New("contract version does not support challenging L2 block number")
+	ErrCloseGameNotSupported           = errors.New("contract version does not support closeGame")
+	ErrAnchorStateRegistryNotSupported = errors.New("contract version does not support anchorStateRegistry")
 )
 
 type FaultDisputeGameContractLatest struct {
@@ -85,10 +87,16 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 		return nil, fmt.Errorf("failed to detect game type: %w", err)
 	}
 	switch gameType {
-	case gameTypes.SuperCannonGameType, gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
+	case gameTypes.SuperCannonKonaGameType, gameTypes.SuperPermissionedGameType:
 		return NewSuperFaultDisputeGameContract(ctx, metrics, addr, caller)
-	default:
+	case gameTypes.CannonGameType,
+		gameTypes.PermissionedGameType,
+		gameTypes.CannonKonaGameType,
+		gameTypes.AlphabetGameType,
+		gameTypes.FastGameType:
 		return NewPreInteropFaultDisputeGameContract(ctx, metrics, addr, caller)
+	default:
+		return nil, fmt.Errorf("%w: %v", ErrUnsupportedGameType, gameType)
 	}
 }
 
@@ -301,6 +309,15 @@ func (f *FaultDisputeGameContractLatest) GetResolvedAt(ctx context.Context, bloc
 	}
 	resolvedAt := time.Unix(int64(result.GetUint64(0)), 0)
 	return resolvedAt, nil
+}
+
+func (f *FaultDisputeGameContractLatest) GetAnchorStateRegistry(ctx context.Context, block rpcblock.Block) (common.Address, error) {
+	defer f.metrics.StartContractRequest("GetAnchorStateRegistry")()
+	result, err := f.multiCaller.SingleCall(ctx, block, f.contract.Call(methodAnchorStateRegistry))
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to retrieve anchor state registry: %w", err)
+	}
+	return result.GetAddress(0), nil
 }
 
 func (f *FaultDisputeGameContractLatest) GetStartingRootHash(ctx context.Context) (common.Hash, error) {
@@ -532,6 +549,14 @@ func (f *FaultDisputeGameContractLatest) GetAllClaims(ctx context.Context, block
 	return claims, nil
 }
 
+func (f *FaultDisputeGameContractLatest) IsClosed(ctx context.Context) (bool, error) {
+	mode, err := f.GetBondDistributionMode(ctx, rpcblock.Latest)
+	if err != nil {
+		return false, err
+	}
+	return mode != types.UndecidedDistributionMode, nil
+}
+
 func (f *FaultDisputeGameContractLatest) GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error) {
 	result, err := f.multiCaller.SingleCall(ctx, block, f.contract.Call(methodBondDistributionMode))
 	if err != nil {
@@ -703,6 +728,7 @@ type FaultDisputeGameContract interface {
 	GetExtendedMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error)
 	GetStartingRootHash(ctx context.Context) (common.Hash, error)
 	GetSplitDepth(ctx context.Context) (types.Depth, error)
+	IsClosed(ctx context.Context) (bool, error)
 	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, gameTypes.GameStatus, error)
 	GetRequiredBonds(ctx context.Context, block rpcblock.Block, positions ...*big.Int) ([]*big.Int, error)
 	GetCredits(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*big.Int, error)
@@ -729,4 +755,5 @@ type FaultDisputeGameContract interface {
 	Vm(ctx context.Context) (*VMContract, error)
 	GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error)
 	CloseGameTx(ctx context.Context) (txmgr.TxCandidate, error)
+	GetAnchorStateRegistry(ctx context.Context, block rpcblock.Block) (common.Address, error)
 }

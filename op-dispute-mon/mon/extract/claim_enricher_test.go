@@ -15,7 +15,7 @@ func TestClaimEnricher(t *testing.T) {
 	caller := &mockGameCaller{resolved: make(map[int]bool)}
 	enricher := NewClaimEnricher()
 	expected := []bool{true, false, false, false, false}
-	game := &types.EnrichedGameData{
+	game := &types.FaultGameData{
 		Claims: claimsWithResolvedSubgames(caller, expected...),
 	}
 	err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)
@@ -29,7 +29,7 @@ func TestClaimEnricherError(t *testing.T) {
 	expectedErr := errors.New("boom")
 	caller := &mockGameCaller{resolved: make(map[int]bool), resolvedErr: expectedErr}
 	enricher := NewClaimEnricher()
-	game := &types.EnrichedGameData{
+	game := &types.FaultGameData{
 		Claims: claimsWithResolvedSubgames(caller, true, false),
 	}
 	err := enricher.Enrich(context.Background(), rpcblock.Latest, caller, game)

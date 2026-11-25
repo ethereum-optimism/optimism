@@ -9,43 +9,42 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 
 use alloy_consensus::BlockHeader;
-use alloy_eips::eip1898::BlockWithParent;
+use alloy_eips::{NumHash, eip1898::BlockWithParent};
 use futures_util::TryStreamExt;
 use reth_execution_types::Chain;
 use reth_exex::{ExExContext, ExExEvent, ExExNotification};
 use reth_node_api::{FullNodeComponents, NodePrimitives, NodeTypes};
 use reth_optimism_trie::{
-    OpProofStoragePrunerTask, OpProofsProviderRO, OpProofsStorage, OpProofsStore,
-    live::LiveTrieCollector,
+    CanonicalInMemoryStateProvider, OpProofStoragePruner, OpProofsProviderRO, OpProofsProviderRw,
+    OpProofsStore, ProofWindowRange,
+    engine::{EngineConfig, EngineHandle},
+    proof::DatabaseStateRoot,
 };
-use reth_provider::{BlockNumReader, BlockReader, TransactionVariant};
-use reth_trie::{HashedPostStateSorted, SortedTrieData, updates::TrieUpdatesSorted};
-use std::{sync::Arc, time::Duration};
-use tokio::{sync::watch, task, time};
-use tracing::{debug, error, info};
+use reth_provider::{BlockHashReader, BlockNumReader, HeaderProvider};
+use reth_trie::{
+    HashedPostState, HashedPostStateSorted, SortedTrieData, StateRoot, updates::TrieUpdatesSorted,
+};
+use std::sync::Arc;
+use tracing::{debug, info, warn};
 
 // Safety threshold for maximum blocks to prune automatically on startup.
 // If the required prune exceeds this, the node will error out and require manual pruning. Default
 // is 1000 blocks.
 const MAX_PRUNE_BLOCKS_STARTUP: u64 = 1000;
 
-/// How many blocks to process in a single batch before yielding. Default is 50 blocks.
-const SYNC_BLOCKS_BATCH_SIZE: usize = 50;
-
-/// How close to tip before we process blocks in real-time vs batch. Default is 1024 blocks.
-const REAL_TIME_BLOCKS_THRESHOLD: u64 = 1024;
-
-/// How long to sleep when sync task is caught up. Default is 5 seconds.
-const SYNC_IDLE_SLEEP_SECS: u64 = 5;
-
 /// Default proofs history window: 1 month of blocks at 2s block time
 const DEFAULT_PROOFS_HISTORY_WINDOW: u64 = 1_296_000;
 
-/// Default interval between proof-storage prune runs. Default is 15 seconds.
-const DEFAULT_PRUNE_INTERVAL: Duration = Duration::from_secs(15);
+/// Default verification interval: disabled (0 = no periodic re-execution)
+const DEFAULT_VERIFICATION_INTERVAL: u64 = 0;
 
-/// Default verification interval: disabled
-const DEFAULT_VERIFICATION_INTERVAL: u64 = 0; // disabled
+/// Number of blocks behind the chain tip within which we consider the ExEx to be in real-time
+/// operation. Notifications further behind than this are treated as sync catch-up and handled
+/// asynchronously by the engine.
+const REAL_TIME_BLOCKS_THRESHOLD: u64 = 64;
+
+/// Command that (re-)initializes the proofs storage.
+const PROOFS_INIT_COMMAND: &str = "op-reth proofs init --proofs-history.storage-path <PATH>";
 
 /// Builder for [`OpProofsExEx`].
 #[derive(Debug)]
@@ -54,10 +53,10 @@ where
     Node: FullNodeComponents,
 {
     ctx: ExExContext<Node>,
-    storage: OpProofsStorage<Storage>,
+    storage: Storage,
     proofs_history_window: u64,
-    proofs_history_prune_interval: Duration,
     verification_interval: u64,
+    prefetch_threads: usize,
 }
 
 impl<Node, Storage> OpProofsExExBuilder<Node, Storage>
@@ -65,13 +64,13 @@ where
     Node: FullNodeComponents,
 {
     /// Create a new builder with required parameters and defaults.
-    pub const fn new(ctx: ExExContext<Node>, storage: OpProofsStorage<Storage>) -> Self {
+    pub const fn new(ctx: ExExContext<Node>, storage: Storage) -> Self {
         Self {
             ctx,
             storage,
             proofs_history_window: DEFAULT_PROOFS_HISTORY_WINDOW,
-            proofs_history_prune_interval: DEFAULT_PRUNE_INTERVAL,
             verification_interval: DEFAULT_VERIFICATION_INTERVAL,
+            prefetch_threads: 0,
         }
     }
 
@@ -81,15 +80,20 @@ where
         self
     }
 
-    /// Sets the interval between proof-storage prune runs.
-    pub const fn with_proofs_history_prune_interval(mut self, interval: Duration) -> Self {
-        self.proofs_history_prune_interval = interval;
+    /// Sets the interval at which blocks are re-executed to verify pre-computed trie data.
+    ///
+    /// Every `interval`-th block (by block number) will be executed in full even when
+    /// pre-computed trie data is available, allowing detection of any divergence.
+    /// Set to `0` (the default) to disable periodic verification.
+    pub const fn with_verification_interval(mut self, interval: u64) -> Self {
+        self.verification_interval = interval;
         self
     }
 
-    /// Sets the verification interval.
-    pub const fn with_verification_interval(mut self, interval: u64) -> Self {
-        self.verification_interval = interval;
+    /// Sets how many parallel readers warm the page cache ahead of persistence. `0` (the
+    /// default) disables warming.
+    pub const fn with_prefetch_threads(mut self, prefetch_threads: usize) -> Self {
+        self.prefetch_threads = prefetch_threads;
         self
     }
 
@@ -99,8 +103,8 @@ where
             ctx: self.ctx,
             storage: self.storage,
             proofs_history_window: self.proofs_history_window,
-            proofs_history_prune_interval: self.proofs_history_prune_interval,
             verification_interval: self.verification_interval,
+            prefetch_threads: self.prefetch_threads,
         }
     }
 }
@@ -115,21 +119,20 @@ where
 ///
 /// The following example shows how to install the ExEx with either in-memory or persistent storage.
 /// This can be used when launching an OP-Reth node via a binary.
-/// We are currently using it in optimism/bin/src/main.rs.
 ///
 /// ```
 /// use futures_util::FutureExt;
 /// use reth_db::test_utils::create_test_rw_db;
 /// use reth_node_api::NodeTypesWithDBAdapter;
 /// use reth_node_builder::{NodeBuilder, NodeConfig};
-/// use reth_optimism_chainspec::BASE_MAINNET;
+/// use reth_optimism_chainspec::OP_DEV;
 /// use reth_optimism_exex::OpProofsExEx;
 /// use reth_optimism_node::{OpNode, args::RollupArgs};
 /// use reth_optimism_trie::{InMemoryProofsStorage, OpProofsStorage, db::MdbxProofsStorage};
 /// use reth_provider::providers::BlockchainProvider;
 /// use std::{sync::Arc, time::Duration};
 ///
-/// let config = NodeConfig::new(BASE_MAINNET.clone());
+/// let config = NodeConfig::new(OP_DEV.clone());
 /// let db = create_test_rw_db();
 /// let args = RollupArgs::default();
 /// let op_node = OpNode::new(args);
@@ -148,7 +151,6 @@ where
 ///
 /// let storage_exec = storage.clone();
 /// let proofs_history_window = 1_296_000u64;
-/// let proofs_history_prune_interval = Duration::from_secs(3600);
 ///
 /// // Verification interval: perform full execution every N blocks
 /// let verification_interval = 0; // 0 = disabled, 100 = verify every 100 blocks
@@ -162,7 +164,6 @@ where
 ///     .install_exex("proofs-history", move |exex_context| async move {
 ///         Ok(OpProofsExEx::builder(exex_context, storage_exec)
 ///             .with_proofs_history_window(proofs_history_window)
-///             .with_proofs_history_prune_interval(proofs_history_prune_interval)
 ///             .with_verification_interval(verification_interval)
 ///             .build()
 ///             .run()
@@ -180,16 +181,15 @@ where
     /// events.
     ctx: ExExContext<Node>,
     /// The type of storage DB.
-    storage: OpProofsStorage<Storage>,
+    storage: Storage,
     /// The window to span blocks for proofs history. Value is the number of blocks, received as
     /// cli arg.
     proofs_history_window: u64,
-    /// Interval between proof-storage prune runs
-    proofs_history_prune_interval: Duration,
-    /// Verification interval: perform full block execution every N blocks for data integrity.
-    /// If 0, verification is disabled (always use fast path when available).
-    /// If 1, verification is always enabled (always execute blocks).
+    /// How often (in blocks) to re-execute a block for verification even when pre-computed trie
+    /// data is available. `0` disables periodic verification.
     verification_interval: u64,
+    /// Parallel readers warming the page cache ahead of persistence; `0` disables warming.
+    prefetch_threads: usize,
 }
 
 impl<Node, Storage> OpProofsExEx<Node, Storage>
@@ -197,14 +197,14 @@ where
     Node: FullNodeComponents,
 {
     /// Create a new `OpProofsExEx` instance.
-    pub fn new(ctx: ExExContext<Node>, storage: OpProofsStorage<Storage>) -> Self {
+    pub fn new(ctx: ExExContext<Node>, storage: Storage) -> Self {
         OpProofsExExBuilder::new(ctx, storage).build()
     }
 
     /// Create a new builder for `OpProofsExEx`.
     pub const fn builder(
         ctx: ExExContext<Node>,
-        storage: OpProofsStorage<Storage>,
+        storage: Storage,
     ) -> OpProofsExExBuilder<Node, Storage> {
         OpProofsExExBuilder::new(ctx, storage)
     }
@@ -213,58 +213,48 @@ where
 impl<Node, Storage, Primitives> OpProofsExEx<Node, Storage>
 where
     Node: FullNodeComponents<Types: NodeTypes<Primitives = Primitives>>,
+    Node::Provider: CanonicalInMemoryStateProvider,
     Primitives: NodePrimitives,
+    Primitives::Block: Clone,
     Storage: OpProofsStore + Clone + 'static,
 {
     /// Main execution loop for the ExEx
     pub async fn run(mut self) -> eyre::Result<()> {
-        self.ensure_initialized()?;
-        let sync_target_tx = self.spawn_sync_task();
+        let window = self.ensure_initialized()?;
+        self.reconcile_with_canonical_chain(window)?;
 
-        let prune_task = OpProofStoragePrunerTask::new(
+        let pruner = OpProofStoragePruner::new(
             self.storage.clone(),
             self.ctx.provider().clone(),
             self.proofs_history_window,
-            self.proofs_history_prune_interval,
         );
-        self.ctx
-            .task_executor()
-            .spawn_with_graceful_shutdown_signal(|signal| Box::pin(prune_task.run(signal)));
 
-        let collector = LiveTrieCollector::new(
+        let engine_handle = EngineHandle::spawn_with_config(
             self.ctx.evm_config().clone(),
             self.ctx.provider().clone(),
-            &self.storage,
+            self.storage.clone(),
+            pruner,
+            EngineConfig { prefetch_threads: self.prefetch_threads, ..Default::default() },
         );
 
+        engine_handle.sync_to(self.ctx.provider().best_block_number()?)?;
+
         while let Some(notification) = self.ctx.notifications.try_next().await? {
-            self.handle_notification(notification, &collector, &sync_target_tx)?;
+            self.handle_notification(notification, &engine_handle)?;
         }
 
         Ok(())
     }
 
-    /// Ensure proofs storage is initialized
-    fn ensure_initialized(&self) -> eyre::Result<()> {
-        // Check if proofs storage is initialized
+    /// Ensure proofs storage is initialized, and return its proof window.
+    fn ensure_initialized(&self) -> eyre::Result<ProofWindowRange> {
+        // Check if proofs storage is initialized. An empty proof window returns NoBlocksFound;
         let provider_ro = self.storage.provider_ro()?;
-        let earliest_block_number = match provider_ro.get_earliest_block_number()? {
-            Some((n, _)) => n,
-            None => {
-                return Err(eyre::eyre!(
-                    "Proofs storage not initialized. Please run 'op-reth initialize-op-proofs --proofs-history.storage-path <PATH>' first."
-                ));
-            }
-        };
-
-        let latest_block_number: u64 = match provider_ro.get_latest_block_number()? {
-            Some((n, _)) => n,
-            None => {
-                return Err(eyre::eyre!(
-                    "Proofs storage not initialized. Please run 'op-reth initialize-op-proofs --proofs-history.storage-path <PATH>' first."
-                ));
-            }
-        };
+        let window = provider_ro.get_proof_window().map_err(|_| {
+            eyre::eyre!("Proofs storage not initialized. Please run '{PROOFS_INIT_COMMAND}' first.")
+        })?;
+        let earliest_block_number = window.earliest.number;
+        let latest_block_number = window.latest.number;
 
         // Check if we have accumulated too much history for the configured window.
         // If the gap between what we have and what we want to keep is too large, the auto-pruner
@@ -283,131 +273,125 @@ where
             }
         }
 
-        // Need to update the earliest block metric on startup as this is not called frequently and
-        // can show outdated info. When metrics are disabled, this is a no-op.
-        #[cfg(feature = "metrics")]
-        {
-            self.storage
-                .metrics()
-                .block_metrics()
-                .earliest_number
-                .set(earliest_block_number as f64);
+        Ok(window)
+    }
+
+    /// Unwinds the proofs storage to the highest stored block that is on reth's canonical chain.
+    ///
+    /// reth can start below the proofs tip, or on another fork: after an unclean shutdown it
+    /// unwinds to its last persisted state trie without notifying ExExes, and the dropped blocks
+    /// may be replaced by another fork. Indexing on top of a stale tip would keep serving the
+    /// dropped blocks and reject reth's next block with a parent hash mismatch.
+    ///
+    /// Returns an error if reth's best block is below the proofs window, or if no block of the
+    /// window is on reth's canonical chain.
+    fn reconcile_with_canonical_chain(&self, window: ProofWindowRange) -> eyre::Result<()> {
+        let ProofWindowRange { earliest, latest } = window;
+        let provider = self.ctx.provider();
+        let best_block = provider.best_block_number()?;
+
+        if latest.number <= best_block && provider.block_hash(latest.number)? == Some(latest.hash) {
+            return Ok(());
         }
 
-        Ok(())
-    }
+        if earliest.number > best_block {
+            return Err(eyre::eyre!(
+                "Proofs storage starts at block {} but reth's best block is {best_block}. \
+                 Please re-initialize it with '{PROOFS_INIT_COMMAND}'.",
+                earliest.number,
+            ));
+        }
+        // The stored blocks form a single chain, so the canonical ones are a prefix of the window
+        // that starts at the earliest block.
+        if provider.block_hash(earliest.number)? != Some(earliest.hash) {
+            return Err(eyre::eyre!(
+                "Proofs storage (blocks {}..={}, tip {}) shares no block with reth's canonical \
+                 chain (best block {best_block}). Please re-initialize it with \
+                 '{PROOFS_INIT_COMMAND}'.",
+                earliest.number,
+                latest.number,
+                latest.hash,
+            ));
+        }
 
-    /// Spawn the background sync task and return the target sender
-    fn spawn_sync_task(&self) -> watch::Sender<u64> {
-        let (sync_target_tx, sync_target_rx) = watch::channel(0u64);
+        // The storage records block hashes only for the window bounds. Blocks in between are
+        // matched by their state root instead, which pins the state proofs are served from.
+        let storage_provider = self.storage.provider_ro()?;
+        let canonical_match = |number: u64| -> eyre::Result<Option<NumHash>> {
+            let header = provider
+                .sealed_header(number)?
+                .ok_or_else(|| eyre::eyre!("canonical header {number} not found"))?;
+            let state_root =
+                StateRoot::overlay_root(&storage_provider, number, HashedPostState::default())?;
+            Ok((state_root == header.state_root()).then(|| NumHash::new(number, header.hash())))
+        };
 
-        let task_storage = self.storage.clone();
-        let task_provider = self.ctx.provider().clone();
-        let task_evm_config = self.ctx.evm_config().clone();
-
-        self.ctx.task_executor().spawn_critical_task(
-            "optimism::exex::proofs_storage_sync_loop",
-            async move {
-                let storage = task_storage.clone();
-                let task_collector =
-                    LiveTrieCollector::new(task_evm_config, task_provider.clone(), &storage);
-                Self::sync_loop(sync_target_rx, task_storage, task_provider, &task_collector).await;
-            },
-        );
-
-        sync_target_tx
-    }
-
-    /// Background sync loop that processes blocks up to the target
-    async fn sync_loop(
-        mut sync_target_rx: watch::Receiver<u64>,
-        storage: OpProofsStorage<Storage>,
-        provider: Node::Provider,
-        collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
-    ) {
-        debug!(target: "optimism::exex", "Starting proofs storage sync loop");
-
-        loop {
-            let target = *sync_target_rx.borrow_and_update();
-            let latest = match storage.provider_ro().and_then(|p| p.get_latest_block_number()) {
-                Ok(Some((n, _))) => n,
-                Ok(None) => {
-                    error!(target: "optimism::exex", "No blocks stored in proofs storage during sync loop");
-                    continue;
+        // A storage ahead of reth on reth's chain matches at the first probe. Otherwise, binary
+        // search the canonical prefix for its end, keeping `common` canonical and `mismatch` not.
+        let highest_candidate = best_block.min(latest.number - 1);
+        let mut common = earliest;
+        if highest_candidate > earliest.number {
+            if let Some(found) = canonical_match(highest_candidate)? {
+                common = found;
+            } else {
+                let mut mismatch = highest_candidate;
+                while mismatch - common.number > 1 {
+                    let mid = common.number + (mismatch - common.number) / 2;
+                    match canonical_match(mid)? {
+                        Some(found) => common = found,
+                        None => mismatch = mid,
+                    }
                 }
-                Err(e) => {
-                    error!(target: "optimism::exex", error = ?e, "Failed to get latest block");
-                    continue;
-                }
-            };
-
-            if latest >= target {
-                time::sleep(Duration::from_secs(SYNC_IDLE_SLEEP_SECS)).await;
-                continue;
             }
-
-            // Process one batch
-            if let Err(e) =
-                Self::process_batch(latest, target, &provider, collector, SYNC_BLOCKS_BATCH_SIZE)
-            {
-                error!(target: "optimism::exex", error = ?e, "Batch processing failed");
-            }
-
-            // Yield to allow other tasks to run
-            debug!(target: "optimism::exex", latest_stored = latest, target, "Batch processed, yielding");
-            task::yield_now().await;
         }
-    }
+        drop(storage_provider);
 
-    /// Process a batch of blocks from start to target (up to `batch_size`)
-    fn process_batch(
-        start: u64,
-        target: u64,
-        provider: &Node::Provider,
-        collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
-        batch_size: usize,
-    ) -> eyre::Result<()> {
-        let end = (start + batch_size as u64).min(target);
-        debug!(
-            target: "optimism::exex",
-            start,
-            end,
-            "Processing proofs storage sync batch"
-        );
-
-        for block_num in (start + 1)..=end {
-            let block = provider
-                .recovered_block(block_num.into(), TransactionVariant::NoHash)?
-                .ok_or_else(|| eyre::eyre!("Missing block {}", block_num))?;
-
-            collector.execute_and_store_block_updates(&block)?;
+        // reth re-imports the blocks it dropped above its best block, so a storage ahead of reth
+        // on its chain is routine to unwind.
+        if common.number == best_block {
+            info!(
+                target: "optimism::exex",
+                proofs_tip = latest.number,
+                proofs_tip_hash = ?latest.hash,
+                best_block,
+                "Proofs storage is ahead of reth, unwinding it to reth's best block",
+            );
+        } else {
+            warn!(
+                target: "optimism::exex",
+                proofs_tip = latest.number,
+                proofs_tip_hash = ?latest.hash,
+                best_block,
+                unwind_to = common.number,
+                unwind_to_hash = ?common.hash,
+                "Proofs storage is not on reth's canonical chain, unwinding it",
+            );
         }
-
+        let storage_provider = self.storage.provider_rw()?;
+        // Only the number of the first removed block is read; the storage does not record its
+        // hash.
+        storage_provider.unwind_history(BlockWithParent::new(
+            common.hash,
+            NumHash::new(common.number + 1, Default::default()),
+        ))?;
+        storage_provider.commit()?;
         Ok(())
     }
 
     fn handle_notification(
         &self,
         notification: ExExNotification<Primitives>,
-        collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
-        sync_target_tx: &watch::Sender<u64>,
+        engine_handle: &EngineHandle<Primitives::Block>,
     ) -> eyre::Result<()> {
-        let latest_stored = match self.storage.provider_ro()?.get_latest_block_number()? {
-            Some((n, _)) => n,
-            None => {
-                return Err(eyre::eyre!("No blocks stored in proofs storage"));
-            }
-        };
-
         match &notification {
             ExExNotification::ChainCommitted { new } => {
-                self.handle_chain_committed(new.clone(), latest_stored, collector, sync_target_tx)?
+                self.handle_chain_committed(new.clone(), engine_handle)?
             }
             ExExNotification::ChainReorged { old, new } => {
-                self.handle_chain_reorged(old.clone(), new.clone(), latest_stored, collector)?
+                self.handle_chain_reorged(old.clone(), new.clone(), engine_handle)?
             }
             ExExNotification::ChainReverted { old } => {
-                self.handle_chain_reverted(old.clone(), latest_stored, collector)?
+                self.handle_chain_reverted(old.clone(), engine_handle)?
             }
         }
 
@@ -421,9 +405,7 @@ where
     fn handle_chain_committed(
         &self,
         new: Arc<Chain<Primitives>>,
-        latest_stored: u64,
-        collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
-        sync_target_tx: &watch::Sender<u64>,
+        engine_handle: &EngineHandle<Primitives::Block>,
     ) -> eyre::Result<()> {
         debug!(
             target: "optimism::exex",
@@ -432,120 +414,48 @@ where
             "ChainCommitted notification received",
         );
 
-        // If tip is not newer than what we have, nothing to do.
-        if new.tip().number() <= latest_stored {
-            debug!(
-                target: "optimism::exex",
-                block_number = new.tip().number(),
-                latest_stored,
-                "Already processed, skipping"
-            );
+        let best_block = self.ctx.provider().best_block_number()?;
+        let is_near_tip =
+            best_block.saturating_sub(new.tip().number()) < REAL_TIME_BLOCKS_THRESHOLD;
+        if !is_near_tip {
+            engine_handle.sync_to(new.tip().number())?;
             return Ok(());
         }
 
-        let best_block = self.ctx.provider().best_block_number()?;
-        let is_sequential = new.tip().number() == latest_stored + 1;
-        let is_near_tip =
-            best_block.saturating_sub(new.tip().number()) < REAL_TIME_BLOCKS_THRESHOLD;
+        // `Chain::blocks()` is a BTreeMap so iteration is already ordered oldest → newest.
+        for (&block_number, block) in new.blocks() {
+            // Fast path: use pre-computed trie data only when verification is not due.
+            let should_verify = self.verification_interval > 0 &&
+                block_number.is_multiple_of(self.verification_interval);
+            let precomputed = (!should_verify).then(|| new.trie_data_at(block_number)).flatten();
 
-        if is_sequential && is_near_tip {
-            debug!(
-                target: "optimism::exex",
-                block_number = new.tip().number(),
-                latest_stored,
-                best_block,
-                "Processing in real-time"
-            );
-
-            // Process each block from latest_stored + 1 to tip
-            let start = latest_stored.saturating_add(1);
-            for block_number in start..=new.tip().number() {
-                self.process_block(block_number, &new, collector)?;
-            }
-        } else {
-            debug!(
-                target: "optimism::exex",
-                block_number = new.tip().number(),
-                latest_stored,
-                best_block,
-                is_sequential,
-                is_near_tip,
-                "Scheduling batch processing via sync task"
-            );
-
-            // Update the sync target to the new tip
-            sync_target_tx.send(new.tip().number())?;
-        }
-
-        Ok(())
-    }
-
-    /// Process a single block - either from chain or provider
-    fn process_block(
-        &self,
-        block_number: u64,
-        chain: &Chain<Primitives>,
-        collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
-    ) -> eyre::Result<()> {
-        // Check if this block should be verified via full execution
-        let should_verify = self.verification_interval > 0 &&
-            block_number.is_multiple_of(self.verification_interval);
-
-        // Try to get block data from the chain first
-        // 1. Fast Path: Try to use pre-computed state from the notification
-        if let Some(block) = chain.blocks().get(&block_number) {
-            // Check if we have BOTH trie updates and hashed state.
-            // If either is missing, we fall back to execution to ensure data integrity.
-            if let Some((trie_updates, hashed_state)) = chain.trie_data_at(block_number).map(|d| {
-                let SortedTrieData { hashed_state, trie_updates } = d.get();
-                (trie_updates, hashed_state)
-            }) {
-                // Use fast path only if we're not scheduled to verify this block
-                if !should_verify {
-                    debug!(
-                        target: "optimism::exex",
-                        block_number,
-                        "Using pre-computed state updates from notification"
-                    );
-
-                    collector.store_block_updates(
-                        block.block_with_parent(),
-                        (**trie_updates).clone(),
-                        (**hashed_state).clone(),
-                    )?;
-
-                    return Ok(());
+            if let Some(d) = precomputed {
+                let SortedTrieData { hashed_state, trie_updates } = &d.get().sorted;
+                engine_handle.index_block(
+                    block.block_with_parent(),
+                    (**trie_updates).clone(),
+                    (**hashed_state).clone(),
+                )?;
+            } else if let Err(err) = engine_handle.execute_block(block) {
+                // Slow path: execute the block in full (no trie data, or verification interval
+                // hit). Execution reads bytecode reth has not persisted from reth's in-memory
+                // chain, so a block from a fork reth has since left can fail. Leave that block to
+                // the sync loop, which executes reth's canonical block at this height.
+                if self.ctx.provider().block_hash(block_number)? == Some(block.hash()) {
+                    return Err(err.into());
                 }
-
-                info!(
+                debug!(
                     target: "optimism::exex",
                     block_number,
-                    verification_interval = self.verification_interval,
-                    "Periodic verification: performing full block execution"
+                    block_hash = ?block.hash(),
+                    %err,
+                    "Block left reth's chain during proofs execution; syncing to reth's chain",
                 );
+                engine_handle.sync_to(new.tip().number())?;
+                return Ok(());
             }
-
-            debug!(
-                target: "optimism::exex",
-                block_number,
-                "Block present in notification but state updates missing, falling back to execution"
-            );
         }
 
-        // 2. Slow Path: Block not in chain (or state missing), fetch from provider and execute
-        debug!(
-            target: "optimism::exex",
-            block_number,
-            "Fetching block from provider for execution",
-        );
-
-        let block = self
-            .ctx
-            .provider()
-            .recovered_block(block_number.into(), TransactionVariant::NoHash)?
-            .ok_or_else(|| eyre::eyre!("Missing block {} in provider", block_number))?;
-
-        collector.execute_and_store_block_updates(&block)?;
         Ok(())
     }
 
@@ -553,8 +463,7 @@ where
         &self,
         old: Arc<Chain<Primitives>>,
         new: Arc<Chain<Primitives>>,
-        latest_stored: u64,
-        collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
+        engine_handle: &EngineHandle<Primitives::Block>,
     ) -> eyre::Result<()> {
         info!(
             old_block_number = old.tip().number(),
@@ -564,27 +473,20 @@ where
             "ChainReorged notification received",
         );
 
-        if old.first().number() > latest_stored {
-            debug!(target: "optimism::exex", "Reorg beyond stored blocks, skipping");
-            return Ok(());
+        if old.fork_block() != new.fork_block() {
+            return Err(eyre::eyre!(
+                "Fork blocks do not match: old fork block {:?}, new fork block {:?}",
+                old.fork_block(),
+                new.fork_block()
+            ));
         }
 
-        // find the common ancestor
         let mut block_updates: Vec<(
             BlockWithParent,
             Arc<TrieUpdatesSorted>,
             Arc<HashedPostStateSorted>,
         )> = Vec::with_capacity(new.len());
         for block_number in new.blocks().keys() {
-            // verify if the fork point matches
-            if old.fork_block() != new.fork_block() {
-                return Err(eyre::eyre!(
-                    "Fork blocks do not match: old fork block {:?}, new fork block {:?}",
-                    old.fork_block(),
-                    new.fork_block()
-                ));
-            }
-
             let block = new
                 .blocks()
                 .get(block_number)
@@ -595,8 +497,8 @@ where
                     eyre::eyre!("Missing Trie data for block {} in new chain", block_number)
                 })?
                 .get();
-            let trie_updates = &trie_data.trie_updates;
-            let hashed_state = &trie_data.hashed_state;
+            let trie_updates = &trie_data.sorted.trie_updates;
+            let hashed_state = &trie_data.sorted.hashed_state;
 
             block_updates.push((
                 block.block_with_parent(),
@@ -605,7 +507,7 @@ where
             ));
         }
 
-        collector.unwind_and_store_block_updates(block_updates)?;
+        engine_handle.reorg(block_updates)?;
 
         Ok(())
     }
@@ -613,8 +515,7 @@ where
     fn handle_chain_reverted(
         &self,
         old: Arc<Chain<Primitives>>,
-        latest_stored: u64,
-        collector: &LiveTrieCollector<'_, Node::Evm, Node::Provider, Storage>,
+        engine_handle: &EngineHandle<Primitives::Block>,
     ) -> eyre::Result<()> {
         info!(
             target: "optimism::exex",
@@ -623,17 +524,7 @@ where
             "ChainReverted notification received",
         );
 
-        if old.first().number() > latest_stored {
-            debug!(
-                target: "optimism::exex",
-                first_block_number = old.first().number(),
-                latest_stored = latest_stored,
-                "Fork block number is greater than latest stored, skipping",
-            );
-            return Ok(());
-        }
-
-        collector.unwind_history(old.first().block_with_parent())?;
+        engine_handle.unwind(old.first().block_with_parent())?;
         Ok(())
     }
 }
@@ -641,22 +532,23 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_consensus::private::alloy_primitives::B256;
+    use alloy_consensus::{Header, private::alloy_primitives::B256};
     use alloy_eips::{BlockNumHash, NumHash, eip1898::BlockWithParent};
     use reth_db::test_utils::tempdir_path;
     use reth_ethereum_primitives::{Block, Receipt};
     use reth_execution_types::{Chain, ExecutionOutcome};
+    use reth_exex_test_utils::{TestExExContext, TestExExHandle};
     use reth_optimism_trie::{
-        BlockStateDiff, OpProofsProviderRO, OpProofsProviderRw, OpProofsStorage, OpProofsStore,
-        db::MdbxProofsStorage,
+        BlockStateDiff, InMemoryProofsStorage, OpProofsInitProvider, OpProofsProviderRO,
+        OpProofsProviderRw, OpProofsStore, db::MdbxProofsStorage, engine::EngineHandle,
     };
-
-    fn get_latest<S: OpProofsStore>(proofs: &OpProofsStorage<S>) -> Option<(u64, B256)> {
-        proofs.provider_ro().expect("provider_ro").get_latest_block_number().expect("get latest")
-    }
-    use reth_primitives_traits::RecoveredBlock;
-    use reth_trie::{HashedPostStateSorted, LazyTrieData, updates::TrieUpdatesSorted};
-    use std::{collections::BTreeMap, default::Default, sync::Arc, time::Duration};
+    use reth_primitives_traits::{Account, RecoveredBlock, SealedBlock, SealedHeader};
+    use reth_provider::{BlockWriter, CanonChainTracker};
+    use reth_trie::{
+        ComputedTrieData, HashedPostState, HashedPostStateSorted, LazyTrieData,
+        updates::TrieUpdatesSorted,
+    };
+    use std::{collections::BTreeMap, default::Default, sync::Arc};
 
     // -------------------------------------------------------------------------
     // Helpers: deterministic blocks and deterministic Chain with precomputed updates
@@ -699,43 +591,113 @@ mod tests {
             }
             blocks.push(b);
 
-            let data = LazyTrieData::ready(
+            let data = LazyTrieData::ready(ComputedTrieData::new(
                 Arc::new(HashedPostStateSorted::default()),
                 Arc::new(TrieUpdatesSorted::default()),
-            );
+            ));
             trie_data.insert(n, data);
         }
 
+        mk_chain(blocks, from, trie_data)
+    }
+
+    fn mk_chain_without_updates(
+        from: u64,
+        to: u64,
+    ) -> Chain<reth_ethereum_primitives::EthPrimitives> {
+        mk_chain((from..=to).map(mk_block).collect(), from, BTreeMap::new())
+    }
+
+    fn mk_chain(
+        blocks: Vec<RecoveredBlock<Block>>,
+        first_block: u64,
+        trie_data: BTreeMap<u64, LazyTrieData>,
+    ) -> Chain<reth_ethereum_primitives::EthPrimitives> {
         let execution_outcome: ExecutionOutcome<Receipt> = ExecutionOutcome {
             bundle: Default::default(),
             receipts: Vec::new(),
             requests: Vec::new(),
-            first_block: from,
+            first_block,
         };
 
         Chain::new(blocks, execution_outcome, trie_data)
     }
 
-    // Init_storage to the genesis block
-    fn init_storage<S: OpProofsStore>(storage: OpProofsStorage<S>) {
-        let genesis_block = NumHash::new(0, b256(0x00));
-        let provider_rw = storage.provider_rw().expect("provider_rw");
-        provider_rw
-            .set_earliest_block_number(genesis_block.number, genesis_block.hash)
-            .expect("set earliest");
-        provider_rw
-            .store_trie_updates(
-                BlockWithParent::new(genesis_block.hash, genesis_block),
-                BlockStateDiff::default(),
-            )
-            .expect("store trie update");
-        provider_rw.commit().expect("commit");
+    // Bootstrap storage to the genesis block via the init flow (sets earliest = latest = genesis).
+    fn init_storage<S: OpProofsStore>(storage: S) {
+        init_storage_at(storage, NumHash::new(0, b256(0x00)));
+    }
+
+    fn init_storage_at<S: OpProofsStore>(storage: S, genesis: NumHash) {
+        let init = storage.initialization_provider().expect("init");
+        init.set_initial_state_anchor(genesis).expect("anchor");
+        init.commit_initial_state().expect("commit init");
+        OpProofsInitProvider::commit(init).expect("commit");
+    }
+
+    fn store_block<S: OpProofsStore>(
+        storage: &S,
+        parent: B256,
+        block: NumHash,
+        diff: BlockStateDiff,
+    ) {
+        let rw = storage.provider_rw().expect("provider rw");
+        rw.store_trie_updates(BlockWithParent::new(parent, block), diff).expect("store block");
+        OpProofsProviderRw::commit(rw).expect("commit");
+    }
+
+    // A state diff that makes the block's state root differ from an empty block's.
+    fn diff_with_account() -> BlockStateDiff {
+        let mut post_state = HashedPostState::default();
+        post_state.accounts.insert(b256(0xaa), Some(Account { nonce: 1, ..Default::default() }));
+        BlockStateDiff { sorted_post_state: post_state.into_sorted(), ..Default::default() }
+    }
+
+    // Inserts empty blocks 1..=tip on top of reth's genesis and makes the last one reth's head.
+    // Returns the canonical headers indexed by block number, genesis included.
+    fn insert_canonical_chain<P>(
+        handle: &TestExExHandle,
+        provider: &P,
+        tip: u64,
+    ) -> Vec<SealedHeader>
+    where
+        P: CanonChainTracker<Header = Header>,
+    {
+        let mut headers = vec![handle.genesis.clone_sealed_header()];
+        let rw = handle.provider_factory.provider_rw().expect("provider rw");
+        for number in 1..=tip {
+            let parent_hash = headers.last().expect("genesis").hash();
+            let header = Header { number, parent_hash, ..Default::default() };
+            let block = SealedBlock::seal_slow(Block { header, body: Default::default() })
+                .try_recover()
+                .expect("empty block");
+            rw.insert_block(&block).expect("insert block");
+            headers.push(block.clone_sealed_header());
+        }
+        rw.commit().expect("commit");
+        provider.set_canonical_head(headers.last().expect("genesis").clone());
+        headers
+    }
+
+    /// Waits until the proofs storage's latest block is `expected`.
+    async fn wait_for_latest_block<S: OpProofsStore>(store: &S, expected: NumHash) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let provider = store.provider_ro().expect("provider ro");
+                if provider.get_latest_block().expect("get latest block") == expected {
+                    return;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("proofs storage should be unwound to reth's chain within 5s");
     }
 
     // Initialize exex with config
     fn build_test_exex<NodeT, Store>(
         ctx: ExExContext<NodeT>,
-        storage: OpProofsStorage<Store>,
+        storage: Store,
     ) -> OpProofsExEx<NodeT, Store>
     where
         NodeT: FullNodeComponents,
@@ -743,7 +705,6 @@ mod tests {
     {
         OpProofsExEx::builder(ctx, storage)
             .with_proofs_history_window(20)
-            .with_proofs_history_prune_interval(Duration::from_secs(3600))
             .with_verification_interval(1000)
             .build()
     }
@@ -753,29 +714,36 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(store.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let collector = LiveTrieCollector::new(
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let engine_handle = EngineHandle::spawn_with_thresholds(
             ctx.components.components.evm_config.clone(),
             ctx.components.provider.clone(),
-            &proofs,
+            store.clone(),
+            pruner,
+            1,
+            2,
         );
-        let exex = build_test_exex(ctx, proofs.clone());
+        let exex = build_test_exex(ctx, store.clone());
 
         // Notification: chain committed 1..5
         let new_chain = Arc::new(mk_chain_with_updates(1, 1, None));
         let notif = ExExNotification::ChainCommitted { new: new_chain };
 
-        let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
+        exex.handle_notification(notif, &engine_handle).expect("handle chain commit");
 
-        exex.handle_notification(notif, &collector, &sync_target_tx).expect("handle chain commit");
-
-        let latest = get_latest(&proofs).expect("ok").0;
+        engine_handle.flush();
+        let latest = store
+            .provider_ro()
+            .expect("provider ro")
+            .get_latest_block()
+            .expect("get latest block")
+            .number;
         assert_eq!(latest, 1);
     }
 
@@ -784,40 +752,49 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(store.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let collector = LiveTrieCollector::new(
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let engine_handle = EngineHandle::spawn_with_thresholds(
             ctx.components.components.evm_config.clone(),
             ctx.components.provider.clone(),
-            &proofs,
+            store.clone(),
+            pruner,
+            1,
+            2,
         );
 
-        let exex = build_test_exex(ctx, proofs.clone());
+        let exex = build_test_exex(ctx, store.clone());
 
-        let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
         // Process blocks 1..5 sequentially to trigger real-time path (synchronous)
         for i in 1..=5 {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
-            exex.handle_notification(notif, &collector, &sync_target_tx)
-                .expect("handle chain commit");
+            exex.handle_notification(notif, &engine_handle).expect("handle chain commit");
         }
 
-        let latest = get_latest(&proofs).expect("ok").0;
+        engine_handle.flush();
+        let latest = store
+            .provider_ro()
+            .expect("provider ro")
+            .get_latest_block()
+            .expect("get latest block")
+            .number;
         assert_eq!(latest, 5);
 
         // Try to handle already processed notification
         let new_chain = Arc::new(mk_chain_with_updates(5, 5, Some(hash_for_num(10))));
         let notif = ExExNotification::ChainCommitted { new: new_chain };
-        exex.handle_notification(notif, &collector, &sync_target_tx).expect("handle chain commit");
-        let latest = get_latest(&proofs).expect("ok");
-        assert_eq!(latest.0, 5);
-        assert_eq!(latest.1, hash_for_num(5)); // block was not updated
+        exex.handle_notification(notif, &engine_handle).expect("handle chain commit");
+        engine_handle.flush();
+        let latest =
+            store.provider_ro().expect("provider ro").get_latest_block().expect("get latest block");
+        assert_eq!(latest.number, 5);
+        assert_eq!(latest.hash, hash_for_num(5)); // block was not updated
     }
 
     #[tokio::test]
@@ -825,31 +802,37 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(store.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let collector = LiveTrieCollector::new(
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let engine_handle = EngineHandle::spawn_with_thresholds(
             ctx.components.components.evm_config.clone(),
             ctx.components.provider.clone(),
-            &proofs,
+            store.clone(),
+            pruner,
+            1,
+            2,
         );
 
-        let exex = build_test_exex(ctx, proofs.clone());
-
-        let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
+        let exex = build_test_exex(ctx, store.clone());
 
         for i in 1..=10 {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
-            exex.handle_notification(notif, &collector, &sync_target_tx)
-                .expect("handle chain commit");
+            exex.handle_notification(notif, &engine_handle).expect("handle chain commit");
         }
 
-        let latest = get_latest(&proofs).expect("ok").0;
+        engine_handle.flush();
+        let latest = store
+            .provider_ro()
+            .expect("provider ro")
+            .get_latest_block()
+            .expect("get latest block")
+            .number;
         assert_eq!(latest, 10);
 
         // Now the tip is 10, and we want to reorg from block 6..12
@@ -859,9 +842,14 @@ mod tests {
         // Notification: chain reorged 6..12
         let notif = ExExNotification::ChainReorged { new: new_chain, old: old_chain };
 
-        exex.handle_notification(notif, &collector, &sync_target_tx)
-            .expect("handle chain re-orged");
-        let latest = get_latest(&proofs).expect("ok").0;
+        exex.handle_notification(notif, &engine_handle).expect("handle chain re-orged");
+        engine_handle.flush();
+        let latest = store
+            .provider_ro()
+            .expect("provider ro")
+            .get_latest_block()
+            .expect("get latest block")
+            .number;
         assert_eq!(latest, 12);
     }
 
@@ -870,44 +858,57 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(store.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let collector = LiveTrieCollector::new(
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let engine_handle = EngineHandle::spawn_with_thresholds(
             ctx.components.components.evm_config.clone(),
             ctx.components.provider.clone(),
-            &proofs,
+            store.clone(),
+            pruner,
+            1,
+            2,
         );
 
-        let exex = build_test_exex(ctx, proofs.clone());
-
-        let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
+        let exex = build_test_exex(ctx, store.clone());
 
         for i in 1..=10 {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
 
-            exex.handle_notification(notif, &collector, &sync_target_tx)
-                .expect("handle chain commit");
+            exex.handle_notification(notif, &engine_handle).expect("handle chain commit");
         }
 
-        let latest = get_latest(&proofs).expect("ok").0;
+        engine_handle.flush();
+        let latest = store
+            .provider_ro()
+            .expect("provider ro")
+            .get_latest_block()
+            .expect("get latest block")
+            .number;
         assert_eq!(latest, 10);
 
-        // Now the tip is 10, and we want to reorg from block 12..15
+        // Now the tip is 10, and we want to reorg starting at block 12 (beyond stored tip).
+        // Both chains share the same fork point (block 11), so this is a valid reorg notification
+        // that starts beyond what we've indexed — the engine should skip it.
         let old_chain = Arc::new(mk_chain_with_updates(12, 15, None));
-        let new_chain = Arc::new(mk_chain_with_updates(10, 20, None));
+        let new_chain = Arc::new(mk_chain_with_updates(12, 20, None));
 
-        // Notification: chain reorged 12..15
+        // Notification: chain reorged 12..20, fork at 11
         let notif = ExExNotification::ChainReorged { new: new_chain, old: old_chain };
 
-        exex.handle_notification(notif, &collector, &sync_target_tx)
-            .expect("handle chain re-orged");
-        let latest = get_latest(&proofs).expect("ok").0;
+        exex.handle_notification(notif, &engine_handle).expect("handle chain re-orged");
+        engine_handle.flush();
+        let latest = store
+            .provider_ro()
+            .expect("provider ro")
+            .get_latest_block()
+            .expect("get latest block")
+            .number;
         assert_eq!(latest, 10);
     }
 
@@ -916,32 +917,38 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(store.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let collector = LiveTrieCollector::new(
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let engine_handle = EngineHandle::spawn_with_thresholds(
             ctx.components.components.evm_config.clone(),
             ctx.components.provider.clone(),
-            &proofs,
+            store.clone(),
+            pruner,
+            1,
+            2,
         );
 
-        let exex = build_test_exex(ctx, proofs.clone());
-
-        let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
+        let exex = build_test_exex(ctx, store.clone());
 
         for i in 1..=10 {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
 
-            exex.handle_notification(notif, &collector, &sync_target_tx)
-                .expect("handle chain commit");
+            exex.handle_notification(notif, &engine_handle).expect("handle chain commit");
         }
 
-        let latest = get_latest(&proofs).expect("ok").0;
+        engine_handle.flush();
+        let latest = store
+            .provider_ro()
+            .expect("provider ro")
+            .get_latest_block()
+            .expect("get latest block")
+            .number;
         assert_eq!(latest, 10);
 
         // Now the tip is 10, and we want to revert from block 9..10
@@ -950,9 +957,14 @@ mod tests {
         // Notification: chain reverted 9..10
         let notif = ExExNotification::ChainReverted { old: old_chain };
 
-        exex.handle_notification(notif, &collector, &sync_target_tx)
-            .expect("handle chain reverted");
-        let latest = get_latest(&proofs).expect("ok").0;
+        exex.handle_notification(notif, &engine_handle).expect("handle chain reverted");
+        engine_handle.flush();
+        let latest = store
+            .provider_ro()
+            .expect("provider ro")
+            .get_latest_block()
+            .expect("get latest block")
+            .number;
         assert_eq!(latest, 8);
     }
 
@@ -961,32 +973,38 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(store.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let collector = LiveTrieCollector::new(
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let engine_handle = EngineHandle::spawn_with_thresholds(
             ctx.components.components.evm_config.clone(),
             ctx.components.provider.clone(),
-            &proofs,
+            store.clone(),
+            pruner,
+            1,
+            2,
         );
 
-        let exex = build_test_exex(ctx, proofs.clone());
-
-        let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
+        let exex = build_test_exex(ctx, store.clone());
 
         for i in 1..=5 {
             let new_chain = Arc::new(mk_chain_with_updates(i, i, None));
             let notif = ExExNotification::ChainCommitted { new: new_chain };
 
-            exex.handle_notification(notif, &collector, &sync_target_tx)
-                .expect("handle chain commit");
+            exex.handle_notification(notif, &engine_handle).expect("handle chain commit");
         }
 
-        let latest = get_latest(&proofs).expect("ok").0;
+        engine_handle.flush();
+        let latest = store
+            .provider_ro()
+            .expect("provider ro")
+            .get_latest_block()
+            .expect("get latest block")
+            .number;
         assert_eq!(latest, 5);
 
         // Now the tip is 10, and we want to revert from block 9..10
@@ -995,9 +1013,14 @@ mod tests {
         // Notification: chain reverted 9..10
         let notif = ExExNotification::ChainReverted { old: old_chain };
 
-        exex.handle_notification(notif, &collector, &sync_target_tx)
-            .expect("handle chain reverted");
-        let latest = get_latest(&proofs).expect("ok").0;
+        exex.handle_notification(notif, &engine_handle).expect("handle chain reverted");
+        engine_handle.flush();
+        let latest = store
+            .provider_ro()
+            .expect("provider ro")
+            .get_latest_block()
+            .expect("get latest block")
+            .number;
         assert_eq!(latest, 5);
     }
 
@@ -1006,12 +1029,11 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let exex = build_test_exex(ctx, proofs.clone());
+        let exex = build_test_exex(ctx, store.clone());
         let _ = exex.ensure_initialized().expect_err("should return error");
     }
 
@@ -1020,24 +1042,23 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(store.clone());
 
         for i in 1..1100 {
-            let p = proofs.provider_rw().expect("provider_rw");
-            p.store_trie_updates(
+            let rw = store.provider_rw().expect("provider rw");
+            rw.store_trie_updates(
                 BlockWithParent::new(hash_for_num(i - 1), BlockNumHash::new(i, hash_for_num(i))),
                 BlockStateDiff::default(),
             )
             .expect("store trie update");
-            p.commit().expect("commit");
+            OpProofsProviderRw::commit(rw).expect("commit");
         }
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let exex = build_test_exex(ctx, proofs.clone());
+        let exex = build_test_exex(ctx, store.clone());
         let _ = exex.ensure_initialized().expect_err("should return error");
     }
 
@@ -1046,14 +1067,13 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(store.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let exex = build_test_exex(ctx, proofs.clone());
+        let exex = build_test_exex(ctx, store.clone());
         exex.ensure_initialized().expect("should not return error");
     }
 
@@ -1062,26 +1082,384 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let collector = LiveTrieCollector::new(
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let engine_handle = EngineHandle::spawn_with_thresholds(
             ctx.components.components.evm_config.clone(),
             ctx.components.provider.clone(),
-            &proofs,
+            store.clone(),
+            pruner,
+            1,
+            2,
         );
 
-        let exex = build_test_exex(ctx, proofs.clone());
+        let exex = build_test_exex(ctx, store.clone());
 
         // Any notification will do
         let new_chain = Arc::new(mk_chain_with_updates(1, 5, None));
         let notif = ExExNotification::ChainCommitted { new: new_chain };
 
-        let (sync_target_tx, _) = tokio::sync::watch::channel(0u64);
-        let err = exex.handle_notification(notif, &collector, &sync_target_tx).unwrap_err();
-        assert_eq!(err.to_string(), "No blocks stored in proofs storage");
+        let err = exex.handle_notification(notif, &engine_handle).unwrap_err();
+        // Error now comes from the engine layer (storage not initialised).
+        assert_eq!(err.to_string(), "No blocks found");
+    }
+
+    #[tokio::test]
+    async fn handle_notification_schedules_execution_on_gap_without_trie_data() {
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        init_storage(store.clone());
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let engine_handle = EngineHandle::spawn_with_thresholds(
+            ctx.components.components.evm_config.clone(),
+            ctx.components.provider.clone(),
+            store.clone(),
+            pruner,
+            1,
+            2,
+        );
+        let exex = build_test_exex(ctx, store.clone());
+
+        // Without pre-computed trie data this notification needs EVM execution. The proofs DB
+        // is still at genesis, so blocks 1..4 must be indexed before executing this range. The
+        // engine schedules catch-up; the empty test provider has no blocks to replay.
+        let notif =
+            ExExNotification::ChainCommitted { new: Arc::new(mk_chain_without_updates(5, 10)) };
+        exex.handle_notification(notif, &engine_handle)
+            .expect("missing predecessor blocks should schedule catch-up");
+
+        engine_handle.flush();
+        let latest =
+            store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
+        assert_eq!(latest, 0);
+    }
+
+    /// Returns block 1 sealed with `state_root`, built on the genesis block the tests' proofs store
+    /// is initialized with.
+    fn block_one_with_state_root(state_root: B256) -> RecoveredBlock<Block> {
+        let header = alloy_consensus::Header {
+            number: 1,
+            parent_hash: hash_for_num(0),
+            state_root,
+            ..Default::default()
+        };
+        reth_primitives_traits::SealedBlock::seal_slow(Block { header, body: Default::default() })
+            .try_recover()
+            .expect("empty block")
+    }
+
+    /// Makes `block` reth's canonical block at its height.
+    fn make_canonical(
+        handle: &reth_exex_test_utils::TestExExHandle,
+        provider: &impl reth_provider::CanonChainTracker<Header = alloy_consensus::Header>,
+        block: &RecoveredBlock<Block>,
+    ) {
+        use reth_provider::BlockWriter;
+
+        let rw = handle.provider_factory.provider_rw().expect("provider rw");
+        rw.insert_block(block).expect("insert block");
+        rw.commit().expect("commit");
+        provider.set_canonical_head(block.clone_sealed_header());
+    }
+
+    #[tokio::test]
+    async fn handle_notification_hands_block_reth_replaced_to_sync_loop() {
+        use reth_optimism_trie::engine::EngineError;
+        use std::time::{Duration, Instant};
+
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        init_storage(store.clone());
+
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+        let provider = ctx.components.provider.clone();
+        let pruner = OpProofStoragePruner::new(store.clone(), provider.clone(), 20);
+        // The test context's EVM config is a no-op that cannot execute blocks.
+        let engine_handle = EngineHandle::spawn_with_thresholds(
+            reth_evm_ethereum::EthEvmConfig::mainnet(),
+            provider.clone(),
+            store.clone(),
+            pruner,
+            1,
+            2,
+        );
+        let exex = build_test_exex(ctx, store.clone());
+
+        // The notification's block 1 builds on the proofs tip, but its header's state root is not
+        // the one execution produces, so its execution fails.
+        let err = engine_handle.execute_block(&mk_block(1)).expect_err("state root should differ");
+        let EngineError::StateRootMismatch { current_state_hash, .. } = err else {
+            panic!("expected a state root mismatch, got {err}");
+        };
+
+        // reth's canonical block 1 has the state root execution produces, standing in for the
+        // block that replaced the notification's block in a reorg.
+        let canonical = block_one_with_state_root(current_state_hash);
+        make_canonical(&handle, &provider, &canonical);
+
+        let notif =
+            ExExNotification::ChainCommitted { new: Arc::new(mk_chain_without_updates(1, 1)) };
+        exex.handle_notification(notif, &engine_handle)
+            .expect("a failed block reth has replaced should not stop the ExEx");
+
+        // Only the sync loop can index reth's block 1: the ExEx stopped at the failed block.
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            let latest = store.provider_ro().expect("provider ro").get_latest_block().expect("get");
+            if latest.number == 1 {
+                assert_eq!(latest.hash, canonical.hash());
+                break;
+            }
+            assert!(Instant::now() < deadline, "sync loop did not index reth's block 1");
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    #[tokio::test]
+    async fn handle_notification_propagates_failed_execution_of_canonical_block() {
+        assert_failure_of_canonical_block_stops_exex(0, false).await;
+    }
+
+    #[tokio::test]
+    async fn handle_notification_propagates_failed_verification_of_canonical_block() {
+        assert_failure_of_canonical_block_stops_exex(1, true).await;
+    }
+
+    /// Asserts that the ExEx stops when reth's canonical block 1 fails proofs execution, both on
+    /// the execution path and at the verification interval.
+    async fn assert_failure_of_canonical_block_stops_exex(
+        verification_interval: u64,
+        with_trie_data: bool,
+    ) {
+        let dir = tempdir_path();
+        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+        init_storage(store.clone());
+
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+        let provider = ctx.components.provider.clone();
+        let pruner = OpProofStoragePruner::new(store.clone(), provider.clone(), 20);
+        // The test context's EVM config is a no-op that cannot execute blocks.
+        let engine_handle = EngineHandle::spawn_with_thresholds(
+            reth_evm_ethereum::EthEvmConfig::mainnet(),
+            provider.clone(),
+            store.clone(),
+            pruner,
+            1,
+            2,
+        );
+        let exex = OpProofsExEx::builder(ctx, store.clone())
+            .with_proofs_history_window(20)
+            .with_verification_interval(verification_interval)
+            .build();
+
+        // reth's canonical block 1 is the notification's block, whose header's state root is not
+        // the one execution produces. Executing it again would fail the same way, so the failure
+        // stops the ExEx.
+        let block = mk_block(1);
+        make_canonical(&handle, &provider, &block);
+        let chain = if with_trie_data {
+            mk_chain_with_updates(1, 1, None)
+        } else {
+            mk_chain_without_updates(1, 1)
+        };
+        let notif = ExExNotification::ChainCommitted { new: Arc::new(chain) };
+        let err = exex
+            .handle_notification(notif, &engine_handle)
+            .expect_err("a failed block reth still has should stop the ExEx");
+        assert!(err.to_string().contains("State root mismatch for block 1"), "{err:#}");
+
+        engine_handle.flush();
+        let latest =
+            store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
+        assert_eq!(latest, 0);
+    }
+
+    /// Runs each startup reconciliation scenario against both proofs storage backends.
+    macro_rules! reconcile_tests {
+        ($($scenario:ident),* $(,)?) => {
+            mod reconcile_mdbx {
+                use super::*;
+                $(
+                    #[tokio::test]
+                    async fn $scenario() {
+                        let dir = tempdir_path();
+                        let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
+                        super::$scenario(store).await;
+                    }
+                )*
+            }
+
+            mod reconcile_in_memory {
+                use super::*;
+                $(
+                    #[tokio::test]
+                    async fn $scenario() {
+                        super::$scenario(InMemoryProofsStorage::new()).await;
+                    }
+                )*
+            }
+        };
+    }
+
+    reconcile_tests!(
+        run_unwinds_proofs_storage_ahead_of_reth,
+        run_unwinds_proofs_storage_on_diverged_fork,
+        run_unwinds_proofs_storage_ahead_of_reth_on_another_fork,
+        run_unwinds_proofs_storage_to_its_earliest_block,
+        run_fails_without_canonical_block_in_proofs_window,
+        run_fails_with_proofs_window_above_reth_head,
+    );
+
+    /// Runs the ExEx until the proofs storage's latest block is `expected`.
+    async fn run_until_latest_block<S: OpProofsStore + Clone + 'static>(
+        ctx: TestExExContext,
+        store: S,
+        expected: NumHash,
+    ) {
+        let run = tokio::spawn(build_test_exex(ctx, store.clone()).run());
+        wait_for_latest_block(&store, expected).await;
+        run.abort();
+        let _ = run.await;
+    }
+
+    /// Runs the ExEx and returns its startup error.
+    async fn run_startup_error<S: OpProofsStore + Clone + 'static>(
+        ctx: TestExExContext,
+        store: S,
+    ) -> eyre::Report {
+        tokio::time::timeout(std::time::Duration::from_secs(5), build_test_exex(ctx, store).run())
+            .await
+            .expect("run should fail at startup")
+            .expect_err("run should fail at startup")
+    }
+
+    async fn run_unwinds_proofs_storage_ahead_of_reth<S: OpProofsStore + Clone + 'static>(
+        store: S,
+    ) {
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 3);
+        init_storage_at(store.clone(), canonical[0].num_hash());
+        for header in &canonical[1..] {
+            store_block(&store, header.parent_hash, header.num_hash(), Default::default());
+        }
+        // Blocks 4 and 5 were indexed before reth dropped them at restart.
+        let mut parent = canonical[3].hash();
+        for number in 4..=5 {
+            store_block(
+                &store,
+                parent,
+                NumHash::new(number, hash_for_num(number)),
+                diff_with_account(),
+            );
+            parent = hash_for_num(number);
+        }
+
+        run_until_latest_block(ctx, store, canonical[3].num_hash()).await;
+    }
+
+    async fn run_unwinds_proofs_storage_on_diverged_fork<S: OpProofsStore + Clone + 'static>(
+        store: S,
+    ) {
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 3);
+        init_storage_at(store.clone(), canonical[0].num_hash());
+        store_block(&store, canonical[0].hash(), canonical[1].num_hash(), Default::default());
+        // The proofs storage followed a fork from block 2 on that reth no longer has. The stored
+        // tip is at reth's height but has another hash.
+        store_block(&store, canonical[1].hash(), NumHash::new(2, b256(0xb2)), diff_with_account());
+        store_block(&store, b256(0xb2), NumHash::new(3, b256(0xb3)), diff_with_account());
+
+        run_until_latest_block(ctx, store, canonical[1].num_hash()).await;
+    }
+
+    async fn run_unwinds_proofs_storage_ahead_of_reth_on_another_fork<
+        S: OpProofsStore + Clone + 'static,
+    >(
+        store: S,
+    ) {
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 4);
+        init_storage_at(store.clone(), canonical[0].num_hash());
+        for header in &canonical[1..=2] {
+            store_block(&store, header.parent_hash, header.num_hash(), Default::default());
+        }
+        // The proofs storage followed a fork from block 3 on, past reth's best block 4.
+        let mut parent = canonical[2].hash();
+        for number in 3..=6 {
+            let hash = b256(0xb0 + number as u8);
+            store_block(&store, parent, NumHash::new(number, hash), diff_with_account());
+            parent = hash;
+        }
+
+        run_until_latest_block(ctx, store, canonical[2].num_hash()).await;
+    }
+
+    async fn run_unwinds_proofs_storage_to_its_earliest_block<
+        S: OpProofsStore + Clone + 'static,
+    >(
+        store: S,
+    ) {
+        let (ctx, handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let canonical = insert_canonical_chain(&handle, &ctx.components.provider, 3);
+        init_storage_at(store.clone(), canonical[0].num_hash());
+        // The proofs storage followed a fork from block 1 on, so only its earliest block is
+        // canonical.
+        let mut parent = canonical[0].hash();
+        for number in 1..=3 {
+            let hash = b256(0xb0 + number as u8);
+            store_block(&store, parent, NumHash::new(number, hash), diff_with_account());
+            parent = hash;
+        }
+
+        run_until_latest_block(ctx, store.clone(), canonical[0].num_hash()).await;
+        let provider = store.provider_ro().expect("provider ro");
+        assert_eq!(provider.get_earliest_block().expect("earliest"), canonical[0].num_hash());
+    }
+
+    async fn run_fails_without_canonical_block_in_proofs_window<
+        S: OpProofsStore + Clone + 'static,
+    >(
+        store: S,
+    ) {
+        // The proofs storage is anchored on a genesis that is not reth's.
+        init_storage(store.clone());
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let err = run_startup_error(ctx, store).await;
+        assert!(err.to_string().contains("shares no block"), "{err:#}");
+        assert!(err.to_string().contains(PROOFS_INIT_COMMAND), "{err:#}");
+    }
+
+    async fn run_fails_with_proofs_window_above_reth_head<S: OpProofsStore + Clone + 'static>(
+        store: S,
+    ) {
+        // reth's best block is its genesis, below the proofs window.
+        init_storage_at(store.clone(), NumHash::new(5, b256(0x05)));
+
+        let (ctx, _handle) =
+            reth_exex_test_utils::test_exex_context().await.expect("exex test context");
+
+        let err = run_startup_error(ctx, store).await;
+        assert!(err.to_string().contains("starts at block 5"), "{err:#}");
+        assert!(err.to_string().contains(PROOFS_INIT_COMMAND), "{err:#}");
     }
 
     #[tokio::test]
@@ -1089,43 +1467,38 @@ mod tests {
         // MDBX proofs storage
         let dir = tempdir_path();
         let store = Arc::new(MdbxProofsStorage::new(dir.as_path()).expect("env"));
-        let proofs: OpProofsStorage<Arc<MdbxProofsStorage>> = store.clone().into();
 
-        init_storage(proofs.clone());
+        init_storage(store.clone());
 
         let (ctx, _handle) =
             reth_exex_test_utils::test_exex_context().await.expect("exex test context");
 
-        let collector = LiveTrieCollector::new(
+        let pruner = OpProofStoragePruner::new(store.clone(), ctx.components.provider.clone(), 20);
+        let engine_handle = EngineHandle::spawn_with_thresholds(
             ctx.components.components.evm_config.clone(),
             ctx.components.provider.clone(),
-            &proofs,
+            store.clone(),
+            pruner,
+            1,
+            2,
         );
-        let exex = build_test_exex(ctx, proofs.clone());
+
+        let exex = build_test_exex(ctx, store.clone());
 
         // Notification: chain committed 5..10 (Blocks 1,2,3,4 are missing from storage)
         let new_chain = Arc::new(mk_chain_with_updates(5, 10, None));
         let notif = ExExNotification::ChainCommitted { new: new_chain };
 
-        let (sync_target_tx, mut sync_target_rx) = tokio::sync::watch::channel(0u64);
-
-        // Process notification
-        exex.handle_notification(notif, &collector, &sync_target_tx)
+        // Process notification — should return immediately (gap detected, deferred to engine).
+        exex.handle_notification(notif, &engine_handle)
             .expect("handle chain commit should return ok immediately");
 
-        // Verify async signal was sent
-        // The target in the channel should now be 10 (the tip of the new chain)
-        assert_eq!(
-            *sync_target_rx.borrow_and_update(),
-            10,
-            "Should have scheduled sync to block 10"
-        );
-
-        // Verify Main Thread did NOT process it
-        // Because we didn't spawn the actual worker thread in this test, storage should still be at
-        // 0. This proves the 'handle_notification' returned instantly without doing the
-        // heavy lifting.
-        let latest = get_latest(&proofs).expect("ok").0;
+        // Verify the notification handler did NOT process blocks synchronously.
+        // The engine has a sync target set but no blocks in the provider, so its catch-up
+        // will error out without writing anything. Storage stays at block 0.
+        engine_handle.flush();
+        let latest =
+            store.provider_ro().expect("provider ro").get_latest_block().expect("get").number;
         assert_eq!(latest, 0, "Main thread should not have processed the blocks synchronously");
     }
 }

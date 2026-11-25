@@ -1,6 +1,13 @@
 //! Additional configuration for the OP builder
 
-use std::sync::{Arc, atomic::AtomicU64};
+use crate::sdm_metrics;
+pub use reth_optimism_txpool::OpGasLimitConfig;
+use reth_optimism_txpool::interop::InteropFailsafe;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, AtomicU64, Ordering},
+};
+use tracing::info;
 
 /// Settings for the OP builder.
 #[derive(Debug, Clone, Default)]
@@ -9,34 +16,81 @@ pub struct OpBuilderConfig {
     pub da_config: OpDAConfig,
     /// Gas limit configuration for the OP builder.
     pub gas_limit_config: OpGasLimitConfig,
-    /// Whether post-exec transactions should be injected for produced payloads.
+    /// Local SDM `PostExec` production operator opt-in. Shared with the admin RPC.
+    pub operator_sdm_opt_in: OperatorSdmOptIn,
+    /// Interop failsafe gate. Set by the interop filter client; read by the builder to exclude
+    /// interop txs from blocks while it is enabled.
+    pub interop_failsafe: InteropFailsafe,
+    /// Maximum cumulative uncompressed (EIP-2718 encoded) block size in bytes.
     ///
-    /// This is a temporary integration-test override; SDM has no scheduled Jovian/Karst
-    /// activation.
-    pub sdm_enabled: bool,
+    /// `None` disables the limit (the historical behavior). When set, the payload builder stops
+    /// pulling mempool transactions once including the next one would push the block's total
+    /// EIP-2718 encoded transaction size past this value. This bounds the size of the
+    /// `engine_getPayload` response so it does not exceed the limits assumed by consensus-layer
+    /// clients (e.g. the common 10 MiB JSON payload cap). op-geth enforces an equivalent but
+    /// non-configurable cap via `params.MaxBlockSize`.
+    pub max_uncompressed_block_size: Option<u64>,
 }
 
 impl OpBuilderConfig {
     /// Creates a new OP builder configuration with the given data availability configuration.
-    pub const fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
-        Self { da_config, gas_limit_config, sdm_enabled: false }
-    }
-
-    /// Creates a new OP builder configuration with SDM (Sequencer-Defined Metering) enabled per
-    /// the given flag.
-    #[must_use]
-    pub const fn new_with_sdm(
-        da_config: OpDAConfig,
-        gas_limit_config: OpGasLimitConfig,
-        sdm_enabled: bool,
-    ) -> Self {
-        Self { da_config, gas_limit_config, sdm_enabled }
+    pub fn new(da_config: OpDAConfig, gas_limit_config: OpGasLimitConfig) -> Self {
+        Self {
+            da_config,
+            gas_limit_config,
+            operator_sdm_opt_in: OperatorSdmOptIn::default(),
+            interop_failsafe: InteropFailsafe::default(),
+            max_uncompressed_block_size: None,
+        }
     }
 
     /// Returns the Data Availability configuration for the OP builder, if it has configured
     /// constraints.
     pub fn constrained_da_config(&self) -> Option<&OpDAConfig> {
         if self.da_config.is_empty() { None } else { Some(&self.da_config) }
+    }
+}
+
+/// Shareable operator opt-in flag for SDM `PostExec` production.
+///
+/// `false` on construction. The admin RPC writes; the payload builder reads. The protocol gate
+/// (chain spec Interop activation) is checked separately; both must be true to actually produce.
+#[derive(Debug, Clone, Default)]
+pub struct OperatorSdmOptIn {
+    inner: Arc<AtomicBool>,
+}
+
+impl OperatorSdmOptIn {
+    /// Creates the flag from the node's boot-time configuration.
+    ///
+    /// Reports the configured value, then applies it as the runtime state. Later runtime writes
+    /// through [`Self::set`] leave the configured value alone, so the two diverge exactly when a
+    /// restart would change the effective opt-in.
+    pub fn configured(enabled: bool) -> Self {
+        sdm_metrics::record_operator_opt_in_configured(enabled);
+        let opt_in = Self::default();
+        opt_in.set(enabled);
+        info!(
+            target: "payload_builder",
+            operator_sdm_opt_in = enabled,
+            "SDM operator opt-in configured at boot"
+        );
+        opt_in
+    }
+
+    /// Returns the current opt-in state.
+    pub fn enabled(&self) -> bool {
+        self.inner.load(Ordering::Acquire)
+    }
+
+    /// Sets the opt-in state, and reports it.
+    ///
+    /// Reports on every store rather than at the call sites, so the exported value cannot drift
+    /// from the flag.
+    pub fn set(&self, enabled: bool) {
+        self.inner.store(enabled, Ordering::Release);
+        sdm_metrics::record_operator_opt_in(enabled);
+        info!(target: "payload_builder", operator_sdm_opt_in = enabled, "SDM operator opt-in set");
     }
 }
 
@@ -106,39 +160,77 @@ struct OpDAConfigInner {
     max_da_block_size: AtomicU64,
 }
 
-/// Contains the Gas Limit configuration for the OP builder.
-///
-/// This type is shareable and can be used to update the Gas Limit configuration for the OP payload
-/// builder.
-#[derive(Debug, Clone, Default)]
-pub struct OpGasLimitConfig {
-    /// Gas limit for a transaction
-    ///
-    /// 0 means use the default gas limit.
-    gas_limit: Arc<AtomicU64>,
-}
-
-impl OpGasLimitConfig {
-    /// Creates a new Gas Limit configuration with the given maximum gas limit.
-    pub fn new(max_gas_limit: u64) -> Self {
-        let this = Self::default();
-        this.set_gas_limit(max_gas_limit);
-        this
-    }
-    /// Returns the gas limit for a transaction, if any.
-    pub fn gas_limit(&self) -> Option<u64> {
-        let val = self.gas_limit.load(std::sync::atomic::Ordering::Relaxed);
-        if val == 0 { None } else { Some(val) }
-    }
-    /// Sets the gas limit for a transaction. 0 means use the default gas limit.
-    pub fn set_gas_limit(&self, gas_limit: u64) {
-        self.gas_limit.store(gas_limit, std::sync::atomic::Ordering::Relaxed);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
+    use metrics_util::layers::{Layer, Prefix, PrefixLayer};
+    use reth_metrics::metrics::with_local_recorder;
+    use rstest::rstest;
+
+    const OPERATOR_OPT_IN: &str = "reth_op_sdm_operator_opt_in";
+    const OPERATOR_OPT_IN_CONFIGURED: &str = "reth_op_sdm_operator_opt_in_configured";
+
+    /// A recorder private to one test, prefixed like the node's recorder stack so the rendered
+    /// series names are the ones operators query.
+    fn recorder() -> (Prefix<PrometheusRecorder>, PrometheusHandle) {
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
+        (PrefixLayer::new("reth").layer(recorder), handle)
+    }
+
+    /// Reads one unlabeled gauge out of the exposition. `None` distinguishes a series that was
+    /// never registered from one reporting 0, which a substring match cannot.
+    fn gauge(exposition: &str, name: &str) -> Option<f64> {
+        exposition
+            .lines()
+            .find_map(|line| line.strip_prefix(name)?.strip_prefix(' ')?.trim().parse().ok())
+    }
+
+    /// Booting through `configured` publishes the boot value as both gauges.
+    #[rstest]
+    #[case::opted_in(true, 1.0)]
+    #[case::opted_out(false, 0.0)]
+    fn configured_reports_the_boot_value_as_both_gauges(
+        #[case] enabled: bool,
+        #[case] expected: f64,
+    ) {
+        let (recorder, handle) = recorder();
+
+        with_local_recorder(&recorder, || {
+            OperatorSdmOptIn::configured(enabled);
+        });
+
+        let exposition = handle.render();
+        assert_eq!(gauge(&exposition, OPERATOR_OPT_IN_CONFIGURED), Some(expected), "{exposition}");
+        assert_eq!(gauge(&exposition, OPERATOR_OPT_IN), Some(expected), "{exposition}");
+    }
+
+    /// The configured gauge is the value a restart returns to, so runtime writes must not move it.
+    #[test]
+    fn runtime_writes_leave_the_configured_gauge_alone() {
+        let (recorder, handle) = recorder();
+
+        with_local_recorder(&recorder, || OperatorSdmOptIn::configured(true).set(false));
+
+        let exposition = handle.render();
+        assert_eq!(gauge(&exposition, OPERATOR_OPT_IN_CONFIGURED), Some(1.0), "{exposition}");
+        assert_eq!(gauge(&exposition, OPERATOR_OPT_IN), Some(0.0), "{exposition}");
+    }
+
+    /// A flag that never went through `configured` publishes no configured value at all: an absent
+    /// series is what tells an operator the boot value is unknown, and a runtime write must not
+    /// invent one.
+    #[test]
+    fn runtime_writes_do_not_register_the_configured_gauge() {
+        let (recorder, handle) = recorder();
+
+        with_local_recorder(&recorder, || OperatorSdmOptIn::default().set(true));
+
+        let exposition = handle.render();
+        assert_eq!(gauge(&exposition, OPERATOR_OPT_IN), Some(1.0), "{exposition}");
+        assert_eq!(gauge(&exposition, OPERATOR_OPT_IN_CONFIGURED), None, "{exposition}");
+    }
 
     #[test]
     fn test_da() {

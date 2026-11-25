@@ -1,6 +1,7 @@
 package presets
 
 import (
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	challengerConfig "github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -17,14 +18,32 @@ func attachChallenger(t devtest.T, l2Net *dsl.L2Network, name string, chainID et
 	net.AddL2Challenger(newPresetL2Challenger(t, name, chainID, cfg))
 }
 
+func newL1ProposerEOA(t devtest.T, runtime *sysgo.MultiChainRuntime, l2ChainID eth.ChainID, l1EL *dsl.L1ELNode) *dsl.EOA {
+	privateKey, err := runtime.Keys.Secret(devkeys.ProposerRole.Key(l2ChainID.ToBig()))
+	t.Require().NoError(err, "failed to derive L1 proposer role key")
+	return dsl.NewEOA(dsl.NewKey(t, privateKey), l1EL)
+}
+
 func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *SimpleInterop {
+	components := multiL2FromRuntime(t, runtime, "l2a", "l2b")
+	return simpleInteropFromRuntimeComponents(t, runtime, components)
+}
+
+func simpleInteropFromRuntimeComponents(
+	t devtest.T,
+	runtime *sysgo.MultiChainRuntime,
+	components *multiL2RuntimePresetComponents,
+) *SimpleInterop {
 	chainA := runtime.Chains["l2a"]
 	chainB := runtime.Chains["l2b"]
 	t.Require().NotNil(chainA, "missing l2a superproofs chain")
 	t.Require().NotNil(chainB, "missing l2b superproofs chain")
-	twoL2, components := twoL2FromRuntime(t, runtime)
+	l2A := components.chains["l2a"]
+	l2B := components.chains["l2b"]
+	t.Require().NotNil(l2A, "missing l2a preset components")
+	t.Require().NotNil(l2B, "missing l2b preset components")
 
-	supernodeFrontend := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC())
+	supernodeFrontend := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC(), runtime.Supernode)
 	testSequencer := newTestSequencerFrontend(
 		t,
 		runtime.TestSequencer.Name,
@@ -38,36 +57,51 @@ func simpleInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiCh
 			Log:              t.Logger(),
 			T:                t,
 			timeTravel:       runtime.TimeTravel,
-			Supervisor:       nil,
 			SuperRoots:       dsl.NewSupernodeWithTestControl(supernodeFrontend, runtime.Supernode),
 			TestSequencer:    dsl.NewTestSequencer(testSequencer),
-			L1Network:        twoL2.L1Network,
-			L1EL:             twoL2.L1EL,
-			L1CL:             twoL2.L1CL,
-			L2ChainA:         twoL2.L2A,
-			L2BatcherA:       dsl.NewL2Batcher(components.l2ABatcher),
-			L2ELA:            dsl.NewL2ELNode(components.l2AEL),
-			L2CLA:            twoL2.L2ACL,
+			L1Network:        components.l1Network,
+			L1EL:             components.l1EL,
+			L1CL:             components.l1CL,
+			L2ChainA:         l2A.network,
+			L2BatcherA:       l2A.batcher,
+			L2ELA:            l2A.el,
+			L2CLA:            l2A.cl,
 			Wallet:           dsl.NewRandomHDWallet(t, 30),
-			FaucetA:          components.faucetA,
-			FaucetL1:         dsl.NewFaucet(newFaucetFrontendForChain(t, runtime.FaucetService, runtime.L1Network.ChainID())),
 			challengerConfig: runtime.L2ChallengerConfig,
+			sysgoRuntime:     runtime,
 		},
-		L2ChainB:   twoL2.L2B,
-		L2BatcherB: dsl.NewL2Batcher(components.l2BBatcher),
-		L2ELB:      dsl.NewL2ELNode(components.l2BEL),
-		L2CLB:      twoL2.L2BCL,
-		FaucetB:    components.faucetB,
+		L2ChainB:   l2B.network,
+		L2BatcherB: l2B.batcher,
+		L2ELB:      l2B.el,
+		L2CLB:      l2B.cl,
 	}
-	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
-	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
-	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
-	l1Net, ok := out.L1Network.Escape().(*presetL1Network)
-	t.Require().True(ok, "expected preset L1 network")
-	l1Net.AddFaucet(out.FaucetL1.Escape().(*faucetFrontend))
+	out.l1Proposer = newL1ProposerEOA(t, runtime, chainA.Network.ChainID(), out.L1EL)
+	out.FunderL1 = newFunderEOA(t, runtime.Keys, out.L1EL, out.Wallet)
+	out.FunderA = newFunderEOA(t, runtime.Keys, out.L2ELA, out.Wallet)
+	out.FunderB = newFunderEOA(t, runtime.Keys, out.L2ELB, out.Wallet)
 
 	attachChallenger(t, out.L2ChainA, "main", chainA.Network.ChainID(), out.challengerConfig)
 	attachChallenger(t, out.L2ChainB, "main", chainB.Network.ChainID(), out.challengerConfig)
+	return out
+}
+
+func threeChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *ThreeChainInterop {
+	components := multiL2FromRuntime(t, runtime, "l2a", "l2b", "l2c")
+	base := simpleInteropFromRuntimeComponents(t, runtime, components)
+	chainC := runtime.Chains["l2c"]
+	t.Require().NotNil(chainC, "missing l2c superproofs chain")
+	l2C := components.chains["l2c"]
+	t.Require().NotNil(l2C, "missing l2c preset components")
+
+	out := &ThreeChainInterop{
+		SimpleInterop: base,
+		L2ChainC:      l2C.network,
+		L2BatcherC:    l2C.batcher,
+		L2ELC:         l2C.el,
+		L2CLC:         l2C.cl,
+	}
+	out.FunderC = newFunderEOA(t, runtime.Keys, out.L2ELC, out.Wallet)
+	attachChallenger(t, out.L2ChainC, "main", chainC.Network.ChainID(), out.challengerConfig)
 	return out
 }
 
@@ -114,7 +148,7 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 		l2Chain.AddL2Challenger(newPresetL2Challenger(t, "main", l2ChainID, challengerCfg))
 	}
 
-	supernodeFrontend := newSupernodeFrontend(t, "supernode-single-system-proofs", runtime.Supernode.UserRPC())
+	supernodeFrontend := newSupernodeFrontend(t, "supernode-single-system-proofs", runtime.Supernode.UserRPC(), runtime.Supernode)
 	testSequencer := newTestSequencerFrontend(
 		t,
 		runtime.TestSequencer.Name,
@@ -126,14 +160,11 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 	l1CLDSL := dsl.NewL1CLNode(l1CL)
 	l2ELDSL := dsl.NewL2ELNode(l2EL)
 	l2CLDSL := dsl.NewL2CLNode(l2CL)
-	faucetAFrontend := newFaucetFrontendForChain(t, runtime.FaucetService, l2ChainID)
-	faucetL1Frontend := newFaucetFrontendForChain(t, runtime.FaucetService, l1ChainID)
 
 	out := &SingleChainInterop{
 		Log:              t.Logger(),
 		T:                t,
 		timeTravel:       runtime.TimeTravel,
-		Supervisor:       nil,
 		SuperRoots:       dsl.NewSupernodeWithTestControl(supernodeFrontend, runtime.Supernode),
 		TestSequencer:    dsl.NewTestSequencer(testSequencer),
 		L1Network:        dsl.NewL1Network(l1Network, l1ELDSL, l1CLDSL),
@@ -144,13 +175,11 @@ func singleChainInteropFromSupernodeProofsRuntime(t devtest.T, runtime *sysgo.Mu
 		L2ELA:            l2ELDSL,
 		L2CLA:            l2CLDSL,
 		Wallet:           dsl.NewRandomHDWallet(t, 30),
-		FaucetA:          dsl.NewFaucet(faucetAFrontend),
-		FaucetL1:         dsl.NewFaucet(faucetL1Frontend),
 		challengerConfig: challengerCfg,
+		sysgoRuntime:     runtime,
 	}
-	l1Network.AddFaucet(faucetL1Frontend)
-	l2Chain.AddFaucet(faucetAFrontend)
-	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
-	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
+	out.l1Proposer = newL1ProposerEOA(t, runtime, l2ChainID, out.L1EL)
+	out.FunderL1 = newFunderEOA(t, runtime.Keys, out.L1EL, out.Wallet)
+	out.FunderA = newFunderEOA(t, runtime.Keys, out.L2ELA, out.Wallet)
 	return out
 }

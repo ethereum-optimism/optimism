@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"sync/atomic"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
@@ -22,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -40,7 +42,7 @@ type Service struct {
 
 	game             *extract.GameCallerCreator
 	rollupClients    []*sources.RollupClient
-	superNodeClients []*sources.SuperNodeClient
+	superRootClients []*sources.SuperNodeClient
 
 	l1RPC    rpcclient.RPC
 	l1Client *sources.L1Client
@@ -52,13 +54,30 @@ type Service struct {
 	stopped atomic.Bool
 }
 
+// ServiceOption customizes a dispute monitor service.
+type ServiceOption func(*Service)
+
+// WithClock overrides the service clock.
+func WithClock(cl clock.Clock) ServiceOption {
+	return func(service *Service) {
+		if cl != nil {
+			service.cl = cl
+		}
+	}
+}
+
 // NewService creates a new Service.
-func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
+func NewService(ctx context.Context, logger log.Logger, cfg *config.Config, options ...ServiceOption) (*Service, error) {
 	s := &Service{
 		cl:           clock.SystemClock,
 		logger:       logger,
 		metrics:      metrics.NewMetrics(),
 		honestActors: types.NewHonestActors(cfg.HonestActors),
+	}
+	for _, option := range options {
+		if option != nil {
+			option(s)
+		}
 	}
 
 	if err := s.initFromConfig(ctx, cfg); err != nil {
@@ -84,8 +103,8 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initOutputRollupClient(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init rollup client: %w", err)
 	}
-	if err := s.initSuperNodeClients(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init super node clients: %w", err)
+	if err := s.initSuperRootClients(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init super root clients: %w", err)
 	}
 
 	s.initGameCallerCreator() // Must be called before initForecast
@@ -111,8 +130,8 @@ func (s *Service) outputRollupClients() []extract.OutputRollupClient {
 }
 
 func (s *Service) asSuperRootProviders() []extract.SuperRootProvider {
-	clients := make([]extract.SuperRootProvider, len(s.superNodeClients))
-	for i, client := range s.superNodeClients {
+	clients := make([]extract.SuperRootProvider, len(s.superRootClients))
+	for i, client := range s.superRootClients {
 		clients[i] = client
 	}
 	return clients
@@ -132,16 +151,16 @@ func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config
 	return nil
 }
 
-func (s *Service) initSuperNodeClients(ctx context.Context, cfg *config.Config) error {
-	if len(cfg.SuperNodeRpcs) == 0 {
+func (s *Service) initSuperRootClients(ctx context.Context, cfg *config.Config) error {
+	if len(cfg.SuperRootRpcs) == 0 {
 		return nil
 	}
-	for _, rpc := range cfg.SuperNodeRpcs {
+	for _, rpc := range cfg.SuperRootRpcs {
 		client, err := dial.DialSuperNodeClientWithTimeout(ctx, s.logger, rpc, rpcclient.WithLazyDial())
 		if err != nil {
-			return fmt.Errorf("failed to dial super node client %s: %w", rpc, err)
+			return fmt.Errorf("failed to dial super root client %s: %w", rpc, err)
 		}
-		s.superNodeClients = append(s.superNodeClients, client)
+		s.superRootClients = append(s.superRootClients, client)
 	}
 	return nil
 }
@@ -213,24 +232,26 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	headBlockFetcher := func(ctx context.Context) (eth.L1BlockRef, error) {
 		return s.l1Client.L1BlockRefByLabel(ctx, "latest")
 	}
+	bondEnricher := extract.NewBondDataEnricher()
 	extractor := extract.NewExtractor(
 		s.logger,
 		s.cl,
+		s.metrics,
 		s.game.CreateContract,
 		s.factoryContract.GetGamesAtOrAfter,
+		s.factoryContract.GetGameStatusAtBlock,
 		cfg.IgnoredGames,
 		cfg.MaxConcurrency,
-		extract.NewClaimEnricher(),
-		extract.NewRecipientEnricher(), // Must be called before WithdrawalsEnricher and BondEnricher
-		extract.NewWithdrawalsEnricher(),
-		extract.NewBondEnricher(),
-		extract.NewBalanceEnricher(),
-		extract.NewL1HeadBlockNumEnricher(s.l1Client),
-		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
-		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+		s.commonEnrichers(),
+		s.faultEnrichers(bondEnricher),
+		extract.NewZKAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+		bondEnricher,
+		func(addr common.Address) extract.GameFinalityChecker {
+			return contracts.NewAnchorStateRegistryContract(s.metrics, addr, s.l1Caller)
+		},
 	)
 	forecast := NewForecast(s.logger, s.metrics)
-	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl)
+	bonds := bonds.NewBonds(s.logger, s.metrics, s.cl, s.honestActors)
 	resolutions := NewResolutionMonitor(s.logger, s.metrics, s.cl)
 	claims := NewClaimMonitor(s.logger, s.cl, s.honestActors, s.metrics)
 	withdrawals := NewWithdrawalMonitor(s.logger, s.cl, s.metrics, s.honestActors)
@@ -243,22 +264,52 @@ func (s *Service) initMonitor(ctx context.Context, cfg *config.Config) {
 	mixedSafetyMonitor := NewMixedSafetyMonitor(s.logger, s.metrics)
 	differentRootMonitor := NewDifferentRootMonitor(s.logger, s.metrics)
 	gameTypeMonitor := NewGameTypeMonitor(s.metrics)
+	zkLifecycleMonitor := NewZKLifecycleMonitor(s.cl, s.metrics)
+	anchorStateMonitor := NewAnchorStateMonitor(s.logger, s.metrics, func(addr common.Address) AnchorRootProvider {
+		return contracts.NewAnchorStateRegistryContract(s.metrics, addr, s.l1Caller)
+	})
 	s.monitor = newGameMonitor(ctx, s.logger, s.cl, s.metrics, cfg.MonitorInterval, cfg.GameWindow, headBlockFetcher,
 		extractor.Extract,
 		forecast.Forecast,
-		bonds.CheckBonds,
-		resolutions.CheckResolutions,
-		claims.CheckClaims,
-		withdrawals.CheckWithdrawals,
-		l2ChallengesMonitor.CheckL2Challenges,
-		updateTimeMonitor.CheckUpdateTimes,
-		nodeEndpointErrorsMonitor.CheckNodeEndpointErrors,
-		nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount,
-		nodeEndpointOutOfSyncMonitor.CheckNodeEndpointOutOfSync,
-		mixedAvailabilityMonitor.CheckMixedAvailability,
-		mixedSafetyMonitor.CheckMixedSafety,
-		differentRootMonitor.CheckDifferentRoots,
-		gameTypeMonitor.CheckGameTypes)
+		anchorStateMonitor.CheckAnchorState,
+		[]CommonMonitor{
+			updateTimeMonitor.CheckUpdateTimes,
+			nodeEndpointErrorsMonitor.CheckNodeEndpointErrors,
+			nodeEndpointErrorCountMonitor.CheckNodeEndpointErrorCount,
+			nodeEndpointOutOfSyncMonitor.CheckNodeEndpointOutOfSync,
+			mixedAvailabilityMonitor.CheckMixedAvailability,
+			mixedSafetyMonitor.CheckMixedSafety,
+			differentRootMonitor.CheckDifferentRoots,
+			gameTypeMonitor.CheckGameTypes,
+		},
+		[]FaultMonitor{
+			resolutions.CheckResolutions,
+			claims.CheckClaims,
+			l2ChallengesMonitor.CheckL2Challenges,
+		},
+		[]BondMonitor{
+			bonds.CheckBonds,
+			withdrawals.CheckWithdrawals,
+		},
+		[]ZKMonitor{
+			zkLifecycleMonitor.CheckLifecycle,
+		})
+}
+
+func (s *Service) commonEnrichers() []extract.CommonEnricher {
+	return []extract.CommonEnricher{
+		extract.NewL1HeadBlockNumEnricher(s.l1Client),
+		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.outputRollupClients(), clock.SystemClock),
+		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.asSuperRootProviders(), clock.SystemClock),
+		extract.NewAnchorStateRegistryEnricher(s.logger),
+	}
+}
+
+func (s *Service) faultEnrichers(bondEnricher *extract.BondDataEnricher) []extract.FaultEnricher {
+	return []extract.FaultEnricher{
+		extract.NewClaimEnricher(),
+		bondEnricher,
+	}
 }
 
 func (s *Service) Start(ctx context.Context) error {
@@ -273,10 +324,23 @@ func (s *Service) Stopped() bool {
 	return s.stopped.Load()
 }
 
+// MetricsAddr returns the bound metrics server address, or nil when metrics are disabled.
+func (s *Service) MetricsAddr() net.Addr {
+	if s.metricsSrv == nil {
+		return nil
+	}
+	return s.metricsSrv.Addr()
+}
+
 func (s *Service) Stop(ctx context.Context) error {
 	s.logger.Info("Stopping dispute mon service")
 
 	var result error
+	if s.monitor != nil {
+		if err := s.monitor.StopMonitoring(ctx); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop game monitor: %w", err))
+		}
+	}
 	if s.pprofService != nil {
 		if err := s.pprofService.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close pprof server: %w", err))

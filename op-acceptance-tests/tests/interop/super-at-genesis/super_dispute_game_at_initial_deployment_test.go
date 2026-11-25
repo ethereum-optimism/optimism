@@ -16,7 +16,9 @@ func TestSuperPermissionedDisputeGameInstalledAtInitialDeployment(gt *testing.T)
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainInteropSuperRootAtGenesis(t)
 
-	sys.StandardBridge(sys.L2ChainA).VerifyRespectedGameType(gameTypes.SuperPermissionedGameType)
+	bridge := sys.StandardBridge(sys.L2ChainA)
+	bridge.VerifyRespectedGameType(gameTypes.SuperPermissionedGameType)
+	t.Require().Zero(bridge.GameResolutionDelay(), "SuperPermissioned games resolve during initialization")
 	sys.DisputeGameFactory().VerifyGameImplPresent(gameTypes.SuperPermissionedGameType)
 	sys.DisputeGameFactory().VerifyGameImplAbsent(gameTypes.PermissionedGameType)
 }

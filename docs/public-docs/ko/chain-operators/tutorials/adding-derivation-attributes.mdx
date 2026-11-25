@@ -1,0 +1,270 @@
+---
+title: 파생 함수에 속성 추가하기
+description: L1에서 소각되는 ETH의 양을 추적하도록 OP Stack 체인의 파생(derivation) 함수를 수정하는 방법을 알아봅니다.
+diataxis: tutorial
+---
+
+import OpStackHacksWarning from "/ko/snippets/op-stack-hacks-warning.mdx"
+
+<OpStackHacksWarning />
+
+## 개요
+
+이 튜토리얼에서는 Bedrock rollup을 수정합니다. OP Stack을 수정하는 방법은 여러 가지가 있지만, 이 튜토리얼에서는 파생(derivation) 함수를 수정합니다. 구체적으로는 L1에서 소각되는 ETH의 양을 추적하도록 파생 함수를 업데이트합니다. 이제 [ultrasound.money](http://ultrasound.money)에 백엔드를 OP Stack 체인으로 교체하라고 알려줄 수 있을지도 모릅니다.
+
+## 개념 이해하기
+
+앞으로 할 작업을 간단히 정리해 보겠습니다. `op-node`는 `op-geth`가 블록과 트랜잭션을 생성하도록 하는 Engine API 페이로드를 생성하는 역할을 합니다. `op-node`는 이미 모든 L1 블록마다 현재 L1 상태에 대한 정보를 L2 체인에 전달하는 "시스템 트랜잭션"을 생성합니다. 여기에서는 `op-node`를 수정하여 각 블록의 총 소각량(base fee에 사용된 gas를 곱한 값)을 보고하는 새로운 시스템 트랜잭션을 추가합니다.
+
+작업이 많아 보일 수 있지만, 전체 과정은 스마트 컨트랙트 하나를 배포하고, `op-node`에 새 파일 하나를 추가하고, `op-node` 내부의 기존 파일 하나를 수정하는 것뿐입니다. 어렵지 않습니다. 시작해 보겠습니다.
+
+## 소각 컨트랙트 배포
+
+`op-node`가 L1 소각에 대해 생성하는 보고를 저장하기 위해 rollup에 스마트 컨트랙트를 사용합니다. 스마트 컨트랙트 코드는 다음과 같습니다.
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+/**
+ * @title L1Burn
+ * @notice L1Burn keeps track of the total amount of ETH burned on L1.
+ */
+contract L1Burn {
+    /**
+     * @notice Total amount of ETH burned on L1.
+     */
+    uint256 public total;
+
+    /**
+     * @notice Mapping of block numbers to total burn.
+     */
+    mapping (uint64 => uint256) public reports;
+
+    /**
+     * @notice Allows the system address to submit a report.
+     *
+     * @param _blocknum L1 block number the report corresponds to.
+     * @param _burn     Amount of ETH burned in the block.
+     */
+    function report(uint64 _blocknum, uint64 _burn) external {
+        require(
+            msg.sender == 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001,
+            "L1Burn: reports can only be made from system address"
+        );
+
+        total += _burn;
+        reports[_blocknum] = total;
+    }
+
+    /**
+     * @notice Tallies up the total burn since a given block number.
+     *
+     * @param _blocknum L1 block number to tally from.
+     *
+     * @return Total amount of ETH burned since the given block number;
+     */
+    function tally(uint64 _blocknum) external view returns (uint256) {
+        return total - reports[_blocknum];
+    }
+}
+```
+
+편리한 도구를 사용하여 이 스마트 컨트랙트를 L2에 배포하십시오. 잠시 후에 필요하므로 컨트랙트가 배포된 주소를 기록해 두십시오. 간단합니다.
+
+## 소각 트랜잭션 추가
+
+이제 L1 블록이 생성될 때마다 소각 보고를 자동으로 제출하는 로직을 `op-node`에 추가해야 합니다. 이 트랜잭션은 다른 L1 블록 정보를 보고하는 시스템 트랜잭션([l1\_block\_info.go](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/derive/l1_block_info.go)에 있음)과 매우 유사하므로, 해당 트랜잭션을 출발점으로 사용합니다.
+
+<Steps>
+  <Step title="`op-node` 패키지로 이동합니다.">
+  ```bash
+    cd ~/optimism/op-node
+    ```
+  </Step>
+
+  <Step title="`rollup/derive` 폴더 안에 `l1_burn_info.go`라는 새 파일을 생성합니다.">
+  ```bash
+    touch rollup/derive/l1_burn_info.go
+    ```
+  </Step>
+
+  <Step title="다음 내용을 `l1_burn_info.go`에 붙여 넣고, `YOUR_BURN_CONTRACT_HERE`를 방금 배포한 `L1Burn` 컨트랙트의 주소로 반드시 교체하십시오.">
+  ```go
+    package derive
+  
+    import (
+        "bytes"
+        "encoding/binary"
+        "fmt"
+        "math/big"
+  
+        "github.com/ethereum/go-ethereum/common"
+        "github.com/ethereum/go-ethereum/core/types"
+        "github.com/ethereum/go-ethereum/crypto"
+  
+        "github.com/ethereum-optimism/optimism/op-node/eth"
+    )
+  
+    const (
+        L1BurnFuncSignature = "report(uint64,uint64)"
+        L1BurnArguments     = 2
+        L1BurnLen           = 4 + 32*L1BurnArguments
+    )
+  
+    var (
+        L1BurnFuncBytes4 = crypto.Keccak256([]byte(L1BurnFuncSignature))[:4]
+        L1BurnAddress    = common.HexToAddress("YOUR_BURN_CONTRACT_HERE")
+    )
+  
+    type L1BurnInfo struct {
+        Number uint64
+        Burn   uint64
+    }
+  
+    func (info *L1BurnInfo) MarshalBinary() ([]byte, error) {
+        data := make([]byte, L1BurnLen)
+        offset := 0
+        copy(data[offset:4], L1BurnFuncBytes4)
+        offset += 4
+        binary.BigEndian.PutUint64(data[offset+24:offset+32], info.Number)
+        offset += 32
+        binary.BigEndian.PutUint64(data[offset+24:offset+32], info.Burn)
+        return data, nil
+    }
+  
+    func (info *L1BurnInfo) UnmarshalBinary(data []byte) error {
+        if len(data) != L1InfoLen {
+            return fmt.Errorf("data is unexpected length: %d", len(data))
+        }
+        var padding [24]byte
+        offset := 4
+        info.Number = binary.BigEndian.Uint64(data[offset+24 : offset+32])
+        if !bytes.Equal(data[offset:offset+24], padding[:]) {
+            return fmt.Errorf("l1 burn tx number exceeds uint64 bounds: %x", data[offset:offset+32])
+        }
+        offset += 32
+        info.Burn = binary.BigEndian.Uint64(data[offset+24 : offset+32])
+        if !bytes.Equal(data[offset:offset+24], padding[:]) {
+            return fmt.Errorf("l1 burn tx burn exceeds uint64 bounds: %x", data[offset:offset+32])
+        }
+        return nil
+    }
+  
+    func L1BurnDepositTxData(data []byte) (L1BurnInfo, error) {
+        var info L1BurnInfo
+        err := info.UnmarshalBinary(data)
+        return info, err
+    }
+  
+    func L1BurnDeposit(seqNumber uint64, block eth.BlockInfo, sysCfg eth.SystemConfig) (*types.DepositTx, error) {
+        infoDat := L1BurnInfo{
+            Number: block.NumberU64(),
+            Burn:   block.BaseFee().Uint64() * block.GasUsed(),
+        }
+        data, err := infoDat.MarshalBinary()
+        if err != nil {
+            return nil, err
+        }
+        source := L1InfoDepositSource{
+            L1BlockHash: block.Hash(),
+            SeqNumber:   seqNumber,
+        }
+        return &types.DepositTx{
+            SourceHash:          source.SourceHash(),
+            From:                L1InfoDepositerAddress,
+            To:                  &L1BurnAddress,
+            Mint:                nil,
+            Value:               big.NewInt(0),
+            Gas:                 150_000_000,
+            IsSystemTransaction: true,
+            Data:                data,
+        }, nil
+    }
+  
+    func L1BurnDepositBytes(seqNumber uint64, l1Info eth.BlockInfo, sysCfg eth.SystemConfig) ([]byte, error) {
+        dep, err := L1BurnDeposit(seqNumber, l1Info, sysCfg)
+        if err != nil {
+            return nil, fmt.Errorf("failed to create L1 burn tx: %w", err)
+        }
+        l1Tx := types.NewTx(dep)
+        opaqueL1Tx, err := l1Tx.MarshalBinary()
+        if err != nil {
+            return nil, fmt.Errorf("failed to encode L1 burn tx: %w", err)
+        }
+        return opaqueL1Tx, nil
+    }
+    ```
+  
+    관심이 있다면 이 파일을 자유롭게 살펴보십시오. 이 파일은 비교적 단순하며, 주로 새로운 트랜잭션 유형을 정의하고 해당 트랜잭션을 인코딩하는 방법을 기술합니다.
+  </Step>
+</Steps>
+
+## 소각 트랜잭션 삽입
+
+마지막으로 새 소각 트랜잭션을 모든 블록에 삽입하도록 `~/optimism/op-node/rollup/derive/attributes.go`를 업데이트해야 합니다. 다음과 같이 변경하십시오.
+
+<Steps>
+  <Step title="다음 줄을 찾습니다.">
+  ```go
+    l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info, sysConfig)
+    if err != nil {
+          return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
+    }
+    ```
+  </Step>
+
+  <Step title="해당 줄 다음에 이 코드 조각을 추가합니다.">
+  ```go
+    l1BurnTx, err := L1BurnDepositBytes(seqNumber, l1Info, sysConfig)
+    if err != nil {
+            return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
+    }
+    ```
+  </Step>
+
+  <Step title="바로 다음에 있는 아래 줄을 변경합니다.">
+  ```go
+    txs := make([]hexutil.Bytes, 0, 1+len(depositTxs))
+    txs = append(txs, l1InfoTx)
+    ```
+  
+    다음과 같이 변경합니다.
+  
+    ```go
+    txs := make([]hexutil.Bytes, 0, 2+len(depositTxs))
+    txs = append(txs, l1InfoTx)
+    txs = append(txs, l1BurnTx)
+    ```
+  
+    여기에서 하는 작업은 모든 `l1InfoTx` 다음에 새 소각 트랜잭션을 생성하여 모든 블록에 삽입하는 것뿐입니다.
+  </Step>
+</Steps>
+
+## op-node 재빌드
+
+이 변경 사항이 적용되는 것을 확인하려면 먼저 `op-node`를 다시 빌드해야 합니다.
+
+```bash
+cd ~/optimism/op-node
+make op-node
+```
+
+이제 `op-node`가 실행 중이 아니면 시작하고, 이미 실행 중이면 재시작하십시오. 변경 사항이 즉시 반영되어, 새 블록에는 시스템 트랜잭션이 하나가 아닌 두 개 포함됩니다.
+
+## 결과 확인
+
+컨트랙트의 `total` 함수를 조회하면 총량이 서서히 증가하는 것을 볼 수 있습니다. `tally` 함수를 사용하여 특정 L2 블록 이후 소각된 gas의 양을 가져와 보십시오. 이를 활용하여 OP Stack을 백엔드로 사용해 데이터를 추적하는 [ultrasound.money](http://ultrasound.money)의 한 버전을 구현할 수도 있습니다.
+
+총량을 가져오는 한 가지 방법은 다음 명령을 실행하는 것입니다.
+
+```bash
+export ETH_RPC_URL=http://localhost:8545
+cast call <YOUR_BURN_CONTRACT_HERE> "total()" | cast --from-wei
+```
+
+## 결론
+
+`op-node`를 몇 군데만 조금 변경하여, L2에서 L1 ETH 소각을 추적할 수 있도록 OP Stack을 변경했습니다. Cannon 결함 증명(fault proof) 시스템이 운영되면 L2에서 L1 소각을 추적할 수 있을 뿐만 아니라, L1의 컨트랙트에 해당 소각을 *증명*할 수도 있습니다. 놀라운 일입니다.
+
+OP Stack은 대량의 연산을 신뢰 없이(trustlessly) 수행할 수 있게 해 주는 매우 강력한 플랫폼입니다. 스마트 컨트랙트에 초능력을 부여하는 셈입니다. L1 소각 추적은 OP Stack으로 할 수 있는 수많은 놀라운 일 중 하나일 뿐입니다. 영감을 얻고 싶거나 다른 사람들이 OP Stack 위에서 무엇을 만들고 있는지 보고 싶다면 OP Stack Hacks 페이지를 확인해 보십시오. 작업하고 싶은 프로젝트를 찾거나, 다음 킬러 스마트 컨트랙트를 만드는 데 필요한 영감을 얻을 수 있을 것입니다.

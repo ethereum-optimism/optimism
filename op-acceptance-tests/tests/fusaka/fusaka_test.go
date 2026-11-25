@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/loadtest"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -62,11 +63,11 @@ func TestBlobBaseFeeIsCorrectAfterBPOFork(gt *testing.T) {
 	t.Log("Waiting for non trivial BPO1 block")
 	l2UnsafeHash, l1BlobBaseFee := waitForNonTrivialBPO1Block(t, sys)
 	t.Log("Non-trivial BPO1 block found")
-	l2Info, l2Txs, err := sys.L2EL.Escape().EthClient().InfoAndTxsByHash(t.Ctx(), l2UnsafeHash)
+	l2Info, l1InfoDeposit, err := sys.L2EL.Escape().L2EthClient().InfoAndFirstDepositByHash(t.Ctx(), l2UnsafeHash)
 	t.Require().NoError(err)
 
 	t.Log("Checking the L1 blob base fee in the system deposit tx")
-	blockInfo, err := derive.L1BlockInfoFromBytes(sys.L2Chain.Escape().RollupConfig(), l2Info.Time(), l2Txs[0].Data())
+	blockInfo, err := derive.L1BlockInfoFromBytes(sys.L2Chain.Escape().RollupConfig(), l2Info.Time(), l1InfoDeposit.Data)
 	t.Require().NoError(err)
 	l2BlobBaseFee := blockInfo.BlobBaseFee
 	t.Require().Equal(l1BlobBaseFee, l2BlobBaseFee)
@@ -126,7 +127,7 @@ func spamBlobs(t devtest.T, sys *presets.Minimal) {
 	eoa := sys.FunderL1.NewFundedEOA(eth.OneTenthEther)
 	signer := txinclude.NewPkSigner(eoa.Key().Priv(), sys.L1Network.ChainID().ToBig())
 	l1ETHClient := sys.L1EL.EthClient()
-	syncEOA := loadtest.NewSyncEOA(txinclude.NewPersistent(signer, struct {
+	syncEOA := dsl.NewSyncEOA(txinclude.NewPersistent(signer, struct {
 		*txinclude.Monitor
 		*txinclude.Resubmitter
 	}{

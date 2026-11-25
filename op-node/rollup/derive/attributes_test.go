@@ -9,14 +9,14 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-core/forks"
+	"github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -163,7 +163,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 
 		l2Txs := append(append(make([]eth.Data, 0), l1InfoTx), usedDepositTxs...)
 
-		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, receipts, nil)
+		opReceipts, err := optypes.FromGethReceipts(receipts)
+		require.NoError(t, err)
+		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, opReceipts, nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, nil, l1Fetcher, l1CfgFetcher)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
@@ -231,7 +233,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		// sets config to post-interop
-		cfg.ActivateAtGenesis(forks.Interop)
+		cfg.ActivateAtGenesis(forks.Lagoon)
 
 		seqNumber := uint64(0)
 		epoch := l1Info.ID()
@@ -242,7 +244,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l2Txs = append(l2Txs, l1InfoTx)
 		l2Txs = append(l2Txs, userDepositTxs...)
 
-		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, receipts, nil)
+		opReceipts, err := optypes.FromGethReceipts(receipts)
+		require.NoError(t, err)
+		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, opReceipts, nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, params.MergedTestChainConfig, depSet, l1Fetcher, l1CfgFetcher)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
@@ -271,7 +275,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Info.InfoNum = l2Parent.L1Origin.Number // same origin again, so the sequence number is not reset
 
 		// sets config to post-interop
-		cfg.ActivateAtGenesis(forks.Interop)
+		cfg.ActivateAtGenesis(forks.Lagoon)
 
 		seqNumber := l2Parent.SequenceNumber + 1
 		epoch := l1Info.ID()
@@ -382,13 +386,13 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		prepareActivationAttributes := func(t *testing.T, depSet depset.DependencySet) *eth.PayloadAttributes {
 			cfg := mkCfg()
 			cfg.ActivateAtGenesis(forks.Isthmus)
-			interopTime := uint64(1000)
-			cfg.InteropTime = &interopTime
+			lagoonTime := uint64(1000)
+			cfg.LagoonTime = &lagoonTime
 			rng := rand.New(rand.NewSource(1234))
 			l1Fetcher := &testutils.MockL1Source{}
 			defer l1Fetcher.AssertExpectations(t)
 			l2Parent := testutils.RandomL2BlockRef(rng)
-			l2Parent.Time = interopTime - cfg.BlockTime
+			l2Parent.Time = lagoonTime - cfg.BlockTime
 
 			l1CfgFetcher := &testutils.MockL2Client{}
 			l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
@@ -408,33 +412,41 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		}
 
 		t.Run("WithSingleChainDepSet", func(t *testing.T) {
+			// Single-chain superchains execute the bundle upgrades but skip the
+			// Interop-specific setFeature and ETHLiquidity funding wrappers.
 			depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 				eth.ChainIDFromUInt64(42): {},
 			})
 			require.NoError(t, err)
 			attrs := prepareActivationAttributes(t, depSet)
-			upgradeTx, err := InteropNetworkUpgradeTransactions()
+			bundleTxs, _, err := UpgradeTransactions(forks.Lagoon)
 			require.NoError(t, err)
-			require.Len(t, attrs.Transactions, len(upgradeTx)+1) // +1 for L1Info tx
-			for i, tx := range upgradeTx {
+
+			require.Len(t, attrs.Transactions, len(bundleTxs)+1) // +1 for L1Info tx
+			for i, tx := range bundleTxs {
 				require.Equal(t, tx, attrs.Transactions[i+1])
 			}
 		})
 
 		t.Run("WithMultiChainDepSet", func(t *testing.T) {
+			// Multi-chain superchains run the full Interop activation:
+			// setFeature wrapper + JSON NUT bundle + ETHLiquidity funding wrapper.
 			depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
 				eth.ChainIDFromUInt64(42): {},
 				eth.ChainIDFromUInt64(44): {},
 			})
 			require.NoError(t, err)
 			attrs := prepareActivationAttributes(t, depSet)
-			upgradeTx, err := InteropNetworkUpgradeTransactions()
+
+			setFeatureTx, err := interopSetFeatureDeposit().MarshalBinary()
 			require.NoError(t, err)
-			l2InboxTx, err := InteropActivateCrossL2InboxTransactions()
+			bundleTxs, _, err := UpgradeTransactions(forks.Lagoon)
 			require.NoError(t, err)
-			expectedTx := make([]hexutil.Bytes, 0, len(upgradeTx)+len(l2InboxTx))
-			expectedTx = append(expectedTx, upgradeTx...)
-			expectedTx = append(expectedTx, l2InboxTx...)
+			fundingTx, err := interopETHLiquidityFundingDeposit().MarshalBinary()
+			require.NoError(t, err)
+
+			expectedTx := append(append([]hexutil.Bytes{setFeatureTx}, bundleTxs...), hexutil.Bytes(fundingTx))
+
 			require.Len(t, attrs.Transactions, len(expectedTx)+1) // +1 for L1Info tx
 			for i, tx := range expectedTx {
 				require.Equal(t, tx, attrs.Transactions[i+1])
@@ -481,9 +493,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 	})
 }
 
-func encodeDeposits(deposits []*types.DepositTx) (out []eth.Data, err error) {
+func encodeDeposits(deposits []*optypes.DepositTx) (out []eth.Data, err error) {
 	for i, tx := range deposits {
-		opaqueTx, err := types.NewTx(tx).MarshalBinary()
+		opaqueTx, err := tx.MarshalBinary()
 		if err != nil {
 			return nil, fmt.Errorf("bad deposit %d: %w", i, err)
 		}

@@ -11,12 +11,16 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var rollupCfg = rollup.Config{
@@ -77,15 +81,10 @@ func TestChannelOutAddBlock(t *testing.T) {
 	for _, tcase := range channelTypes {
 		t.Run(tcase.Name, func(t *testing.T) {
 			cout := tcase.ChannelOut(t, &rollupCfg)
-			header := &types.Header{Number: big.NewInt(1), Difficulty: big.NewInt(100)}
-			block := types.NewBlockWithHeader(header).WithBody(
-				types.Body{
-					Transactions: []*types.Transaction{
-						types.NewTx(&types.DynamicFeeTx{}),
-					},
-				},
-			)
-			_, err := cout.AddBlock(&rollupCfg, block)
+			tx, err := types.NewTx(&types.DynamicFeeTx{}).MarshalBinary()
+			require.NoError(t, err)
+			payload := &eth.ExecutionPayload{BlockNumber: 1, Transactions: []eth.Data{tx}}
+			_, err = cout.AddBlock(&rollupCfg, payload)
 			require.Error(t, err)
 			require.ErrorIs(t, err, ErrNotDepositTx)
 		})
@@ -228,9 +227,9 @@ func TestForceCloseTxData(t *testing.T) {
 	}
 }
 
-func TestBlockToBatchValidity(t *testing.T) {
-	block := new(types.Block)
-	_, _, err := BlockToSingularBatch(&rollupCfg, block)
+func TestPayloadToBatchValidity(t *testing.T) {
+	payload := new(eth.ExecutionPayload)
+	_, _, err := PayloadToSingularBatch(&rollupCfg, payload)
 	require.ErrorContains(t, err, "has no transactions")
 }
 
@@ -469,7 +468,7 @@ func testSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T, tt maxBlocksTest) {
 		bd, err := br()
 		require.NoError(t, err)
 		require.EqualValues(t, SpanBatchType, bd.GetBatchType())
-		sb, err := DeriveSpanBatch(bd, rollupCfg.BlockTime, rollupCfg.Genesis.L2Time, cout.spanBatch.ChainID)
+		sb, err := DeriveSpanBatch(bd, &rollupCfg)
 		require.NoError(t, err)
 		require.Equal(t, expBlocks, sb.GetBlockCount())
 		sbs0, err := sb.GetSingularBatches([]eth.L1BlockRef{l1Origin}, l2SafeHead)
@@ -514,4 +513,104 @@ func testSpanChannelOut_MaxRLPBytesPerChannel(t *testing.T, algo CompressionAlgo
 
 	require.Equal(t, cout.activeRLP().Len(), maxRLPBytesPerChannel, "active RLP should be equal to the max RLP limit")
 	require.Greater(t, cout.inactiveRLP().Len(), maxRLPBytesPerChannel, "inactive RLP should be greater than max RLP limit")
+}
+
+// TestPayloadToSingularBatchKeepsNonDepositTxs pins the batch content rules on a payload
+// with the full L2 transaction-class shape: the L1-info deposit determines the
+// epoch, deposits are excluded from the batch, and all other transactions —
+// including a trailing post-exec (0x7D) transaction — pass through verbatim.
+func TestPayloadToSingularBatchKeepsNonDepositTxs(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x543331))
+	batch := RandomSingularBatch(rng, 4, rollupCfg.L2ChainID)
+	l1InfoTx, err := L1InfoDepositBytes(&rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
+		InfoNum:     uint64(batch.EpochNum),
+		InfoHash:    batch.EpochHash,
+		InfoBaseFee: big.NewInt(1),
+	}, batch.Timestamp)
+	require.NoError(t, err)
+	// A user deposit follows the L1-info deposit.
+	userDepositTx, err := testutils.GenerateDeposit(testutils.RandomHash(rng), rng).MarshalBinary()
+	require.NoError(t, err)
+	// Append a post-exec tx as the trailing block tx (SDM block shape).
+	postExecTx, err := (&optypes.PostExecTx{Data: []byte{0xc2, 0x80, 0x80}}).MarshalBinary()
+	require.NoError(t, err)
+	txs := append([]eth.Data{l1InfoTx, userDepositTx}, batch.Transactions...)
+	txs = append(txs, postExecTx)
+	payload := &eth.ExecutionPayload{
+		ParentHash:   batch.ParentHash,
+		BlockNumber:  101,
+		Timestamp:    hexutil.Uint64(batch.Timestamp),
+		Transactions: txs,
+	}
+
+	batch, l1Info, err := PayloadToSingularBatch(&rollupCfg, payload)
+	require.NoError(t, err)
+
+	require.Equal(t, payload.ParentHash, batch.ParentHash)
+	require.Equal(t, uint64(payload.Timestamp), batch.Timestamp)
+	require.Equal(t, rollup.Epoch(l1Info.Number), batch.EpochNum)
+	require.Equal(t, l1Info.BlockHash, batch.EpochHash)
+
+	// Expected batch txs: every non-deposit tx, in order, byte-identical,
+	// including the trailing post-exec tx.
+	require.Equal(t, txs[2:], batch.Transactions)
+	require.Equal(t, byte(optypes.PostExecTxType), batch.Transactions[len(batch.Transactions)-1][0],
+		"post-exec tx must be batch-included")
+
+	// A payload whose first tx is not a deposit is rejected.
+	userOnly := *payload
+	userOnly.Transactions = txs[2:3]
+	_, _, err = PayloadToSingularBatch(&rollupCfg, &userOnly)
+	require.ErrorIs(t, err, ErrNotDepositTx)
+}
+
+// TestSpanChannelOutAddBlockPostExec takes a payload with the full L2 transaction
+// shape through the span batch encoding and back out: the trailing post-exec (0x7D)
+// transaction must reach the span batch and be reconstructed verbatim. The span
+// batch format transposes transactions into their envelope fields, so — unlike the
+// singular batch, which carries opaque transactions — the encoder has to interpret
+// each one, and post-exec transactions must not take go-ethereum's typed decoding.
+func TestSpanChannelOutAddBlockPostExec(t *testing.T) {
+	payload := postExecTestPayload(t)
+
+	cout, err := NewSpanChannelOut(128_000, Zlib, rollup.NewChainSpec(&rollupCfg))
+	require.NoError(t, err)
+	_, err = cout.AddBlock(&rollupCfg, payload)
+	require.NoError(t, err)
+
+	rawSpanBatch, err := cout.spanBatch.ToRawSpanBatch()
+	require.NoError(t, err)
+	spanBatch, err := rawSpanBatch.derive(rollupCfg.BlockTime, rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID)
+	require.NoError(t, err)
+	require.Len(t, spanBatch.Batches, 1)
+
+	// Every non-deposit transaction of the block, in order, byte-identical.
+	var want []hexutil.Bytes
+	for _, tx := range payload.Transactions[1:] {
+		want = append(want, hexutil.Bytes(tx))
+	}
+	require.Equal(t, want, spanBatch.Batches[0].Transactions)
+	require.Equal(t, byte(optypes.PostExecTxType), want[len(want)-1][0], "block must end in a post-exec tx")
+}
+
+// postExecTestPayload builds an SDM-shaped L2 block payload: the L1-info deposit,
+// a user transaction, and a trailing post-exec transaction.
+func postExecTestPayload(t *testing.T) *eth.ExecutionPayload {
+	rng := rand.New(rand.NewSource(0x7d0b10c))
+	batch := RandomSingularBatch(rng, 1, rollupCfg.L2ChainID)
+	l1InfoTx, err := L1InfoDepositBytes(&rollupCfg, params.MergedTestChainConfig, eth.SystemConfig{}, 0, &testutils.MockBlockInfo{
+		InfoNum:     uint64(batch.EpochNum),
+		InfoHash:    batch.EpochHash,
+		InfoBaseFee: big.NewInt(1),
+	}, batch.Timestamp)
+	require.NoError(t, err)
+	postExecTx, err := (&optypes.PostExecTx{Data: []byte{0xc2, 0x80, 0x80}}).MarshalBinary()
+	require.NoError(t, err)
+
+	return &eth.ExecutionPayload{
+		ParentHash:   batch.ParentHash,
+		BlockNumber:  101,
+		Timestamp:    hexutil.Uint64(batch.Timestamp),
+		Transactions: []eth.Data{l1InfoTx, batch.Transactions[0], postExecTx},
+	}
 }

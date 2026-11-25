@@ -70,7 +70,7 @@ impl NutBundle {
                     source_hash: source.source_hash(),
                     from: tx.from,
                     to: tx.to.map_or(TxKind::Create, TxKind::Call),
-                    mint: 0,
+                    mint: U256::ZERO,
                     value: U256::ZERO,
                     gas_limit: tx.gas_limit,
                     is_system_transaction: false,

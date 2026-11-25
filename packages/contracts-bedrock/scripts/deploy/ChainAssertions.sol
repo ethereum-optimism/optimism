@@ -12,10 +12,10 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { Features } from "src/libraries/Features.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
-import { GameType, GameTypes } from "src/dispute/lib/Types.sol";
-import { Hash } from "src/dispute/lib/Types.sol";
+import { GameType, Proposal } from "src/dispute/lib/Types.sol";
 // Interfaces
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOPContractsManagerContainer } from "interfaces/L1/opcm/IOPContractsManagerContainer.sol";
@@ -35,7 +35,6 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
-import { IOPContractsManagerUtils } from "interfaces/L1/opcm/IOPContractsManagerUtils.sol";
 import { IZKDisputeGame } from "interfaces/dispute/zk/IZKDisputeGame.sol";
 
 library ChainAssertions {
@@ -80,7 +79,6 @@ library ChainAssertions {
         require(resourceConfig.maximumBaseFee == 0, "CHECK-SCFG-350");
         // Check _addresses
         require(config.startBlock() == type(uint256).max, "CHECK-SCFG-360");
-        require(config.batchInbox() == address(0), "CHECK-SCFG-370");
         require(config.l1CrossDomainMessenger() == address(0), "CHECK-SCFG-380");
         require(config.l1ERC721Bridge() == address(0), "CHECK-SCFG-390");
         require(config.l1StandardBridge() == address(0), "CHECK-SCFG-400");
@@ -111,12 +109,6 @@ library ChainAssertions {
         require(config.scalar() >> 248 == 1, "CHECK-SCFG-70");
         // Depends on start block being set to 0 in `initialize`
         require(config.startBlock() == block.number, "CHECK-SCFG-140");
-        require(
-            config.batchInbox()
-                == IOPContractsManagerUtils(IOPContractsManagerV2(address(_doi.opcm)).opcmUtils())
-                    .chainIdToBatchInboxAddress(_doi.l2ChainId),
-            "CHECK-SCFG-150"
-        );
         // Check _addresses
         require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger, "CHECK-SCFG-160");
         require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge, "CHECK-SCFG-170");
@@ -136,10 +128,7 @@ library ChainAssertions {
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({
-            _contractAddress: address(_messenger),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 20
+            _contractAddress: address(_messenger), _isProxy: _isProxy, _slot: 0, _offset: 20
         });
 
         if (_isProxy) {
@@ -214,14 +203,22 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the DelayedWETH is setup correctly
-    function checkDelayedWETHImpl(IDelayedWETH _weth, uint256 _faultGameWithdrawalDelay) internal view {
+    function checkDelayedWETHImpl(
+        IDelayedWETH _weth,
+        uint256 _minWithdrawalDelaySeconds,
+        uint256 _maxWithdrawalDelaySeconds
+    )
+        internal
+        view
+    {
         console.log("Running chain assertions on the DelayedWETH implementation at %s", address(_weth));
         require(address(_weth) != address(0), "CHECK-DWETH-10");
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(_weth), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(_weth.delay() == _faultGameWithdrawalDelay, "CHECK-DWETH-50");
+        require(_weth.minDelay() == _minWithdrawalDelaySeconds, "CHECK-DWETH-50");
+        require(_weth.maxDelay() == _maxWithdrawalDelaySeconds, "CHECK-DWETH-60");
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
@@ -262,7 +259,10 @@ library ChainAssertions {
         Types.ContractSet memory _contracts,
         ISuperchainConfig _superchainConfig,
         address _opChainProxyAdminOwner,
-        bool _isProxy
+        bool _isProxy,
+        uint256 _minProofMaturityDelaySeconds,
+        uint256 _maxProofMaturityDelaySeconds,
+        address _bridgeHook
     )
         internal
         view
@@ -283,10 +283,8 @@ library ChainAssertions {
             require(address(portal.superchainConfig()) == address(_superchainConfig), "PORTAL-40");
             require(portal.guardian() == _superchainConfig.guardian(), "CHECK-OP2-40");
             require(portal.paused() == ISystemConfig(_contracts.SystemConfig).paused(), "CHECK-OP2-60");
-            require(
-                address(portal.ethLockbox()) == _contracts.ETHLockbox || address(portal.ethLockbox()) == address(0),
-                "CHECK-OP2-80"
-            );
+            require(address(portal.ethLockbox()) == _contracts.ETHLockbox, "CHECK-OP2-80");
+            require(ISystemConfig(_contracts.SystemConfig).isFeatureEnabled(Features.ETH_LOCKBOX), "CHECK-OP2-85");
             require(portal.proxyAdminOwner() == _opChainProxyAdminOwner, "CHECK-OP2-90");
         } else {
             require(address(portal.anchorStateRegistry()) == address(0), "CHECK-OP2-80");
@@ -295,9 +293,15 @@ library ChainAssertions {
             require(portal.l2Sender() == address(0), "CHECK-OP2-110");
             require(address(portal.ethLockbox()) == address(0), "CHECK-OP2-120");
         }
+        // Check the configured bridgeHook in the portal matches the expectation.
+        require(address(portal.bridgeHook()) == (_isProxy ? _bridgeHook : address(0)), "CHECK-OP2-125");
         // This slot is the custom gas token _balance and this check ensures
         // that it stays unset for forwards compatibility with custom gas token.
         require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "CHECK-OP2-130");
+
+        // The proof maturity delay bounds are immutables, so they read the same through the proxy.
+        require(portal.minProofMaturityDelaySeconds() == _minProofMaturityDelaySeconds, "CHECK-OP2-140");
+        require(portal.maxProofMaturityDelaySeconds() == _maxProofMaturityDelaySeconds, "CHECK-OP2-150");
     }
 
     /// @notice Asserts that the ETHLockbox is setup correctly
@@ -307,7 +311,7 @@ library ChainAssertions {
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(_ethLockbox), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(address(_ethLockbox.systemConfig()) == address(0), "CHECK-ELB-50");
+        require(address(_ethLockbox.superchainConfig()) == address(0), "CHECK-ELB-50");
         require(_ethLockbox.authorizedPortals(_portal) == false, "CHECK-ELB-60");
     }
 
@@ -330,10 +334,7 @@ library ChainAssertions {
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({
-            _contractAddress: address(superchainConfig),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(superchainConfig), _isProxy: _isProxy, _slot: 0, _offset: 0
         });
 
         if (_isProxy) {
@@ -402,29 +403,41 @@ library ChainAssertions {
         );
     }
 
-    function checkAnchorStateRegistryProxy(IAnchorStateRegistry _anchorStateRegistryProxy, bool _isProxy) internal {
+    function checkAnchorStateRegistryProxy(
+        IAnchorStateRegistry _anchorStateRegistryProxy,
+        bool _isProxy,
+        GameType _expectedRespectedGameType,
+        Proposal memory _expectedAnchor,
+        uint256 _minDisputeGameFinalityDelaySeconds,
+        uint256 _maxDisputeGameFinalityDelaySeconds
+    )
+        internal
+    {
         DeployUtils.assertValidContractAddress(address(_anchorStateRegistryProxy));
         if (_isProxy) {
             DeployUtils.assertERC1967ImplementationSet(address(_anchorStateRegistryProxy));
         }
 
         DeployUtils.assertInitialized({
-            _contractAddress: address(_anchorStateRegistryProxy),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(_anchorStateRegistryProxy), _isProxy: _isProxy, _slot: 0, _offset: 0
         });
 
         // The below check cannot be done in the standard validator because the assertion only applies at deploy time.
-        (Hash actualRoot,) = _anchorStateRegistryProxy.anchors(GameTypes.PERMISSIONED_CANNON);
-        if (_isProxy) {
-            require(
-                Hash.unwrap(actualRoot) == 0xdead000000000000000000000000000000000000000000000000000000000000,
-                "ANCHORP-40"
-            );
-        } else {
-            require(Hash.unwrap(actualRoot) == bytes32(0), "ANCHORP-40");
-        }
+        Proposal memory actualAnchor = _anchorStateRegistryProxy.getStartingAnchorRoot();
+
+        require(_anchorStateRegistryProxy.respectedGameType().raw() == _expectedRespectedGameType.raw(), "ANCHORP-30");
+        require(actualAnchor.root.raw() == _expectedAnchor.root.raw(), "ANCHORP-40");
+        require(actualAnchor.l2SequenceNumber == _expectedAnchor.l2SequenceNumber, "ANCHORP-50");
+
+        // The finality delay bounds are immutables, so they read the same through the proxy.
+        require(
+            _anchorStateRegistryProxy.minDisputeGameFinalityDelaySeconds() == _minDisputeGameFinalityDelaySeconds,
+            "ANCHORP-60"
+        );
+        require(
+            _anchorStateRegistryProxy.maxDisputeGameFinalityDelaySeconds() == _maxDisputeGameFinalityDelaySeconds,
+            "ANCHORP-70"
+        );
     }
 
     /// @notice Asserts that the ZKDisputeGame implementation is setup correctly.

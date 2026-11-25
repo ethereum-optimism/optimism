@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
@@ -65,6 +65,10 @@ func (t *packageScopeT) FailNow() {
 
 func (t *packageScopeT) TempDir() string {
 	return t.p.TempDir()
+}
+
+func (t *packageScopeT) TempDirWithPrefix(prefix string) string {
+	return t.p.TempDirWithPrefix(prefix)
 }
 
 func (t *packageScopeT) Cleanup(fn func()) {
@@ -162,8 +166,9 @@ func NewSharedMixedOpKonaRuntime(pkg devtest.P) *sysgo.MixedSingleChainRuntime {
 	return NewSharedMixedOpKonaRuntimeForConfig(pkg, ParseL2NodeConfigFromEnv())
 }
 
-func NewSharedMixedOpKonaRuntimeForConfig(pkg devtest.P, cfg L2NodeConfig) *sysgo.MixedSingleChainRuntime {
+func NewSharedMixedOpKonaRuntimeForConfig(pkg devtest.P, cfg L2NodeConfig, deployerOpts ...sysgo.DeployerOption) *sysgo.MixedSingleChainRuntime {
 	return sysgo.NewMixedSingleChainRuntime(newPackageScopeT(pkg), sysgo.MixedSingleChainPresetConfig{
-		NodeSpecs: mixedOpKonaNodeSpecs(cfg),
+		NodeSpecs:       mixedOpKonaNodeSpecs(cfg),
+		DeployerOptions: deployerOpts,
 	})
 }

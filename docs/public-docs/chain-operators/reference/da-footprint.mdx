@@ -1,0 +1,84 @@
+---
+title: How the DA footprint block limit works
+description: Understand the Data Availability (DA) footprint block limit introduced in the Jovian hardfork, how the DA footprint is calculated, and why the default gas scalar is 400.
+diataxis: explanation
+---
+
+The **Data Availability (DA) Footprint Block Limit** was introduced in the **[Jovian hardfork](https://docs.optimism.io/notices/upgrade-17)** to limit the total amount of transaction data that can fit into a block based on a scaled estimate of the compressed size (or "data availability footprint") of that data.
+This page explains the problem the limit solves, how the DA footprint is calculated, and how the `daFootprintGasScalar` parameter shapes the limit.
+To change the scalar on your chain, follow the [DA footprint setup guide](/chain-operators/guides/features/setting-da-footprint).
+
+## Why a DA footprint limit exists
+
+When an OP Stack chain receives more calldata-heavy transactions than can fit into the L1's available blob space, the [batcher can throttle the chain's throughput](https://docs.optimism.io/chain-operators/guides/configuration/batcher#batcher-sequencer-throttling).
+
+However, continuous batcher throttling may cause the base fee to drop to the [minimum base fee](https://docs.optimism.io/chain-operators/guides/features/setting-min-base-fee),
+causing unnecessary losses for the chain operator and negative user experiences such as priority fee auctions.
+And without throttling, the batcher runs the risk of becoming overwhelmed with chain data to batch to the blob space.
+Limiting the amount of (estimated compressed) calldata taken up by transactions in a block using their total DA footprint can reduce the need for batcher throttling and its related issues.
+
+## How the DA footprint is calculated
+
+For all [non-deposit transactions](https://docs.optimism.io/reference/glossary#deposited-transaction) processed by an OP Stack chain, a DA footprint value is recorded alongside the transaction's gas usage.
+The DA footprint can be configured via the `daFootprintGasScalar` variable in the `SystemConfig` contract on the L1 chain.
+The DA footprint is automatically calculated for every transaction first by calculating a `daUsageEstimate` for that transaction:
+
+```python
+daUsageEstimate = max(
+          minTransactionSize,
+          (intercept + fastlzCoef * tx.fastlzSize) // 1e6
+      )
+```
+
+where the `minTransactionSize`, `intercept`, `fastlzCoef`, and `tx.fastlzSize` are as specified in the [Fjord specs](https://specs.optimism.io/protocol/fjord/exec-engine.html#fees).
+Then the `daUsageEstimate` is multiplied by the `daFootprintGasScalar` to get the `daFootprint` for that individual transaction.
+
+```python
+      daFootprint += daUsageEstimate * daFootprintGasScalar
+```
+
+The `daFootprint` for all the transactions in a block are then added together to calculate that block's total `daFootprint`.
+With the block's total `daFootprint` calculated:
+
+<Info>
+- The block's total `daFootprint` must stay below its `gasLimit`.
+- The `blobGasUsed` property of each block header is set to that block's `daFootprint`.
+- The base fee update calculation then uses `gasMetered := max(gasUsed, blobGasUsed)` as a replacement for the `gasUsed` variable.
+</Info>
+
+From Jovian, transaction receipts also record the transaction's DA Footprint in the receipt's `blobGasUsed` field, as well as the block's `daFootprintGasScalar` in a new field with the same name.
+
+## What the DA footprint gas scalar controls
+
+The _DA footprint gas scalar_ scales the _estimated DA usage in bytes_ to the gas dimension, and this scaled estimate of the DA usage is what we call the _DA footprint_.
+This allows us to limit the estimated DA usage using the block's `gasLimit`: the effective limit of estimated DA usage per block is `gasLimit / daFootprintGasScalar` bytes.
+So _increasing_ this scalar makes DA usage more gas-heavy, so _decreases_ the limit, and vice versa.
+
+This is closely related to how the calldata (floor) cost of `40` gas per non-zero byte limits the total amount of calldata in a block.
+A DA footprint gas scalar of `400` effectively limits _incompressible_ calldata by a factor of `10` compared to its limit without a DA footprint block limit.
+As such, the feature can be seen as an extension of the existing calldata limit.
+But instead of repricing the calldata (floor) gas cost, the limit is accounted in parallel to EVM execution gas, and is based on the more relevant FastLZ-based DA usage estimate instead of simply counting zero and non-zero bytes.
+
+## Why the default value is 400
+
+The default scalar of `400` was chosen so that it protects chains in worst-case DA spam scenarios, but has negligible to no impact during normal operation.
+Careful [analyses](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/da-footprint-block-limit.md) have been done to estimate the impact on current OP Stack chains and pick the right default.
+Only high-throughput chains would occasionally even see a small impact from the resulting DA footprint limit (as slightly faster rising base fees). The DA footprint limit is mostly invisible.
+On mid to low-throughput chains, the feature is expected to have no impact under normal usage conditions.
+It acts more like an insurance to protect against worst-case _incompressible_ DA spam.
+
+<Info>
+A `daFootprintGasScalar` value of `0` in the `SystemConfig` is treated as the default of `400`. To effectively disable the limit, set the scalar to a very low value such as `1`.
+</Info>
+
+## Next steps
+
+*   To set or change the scalar on your chain, follow [Set the DA Footprint Gas Scalar](/chain-operators/guides/features/setting-da-footprint).
+*   For the full set of fee-related `SystemConfig` parameters, see the [fee parameters reference](/chain-operators/reference/fee-parameters).
+
+## References
+
+*   [DA Footprint Configuration Spec](https://specs.optimism.io/protocol/jovian/system-config.html#da-footprint-configuration)
+*   [Jovian Upgrade Spec](https://specs.optimism.io/protocol/jovian/overview.html)
+*   [SystemConfig Contract Spec](https://specs.optimism.io/protocol/system-config.html)
+*   [Design Doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/da-footprint-block-limit.md)

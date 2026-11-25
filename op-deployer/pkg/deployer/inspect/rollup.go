@@ -21,7 +21,12 @@ func RollupCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to read intent: %w", err)
 	}
 
-	_, rollupConfig, err := pipeline.RenderGenesisAndRollup(globalState, cfg.ChainID, nil)
+	intent, err := pipeline.ResolveRenderIntent(cfg.Workdir, globalState)
+	if err != nil {
+		return err
+	}
+
+	_, rollupConfig, err := pipeline.RenderGenesisAndRollup(globalState, cfg.ChainID, intent)
 	if err != nil {
 		return fmt.Errorf("failed to generate rollup config: %w", err)
 	}

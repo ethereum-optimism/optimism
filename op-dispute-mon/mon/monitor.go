@@ -3,20 +3,24 @@ package mon
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
-type ForecastResolution func(games []*types.EnrichedGameData, ignoredCount, failedCount int)
-type Monitor func(games []*types.EnrichedGameData)
+type ForecastResolution func(games []types.EnrichedGame, ignoredCount, failedCount int)
+type AnchorStateCheck func(ctx context.Context, blockHash common.Hash, games []*types.CommonGameData)
+type CommonMonitor func(games []*types.CommonGameData)
+type FaultMonitor func(games []*types.FaultGameData)
+type BondMonitor func(games []types.BondedGame)
+type ZKMonitor func(games []*types.ZKGameData)
 type HeadBlockFetcher func(ctx context.Context) (eth.L1BlockRef, error)
-type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]*types.EnrichedGameData, int, int, error)
+type Extract func(ctx context.Context, blockHash common.Hash, minTimestamp uint64) ([]types.EnrichedGame, int, int, error)
 
 type MonitorMetrics interface {
 	RecordMonitorDuration(dur time.Duration)
@@ -27,17 +31,24 @@ type gameMonitor struct {
 	clock   clock.Clock
 	metrics MonitorMetrics
 
-	done   chan struct{}
-	ctx    context.Context
-	cancel context.CancelFunc
+	done     chan struct{}
+	stopped  chan struct{}
+	stopOnce sync.Once
+	ctx      context.Context
+	cancel   context.CancelFunc
+	loopWG   sync.WaitGroup
 
 	gameWindow      time.Duration
 	monitorInterval time.Duration
 
-	forecast       ForecastResolution
-	monitors       []Monitor
-	extract        Extract
-	fetchHeadBlock HeadBlockFetcher
+	forecast         ForecastResolution
+	checkAnchorState AnchorStateCheck
+	commonMonitors   []CommonMonitor
+	faultMonitors    []FaultMonitor
+	bondMonitors     []BondMonitor
+	zkMonitors       []ZKMonitor
+	extract          Extract
+	fetchHeadBlock   HeadBlockFetcher
 }
 
 func newGameMonitor(
@@ -50,19 +61,29 @@ func newGameMonitor(
 	fetchHeadBlock HeadBlockFetcher,
 	extract Extract,
 	forecast ForecastResolution,
-	monitors ...Monitor) *gameMonitor {
+	checkAnchorState AnchorStateCheck,
+	commonMonitors []CommonMonitor,
+	faultMonitors []FaultMonitor,
+	bondMonitors []BondMonitor,
+	zkMonitors []ZKMonitor,
+) *gameMonitor {
 	return &gameMonitor{
-		logger:          logger,
-		clock:           cl,
-		ctx:             ctx,
-		done:            make(chan struct{}),
-		metrics:         metrics,
-		monitorInterval: monitorInterval,
-		gameWindow:      gameWindow,
-		forecast:        forecast,
-		monitors:        monitors,
-		extract:         extract,
-		fetchHeadBlock:  fetchHeadBlock,
+		logger:           logger,
+		clock:            cl,
+		ctx:              ctx,
+		done:             make(chan struct{}),
+		stopped:          make(chan struct{}),
+		metrics:          metrics,
+		monitorInterval:  monitorInterval,
+		gameWindow:       gameWindow,
+		forecast:         forecast,
+		checkAnchorState: checkAnchorState,
+		commonMonitors:   commonMonitors,
+		faultMonitors:    faultMonitors,
+		bondMonitors:     bondMonitors,
+		zkMonitors:       zkMonitors,
+		extract:          extract,
+		fetchHeadBlock:   fetchHeadBlock,
 	}
 }
 
@@ -78,9 +99,20 @@ func (m *gameMonitor) monitorGames() error {
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
+	commonGames, faultGames, bondedGames, zkGames := partitionGames(enrichedGames)
 	m.forecast(enrichedGames, ignored, failed)
-	for _, monitor := range m.monitors {
-		monitor(enrichedGames)
+	m.checkAnchorState(m.ctx, headBlock.Hash, commonGames)
+	for _, monitor := range m.bondMonitors {
+		monitor(bondedGames)
+	}
+	for _, monitor := range m.faultMonitors {
+		monitor(faultGames)
+	}
+	for _, monitor := range m.commonMonitors {
+		monitor(commonGames)
+	}
+	for _, monitor := range m.zkMonitors {
+		monitor(zkGames)
 	}
 	timeTaken := m.clock.Since(start)
 	m.metrics.RecordMonitorDuration(timeTaken)
@@ -94,7 +126,35 @@ func (m *gameMonitor) monitorGames() error {
 	return nil
 }
 
+func partitionGames(games []types.EnrichedGame) ([]*types.CommonGameData, []*types.FaultGameData, []types.BondedGame, []*types.ZKGameData) {
+	commonGames := make([]*types.CommonGameData, 0, len(games))
+	faultGames := make([]*types.FaultGameData, 0, len(games))
+	bondedGames := make([]types.BondedGame, 0, len(games))
+	zkGames := make([]*types.ZKGameData, 0, len(games))
+	for _, game := range games {
+		switch game := game.(type) {
+		case *types.FaultGameData:
+			commonGames = append(commonGames, game.Common())
+			faultGames = append(faultGames, game)
+		case *types.SuperPermissionedGameData:
+			commonGames = append(commonGames, game.Common())
+		case *types.ZKGameData:
+			commonGames = append(commonGames, game.Common())
+		default:
+			panic(fmt.Sprintf("unsupported enriched game type %T", game))
+		}
+		if bondedGame, ok := game.(types.BondedGame); ok {
+			bondedGames = append(bondedGames, bondedGame)
+		}
+		if zkGame, ok := game.(*types.ZKGameData); ok {
+			zkGames = append(zkGames, zkGame)
+		}
+	}
+	return commonGames, faultGames, bondedGames, zkGames
+}
+
 func (m *gameMonitor) loop() {
+	defer m.loopWG.Done()
 	ticker := m.clock.NewTicker(m.monitorInterval)
 	defer ticker.Stop()
 	for {
@@ -111,23 +171,33 @@ func (m *gameMonitor) loop() {
 }
 
 func (m *gameMonitor) StartMonitoring() {
-	// Setup the cancellation only if it's not already set.
-	// This prevents overwriting the context and cancel function
-	// if, for example, this function is called multiple times.
+	// Keep the original context and cancel function if this is called multiple times.
 	if m.cancel == nil {
 		ctx, cancel := context.WithCancel(m.ctx)
 		m.ctx = ctx
 		m.cancel = cancel
 	}
 	m.logger.Info("Starting game monitor")
+	m.loopWG.Add(1)
 	go m.loop()
 }
 
-func (m *gameMonitor) StopMonitoring() {
+func (m *gameMonitor) StopMonitoring(ctx context.Context) error {
 	m.logger.Info("Stopping game monitor")
-	if m.cancel != nil {
-		m.cancel()
-		m.cancel = nil
+	m.stopOnce.Do(func() {
+		if m.cancel != nil {
+			m.cancel()
+		}
+		close(m.done)
+		go func() {
+			m.loopWG.Wait()
+			close(m.stopped)
+		}()
+	})
+	select {
+	case <-m.stopped:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("waiting for game monitor to stop: %w", ctx.Err())
 	}
-	close(m.done)
 }

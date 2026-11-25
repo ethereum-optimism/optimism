@@ -6,8 +6,9 @@ import (
 	"github.com/urfave/cli/v2"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-alt-da/store"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 func StartDAServer(cliCtx *cli.Context) error {
@@ -20,28 +21,28 @@ func StartDAServer(cliCtx *cli.Context) error {
 		return err
 	}
 
-	logCfg := oplog.ReadCLIConfig(cliCtx)
+	logCfg := logcli.ReadCLIConfig(cliCtx)
 
-	l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
-	oplog.SetGlobalLogHandler(l.Handler())
+	l := logcli.NewLogger(logcli.AppOut(cliCtx), logCfg)
+	logcli.SetGlobalLogHandler(l.Handler())
 
 	l.Info("Initializing AltDA server...")
 
-	var store altda.KVStore
+	var kv altda.KVStore
 
 	if cfg.FileStoreEnabled() {
 		l.Info("Using file storage", "path", cfg.FileStoreDirPath)
-		store = NewFileStore(cfg.FileStoreDirPath)
+		kv = store.NewFileStore(cfg.FileStoreDirPath)
 	} else if cfg.S3Enabled() {
 		l.Info("Using S3 storage", "bucket", cfg.S3Config().Bucket)
-		s3, err := NewS3Store(cfg.S3Config())
+		s3, err := store.NewS3Store(cfg.S3Config())
 		if err != nil {
 			return fmt.Errorf("failed to create S3 store: %w", err)
 		}
-		store = s3
+		kv = s3
 	}
 
-	server := altda.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), store, l, cfg.UseGenericComm)
+	server := altda.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), kv, l, cfg.UseGenericComm)
 
 	if err := server.Start(); err != nil {
 		return fmt.Errorf("failed to start the DA server")

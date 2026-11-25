@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 // Testing
-import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/setup/DisputeGameFactoryTestInit.sol";
 import { _changeClaimStatus, _dummyClaim } from "test/dispute/FaultDisputeGame.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
@@ -291,9 +291,9 @@ contract PermissionedDisputeGame_Initialize_Test is PermissionedDisputeGame_Test
         vm.prank(PROPOSER, PROPOSER);
         vm.expectRevert(IFaultDisputeGame.BadExtraData.selector);
         gameProxy = IPermissionedDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber)))
-            )
+            payable(address(
+                    disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber))
+                ))
         );
     }
 
@@ -314,9 +314,9 @@ contract PermissionedDisputeGame_Initialize_Test is PermissionedDisputeGame_Test
         vm.prank(PROPOSER, PROPOSER);
         vm.expectRevert(IFaultDisputeGame.BadExtraData.selector);
         gameProxy = IPermissionedDisputeGame(
-            payable(
-                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber)))
-            )
+            payable(address(
+                    disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(validL2BlockNumber))
+                ))
         );
     }
 }

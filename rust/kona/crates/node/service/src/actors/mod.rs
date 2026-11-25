@@ -2,51 +2,59 @@
 //!
 //! [NodeActor]: super::NodeActor
 
+// Actors read time from tokio's clock or an injected `Clock`, so tests can control it.
+#![warn(clippy::disallowed_methods)]
+
 mod traits;
-pub use traits::{CancellableContext, NodeActor};
+pub use traits::NodeActor;
+
+mod clock;
+pub use clock::{Clock, SystemClock};
 
 mod engine;
 pub use engine::{
-    BuildRequest, EngineActor, EngineActorRequest, EngineClientError, EngineClientResult,
-    EngineConfig, EngineDerivationClient, EngineError, EngineProcessingRequest, EngineProcessor,
-    EngineRequestReceiver, EngineRpcProcessor, EngineRpcRequest, EngineRpcRequestReceiver,
+    BuildRequest, CanonicalizeRequest, EngineActor, EngineActorRequest, EngineClientError,
+    EngineClientResult, EngineConfig, EngineDerivationClient, EngineError,
     QueuedEngineDerivationClient, ResetRequest, SealRequest,
 };
 
 mod rpc;
-pub use rpc::{
-    QueuedEngineRpcClient, QueuedSequencerAdminAPIClient, RpcActor, RpcActorError, RpcContext,
-};
+pub use rpc::{RpcActor, RpcActorError};
 
 mod derivation;
 pub use derivation::{
     DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationClientError,
-    DerivationClientResult, DerivationDelegateClient, DerivationDelegateClientError,
-    DerivationEngineClient, DerivationError, DerivationState, DerivationStateMachine,
-    DerivationStateTransitionError, DerivationStateUpdate, QueuedDerivationEngineClient,
+    DerivationClientResult, DerivationEngineClient, DerivationError, DerivationState,
+    DerivationStateMachine, DerivationStateTransitionError, DerivationStateUpdate,
+    QueuedDerivationEngineClient, SyncStatusSource,
 };
 
 mod l1_watcher;
 pub use l1_watcher::{
-    BlockStream, L1WatcherActor, L1WatcherActorError, L1WatcherDerivationClient,
+    BlockStream, L1WatcherActor, L1WatcherActorError, L1WatcherChain, L1WatcherDerivationClient,
     QueuedL1WatcherDerivationClient,
 };
 
+mod signer;
+pub use signer::{SignedPayload, SignerActor, SignerActorError};
+
 mod network;
 pub use network::{
-    NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
-    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler, NetworkInboundData,
-    QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, UnsafePayloadGossipClient,
-    UnsafePayloadGossipClientError,
+    IpVotes, NetworkActor, NetworkActorError, NetworkBuilder, NetworkBuilderError, NetworkConfig,
+    NetworkDriver, NetworkDriverError, NetworkEngineClient, NetworkHandler,
+    QueuedNetworkEngineClient, QueuedUnsafePayloadGossipClient, RunningDiscovery,
+    UnsafePayloadGossipClient, UnsafePayloadGossipClientError,
 };
 
 mod sequencer;
+pub(crate) use sequencer::{
+    OriginPrefetcher, OriginPreparation, PreparedAttributesProvider, PreparedOriginProvider,
+};
 
 pub use sequencer::{
     Conductor, ConductorClient, ConductorError, DelayedL1OriginSelectorProvider, L1OriginSelector,
     L1OriginSelectorError, L1OriginSelectorProvider, OriginSelector, QueuedSequencerEngineClient,
-    SequencerActor, SequencerActorError, SequencerAdminQuery, SequencerConfig,
-    SequencerEngineClient,
+    SequencerActor, SequencerActorError, SequencerConfig, SequencerEngineClient,
 };
 
 #[cfg(test)]

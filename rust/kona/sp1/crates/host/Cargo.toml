@@ -1,0 +1,63 @@
+[package]
+name = "kona-sp1-host-utils"
+version = "0.0.1"
+publish = false
+license.workspace = true
+edition.workspace = true
+
+[features]
+default = [ "ansi" ]
+ansi = [ "tracing-subscriber/ansi" ]
+
+[dependencies]
+
+# sp1
+sp1-sdk.workspace = true
+
+# local
+kona-sp1-client-utils.workspace = true
+
+# kona
+kona-sources.workspace = true
+kona-derive.workspace = true
+kona-preimage.workspace = true
+kona-proof.workspace = true
+kona-protocol.workspace = true
+
+# alloy
+alloy-consensus.workspace = true
+alloy-eips = { workspace = true, features = ["kzg"] }
+alloy-primitives.workspace = true
+sp1-alloy-signer.workspace = true
+alloy-transport-http = { workspace = true, features = ["reqwest", "reqwest-rustls-tls"] }
+
+# general
+anyhow.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+c-kzg.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["http1", "server"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+kzg-rs.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+metrics-process.workspace = true
+serde.workspace = true
+strum.workspace = true
+tokio = { workspace = true, features = ["net", "rt", "time"] }
+tracing.workspace = true
+
+# logging and telemetry
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json"] }
+opentelemetry.workspace = true
+opentelemetry_sdk.workspace = true
+opentelemetry-otlp.workspace = true
+opentelemetry-appender-tracing.workspace = true
+
+[dev-dependencies]
+reqwest.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

@@ -3,10 +3,12 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { PastNUTBundles } from "test/setup/PastNUTBundles.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { console } from "forge-std/console.sol";
 
 // Scripts
+import { Config } from "scripts/libraries/Config.sol";
 import { ExecuteNUTBundle } from "scripts/upgrade/ExecuteNUTBundle.s.sol";
 import { GenerateNUTBundle } from "scripts/upgrade/GenerateNUTBundle.s.sol";
 import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
@@ -14,11 +16,11 @@ import { UpgradeUtils } from "scripts/libraries/UpgradeUtils.sol";
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { SemverComp } from "src/libraries/SemverComp.sol";
 import { Types } from "src/libraries/Types.sol";
 import { NetworkUpgradeTxns } from "src/libraries/NetworkUpgradeTxns.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -44,6 +46,12 @@ contract L2ForkUpgrade_TestInit is CommonTest {
     /// @notice Script used for bundle generation.
     GenerateNUTBundle generateScript;
 
+    /// @notice Fork name for the current generated NUT bundle.
+    string internal currentFork;
+
+    /// @dev Cache from `generateScript.buildOutput()` to avoid re-reading the artifact during parallel fork setup.
+    NetworkUpgradeTxns.NetworkUpgradeTxn[] internal currentBundleTxns;
+
     /// @notice Common state
     CommonState commonState;
 
@@ -53,25 +61,74 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         bool isCustomGasToken;
     }
 
+    /// @notice Struct to capture predeploy state for comparison.
+    struct PredeployState {
+        address predeploy;
+        string version;
+    }
+
     function setUp() public virtual override {
         super.setUp();
 
         // Skip if not L2 fork test
         skipIfNotL2ForkTest("L2ForkUpgrade: not a fork test");
 
-        // Skip if L2CM dev feature is not enabled
-        skipIfDevFeatureDisabled(DevFeatures.L2CM);
+        if (!Config.l2CMActivationTest()) {
+            // Initialize scripts
+            executeScript = new ExecuteNUTBundle();
+            generateScript = new GenerateNUTBundle();
+            // Build bundle without rewriting the tracked NUT snapshot.
+            GenerateNUTBundle.Output memory output = generateScript.buildOutput();
+            currentFork = output.fork;
+            delete currentBundleTxns;
+            for (uint256 i = 0; i < output.txns.length; i++) {
+                currentBundleTxns.push(output.txns[i]);
+            }
 
-        // Initialize scripts
-        executeScript = new ExecuteNUTBundle();
-        generateScript = new GenerateNUTBundle();
-
-        // Generate bundle
-        generateScript.run();
-
+            // Apply prior committed NUT bundles so chains missing earlier upgrades match the
+            // predeploy state the current bundle expects (e.g. Karst L2CM on a not-yet-Karst chain).
+            PastNUTBundles.applyPastBundles(output.txns, executeScript);
+        }
         // Capture feature flags
         commonState.isInteropEnabled = forkL2Live.isInteropEnabled();
         commonState.isCustomGasToken = forkL2Live.isCustomGasToken();
+    }
+
+    /// @notice Executes the current generated NUT bundle with any fork-specific wrappers.
+    ///         No-op when the bundle has already been applied to the forked chain.
+    function _executeCurrentBundle() internal virtual {
+        if (_isCurrentBundleAlreadyApplied()) return;
+        PastNUTBundles.ForkWrappers memory w = PastNUTBundles.wrappersForFork(currentFork);
+        PastNUTBundles.executeWithWrappers(executeScript, w.pre, _currentBundleTxns(), w.post);
+    }
+
+    /// @notice Returns true when the current bundle has already been applied to the forked chain.
+    function _isCurrentBundleAlreadyApplied() internal view returns (bool) {
+        address l2cm = PastNUTBundles.extractL2CM(_currentBundleTxns(), Constants.CURRENT_BUNDLE_PATH);
+        return PastNUTBundles.isBundleApplied(l2cm);
+    }
+
+    /// @notice Copies the cached current bundle transactions from storage to memory.
+    function _currentBundleTxns() internal view returns (NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns_) {
+        uint256 len = currentBundleTxns.length;
+        txns_ = new NetworkUpgradeTxns.NetworkUpgradeTxn[](len);
+        for (uint256 i = 0; i < len; i++) {
+            txns_[i] = currentBundleTxns[i];
+        }
+    }
+
+    /// @notice Returns the expected implementation addresses for a list of predeploys.
+    /// @param _predeploys The list of predeploys.
+    /// @return expectedImpls_ The expected implementation addresses.
+    function _getExpectedImpls(PredeployState[] memory _predeploys)
+        internal
+        view
+        returns (address[] memory expectedImpls_)
+    {
+        expectedImpls_ = new address[](_predeploys.length);
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            expectedImpls_[i] = _getExpectedImplementation(_predeploys[i].predeploy);
+        }
     }
 
     /// @notice Returns true if a predeploy is a feature predeploy and is disabled.
@@ -87,6 +144,7 @@ contract L2ForkUpgrade_TestInit is CommonTest {
             if (
                 _predeploy == Predeploys.CROSS_L2_INBOX || _predeploy == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
                     || _predeploy == Predeploys.SUPERCHAIN_ETH_BRIDGE || _predeploy == Predeploys.ETH_LIQUIDITY
+                    || _predeploy == Predeploys.UNDELIVERED_MESSAGE_EXPORTER
             ) {
                 return true;
             }
@@ -94,31 +152,54 @@ contract L2ForkUpgrade_TestInit is CommonTest {
         return false;
     }
 
-    /// @notice Helper to get the expected implementation address for a predeploy.
-    /// @dev Handles feature-specific implementations (CGT variants).
-    /// @param _predeploy The predeploy address.
-    /// @param _name The predeploy name.
-    /// @return expectedImpl_ The expected implementation address.
-    function _getExpectedImplementation(
-        address _predeploy,
-        string memory _name
-    )
-        internal
-        view
-        returns (address expectedImpl_)
-    {
-        // Handle feature-specific implementations
-        if (_predeploy == Predeploys.L1_BLOCK_ATTRIBUTES) {
-            // L1Block uses CGT variant on custom gas token networks
-            string memory implName = commonState.isCustomGasToken ? "L1BlockCGT" : "L1Block";
-            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
-        } else if (_predeploy == Predeploys.L2_TO_L1_MESSAGE_PASSER) {
-            // L2ToL1MessagePasser uses CGT variant on custom gas token networks
-            string memory implName = commonState.isCustomGasToken ? "L2ToL1MessagePasserCGT" : "L2ToL1MessagePasser";
-            (expectedImpl_,,,) = generateScript.implementationConfigs(implName);
-        } else {
-            // Standard implementation lookup
-            (expectedImpl_,,,) = generateScript.implementationConfigs(_name);
+    /// @notice Returns the expected implementation address for a predeploy.
+    function _getExpectedImplementation(address _predeploy) internal view returns (address expectedImpl_) {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getAllRecords();
+        for (uint256 i = 0; i < records.length; i++) {
+            if (records[i].proxy == _predeploy) {
+                return _findImplByName(Predeploys.resolveVariant(records[i], commonState.isCustomGasToken).name);
+            }
+        }
+        revert("L2ForkUpgrade: unmapped predeploy");
+    }
+
+    /// @notice Helper to find an implementation address by name.
+    /// @param _name The name of the implementation to find.
+    /// @return expectedImpl_ The implementation address.
+    function _findImplByName(string memory _name) internal view virtual returns (address expectedImpl_) {
+        expectedImpl_ = generateScript.findImplByName(_name);
+    }
+
+    /// @notice Returns the active proxied predeploys with their pre-upgrade versions.
+    /// @dev Uses getUpgradeableRecords() which already filters non-proxied and deprecated records.
+    ///      Feature-gated predeploys disabled for the current chain config are also excluded.
+    ///      Disabled predeploys must be excluded before calling _getVersion: their proxy has an
+    ///      implementation slot pointing to a code namespace with no code, so the delegatecall
+    ///      returns empty bytes and Solidity's ABI decoder for `string` fails outside try/catch.
+    function _getPreUpgradePredeploys() internal view returns (PredeployState[] memory predeploys_) {
+        Predeploys.PredeployRecord[] memory records = Predeploys.getUpgradeableRecords();
+        uint256 count = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
+            count++;
+        }
+
+        predeploys_ = new PredeployState[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < records.length; i++) {
+            if (_isFeaturePredeployAndDisabled(records[i].proxy)) continue;
+            predeploys_[j].predeploy = records[i].proxy;
+            predeploys_[j].version = _getVersion(records[i].proxy);
+            j++;
+        }
+    }
+
+    /// @notice Helper to get version string from a contract. Returns "0.0.0" if not available.
+    function _getVersion(address _contract) internal view returns (string memory) {
+        try ISemver(_contract).version() returns (string memory ver_) {
+            return ver_;
+        } catch {
+            return "0.0.0";
         }
     }
 }
@@ -126,12 +207,6 @@ contract L2ForkUpgrade_TestInit is CommonTest {
 /// @title L2ForkUpgrade_Versions_Test
 /// @notice Tests that all predeploy versions are updated after the L2 fork upgrade.
 contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
-    /// @notice Struct to capture predeploy state for comparison.
-    struct PredeployState {
-        address predeploy;
-        string version;
-    }
-
     /// @notice Struct to capture pre-upgrade version state for comparison.
     struct PreUpgradeVersionState {
         // Predeploy versions
@@ -147,7 +222,7 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
         PreUpgradeVersionState memory preState = _capturePreUpgradeVersionState();
 
         // Execute bundle on forked L2
-        executeScript.execute();
+        _executeCurrentBundle();
 
         // Verify all versions were updated
         _verifyAllVersionsUpdated(preState);
@@ -162,16 +237,6 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
     function _verifyAllVersionsUpdated(PreUpgradeVersionState memory _preState) internal view {
         uint256 length = _preState.preUpgradePredeploys.length;
         for (uint256 i = 0; i < length; i++) {
-            if (_isFeaturePredeployAndDisabled(_preState.preUpgradePredeploys[i].predeploy)) {
-                console.log(
-                    "Skipping feature predeploy and disabled: ",
-                    Predeploys.getName(_preState.preUpgradePredeploys[i].predeploy)
-                );
-                console.log("isCustomGasToken: ", commonState.isCustomGasToken);
-                console.log("isInteropEnabled: ", commonState.isInteropEnabled);
-                continue;
-            }
-
             string memory newVersion = _getVersion(_preState.preUpgradePredeploys[i].predeploy);
             string memory oldVersion = _preState.preUpgradePredeploys[i].version;
             assertTrue(
@@ -185,24 +250,6 @@ contract L2ForkUpgrade_Versions_Test is L2ForkUpgrade_TestInit {
                     newVersion
                 )
             );
-        }
-    }
-
-    /// @notice Helper to get pre-upgrade predeploy state.
-    function _getPreUpgradePredeploys() internal view returns (PredeployState[] memory predeploys_) {
-        predeploys_ = new PredeployState[](Predeploys.getUpgradeablePredeploys().length);
-        for (uint256 i = 0; i < Predeploys.getUpgradeablePredeploys().length; i++) {
-            predeploys_[i].predeploy = Predeploys.getUpgradeablePredeploys()[i];
-            predeploys_[i].version = _getVersion(Predeploys.getUpgradeablePredeploys()[i]);
-        }
-    }
-
-    /// @notice Helper to get version string from a contract. Returns "0.0.0" if not available.
-    function _getVersion(address _contract) internal view returns (string memory) {
-        try ISemver(_contract).version() returns (string memory ver_) {
-            return ver_;
-        } catch {
-            return "0.0.0";
         }
     }
 }
@@ -252,7 +299,7 @@ contract L2ForkUpgrade_Initialization_Test is L2ForkUpgrade_TestInit {
         PreUpgradeInitializationState memory preState = _capturePreUpgradeInitializationState();
 
         // Execute bundle on forked L2
-        executeScript.execute();
+        _executeCurrentBundle();
 
         // Verify initialization state was preserved
         _verifyInitializationState(preState);
@@ -602,29 +649,36 @@ contract L2ForkUpgrade_Implementations_Test is L2ForkUpgrade_TestInit {
     bytes32 internal constant IMPLEMENTATION_SLOT = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
 
     /// @notice Tests that all predeploy implementations match expected addresses and have code.
-    function test_l2ForkUpgrade_implementationsMatch_succeeds() public {
+    function test_l2ForkUpgrade_implementationsMatch_succeeds() public virtual {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
-        // Execute upgrade
-        executeScript.execute();
+        // Execute bundle on forked L2
+        _executeCurrentBundle();
 
-        // Get all upgradeable predeploys
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+        // Get active predeploys (non-proxied and disabled feature predeploys already filtered out)
+        PredeployState[] memory predeploys = _getPreUpgradePredeploys();
+        address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
         // Verify each predeploy's implementation
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i];
+        _verifyImplementations(predeploys, expectedImpls);
+    }
 
-            if (_isFeaturePredeployAndDisabled(predeploy)) {
-                continue;
-            }
+    function _verifyImplementations(
+        PredeployState[] memory _predeploys,
+        address[] memory _expectedImpls
+    )
+        internal
+        view
+    {
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            address predeploy = _predeploys[i].predeploy;
 
             // Get predeploy name
             string memory name = Predeploys.getName(predeploy);
 
             // Get expected implementation from config
-            address expectedImpl = _getExpectedImplementation(predeploy, name);
+            address expectedImpl = _expectedImpls[i];
 
             // Get actual implementation from proxy
             address actualImpl = address(uint160(uint256(vm.load(predeploy, IMPLEMENTATION_SLOT))));
@@ -654,28 +708,48 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
     bytes32 internal constant UPGRADED_EVENT_TOPIC = 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b;
 
     /// @notice Tests that all predeploy proxies emit the Upgraded event with correct implementation.
-    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public {
+    function test_l2ForkUpgrade_upgradeEventsEmitted_succeeds() public virtual {
         // Skip if running with an unoptimized Foundry profile
         skipIfUnoptimized();
 
         // Get StorageSetter implementation to filter out intermediate upgrade events
-        (address storageSetterImpl,,,) = generateScript.implementationConfigs("StorageSetter");
+        address storageSetterImpl = _findImplByName("StorageSetter");
+
+        // Skip when the bundle is already applied: Upgraded events are historical and cannot be
+        // replayed via vm.recordLogs()
+        if (_isCurrentBundleAlreadyApplied()) {
+            vm.skip(true);
+            return;
+        }
 
         // Start recording logs
         vm.recordLogs();
 
         // Execute upgrade bundle
-        executeScript.execute();
+        _executeCurrentBundle();
 
         // Get all recorded logs
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // Get all upgradeable predeploys
-        address[] memory predeploys = Predeploys.getUpgradeablePredeploys();
+        PredeployState[] memory predeploys = _getPreUpgradePredeploys();
+        address[] memory expectedImpls = _getExpectedImpls(predeploys);
 
         // Verify each predeploy emitted the Upgraded event
-        for (uint256 i = 0; i < predeploys.length; i++) {
-            address predeploy = predeploys[i];
+        _verifyEvents(predeploys, logs, expectedImpls, storageSetterImpl);
+    }
+
+    function _verifyEvents(
+        PredeployState[] memory _predeploys,
+        Vm.Log[] memory _logs,
+        address[] memory _expectedImpls,
+        address _storageSetterImpl
+    )
+        internal
+        view
+    {
+        for (uint256 i = 0; i < _predeploys.length; i++) {
+            address predeploy = _predeploys[i].predeploy;
 
             if (_isFeaturePredeployAndDisabled(predeploy)) {
                 continue;
@@ -685,21 +759,21 @@ contract L2ForkUpgrade_Events_Test is L2ForkUpgrade_TestInit {
             string memory name = Predeploys.getName(predeploy);
 
             // Get expected implementation from config
-            address expectedImpl = _getExpectedImplementation(predeploy, name);
+            address expectedImpl = _expectedImpls[i];
 
             // Find the Upgraded event for this predeploy (skip StorageSetter events)
             bool foundEvent = false;
-            for (uint256 j = 0; j < logs.length; j++) {
+            for (uint256 j = 0; j < _logs.length; j++) {
                 // Check if this log is an Upgraded event from the current predeploy
                 if (
-                    logs[j].emitter == predeploy && logs[j].topics.length > 0
-                        && logs[j].topics[0] == UPGRADED_EVENT_TOPIC
+                    _logs[j].emitter == predeploy && _logs[j].topics.length > 0
+                        && _logs[j].topics[0] == UPGRADED_EVENT_TOPIC
                 ) {
                     // Decode the implementation address from the event
-                    address emittedImpl = address(uint160(uint256(logs[j].topics[1])));
+                    address emittedImpl = address(uint160(uint256(_logs[j].topics[1])));
 
                     // Skip StorageSetter upgrade events (intermediate step for initializable contracts)
-                    if (emittedImpl == storageSetterImpl) {
+                    if (emittedImpl == _storageSetterImpl) {
                         continue;
                     }
 
@@ -805,9 +879,10 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
     }
 
     /// @notice Builds a GasMeasurement from raw body/intrinsic gas and logs the transaction line.
-    /// @dev Emulates op-geth's post-execution EIP-7623 floor: receipt.gasUsed = max(exec, floor).
-    ///      Without this, forge reports execution gas while op-geth reports the floor when it binds
-    ///      (e.g. ConditionalDeployer collision paths), making the two diverge by up to 67k gas.
+    /// @dev Emulates the execution client's post-execution EIP-7623 floor: receipt.gasUsed =
+    ///      max(exec, floor). Without this, forge reports execution gas while the execution client
+    ///      reports the floor when it binds (e.g. ConditionalDeployer collision paths), making the
+    ///      two diverge by up to 67k gas.
     /// @param _i Transaction index (0-based).
     /// @param _total Total number of transactions.
     /// @param _txn The NUT bundle transaction.
@@ -850,8 +925,7 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
 
     /// @notice Gas profiling test for the NUT bundle upgrade transactions using manual intrinsic gas deduction.
     function test_l2ForkUpgrade_gasProfile_succeeds() public {
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
-            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = _currentBundleTxns();
 
         _logReportHeader("GAS PROFILING REPORT", txns.length);
 
@@ -889,8 +963,7 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
     /// @notice Gas profiling test for the NUT bundle upgrade transactions using foundry test isolation.
     /// forge-config: default.isolate = true
     function test_l2ForkUpgrade_isolatedGas_succeeds() public {
-        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns =
-            NetworkUpgradeTxns.readArtifact(Constants.CURRENT_BUNDLE_PATH);
+        NetworkUpgradeTxns.NetworkUpgradeTxn[] memory txns = _currentBundleTxns();
 
         _logReportHeader("ISOLATED GAS REPORT", txns.length);
 
@@ -909,7 +982,7 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
             // Forward gasLimit - 21_000 so that transact_inner() sets tx.gas_limit =
             // (gasLimit - 21_000) + 21_000 = gasLimit, and after revm deducts full intrinsic
             // (21_000 + calldata_costs) the body receives gasLimit - 21_000 - calldata_costs —
-            // exactly what op-geth gives it in production.
+            // exactly what the execution client gives it in production.
             uint256 gasBefore = gasleft();
             (bool success, bytes memory returnData) = txn.to.call{ gas: txn.gasLimit - 21_000 }(txn.data);
 
@@ -952,5 +1025,23 @@ contract L2ForkUpgrade_GasProfile_Test is L2ForkUpgrade_TestInit {
 
         _logReportSummary(totalGasUsed, totalGasLimit);
         _logAdjustments(measurements);
+    }
+}
+
+/// @title L2ForkUpgrade_DeterministicDeploymentProxy_Test
+/// @notice Sanity check that the forked L2 has the deterministic deployment proxy preinstall.
+contract L2ForkUpgrade_DeterministicDeploymentProxy_Test is CommonTest {
+    function setUp() public virtual override {
+        super.setUp();
+        skipIfNotL2ForkTest("L2ForkUpgrade: deterministic deployer test requires L2 fork");
+    }
+
+    /// @notice Arachnid's proxy must be deployed at the canonical address on forked L2 state.
+    function test_l2ForkUpgrade_deterministicDeploymentProxyExistence_succeeds() external view {
+        address proxy = Preinstalls.DeterministicDeploymentProxy;
+        assertNotEq(proxy.code.length, 0, "DeterministicDeploymentProxy must have code");
+        assertEq(
+            proxy.code, Preinstalls.DeterministicDeploymentProxyCode, "unexpected DeterministicDeploymentProxy bytecode"
+        );
     }
 }

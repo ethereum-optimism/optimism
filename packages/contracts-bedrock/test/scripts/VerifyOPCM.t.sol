@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
+import { Chains } from "scripts/libraries/Chains.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Tests
@@ -16,7 +17,10 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { IOPContractsManagerV2 } from "interfaces/L1/opcm/IOPContractsManagerV2.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
+import { ISP1PlonkAdapter } from "interfaces/dispute/zk/ISP1PlonkAdapter.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 contract VerifyOPCM_Harness is VerifyOPCM {
     bool private _skipSecurityChecks;
@@ -80,6 +84,18 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _verifyPreimageOracle(_mips);
     }
 
+    function verifySP1Verifier(ISP1PlonkAdapter _adapter) public view returns (bool) {
+        return _verifySP1Verifier(_adapter);
+    }
+
+    function defaultSP1Verifier() public view returns (address) {
+        return _defaultSP1Verifier();
+    }
+
+    function isValidConstructorArgs(string memory _contractName, bytes memory _constructorArgs) public returns (bool) {
+        return _isValidConstructorArgs(_contractName, _constructorArgs);
+    }
+
     function verifyPortalDelays(IOptimismPortal2 _portal) public view returns (bool) {
         return _verifyPortalDelays(_portal);
     }
@@ -88,8 +104,19 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _verifyAnchorStateRegistryDelays(_asr);
     }
 
-    function verifyStandardValidatorArgs(IOPContractsManagerV2 _opcm, address _validator) public returns (bool) {
-        return _verifyStandardValidatorArgs(_opcm, _validator);
+    function verifyDelayedWETHDelays(IDelayedWETH _weth) public view returns (bool) {
+        return _verifyDelayedWETHDelays(_weth);
+    }
+
+    function verifyStandardValidatorArgs(
+        IOPContractsManagerV2 _opcm,
+        address _validator,
+        bool _skipConstructorVerification
+    )
+        public
+        returns (bool)
+    {
+        return _verifyStandardValidatorArgs(_opcm, _validator, _skipConstructorVerification);
     }
 
     function setValidatorGetterCheck(string memory _getter, string memory _check) public {
@@ -132,23 +159,38 @@ abstract contract VerifyOPCM_TestInit is CommonTest {
         // script correctly rejects them.
         vm.setEnv("EXPECTED_L1_PAO_MULTISIG", vm.toString(validator.l1PAOMultisig()));
         vm.setEnv("EXPECTED_CHALLENGER", vm.toString(validator.challenger()));
-        vm.setEnv("EXPECTED_WITHDRAWAL_DELAY_SECONDS", vm.toString(validator.withdrawalDelaySeconds()));
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(optimismPortal2.superchainConfig())));
-        vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.proofMaturityDelaySeconds()));
-        vm.setEnv(
-            "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
-            vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
-        );
+        _setExpectedDelayBoundsEnv();
+        ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
+        ISP1Verifier verifier = adapter.sp1Verifier();
+        vm.setEnv("EXPECTED_SP1_VERIFIER", vm.toString(address(verifier)));
+        vm.setEnv("EXPECTED_SP1_VERIFIER_HASH", vm.toString(verifier.VERIFIER_HASH()));
     }
 
     function superGamesEnabled() internal view returns (bool) {
         bytes32 bitmap = opcm.devFeatureBitmap();
-        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            || DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        return DevFeatures.isDevFeatureEnabled(bitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
     }
 
-    function zkDisputeGameEnabled() internal view returns (bool) {
-        return DevFeatures.isDevFeatureEnabled(opcm.devFeatureBitmap(), DevFeatures.ZK_DISPUTE_GAME);
+    /// @notice Points the expected delay bound env vars at the live implementation values so the
+    ///         bound checks pass by default.
+    function _setExpectedDelayBoundsEnv() internal {
+        vm.setEnv(
+            "EXPECTED_MIN_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.minProofMaturityDelaySeconds())
+        );
+        vm.setEnv(
+            "EXPECTED_MAX_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.maxProofMaturityDelaySeconds())
+        );
+        vm.setEnv(
+            "EXPECTED_MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
+            vm.toString(anchorStateRegistry.minDisputeGameFinalityDelaySeconds())
+        );
+        vm.setEnv(
+            "EXPECTED_MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
+            vm.toString(anchorStateRegistry.maxDisputeGameFinalityDelaySeconds())
+        );
+        vm.setEnv("EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS", vm.toString(delayedWeth.minDelay()));
+        vm.setEnv("EXPECTED_MAX_WITHDRAWAL_DELAY_SECONDS", vm.toString(delayedWeth.maxDelay()));
     }
 }
 
@@ -171,6 +213,35 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         harness.run(address(opcm), true);
     }
 
+    function test_run_corruptedValidatorDependencies_reverts() public {
+        skipIfCoverage();
+
+        IOPContractsManagerStandardValidator validator =
+            IOPContractsManagerStandardValidator(opcm.opcmStandardValidator());
+        address[2] memory targets =
+            [address(validator.standardValidatorUtils()), address(validator.migrationValidator())];
+
+        harness.run(address(opcm), true);
+
+        for (uint256 i; i < targets.length; i++) {
+            bytes memory originalCode = targets[i].code;
+            bytes memory corruptedCode = abi.encodePacked(originalCode);
+            corruptedCode[0] = bytes1(uint8(corruptedCode[0]) ^ 0x01);
+
+            vm.etch(targets[i], corruptedCode);
+
+            vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);
+            harness.run(address(opcm), true);
+
+            vm.etch(targets[i], hex"00");
+
+            vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);
+            harness.run(address(opcm), true);
+
+            vm.etch(targets[i], originalCode);
+        }
+    }
+
     /// @notice Tests that the runSingle script succeeds when run against production contracts.
     function test_runSingle_succeeds() public {
         VerifyOPCM.OpcmContractRef[][2] memory refsByType;
@@ -181,13 +252,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
             for (uint256 j = 0; j < refsByType[i].length; j++) {
                 VerifyOPCM.OpcmContractRef memory ref = refsByType[i][j];
 
-                // TODO(#17262): Remove this skip once Super dispute games are no longer behind a feature flag
-                if (_isSuperDisputeGameContractRef(ref)) {
-                    continue;
-                }
-
-                // TODO: Remove this skip once ZK dispute game is no longer behind a feature flag
-                if (_isZKDisputeGameContractRef(ref)) {
+                if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
                     continue;
                 }
 
@@ -256,11 +321,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
                 continue;
             }
 
-            // Skip ZK dispute game when feature disabled
-            if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
-                continue;
-            }
-
             // Get the code for the implementation.
             bytes memory implCode = ref.addr.code;
 
@@ -326,11 +386,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
             // Skip super dispute games when feature disabled
             if (_isSuperDisputeGameContractRef(ref) && !superGamesEnabled()) {
-                continue;
-            }
-
-            // Skip ZK dispute game when feature disabled
-            if (_isZKDisputeGameContractRef(ref) && !zkDisputeGameEnabled()) {
                 continue;
             }
 
@@ -549,10 +604,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         return LibString.eq(ref.name, "SuperFaultDisputeGame") || LibString.eq(ref.name, "SuperPermissionedDisputeGame");
     }
 
-    function _isZKDisputeGameContractRef(VerifyOPCM.OpcmContractRef memory ref) internal pure returns (bool) {
-        return LibString.eq(ref.name, "ZKDisputeGame");
-    }
-
     /// @notice Utility function to mock the first OPCM component's contractsContainer address.
     /// @param _propRefs Array of property references to search through.
     /// @param _mockAddress The address to mock the contractsContainer call to return.
@@ -673,60 +724,134 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     }
 }
 
+/// @title VerifyOPCM_isValidConstructorArgs_Test
+/// @notice Tests for the constructor argument round-trip check.
+contract VerifyOPCM_isValidConstructorArgs_Test is VerifyOPCM_TestInit {
+    /// @notice Tests that well-formed arguments for an address-only constructor are accepted.
+    function test_isValidConstructorArgs_addresses_succeeds() public {
+        bytes memory args = abi.encode(address(0x1111), address(0x2222), address(0x3333));
+        assertTrue(harness.isValidConstructorArgs("OPContractsManagerV2", args));
+    }
+
+    /// @notice Tests that well-formed arguments for a tuple constructor are accepted.
+    function test_isValidConstructorArgs_tuple_succeeds() public {
+        bytes memory args = abi.encode(uint256(10), uint256(20), uint64(30), uint64(40));
+        assertTrue(harness.isValidConstructorArgs("FaultDisputeGame", args));
+    }
+
+    /// @notice Tests that arguments with trailing bytes are rejected.
+    function test_isValidConstructorArgs_trailingBytes_fails() public {
+        bytes memory args = bytes.concat(abi.encode(uint256(10), uint256(20), uint64(30), uint64(40)), hex"00");
+        assertFalse(harness.isValidConstructorArgs("FaultDisputeGame", args));
+    }
+}
+
 /// @title VerifyOPCM_verifyPortalDelays_Test
-/// @notice Tests for the portal delay verification function.
+/// @notice Tests for the portal delay bounds verification function.
 contract VerifyOPCM_verifyPortalDelays_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
-        vm.setEnv("EXPECTED_PROOF_MATURITY_DELAY_SECONDS", vm.toString(optimismPortal2.proofMaturityDelaySeconds()));
+        _setExpectedDelayBoundsEnv();
     }
 
-    /// @notice Tests that portal delay verification succeeds with correct values.
-    function test_verifyPortalDelays_matchingDelay_succeeds() public view {
+    /// @notice Tests that portal delay bounds verification succeeds with correct values.
+    function test_verifyPortalDelays_matchingBounds_succeeds() public view {
         bool result = harness.verifyPortalDelays(optimismPortal2);
-        assertTrue(result, "Portal delay verification should succeed");
+        assertTrue(result, "Portal delay bounds verification should succeed");
     }
 
-    /// @notice Tests that portal delay verification fails with wrong expected value.
-    function test_verifyPortalDelays_mismatchedDelay_fails() public {
-        // Mock the portal to return a different delay than expected.
+    /// @notice Tests that portal delay bounds verification fails when the lower bound differs.
+    function test_verifyPortalDelays_mismatchedMinBound_fails() public {
+        // Mock the portal to return a different lower bound than expected.
         vm.mockCall(
             address(optimismPortal2),
-            abi.encodeCall(IOptimismPortal2.proofMaturityDelaySeconds, ()),
+            abi.encodeCall(IOptimismPortal2.minProofMaturityDelaySeconds, ()),
             abi.encode(uint256(12345))
         );
         bool result = harness.verifyPortalDelays(optimismPortal2);
-        assertFalse(result, "Portal delay verification should fail with wrong expected value");
+        assertFalse(result, "Portal delay bounds verification should fail with wrong lower bound");
+    }
+
+    /// @notice Tests that portal delay bounds verification fails when the upper bound differs.
+    function test_verifyPortalDelays_mismatchedMaxBound_fails() public {
+        // Mock the portal to return a different upper bound than expected.
+        vm.mockCall(
+            address(optimismPortal2),
+            abi.encodeCall(IOptimismPortal2.maxProofMaturityDelaySeconds, ()),
+            abi.encode(uint256(12345))
+        );
+        bool result = harness.verifyPortalDelays(optimismPortal2);
+        assertFalse(result, "Portal delay bounds verification should fail with wrong upper bound");
     }
 }
 
 /// @title VerifyOPCM_verifyAnchorStateRegistryDelays_Test
-/// @notice Tests for the anchor state registry delay verification function.
+/// @notice Tests for the anchor state registry delay bounds verification function.
 contract VerifyOPCM_verifyAnchorStateRegistryDelays_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
-        vm.setEnv(
-            "EXPECTED_DISPUTE_GAME_FINALITY_DELAY_SECONDS",
-            vm.toString(anchorStateRegistry.disputeGameFinalityDelaySeconds())
-        );
+        _setExpectedDelayBoundsEnv();
     }
 
-    /// @notice Tests that ASR delay verification succeeds with correct values.
-    function test_verifyAnchorStateRegistryDelays_matchingDelay_succeeds() public view {
+    /// @notice Tests that ASR delay bounds verification succeeds with correct values.
+    function test_verifyAnchorStateRegistryDelays_matchingBounds_succeeds() public view {
         bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
-        assertTrue(result, "ASR delay verification should succeed");
+        assertTrue(result, "ASR delay bounds verification should succeed");
     }
 
-    /// @notice Tests that ASR delay verification fails with wrong expected value.
-    function test_verifyAnchorStateRegistryDelays_mismatchedDelay_fails() public {
-        // Mock the ASR to return a different delay than expected.
+    /// @notice Tests that ASR delay bounds verification fails when the lower bound differs.
+    function test_verifyAnchorStateRegistryDelays_mismatchedMinBound_fails() public {
+        // Mock the ASR to return a different lower bound than expected.
         vm.mockCall(
             address(anchorStateRegistry),
-            abi.encodeCall(IAnchorStateRegistry.disputeGameFinalityDelaySeconds, ()),
+            abi.encodeCall(IAnchorStateRegistry.minDisputeGameFinalityDelaySeconds, ()),
             abi.encode(uint256(99999))
         );
         bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
-        assertFalse(result, "ASR delay verification should fail with wrong expected value");
+        assertFalse(result, "ASR delay bounds verification should fail with wrong lower bound");
+    }
+
+    /// @notice Tests that ASR delay bounds verification fails when the upper bound differs.
+    function test_verifyAnchorStateRegistryDelays_mismatchedMaxBound_fails() public {
+        // Mock the ASR to return a different upper bound than expected.
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.maxDisputeGameFinalityDelaySeconds, ()),
+            abi.encode(uint256(99999))
+        );
+        bool result = harness.verifyAnchorStateRegistryDelays(anchorStateRegistry);
+        assertFalse(result, "ASR delay bounds verification should fail with wrong upper bound");
+    }
+}
+
+/// @title VerifyOPCM_verifyDelayedWETHDelays_Test
+/// @notice Tests for the DelayedWETH delay bounds verification function.
+contract VerifyOPCM_verifyDelayedWETHDelays_Test is VerifyOPCM_TestInit {
+    function setUp() public override {
+        super.setUp();
+        _setExpectedDelayBoundsEnv();
+    }
+
+    /// @notice Tests that DelayedWETH delay bounds verification succeeds with correct values.
+    function test_verifyDelayedWETHDelays_matchingBounds_succeeds() public view {
+        bool result = harness.verifyDelayedWETHDelays(delayedWeth);
+        assertTrue(result, "DelayedWETH delay bounds verification should succeed");
+    }
+
+    /// @notice Tests that DelayedWETH delay bounds verification fails when the lower bound differs.
+    function test_verifyDelayedWETHDelays_mismatchedMinBound_fails() public {
+        uint256 wrongMin = delayedWeth.minDelay() + 1;
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.minDelay, ()), abi.encode(wrongMin));
+        bool result = harness.verifyDelayedWETHDelays(delayedWeth);
+        assertFalse(result, "DelayedWETH delay bounds verification should fail with wrong lower bound");
+    }
+
+    /// @notice Tests that DelayedWETH delay bounds verification fails when the upper bound differs.
+    function test_verifyDelayedWETHDelays_mismatchedMaxBound_fails() public {
+        uint256 wrongMax = delayedWeth.maxDelay() + 1;
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.maxDelay, ()), abi.encode(wrongMax));
+        bool result = harness.verifyDelayedWETHDelays(delayedWeth);
+        assertFalse(result, "DelayedWETH delay bounds verification should fail with wrong upper bound");
     }
 }
 
@@ -755,5 +880,61 @@ contract VerifyOPCM_verifyPreimageOracle_Test is VerifyOPCM_TestInit {
 
         bool result = harness.verifyPreimageOracle(mipsImpl);
         assertFalse(result, "PreimageOracle verification should fail with corrupted bytecode");
+    }
+}
+
+/// @title VerifyOPCM_verifySP1Verifier_Test
+/// @notice Tests for release-approved raw SP1 verifier verification. The env overrides are set
+///         once in `setupEnvVars`; mismatches are injected with `vm.mockCall` because
+///         `vm.setEnv` is process-global and races with tests running on other threads.
+contract VerifyOPCM_verifySP1Verifier_Test is VerifyOPCM_TestInit {
+    function test_verifySP1Verifier_overrideAndMismatch_succeeds() public {
+        ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
+
+        // On Mainnet the network default is Succinct's verifier; the env override must win.
+        vm.chainId(Chains.Mainnet);
+        assertTrue(harness.verifySP1Verifier(adapter), "env override should match the adapter's verifier");
+
+        vm.mockCall(address(adapter), abi.encodeCall(ISP1PlonkAdapter.sp1Verifier, ()), abi.encode(address(0xBEEF)));
+        assertFalse(harness.verifySP1Verifier(adapter), "verification should fail on address mismatch");
+    }
+
+    function test_verifySP1Verifier_hashMismatch_fails() public {
+        ISP1PlonkAdapter adapter = ISP1PlonkAdapter(opcm.implementations().sp1PlonkAdapterImpl);
+        ISP1Verifier verifier = adapter.sp1Verifier();
+
+        vm.mockCall(
+            address(verifier), abi.encodeCall(ISP1Verifier.VERIFIER_HASH, ()), abi.encode(bytes32(uint256(0xBEEF)))
+        );
+        assertFalse(harness.verifySP1Verifier(adapter), "verification should fail on hash mismatch");
+
+        vm.clearMockedCalls();
+        assertTrue(harness.verifySP1Verifier(adapter), "verification should succeed once the hash matches");
+    }
+}
+
+/// @title VerifyOPCM_defaultSP1Verifier_Test
+/// @notice Tests the network defaults for release-approved raw SP1 verifier verification.
+contract VerifyOPCM_defaultSP1Verifier_Test is CommonTest {
+    address internal constant SP1_VERIFIER_V6_1_0 = 0xc3c6dDDAc8829b233Dc6536Ec024775a57b0AF2A;
+
+    VerifyOPCM_Harness internal harness;
+
+    function setUp() public override {
+        super.setUp();
+        harness = new VerifyOPCM_Harness();
+    }
+
+    function test_defaultSP1Verifier_knownNetworks_succeeds() public {
+        vm.chainId(Chains.Mainnet);
+        assertEq(harness.defaultSP1Verifier(), SP1_VERIFIER_V6_1_0);
+
+        vm.chainId(Chains.Sepolia);
+        assertEq(harness.defaultSP1Verifier(), SP1_VERIFIER_V6_1_0);
+    }
+
+    function test_defaultSP1Verifier_unknownNetwork_succeeds() public {
+        vm.chainId(Chains.LocalDevnet);
+        assertEq(harness.defaultSP1Verifier(), address(0));
     }
 }

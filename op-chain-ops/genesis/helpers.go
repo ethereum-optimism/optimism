@@ -1,15 +1,10 @@
 package genesis
 
 import (
-	"context"
-	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -46,30 +41,21 @@ var DevAccounts = []common.Address{
 	common.HexToAddress("0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097"),
 	common.HexToAddress("0xDe3829A23DF1479438622a08a116E8Eb3f620BB5"),
 	common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+	// Mnemonic account indices 20-29, funded by L2Genesis.s.sol alongside the 20 above
+	common.HexToAddress("0x09DB0a93B389bEF724429898f539AEB7ac2Dd55f"),
+	common.HexToAddress("0x02484cb50AAC86Eae85610D6f4Bf026f30f6627D"),
+	common.HexToAddress("0x08135Da0A343E492FA2d4282F2AE34c6c5CC1BbE"),
+	common.HexToAddress("0x5E661B79FE2D3F6cE70F5AAC07d8Cd9abb2743F1"),
+	common.HexToAddress("0x61097BA76cD906d2ba4FD106E757f7Eb455fc295"),
+	common.HexToAddress("0xDf37F81dAAD2b0327A0A50003740e1C935C70913"),
+	common.HexToAddress("0x553BC17A05702530097c3677091C5BB47a3a7931"),
+	common.HexToAddress("0x87BdCE72c06C21cd96219BD8521bDF1F42C78b5e"),
+	common.HexToAddress("0x40Fc963A729c542424cD800349a7E4Ecc4896624"),
+	common.HexToAddress("0x9DCCe783B6464611f38631e6C851bf441907c710"),
 	// Test account used by geth tests
 	common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"),
 	// Deployer of create2 deterministic proxy https://github.com/Arachnid/deterministic-deployment-proxy
 	common.HexToAddress("0x3fab184622dc19b6109349b94811493bf2a45362"),
-}
-
-// GetBlockFromTag will resolve a Block given an rpc block tag
-func GetBlockFromTag(chain ethereum.ChainReader, tag *rpc.BlockNumberOrHash) (*types.Block, error) {
-	if hash, ok := tag.Hash(); ok {
-		block, err := chain.BlockByHash(context.Background(), hash)
-		if err != nil {
-			return nil, err
-		}
-		return block, nil
-	} else if num, ok := tag.Number(); ok {
-		blockNumber := new(big.Int).SetInt64(num.Int64())
-		block, err := chain.BlockByNumber(context.Background(), blockNumber)
-		if err != nil {
-			return nil, err
-		}
-		return block, nil
-	} else {
-		return nil, fmt.Errorf("invalid block tag: %v", tag)
-	}
 }
 
 func newHexBig(in uint64) *hexutil.Big {

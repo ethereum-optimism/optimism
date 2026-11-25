@@ -7,11 +7,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // LockstepCrossValidator validates cross-chain executing messages and tracks
@@ -43,9 +45,17 @@ type LockstepCrossValidator struct {
 	crossValidatedTs atomic.Uint64
 	crossValidatedOK atomic.Bool
 
+	// advanceMu serializes validation passes with resets, so a pass that read
+	// pre-rewind ingester state cannot store its watermark after a reset.
+	advanceMu sync.Mutex
+
 	// Error state for validation failures
 	errMu sync.RWMutex
 	err   *ValidatorError
+
+	// onFailsafeChange, if set, is invoked after the error state changes so the
+	// backend can refresh the failsafe metric. Set once before Start.
+	onFailsafeChange func()
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -102,13 +112,29 @@ func (v *LockstepCrossValidator) Error() *ValidatorError {
 	return v.err
 }
 
-// setError sets the validation error state.
+// setError sets the validation error state. There is intentionally no clear
+// path today: the cross-validator does not self-recover, so its error — and the
+// failsafe_reason_active{reason="cross_validation"} gauge — clears only on
+// process restart. If a recovery path is ever added, it MUST also fire
+// onFailsafeChange so the failsafe metrics drop back accordingly.
 func (v *LockstepCrossValidator) setError(msg string) {
 	v.errMu.Lock()
-	defer v.errMu.Unlock()
 	v.err = &ValidatorError{
 		Message: msg,
 	}
+	v.errMu.Unlock()
+
+	// Invoke after releasing errMu: the callback recomputes the backend's
+	// combined failsafe state, which reads Error() and would re-acquire errMu.
+	if v.onFailsafeChange != nil {
+		v.onFailsafeChange()
+	}
+}
+
+// SetOnFailsafeChange registers a callback invoked after the error state
+// changes. Used by the backend to keep the failsafe metric in sync.
+func (v *LockstepCrossValidator) SetOnFailsafeChange(fn func()) {
+	v.onFailsafeChange = fn
 }
 
 // CrossValidatedTimestamp returns the global cross-validated timestamp.
@@ -119,48 +145,54 @@ func (v *LockstepCrossValidator) CrossValidatedTimestamp() (uint64, bool) {
 	return v.crossValidatedTs.Load(), true
 }
 
-// validateMessageTiming is a pure function that validates temporal constraints for cross-chain messages.
-// Parameters:
-//   - initTimestamp: when the initiating message was created
-//   - inclusionTimestamp: when the executing message is included
-//   - messageExpiryWindow: how long messages remain valid
-//   - timeout: optional max execution delay (0 = disabled)
-//   - execTimestamp: execution timestamp (only used if timeout > 0)
+// ResetCrossValidatedTimestamp rewinds validation progress after a logs DB rewind.
+// It waits for any in-flight validation pass, which may have read pre-rewind state.
+func (v *LockstepCrossValidator) ResetCrossValidatedTimestamp(timestamp uint64) {
+	v.advanceMu.Lock()
+	defer v.advanceMu.Unlock()
+
+	if v.crossValidatedOK.Load() && v.crossValidatedTs.Load() <= timestamp {
+		return
+	}
+	v.crossValidatedTs.Store(timestamp)
+	v.crossValidatedOK.Store(true)
+	v.log.Info("Reset cross-validated timestamp", "timestamp", timestamp)
+}
+
+// validateMessageTiming validates temporal constraints for cross-chain messages.
 func validateMessageTiming(
+	ingester ChainIngester,
+	chainID eth.ChainID,
 	initTimestamp, inclusionTimestamp, messageExpiryWindow, timeout, execTimestamp uint64,
 ) error {
+	if !ingester.IsValidInitiatingTimestamp(initTimestamp) {
+		return fmt.Errorf("initiating message on chain %s at timestamp %d is not after the Lagoon activation block: %w",
+			chainID, initTimestamp, interop.ErrConflict)
+	}
 	// Rule 1: init must be strictly before inclusion
 	if initTimestamp >= inclusionTimestamp {
 		return fmt.Errorf("initiating message timestamp %d not before inclusion timestamp %d: %w",
-			initTimestamp, inclusionTimestamp, types.ErrConflict)
+			initTimestamp, inclusionTimestamp, interop.ErrConflict)
 	}
 
-	// Rule 2: compute expiry with overflow check
-	expiresAt := initTimestamp + messageExpiryWindow
-	if expiresAt < initTimestamp {
-		return fmt.Errorf("overflow in expiry calculation: timestamp %d + window %d: %w",
-			initTimestamp, messageExpiryWindow, types.ErrConflict)
+	// Rule 2: message must not be expired at inclusion
+	if inclusionTimestamp-initTimestamp > messageExpiryWindow {
+		return fmt.Errorf("initiating message expired: inclusion %d - init %d > expiry window %d: %w",
+			inclusionTimestamp, initTimestamp, messageExpiryWindow, interop.ErrConflict)
 	}
 
-	// Rule 3: message must not be expired at inclusion
-	if expiresAt < inclusionTimestamp {
-		return fmt.Errorf("initiating message expired: init %d + expiry window %d = %d < inclusion %d: %w",
-			initTimestamp, messageExpiryWindow, expiresAt, inclusionTimestamp, types.ErrConflict)
-	}
-
-	// Rule 4: if timeout set, message must not expire before timeout deadline
+	// Rule 3: if timeout set, message must not expire before timeout deadline
 	if timeout > 0 {
-		maxExecTimestamp := execTimestamp + timeout
-		if maxExecTimestamp < execTimestamp {
-			return fmt.Errorf("overflow in max exec timestamp calculation: timestamp %d + timeout %d: %w",
-				execTimestamp, timeout, types.ErrConflict)
+		if execTimestamp < initTimestamp {
+			return fmt.Errorf("exec timestamp %d before initiating message timestamp %d: %w",
+				execTimestamp, initTimestamp, interop.ErrConflict)
 		}
-		if expiresAt < maxExecTimestamp {
+		// The timeout must fit in the lifetime the message has left at execution.
+		execAge := execTimestamp - initTimestamp
+		if execAge > messageExpiryWindow || timeout > messageExpiryWindow-execAge {
 			return fmt.Errorf("initiating message will expire before timeout: "+
-				"init %d + expiry %d = %d < exec %d + timeout %d = %d: %w",
-				initTimestamp, messageExpiryWindow, expiresAt,
-				execTimestamp, timeout, maxExecTimestamp,
-				types.ErrConflict)
+				"exec %d - init %d + timeout %d > expiry window %d: %w",
+				execTimestamp, initTimestamp, timeout, messageExpiryWindow, interop.ErrConflict)
 		}
 	}
 
@@ -169,32 +201,39 @@ func validateMessageTiming(
 
 // ValidateAccessEntry validates a single access list entry against all message validity rules.
 func (v *LockstepCrossValidator) ValidateAccessEntry(
-	access types.Access,
-	minSafety types.SafetyLevel,
-	execDescriptor types.ExecutingDescriptor,
+	access messages.Access,
+	minSafety safety.Level,
+	execDescriptor messages.ExecutingDescriptor,
 ) error {
 	// Check that we have ingested data for the requested timestamp
 	minIngestedTs, ok := v.getMinIngestedTimestamp()
 	if !ok || access.Timestamp > minIngestedTs {
 		return fmt.Errorf("timestamp %d not yet ingested (min ingested: %d): %w",
-			access.Timestamp, minIngestedTs, types.ErrOutOfScope)
+			access.Timestamp, minIngestedTs, interop.ErrOutOfScope)
 	}
 
 	// Check cross-unsafe timestamp
-	if minSafety == types.CrossUnsafe {
+	if minSafety == safety.CrossUnsafe {
 		crossValidatedTs, ok := v.CrossValidatedTimestamp()
 		if !ok {
-			return fmt.Errorf("cross-validated timestamp not available: %w", types.ErrOutOfScope)
+			return fmt.Errorf("cross-validated timestamp not available: %w", interop.ErrOutOfScope)
 		}
 		if access.Timestamp > crossValidatedTs {
 			return fmt.Errorf("message at timestamp %d not yet cross-unsafe validated "+
 				"(current cross-validated timestamp: %d): %w",
-				access.Timestamp, crossValidatedTs, types.ErrOutOfScope)
+				access.Timestamp, crossValidatedTs, interop.ErrOutOfScope)
 		}
+	}
+
+	ingester, ok := v.chains[access.ChainID]
+	if !ok {
+		return fmt.Errorf("source chain %s: %w", access.ChainID, interop.ErrUnknownChain)
 	}
 
 	// Validate timing constraints (including timeout if set)
 	if err := validateMessageTiming(
+		ingester,
+		access.ChainID,
 		access.Timestamp,
 		execDescriptor.Timestamp,
 		v.messageExpiryWindow,
@@ -204,13 +243,7 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 		return err
 	}
 
-	// Check that the log exists on the source chain
-	ingester, ok := v.chains[access.ChainID]
-	if !ok {
-		return fmt.Errorf("source chain %s: %w", access.ChainID, types.ErrUnknownChain)
-	}
-
-	query := types.ContainsQuery{
+	query := messages.ContainsQuery{
 		Timestamp: access.Timestamp,
 		BlockNum:  access.BlockNumber,
 		LogIdx:    access.LogIndex,
@@ -221,16 +254,18 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 }
 
 func (v *LockstepCrossValidator) validateExecutingMessage(
-	execMsg *types.ExecutingMessage,
+	execMsg *messages.ExecutingMessage,
 	inclusionTimestamp uint64,
 ) error {
 	ingester, ok := v.chains[execMsg.ChainID]
 	if !ok {
-		return fmt.Errorf("source chain %s: %w", execMsg.ChainID, types.ErrUnknownChain)
+		return fmt.Errorf("source chain %s: %w", execMsg.ChainID, interop.ErrUnknownChain)
 	}
 
 	// Validate timing constraints (no timeout for background validation)
 	if err := validateMessageTiming(
+		ingester,
+		execMsg.ChainID,
 		execMsg.Timestamp,
 		inclusionTimestamp,
 		v.messageExpiryWindow,
@@ -239,7 +274,7 @@ func (v *LockstepCrossValidator) validateExecutingMessage(
 		return err
 	}
 
-	query := types.ContainsQuery{
+	query := messages.ContainsQuery{
 		Timestamp: execMsg.Timestamp,
 		BlockNum:  execMsg.BlockNum,
 		LogIdx:    execMsg.LogIdx,
@@ -267,6 +302,9 @@ func (v *LockstepCrossValidator) runValidationLoop() {
 
 // advanceValidation tries to advance the cross-validated timestamp one step at a time.
 func (v *LockstepCrossValidator) advanceValidation() {
+	v.advanceMu.Lock()
+	defer v.advanceMu.Unlock()
+
 	// Stop if we've already hit a validation error
 	if v.Error() != nil {
 		return
@@ -304,6 +342,14 @@ func (v *LockstepCrossValidator) advanceValidation() {
 		// Don't go past what all chains have ingested
 		if nextTs > minIngestedTs {
 			return
+		}
+
+		// Stop if an ingester hit an error (e.g. a reorg) mid-pass, so recovery
+		// waiting on advanceMu is not held up by work on a DB it will rewind.
+		for _, ingester := range v.chains {
+			if ingester.Error() != nil {
+				return
+			}
 		}
 
 		// Validate all messages at this timestamp across all chains

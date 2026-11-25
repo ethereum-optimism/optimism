@@ -17,6 +17,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IBridgeHook } from "interfaces/L1/IBridgeHook.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
@@ -32,6 +33,14 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/universal/IProxyAdminOwnedBase.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
+
+/// @title BadSemver
+/// @notice Minimal version stub used to make an expected implementation version mismatch.
+contract BadSemver {
+    function version() external pure returns (string memory) {
+        return "0.0.0-bad";
+    }
+}
 
 /// @title OPContractsManagerMigrationValidator_TestInit
 /// @notice Base contract for MigrationValidator tests. Uses real opcmV2.deploy() + migrate()
@@ -58,6 +67,9 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     /// @notice The shared lockbox created by migration (NOT ethLockbox from CommonTest).
     IETHLockbox sharedLockbox;
 
+    /// @notice Each chain's pre-migration contracts, in chainSystemConfigs order.
+    IOPContractsManagerMigrationValidator.LegacyChainContracts[] legacyContracts;
+
     /// @notice The StandardValidator instance (used to read impl addresses for refs).
     IOPContractsManagerStandardValidator standardValidator;
 
@@ -73,26 +85,23 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     /// @notice The proposer role for super games.
     address proposer;
 
-    /// @notice The challenger role for super games.
-    address challenger;
-
     function setUp() public virtual override {
         super.setUp();
-        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
 
         // Deploy two chains via OPCMv2 for migration testing.
         chainContracts1 = _deployChainForMigration(1000001);
         chainContracts2 = _deployChainForMigration(1000002);
 
-        // Get validators from OPCM. Fetch challenger from StandardValidator state so that
-        // when StandardValidator.validateMigratedChain pulls challenger from its own storage,
-        // it matches the SPDG game args we configure below.
+        // Get validators from OPCM.
         standardValidator = opcmV2.opcmStandardValidator();
         migrationValidator = standardValidator.migrationValidator();
 
-        // Set proposer/challenger before building migration input.
+        // Capture each chain's own contracts before migration.
+        legacyContracts.push(_legacyContractsOf(chainContracts1));
+        legacyContracts.push(_legacyContractsOf(chainContracts2));
+
+        // Set proposer before building migration input.
         proposer = makeAddr("superProposer");
-        challenger = standardValidator.challenger();
 
         // Run real migration with both SPDG and SCKDG.
         _doMigration(_getDefaultMigrateInput());
@@ -105,8 +114,9 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         sharedProxyAdmin = address(IProxyAdminOwnedBase(address(sharedDGF)).proxyAdmin());
         sharedLockbox = IETHLockbox(portal1.ethLockbox());
 
-        // Discover WETH from SPDG game args.
-        LibGameArgs.GameArgs memory args = LibGameArgs.decode(sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON));
+        // Discover WETH from the permissionless super game args. The simplified
+        // SUPER_PERMISSIONED no longer carries WETH in its game args.
+        LibGameArgs.GameArgs memory args = LibGameArgs.decode(sharedDGF.gameArgs(GameTypes.SUPER_CANNON_KONA));
         sharedWETH = args.weth;
     }
 
@@ -118,52 +128,43 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         returns (IOPContractsManagerV2.ChainContracts memory cts_)
     {
         // Get initial proposer/challenger from existing DGF.
-        address initialChallenger = DisputeGames.permissionedGameChallenger(disputeGameFactory);
-        address initialProposer = DisputeGames.permissionedGameProposer(disputeGameFactory);
+        bool superRoot = isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        address initialChallenger = _initialPermissionedGameChallenger();
+        address initialProposer = _initialPermissionedGameProposer();
 
         IOPContractsManagerUtils.DisputeGameConfig[] memory dgConfigs =
             new IOPContractsManagerUtils.DisputeGameConfig[](6);
         dgConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON, gameArgs: bytes("")
         });
         dgConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: true,
-            initBond: 0.08 ether,
+            enabled: !superRoot,
+            initBond: superRoot ? 0 : 0.08 ether,
             gameType: GameTypes.PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: cannonPrestate,
-                    proposer: initialProposer,
-                    challenger: initialChallenger
-                })
-            )
+            gameArgs: superRoot
+                ? bytes("")
+                : abi.encode(
+                    IOPContractsManagerUtils.PermissionedDisputeGameConfig({
+                        absolutePrestate: cannonPrestate, proposer: initialProposer, challenger: initialChallenger
+                    })
+                )
         });
         dgConfigs[2] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.CANNON_KONA, gameArgs: bytes("")
         });
         dgConfigs[3] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
+            enabled: superRoot,
             initBond: 0,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: bytes("")
+            gameType: GameTypes.SUPER_PERMISSIONED,
+            gameArgs: superRoot
+                ? abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: initialProposer }))
+                : bytes("")
         });
         dgConfigs[4] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.SUPER_CANNON_KONA, gameArgs: bytes("")
         });
         dgConfigs[5] = IOPContractsManagerUtils.DisputeGameConfig({
-            enabled: false,
-            initBond: 0,
-            gameType: GameTypes.ZK_DISPUTE_GAME,
-            gameArgs: bytes("")
+            enabled: false, initBond: 0, gameType: GameTypes.ZK_DISPUTE_GAME, gameArgs: bytes("")
         });
 
         IOPContractsManagerV2.FullConfig memory deployConfig = IOPContractsManagerV2.FullConfig({
@@ -174,7 +175,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             unsafeBlockSigner: makeAddr("migrateUnsafeBlockSigner"),
             batcher: makeAddr("migrateBatcher"),
             startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"1234")), l2SequenceNumber: 123 }),
-            startingRespectedGameType: GameTypes.PERMISSIONED_CANNON,
+            startingRespectedGameType: superRoot ? GameTypes.SUPER_PERMISSIONED : GameTypes.PERMISSIONED_CANNON,
             basefeeScalar: 1368,
             blobBasefeeScalar: 801949,
             gasLimit: 60_000_000,
@@ -188,10 +189,22 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
                 maximumBaseFee: type(uint128).max
             }),
             disputeGameConfigs: dgConfigs,
-            useCustomGasToken: false
+            useCustomGasToken: false,
+            proofMaturityDelaySeconds: 604800,
+            disputeGameFinalityDelaySeconds: 302400,
+            withdrawalDelaySeconds: 302400,
+            bridgeHook: IBridgeHook(address(0))
         });
 
         cts_ = opcmV2.deploy(deployConfig);
+    }
+
+    function _initialPermissionedGameChallenger() internal view returns (address challenger_) {
+        challenger_ = DisputeGames.permissionedGameChallenger(disputeGameFactory);
+    }
+
+    function _initialPermissionedGameProposer() internal view returns (address proposer_) {
+        proposer_ = DisputeGames.permissionedGameProposer(disputeGameFactory);
     }
 
     /// @notice Creates the default migration input with both SPDG and SCKDG.
@@ -205,28 +218,24 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
             new IOPContractsManagerUtils.DisputeGameConfig[](2);
         disputeGameConfigs[0] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
-            initBond: 0.08 ether,
-            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-            gameArgs: abi.encode(
-                IOPContractsManagerUtils.PermissionedDisputeGameConfig({
-                    absolutePrestate: cannonPrestate,
-                    proposer: proposer,
-                    challenger: challenger
-                })
-            )
+            initBond: 0,
+            gameType: GameTypes.SUPER_PERMISSIONED,
+            gameArgs: abi.encode(IOPContractsManagerUtils.SuperPermissionedDisputeGameConfig({ proposer: proposer }))
         });
         disputeGameConfigs[1] = IOPContractsManagerUtils.DisputeGameConfig({
             enabled: true,
             initBond: 0.08 ether,
             gameType: GameTypes.SUPER_CANNON_KONA,
-            gameArgs: abi.encode(IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate }))
+            gameArgs: abi.encode(
+                IOPContractsManagerUtils.FaultDisputeGameConfig({ absolutePrestate: cannonKonaPrestate })
+            )
         });
 
         input_ = IOPContractsManagerMigrator.MigrateInput({
             chainSystemConfigs: chainSystemConfigs,
             disputeGameConfigs: disputeGameConfigs,
             startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"ABBA")), l2SequenceNumber: 1234 }),
-            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED_CANNON
+            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED
         });
     }
 
@@ -256,9 +265,7 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
     /// @notice Builds SharedConfig from the StandardValidator's state.
     function _buildCfg() internal view returns (IOPContractsManagerMigrationValidator.SharedConfig memory) {
         return IOPContractsManagerMigrationValidator.SharedConfig({
-            l1PAOMultisig: standardValidator.l1PAOMultisig(),
-            challenger: standardValidator.challenger(),
-            withdrawalDelaySeconds: standardValidator.withdrawalDelaySeconds()
+            l1PAOMultisig: standardValidator.l1PAOMultisig(), superchainConfig: standardValidator.superchainConfig()
         });
     }
 
@@ -270,6 +277,20 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         return _validateMigrationCustomChains(chains, _allowFailure);
     }
 
+    /// @notice Snapshots a chain's own contracts, to be taken before migration re-points them.
+    function _legacyContractsOf(IOPContractsManagerV2.ChainContracts memory _c)
+        internal
+        pure
+        returns (IOPContractsManagerMigrationValidator.LegacyChainContracts memory)
+    {
+        return IOPContractsManagerMigrationValidator.LegacyChainContracts({
+            disputeGameFactory: _c.disputeGameFactory,
+            ethLockbox: _c.ethLockbox,
+            delayedWETH: _c.delayedWETH,
+            anchorStateRegistry: _c.anchorStateRegistry
+        });
+    }
+
     /// @notice Builds MigrationValidationInput with custom chain list.
     function _validateMigrationCustomChains(
         ISystemConfig[] memory _chains,
@@ -279,18 +300,105 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
         view
         returns (string memory)
     {
-        return migrationValidator.validateMigration(
-            IOPContractsManagerMigrationValidator.MigrationValidationInput({
-                dgf: sharedDGF,
-                chainSystemConfigs: _chains,
-                cannonPrestate: cannonPrestate.raw(),
-                cannonKonaPrestate: cannonKonaPrestate.raw(),
-                proposer: proposer
-            }),
-            _allowFailure,
-            _buildImpls(),
-            _buildCfg()
-        );
+        IDisputeGameFactory[] memory dgfs = new IDisputeGameFactory[](_chains.length);
+        for (uint256 i = 0; i < _chains.length && i < legacyContracts.length; i++) {
+            dgfs[i] = legacyContracts[i].disputeGameFactory;
+        }
+        return _validateMigrationCustomDGFs(_chains, dgfs, _allowFailure);
+    }
+
+    /// @notice The shared contracts the migration was meant to produce.
+    function _expectedShared()
+        internal
+        view
+        returns (IOPContractsManagerMigrationValidator.ExpectedSharedContracts memory)
+    {
+        return IOPContractsManagerMigrationValidator.ExpectedSharedContracts({
+            anchorStateRegistry: IAnchorStateRegistry(sharedASR), ethLockbox: sharedLockbox, delayedWETH: sharedWETH
+        });
+    }
+
+    /// @notice The init bonds the default migration input registers.
+    function _expectedInitBonds()
+        internal
+        pure
+        returns (IOPContractsManagerMigrationValidator.ExpectedInitBond[] memory bonds_)
+    {
+        bonds_ = new IOPContractsManagerMigrationValidator.ExpectedInitBond[](2);
+        bonds_[0] = IOPContractsManagerMigrationValidator.ExpectedInitBond({
+            gameType: GameTypes.SUPER_PERMISSIONED, initBond: 0
+        });
+        bonds_[1] = IOPContractsManagerMigrationValidator.ExpectedInitBond({
+            gameType: GameTypes.SUPER_CANNON_KONA, initBond: 0.08 ether
+        });
+    }
+
+    /// @notice Builds MigrationValidationInput matching the migration run in setUp.
+    function _buildInput(
+        ISystemConfig[] memory _chains,
+        IDisputeGameFactory[] memory _dgfs
+    )
+        internal
+        view
+        returns (IOPContractsManagerMigrationValidator.MigrationValidationInput memory)
+    {
+        IOPContractsManagerMigrationValidator.LegacyChainContracts[] memory legacy =
+            new IOPContractsManagerMigrationValidator.LegacyChainContracts[](_chains.length);
+        for (uint256 i = 0; i < _chains.length && i < legacyContracts.length; i++) {
+            legacy[i] = legacyContracts[i];
+        }
+        for (uint256 i = 0; i < legacy.length && i < _dgfs.length; i++) {
+            legacy[i].disputeGameFactory = _dgfs[i];
+        }
+        return IOPContractsManagerMigrationValidator.MigrationValidationInput({
+            dgf: sharedDGF,
+            chainSystemConfigs: _chains,
+            legacyChainContracts: legacy,
+            expectedShared: _expectedShared(),
+            expectedInitBonds: _expectedInitBonds(),
+            startingAnchorRoot: Proposal({ root: Hash.wrap(bytes32(hex"ABBA")), l2SequenceNumber: 1234 }),
+            startingRespectedGameType: GameTypes.SUPER_PERMISSIONED,
+            cannonKonaPrestate: cannonKonaPrestate.raw(),
+            proposer: proposer
+        });
+    }
+
+    /// @notice The default two-chain input, for tests that mutate one expectation.
+    function _defaultInput()
+        internal
+        view
+        returns (IOPContractsManagerMigrationValidator.MigrationValidationInput memory)
+    {
+        ISystemConfig[] memory chains = new ISystemConfig[](2);
+        chains[0] = chainContracts1.systemConfig;
+        chains[1] = chainContracts2.systemConfig;
+        IDisputeGameFactory[] memory dgfs = new IDisputeGameFactory[](2);
+        dgfs[0] = legacyContracts[0].disputeGameFactory;
+        dgfs[1] = legacyContracts[1].disputeGameFactory;
+        return _buildInput(chains, dgfs);
+    }
+
+    /// @notice Validates a caller-supplied input, returning errors instead of reverting.
+    function _validateWithInput(IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input)
+        internal
+        view
+        returns (string memory)
+    {
+        return migrationValidator.validateMigration(_input, true, _buildImpls(), _buildCfg());
+    }
+
+    /// @notice Builds MigrationValidationInput.
+    function _validateMigrationCustomDGFs(
+        ISystemConfig[] memory _chains,
+        IDisputeGameFactory[] memory _dgfs,
+        bool _allowFailure
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        return
+            migrationValidator.validateMigration(_buildInput(_chains, _dgfs), _allowFailure, _buildImpls(), _buildCfg());
     }
 
     /// @notice Returns the game impl address for a given game type on the shared DGF.
@@ -300,16 +408,13 @@ abstract contract OPContractsManagerMigrationValidator_TestInit is CommonTest {
 
     /// @notice Returns the ASR address from the SPDG game args.
     function _spdgASR() internal view returns (address) {
-        bytes memory args = sharedDGF.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
-        return LibGameArgs.decode(args).anchorStateRegistry;
+        return DisputeGames.superPermissionedGameAnchorStateRegistry(sharedDGF);
     }
 }
 
 /// @title OPContractsManagerMigrationValidator_ValidateMigration_Test
 /// @notice Tests that full migration validation passes with correct setup.
-contract OPContractsManagerMigrationValidator_ValidateMigration_Test is
-    OPContractsManagerMigrationValidator_TestInit
-{
+contract OPContractsManagerMigrationValidator_ValidateMigration_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice Tests that validateMigration succeeds with no errors.
     function test_validateMigration_succeeds() public view {
         string memory errors = _validateMigration(false);
@@ -326,11 +431,11 @@ contract OPContractsManagerMigrationValidator_ValidateMigration_Test is
 /// @title OPContractsManagerMigrationValidator_DGFShape_Test
 /// @notice Negative tests for MIG-DGF-10 through MIG-DGF-60.
 contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManagerMigrationValidator_TestInit {
-    /// @notice MIG-DGF-10: SUPER_PERMISSIONED_CANNON not registered on shared DGF.
-    function test_validate_dgf10SuperPermCannonMissing_succeeds() public {
+    /// @notice MIG-DGF-10: SUPER_PERMISSIONED not registered on shared DGF.
+    function test_validate_dgf10SuperPermissionedMissing_succeeds() public {
         vm.mockCall(
             address(sharedDGF),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(address(0))
         );
         // SPDG validation skipped (impl is 0), per-chain skipped (can't derive shared ASR).
@@ -392,111 +497,44 @@ contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManage
 /// @title OPContractsManagerMigrationValidator_SPDG_Test
 /// @notice Negative tests for MIG-SPDG-* error codes (Super Permissioned Dispute Game).
 contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMigrationValidator_TestInit {
+    /// @notice MIG-SPDG-20: SPDG implementation version doesn't match expected.
+    function test_validate_spdg20WrongVersion_succeeds() public {
+        BadSemver bad = new BadSemver();
+        vm.mockCall(
+            address(standardValidator),
+            abi.encodeCall(IOPContractsManagerStandardValidator.superPermissionedDisputeGameImpl, ()),
+            abi.encode(address(bad))
+        );
+
+        // MIG-SPDG-150 fires because mocking the expected implementation getter also makes the
+        // registered implementation address mismatch.
+        assertEq("MIG-SPDG-20,MIG-SPDG-150", _validateMigration(true));
+    }
+
+    /// @notice MIG-SPDG-150: Registered SPDG implementation is a different contract with identical
+    ///         code and game args.
+    function test_validate_spdg150LookalikeImplementation_succeeds() public {
+        address spdgImpl = address(sharedDGF.gameImpls(GameTypes.SUPER_PERMISSIONED));
+        address lookalike = makeAddr("lookalikeSuperPermissionedDisputeGame");
+        vm.etch(lookalike, spdgImpl.code);
+        vm.mockCall(
+            address(sharedDGF),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
+            abi.encode(lookalike)
+        );
+
+        assertEq("MIG-SPDG-150", _validateMigration(true));
+    }
+
     /// @notice MIG-SPDG-GARGS-10: Invalid game args length for SPDG.
     function test_validate_spdgGargs10InvalidArgsLength_succeeds() public {
         vm.mockCall(
             address(sharedDGF),
-            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGameFactory.gameArgs, (GameTypes.SUPER_PERMISSIONED)),
             abi.encode(hex"deadbeef")
         );
         // Per-chain also can't decode SPDG args, skips per-chain checks.
         assertEq("MIG-SPDG-GARGS-10", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-60: l2ChainId != 0 in SPDG game args.
-    function test_validate_spdg60WrongL2ChainId_succeeds() public {
-        DisputeGames.mockGameImplL2ChainId(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, 42);
-        assertEq("MIG-SPDG-60", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-40: Wrong absolutePrestate in SPDG game args.
-    function test_validate_spdg40WrongPrestate_succeeds() public {
-        DisputeGames.mockGameImplPrestate(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, bytes32(uint256(0xbad)));
-        assertEq("MIG-SPDG-40", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-VM-10/20: Wrong VM in SPDG game args (drill-down via assertValidDisputeGame).
-    function test_validate_spdgVm10WrongVM_succeeds() public {
-        address badVM = address(0xbad);
-        DisputeGames.mockGameImplVM(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, badVM);
-        // Mock just enough on the bad VM for drill-down to reach the VM-10/VM-20 checks.
-        vm.mockCall(badVM, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        vm.mockCall(badVM, abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(StandardConstants.MIPS_VERSION));
-        assertEq("MIG-SPDG-VM-10,MIG-SPDG-VM-20", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-GARGS-30: Wrong WETH in SPDG game args (doesn't match discovered WETH).
-    function test_validate_spdgGargs30WrongWeth_succeeds() public {
-        address badWeth = address(0xbad);
-        DisputeGames.mockGameImplWeth(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, badWeth);
-        // Mock the bad WETH to satisfy drill-down so only GARGS-30 (the cross-chain check) fires.
-        vm.mockCall(badWeth, abi.encodeCall(ISemver.version, ()), abi.encode(ISemver(sharedWETH).version()));
-        vm.mockCall(
-            sharedProxyAdmin,
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (badWeth)),
-            abi.encode(standardValidator.delayedWETHImpl())
-        );
-        vm.mockCall(
-            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
-        );
-        vm.mockCall(
-            badWeth,
-            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
-            abi.encode(standardValidator.l1PAOMultisig())
-        );
-        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(chainContracts1.systemConfig));
-        vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(sharedProxyAdmin));
-        assertEq("MIG-SPDG-GARGS-30", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-100: Wrong maxGameDepth on SPDG game impl.
-    function test_validate_spdg100WrongMaxGameDepth_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.maxGameDepth, ()),
-            abi.encode(uint256(99))
-        );
-        assertEq("MIG-SPDG-100", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-90: Wrong splitDepth on SPDG game impl.
-    function test_validate_spdg90WrongSplitDepth_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.splitDepth, ()),
-            abi.encode(uint256(99))
-        );
-        assertEq("MIG-SPDG-90", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-80: Wrong clockExtension on SPDG game impl.
-    function test_validate_spdg80WrongClockExtension_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.clockExtension, ()),
-            abi.encode(uint64(99))
-        );
-        assertEq("MIG-SPDG-80", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-110: Wrong maxClockDuration on SPDG game impl.
-    function test_validate_spdg110WrongMaxClockDuration_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IPermissionedDisputeGame.maxClockDuration, ()),
-            abi.encode(uint64(99))
-        );
-        assertEq("MIG-SPDG-110", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-70: l2SequenceNumber != 0 on SPDG game impl.
-    function test_validate_spdg70WrongL2SequenceNumber_succeeds() public {
-        vm.mockCall(
-            _gameImpl(GameTypes.SUPER_PERMISSIONED_CANNON),
-            abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
-            abi.encode(uint256(1))
-        );
-        assertEq("MIG-SPDG-70", _validateMigration(true));
     }
 
     /// @notice MIG-SPDG-120: Anchor root is zero from SPDG ASR.
@@ -510,14 +548,8 @@ contract OPContractsManagerMigrationValidator_SPDG_Test is OPContractsManagerMig
 
     /// @notice MIG-SPDG-140: Wrong proposer in SPDG game args.
     function test_validate_spdg140WrongProposer_succeeds() public {
-        DisputeGames.mockGameImplProposer(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
+        DisputeGames.mockSuperPermissionedGameProposer(sharedDGF, address(0xbad));
         assertEq("MIG-SPDG-140", _validateMigration(true));
-    }
-
-    /// @notice MIG-SPDG-130: Wrong challenger in SPDG game args.
-    function test_validate_spdg130WrongChallenger_succeeds() public {
-        DisputeGames.mockGameImplChallenger(sharedDGF, GameTypes.SUPER_PERMISSIONED_CANNON, address(0xbad));
-        assertEq("MIG-SPDG-130", _validateMigration(true));
     }
 }
 
@@ -532,6 +564,21 @@ contract OPContractsManagerMigrationValidator_SCKDG_Test is OPContractsManagerMi
             abi.encode(hex"deadbeef")
         );
         assertEq("MIG-SCKDG-GARGS-10", _validateMigration(true));
+    }
+
+    /// @notice MIG-SCKDG-150: Registered SCKDG implementation is a different contract with identical
+    ///         code and game args.
+    function test_validate_sckdg150LookalikeImplementation_succeeds() public {
+        address sckdgImpl = address(sharedDGF.gameImpls(GameTypes.SUPER_CANNON_KONA));
+        address lookalike = makeAddr("lookalikeSuperCannonKonaDisputeGame");
+        vm.etch(lookalike, sckdgImpl.code);
+        vm.mockCall(
+            address(sharedDGF),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
+            abi.encode(lookalike)
+        );
+
+        assertEq("MIG-SCKDG-150", _validateMigration(true));
     }
 
     /// @notice MIG-SCKDG-60: l2ChainId != 0 in SCKDG game args.
@@ -559,7 +606,8 @@ contract OPContractsManagerMigrationValidator_SCKDG_Test is OPContractsManagerMi
     function test_validate_sckdgGargs30WrongWeth_succeeds() public {
         address badWeth = address(0xbad);
         DisputeGames.mockGameImplWeth(sharedDGF, GameTypes.SUPER_CANNON_KONA, badWeth);
-        // Mock the bad WETH to satisfy drill-down so only GARGS-30 (the cross-chain check) fires.
+        // Mock the bad WETH to satisfy drill-down, leaving GARGS-30 (the cross-chain check) and
+        // DWETH-70 (the SystemConfig binding), which no mock on the WETH itself can satisfy.
         vm.mockCall(badWeth, abi.encodeCall(ISemver.version, ()), abi.encode(ISemver(sharedWETH).version()));
         vm.mockCall(
             sharedProxyAdmin,
@@ -567,16 +615,16 @@ contract OPContractsManagerMigrationValidator_SCKDG_Test is OPContractsManagerMi
             abi.encode(standardValidator.delayedWETHImpl())
         );
         vm.mockCall(
-            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(standardValidator.withdrawalDelaySeconds())
+            badWeth, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(IDelayedWETH(payable(sharedWETH)).delay())
         );
         vm.mockCall(
             badWeth,
             abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
             abi.encode(standardValidator.l1PAOMultisig())
         );
-        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(chainContracts1.systemConfig));
+        vm.mockCall(badWeth, abi.encodeCall(IDelayedWETH.ethLockbox, ()), abi.encode(sharedLockbox));
         vm.mockCall(badWeth, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(sharedProxyAdmin));
-        assertEq("MIG-SCKDG-GARGS-30", _validateMigration(true));
+        assertEq("MIG-SCKDG-GARGS-30,MIG-SCKDG-DWETH-70", _validateMigration(true));
     }
 
     /// @notice MIG-SCKDG-100: Wrong maxGameDepth on SCKDG game impl.
@@ -639,6 +687,14 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
         assertEq("MIG-CHAIN-EMPTY", _validateMigrationCustomChains(chains, true));
     }
 
+    /// @notice MIG-CHAIN-SINGLE: Only one chain in chainSystemConfigs. An interop set needs at
+    ///         least two chains.
+    function test_validate_chainSingle_succeeds() public view {
+        ISystemConfig[] memory chains = new ISystemConfig[](1);
+        chains[0] = chainContracts1.systemConfig;
+        assertEq("MIG-CHAIN-SINGLE", _validateMigrationCustomChains(chains, true));
+    }
+
     // NOTE: MIG-CHAIN-0-10 is tautological — shared ASR is discovered from portal[0],
     // so portal[0].anchorStateRegistry() always equals itself. Same pattern as MIG-SDGF-40.
 
@@ -652,9 +708,9 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
         assertEq("MIG-CHAIN-1-10", _validateMigration(true));
     }
 
-    // NOTE: Per-chain DGF clearing checks (-20 through -70) are exercised in
-    // OPContractsManagerMigrationValidator_PerChainDGF_Test below, which mocks
-    // systemConfig.disputeGameFactory() to return a DGF that differs from the shared DGF.
+    // NOTE: The per-chain DGF clearing checks (-20 through -70, plus -140) are exercised together
+    // by test_validate_everyClearedGameTypeIsChecked_succeeds, which walks
+    // GameTypes.clearedGameTypes() against chain 1's real pre-migration factory.
 
     /// @notice MIG-CHAIN-0-80: Portal not authorized in shared lockbox.
     function test_validate_chain080PortalNotAuthorized_succeeds() public {
@@ -683,7 +739,10 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
             abi.encodeCall(IOptimismPortal2.ethLockbox, ()),
             abi.encode(address(0))
         );
-        assertEq("MIG-LOCKBOX-MISSING", _validateMigration(true));
+        assertEq(
+            "MIG-SHARED-20,MIG-SPDG-ANCHORP-40,MIG-SCKDG-DWETH-50,MIG-SCKDG-ANCHORP-40,MIG-LOCKBOX-MISSING",
+            _validateMigration(true)
+        );
     }
 
     /// @notice MIG-CHAIN-0-100: INTEROP feature not enabled.
@@ -704,6 +763,38 @@ contract OPContractsManagerMigrationValidator_PerChain_Test is OPContractsManage
             abi.encode(false)
         );
         assertEq("MIG-CHAIN-0-110", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-1-120: Second chain's SystemConfig delayedWETH doesn't match shared WETH.
+    function test_validate_chain1120DelayedWethMismatch_succeeds() public {
+        vm.mockCall(
+            address(chainContracts2.systemConfig),
+            abi.encodeCall(ISystemConfig.delayedWETH, ()),
+            abi.encode(address(0xbadDE1a4ed))
+        );
+        assertEq("MIG-CHAIN-1-120", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-130: First chain's SuperchainConfig does not match the expected one.
+    ///         Only the offending chain is flagged, even though the others are compared to the
+    ///         same expected value rather than to chain 0.
+    function test_validate_chain0130SuperchainConfigMismatch_succeeds() public {
+        vm.mockCall(
+            address(chainContracts1.systemConfig),
+            abi.encodeCall(ISystemConfig.superchainConfig, ()),
+            abi.encode(address(0xbad))
+        );
+        assertEq("MIG-CHAIN-0-130", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-1-130: Second chain's SuperchainConfig does not match the expected one.
+    function test_validate_chain1130SuperchainConfigMismatch_succeeds() public {
+        vm.mockCall(
+            address(chainContracts2.systemConfig),
+            abi.encodeCall(ISystemConfig.superchainConfig, ()),
+            abi.encode(address(0xbad))
+        );
+        assertEq("MIG-CHAIN-1-130", _validateMigration(true));
     }
 }
 
@@ -739,8 +830,8 @@ contract OPContractsManagerMigrationValidator_SharedDGF_Test is OPContractsManag
 
 /// @title OPContractsManagerMigrationValidator_SharedASR_Test
 /// @notice Negative tests covering shared AnchorStateRegistry invariants. The shared ASR is
-///         reachable from both super games' `assertValidDisputeGame` drill-downs, so each
-///         broken ASR field surfaces under both `MIG-SPDG-ANCHORP-*` and `MIG-SCKDG-ANCHORP-*`.
+///         reachable from both super game validation paths, so each broken ASR field surfaces
+///         under both `MIG-SPDG-ANCHORP-*` and `MIG-SCKDG-ANCHORP-*`.
 contract OPContractsManagerMigrationValidator_SharedASR_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-{SPDG,SCKDG}-ANCHORP-10: ASR version doesn't match impl version.
     function test_validate_sharedAnchorp10WrongVersion_succeeds() public {
@@ -773,7 +864,7 @@ contract OPContractsManagerMigrationValidator_SharedASR_Test is OPContractsManag
             abi.encodeCall(IOptimismPortal2.disputeGameFactory, ()),
             abi.encode(address(sharedDGF))
         );
-        assertEq("MIG-SPDG-ANCHORP-30,MIG-SCKDG-ANCHORP-30", _validateMigration(true));
+        assertEq("MIG-SHARED-40,MIG-SPDG-ANCHORP-30,MIG-SCKDG-ANCHORP-30", _validateMigration(true));
     }
 
     /// @notice MIG-{SPDG,SCKDG}-ANCHORP-50: ASR proxyAdmin doesn't match shared ProxyAdmin.
@@ -792,12 +883,12 @@ contract OPContractsManagerMigrationValidator_SharedASR_Test is OPContractsManag
     ///         Drill-down doesn't cover this — it's a migration-shape invariant.
     function test_validate_sharedAsrRgtNotSuperGameType_succeeds() public {
         vm.mockCall(sharedASR, abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()), abi.encode(GameTypes.CANNON));
-        assertEq("MIG-SASR-RGT", _validateMigration(true));
+        assertEq("MIG-SASR-RGT,MIG-SASR-30", _validateMigration(true));
     }
 }
 
 /// @title OPContractsManagerMigrationValidator_SharedLockbox_Test
-/// @notice Negative tests for MIG-SLOCKBOX-10 through MIG-SLOCKBOX-30.
+/// @notice Tests shared ETHLockbox validation.
 contract OPContractsManagerMigrationValidator_SharedLockbox_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-SLOCKBOX-10: Lockbox version doesn't match impl version.
     function test_validate_sharedLockbox10WrongVersion_succeeds() public {
@@ -822,47 +913,53 @@ contract OPContractsManagerMigrationValidator_SharedLockbox_Test is OPContractsM
         );
         assertEq("MIG-SLOCKBOX-30", _validateMigration(true));
     }
+
+    /// @notice MIG-SLOCKBOX-40: Lockbox pause authority doesn't match the expected SuperchainConfig.
+    function test_validate_sharedLockbox40WrongSuperchainConfig_succeeds() public {
+        vm.mockCall(
+            address(sharedLockbox), abi.encodeCall(IETHLockbox.superchainConfig, ()), abi.encode(address(0xbad))
+        );
+        assertEq("MIG-SLOCKBOX-40", _validateMigration(true));
+    }
 }
 
 /// @title OPContractsManagerMigrationValidator_SharedDelayedWETH_Test
-/// @notice Negative tests covering shared DelayedWETH invariants. The discovered shared WETH is
-///         carried into both super-game `assertValidDisputeGame` drill-downs, so each broken
-///         WETH field surfaces under both `MIG-SPDG-DWETH-*` and `MIG-SCKDG-DWETH-*`.
-contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is
-    OPContractsManagerMigrationValidator_TestInit
-{
-    /// @notice MIG-{SPDG,SCKDG}-DWETH-10: DelayedWETH version doesn't match impl version.
+/// @notice Negative tests covering shared DelayedWETH invariants. The simplified
+///         SUPER_PERMISSIONED no longer carries WETH, so these errors surface through
+///         SUPER_CANNON_KONA only.
+contract OPContractsManagerMigrationValidator_SharedDelayedWETH_Test is OPContractsManagerMigrationValidator_TestInit {
+    /// @notice MIG-SCKDG-DWETH-10: DelayedWETH version doesn't match impl version.
     function test_validate_sharedDweth10WrongVersion_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0-bad"));
-        assertEq("MIG-SPDG-DWETH-10,MIG-SCKDG-DWETH-10", _validateMigration(true));
+        assertEq("MIG-SCKDG-DWETH-10", _validateMigration(true));
     }
 
-    /// @notice MIG-{SPDG,SCKDG}-DWETH-40: DelayedWETH delay doesn't match expected withdrawalDelaySeconds.
+    /// @notice MIG-SCKDG-DWETH-40: DelayedWETH delay is outside the standard range.
     function test_validate_sharedDweth40WrongDelay_succeeds() public {
-        vm.mockCall(sharedWETH, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(uint256(999)));
-        assertEq("MIG-SPDG-DWETH-40,MIG-SCKDG-DWETH-40", _validateMigration(true));
+        vm.mockCall(sharedWETH, abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(uint256(1)));
+        assertEq("MIG-SCKDG-DWETH-40", _validateMigration(true));
     }
 
-    /// @notice MIG-{SPDG,SCKDG}-DWETH-30: DelayedWETH proxyAdminOwner doesn't match l1PAOMultisig.
+    /// @notice MIG-SCKDG-DWETH-30: DelayedWETH proxyAdminOwner doesn't match l1PAOMultisig.
     function test_validate_sharedDweth30WrongProxyAdminOwner_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad)));
-        assertEq("MIG-SPDG-DWETH-30,MIG-SCKDG-DWETH-30", _validateMigration(true));
+        assertEq("MIG-SCKDG-DWETH-30", _validateMigration(true));
     }
 
-    /// @notice MIG-{SPDG,SCKDG}-DWETH-20: DelayedWETH proxy implementation doesn't match expected.
+    /// @notice MIG-SCKDG-DWETH-20: DelayedWETH proxy implementation doesn't match expected.
     function test_validate_sharedDweth20WrongImpl_succeeds() public {
         vm.mockCall(
             sharedProxyAdmin,
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (sharedWETH)),
             abi.encode(address(0xbad))
         );
-        assertEq("MIG-SPDG-DWETH-20,MIG-SCKDG-DWETH-20", _validateMigration(true));
+        assertEq("MIG-SCKDG-DWETH-20", _validateMigration(true));
     }
 
-    /// @notice MIG-{SPDG,SCKDG}-DWETH-60: DelayedWETH proxyAdmin doesn't match shared ProxyAdmin.
+    /// @notice MIG-SCKDG-DWETH-60: DelayedWETH proxyAdmin doesn't match shared ProxyAdmin.
     function test_validate_sharedDweth60WrongProxyAdmin_succeeds() public {
         vm.mockCall(sharedWETH, abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad)));
-        assertEq("MIG-SPDG-DWETH-60,MIG-SCKDG-DWETH-60", _validateMigration(true));
+        assertEq("MIG-SCKDG-DWETH-60,MIG-CHAIN-0-200", _validateMigration(true));
     }
 }
 
@@ -874,17 +971,7 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
         // Pre-build input and refs before vm.expectRevert (they make external calls).
         IOPContractsManagerMigrationValidator.SharedImplementations memory impls = _buildImpls();
         IOPContractsManagerMigrationValidator.SharedConfig memory cfg = _buildCfg();
-        ISystemConfig[] memory chains = new ISystemConfig[](2);
-        chains[0] = chainContracts1.systemConfig;
-        chains[1] = chainContracts2.systemConfig;
-        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input =
-        IOPContractsManagerMigrationValidator.MigrationValidationInput({
-            dgf: sharedDGF,
-            chainSystemConfigs: chains,
-            cannonPrestate: cannonPrestate.raw(),
-            cannonKonaPrestate: cannonKonaPrestate.raw(),
-            proposer: proposer
-        });
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
         vm.mockCall(
             address(sharedDGF),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)),
@@ -909,17 +996,7 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
         // Pre-build input and refs before vm.expectRevert (they make external calls).
         IOPContractsManagerMigrationValidator.SharedImplementations memory impls = _buildImpls();
         IOPContractsManagerMigrationValidator.SharedConfig memory cfg = _buildCfg();
-        ISystemConfig[] memory chains = new ISystemConfig[](2);
-        chains[0] = chainContracts1.systemConfig;
-        chains[1] = chainContracts2.systemConfig;
-        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input =
-        IOPContractsManagerMigrationValidator.MigrationValidationInput({
-            dgf: sharedDGF,
-            chainSystemConfigs: chains,
-            cannonPrestate: cannonPrestate.raw(),
-            cannonKonaPrestate: cannonKonaPrestate.raw(),
-            proposer: proposer
-        });
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
         vm.mockCall(
             address(sharedDGF),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)),
@@ -935,106 +1012,171 @@ contract OPContractsManagerMigrationValidator_AllowFailure_Test is OPContractsMa
     }
 }
 
-/// @title OPContractsManagerMigrationValidator_PerChainDGF_Test
-/// @notice Tests MIG-CHAIN-*-20 through MIG-CHAIN-*-70 by mocking systemConfig.disputeGameFactory()
-///         to return a DGF that differs from the shared DGF, exercising the per-chain clearing checks.
-///         The shared DGF is derived from chain 0 (first chain), so we mock chain 1 (second chain).
-contract OPContractsManagerMigrationValidator_PerChainDGF_Test is OPContractsManagerMigrationValidator_TestInit {
-    /// @notice Address used as a fake per-chain DGF distinct from the shared DGF.
-    address fakeDGF = makeAddr("fakeDGF");
-
-    /// @notice Mocks chain 1's systemConfig.disputeGameFactory() to return the fake DGF,
-    ///         with all game types returning address(0) (cleared).
-    function _mockPerChainDGF() internal {
-        vm.mockCall(
-            address(chainContracts2.systemConfig),
-            abi.encodeCall(ISystemConfig.disputeGameFactory, ()),
-            abi.encode(fakeDGF)
-        );
-        // Default: all game types cleared (return address(0)).
-        vm.mockCall(fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)), abi.encode(address(0)));
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
-            abi.encode(address(0))
-        );
-        vm.mockCall(
-            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)), abi.encode(address(0))
-        );
-        vm.mockCall(
-            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)), abi.encode(address(0))
-        );
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
-            abi.encode(address(0))
-        );
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
-            abi.encode(address(0))
-        );
+/// @title OPContractsManagerMigrationValidator_MigrationIntent_Test
+/// @notice Tests the assertions that compare post-migration state against what the migration was
+///         asked and the assertions for the state of the contracts the migration retire.
+contract OPContractsManagerMigrationValidator_MigrationIntent_Test is OPContractsManagerMigrationValidator_TestInit {
+    /// @notice MIG-SASR-10: shared ASR's starting root differs from the intended one.
+    function test_validate_sasr10WrongAnchorRoot_succeeds() public view {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.startingAnchorRoot.root = Hash.wrap(bytes32(hex"BEEF"));
+        assertEq("MIG-SASR-10", _validateWithInput(input));
     }
 
-    /// @notice MIG-CHAIN-1-20: Per-chain DGF has CANNON still registered.
-    function test_validate_chain120CannonNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)), abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-20", _validateMigration(true));
+    /// @notice MIG-SASR-20: shared ASR's starting sequence number differs from the intended one.
+    function test_validate_sasr20WrongSequenceNumber_succeeds() public view {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.startingAnchorRoot.l2SequenceNumber = 999;
+        assertEq("MIG-SASR-20", _validateWithInput(input));
     }
 
-    /// @notice MIG-CHAIN-1-30: Per-chain DGF has PERMISSIONED_CANNON still registered.
-    function test_validate_chain130PermissionedCannonNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-30", _validateMigration(true));
+    /// @notice MIG-SASR-30: shared ASR respects a game type other than the intended one.
+    function test_validate_sasr30WrongRespectedGameType_succeeds() public view {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.startingRespectedGameType = GameTypes.SUPER_CANNON_KONA;
+        assertEq("MIG-SASR-30", _validateWithInput(input));
     }
 
-    /// @notice MIG-CHAIN-1-40: Per-chain DGF has CANNON_KONA still registered.
-    function test_validate_chain140CannonKonaNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF, abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON_KONA)), abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-40", _validateMigration(true));
+    /// @notice MIG-SHARED-10: discovered ASR is not the one the migration was meant to produce.
+    function test_validate_shared10WrongAnchorStateRegistry_succeeds() public {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.expectedShared.anchorStateRegistry = IAnchorStateRegistry(makeAddr("otherASR"));
+        assertEq("MIG-SHARED-10", _validateWithInput(input));
     }
 
-    /// @notice MIG-CHAIN-1-50: Per-chain DGF has SUPER_CANNON still registered.
-    function test_validate_chain150SuperCannonNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-50", _validateMigration(true));
+    /// @notice MIG-SHARED-20: discovered lockbox is not the intended one.
+    function test_validate_shared20WrongEthLockbox_succeeds() public {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.expectedShared.ethLockbox = IETHLockbox(payable(makeAddr("otherLockbox")));
+        assertEq("MIG-SHARED-20", _validateWithInput(input));
     }
 
-    /// @notice MIG-CHAIN-1-60: Per-chain DGF has SUPER_PERMISSIONED_CANNON still registered.
-    function test_validate_chain160SuperPermCannonNotCleared_succeeds() public {
-        _mockPerChainDGF();
-        vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED_CANNON)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("MIG-CHAIN-1-60", _validateMigration(true));
+    /// @notice MIG-SHARED-30: discovered DelayedWETH is not the intended one.
+    function test_validate_shared30WrongDelayedWETH_succeeds() public {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.expectedShared.delayedWETH = makeAddr("otherWETH");
+        assertEq("MIG-SHARED-30", _validateWithInput(input));
     }
 
-    /// @notice MIG-CHAIN-1-70: Per-chain DGF has SUPER_CANNON_KONA still registered.
-    function test_validate_chain170SuperCannonKonaNotCleared_succeeds() public {
-        _mockPerChainDGF();
+    /// @notice MIG-SHARED-40: the factory the caller asked us to inspect is not the one the
+    ///         migrated portals actually route to.
+    function test_validate_shared40DgfNotBoundToChains_succeeds() public view {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.dgf = legacyContracts[0].disputeGameFactory;
+        assertEq("MIG-DGF-10,MIG-DGF-20,MIG-SHARED-40,MIG-BOND-1", _validateWithInput(input));
+    }
+
+    /// @notice MIG-BOND-1: a registered init bond differs from the intended one.
+    function test_validate_bondMismatch_succeeds(uint256 _initBond) public view {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+
+        vm.assume(_initBond != input.dgf.initBonds(input.expectedInitBonds[1].gameType));
+        input.expectedInitBonds[1].initBond = _initBond;
+        assertEq("MIG-BOND-1", _validateWithInput(input));
+    }
+
+    /// @notice MIG-CHAIN-0-150: a migrated portal still holds ETH, so migrateLiquidity did not
+    ///         move all of it into the shared lockbox.
+    function test_validate_chain150PortalHoldsEth_succeeds() public {
+        vm.deal(address(chainContracts1.optimismPortal), 1 ether);
+        assertEq("MIG-CHAIN-0-150", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-160: a retired lockbox still holds ETH.
+    function test_validate_chain160LegacyLockboxHoldsEth_succeeds() public {
+        vm.deal(address(legacyContracts[0].ethLockbox), 1 ether);
+        assertEq("MIG-CHAIN-0-160", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-170: a pause is active on the portal.
+    function test_validate_chain170StalePortalPause_succeeds() public {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(chainContracts1.optimismPortal));
+        assertEq("MIG-CHAIN-0-170", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-180: a pause is active on the retired lockbox identifier.
+    function test_validate_chain180StaleLockboxPause_succeeds() public {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(legacyContracts[0].ethLockbox));
+        assertEq("MIG-CHAIN-0-180", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-1-190: the chain's own DelayedWETH was not re-pointed at the shared
+    ///         lockbox, so games created before the migration read a stale pause from it.
+    function test_validate_chain190LegacyWethWrongLockbox_succeeds() public {
         vm.mockCall(
-            fakeDGF,
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
-            abi.encode(address(0xdead))
+            address(legacyContracts[1].delayedWETH),
+            abi.encodeCall(IDelayedWETH.ethLockbox, ()),
+            abi.encode(IETHLockbox(makeAddr("staleLockbox")))
         );
-        assertEq("MIG-CHAIN-1-70", _validateMigration(true));
+        assertEq("MIG-CHAIN-1-190", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-200: the supplied legacy DelayedWETH belongs to another chain.
+    function test_validate_chain200LegacyWethFromOtherChain_succeeds() public view {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.legacyChainContracts[0].delayedWETH = legacyContracts[1].delayedWETH;
+        assertEq("MIG-CHAIN-0-200", _validateWithInput(input));
+    }
+
+    /// @notice MIG-CHAIN-0-210: the chain's old AnchorStateRegistry was not re-pointed at the
+    ///         shared lockbox, so games created before the migration read a stale pause from it.
+    function test_validate_chain210LegacyAsrWrongLockbox_succeeds() public {
+        vm.mockCall(
+            address(legacyContracts[0].anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.ethLockbox, ()),
+            abi.encode(IETHLockbox(makeAddr("staleLockbox")))
+        );
+        assertEq("MIG-CHAIN-0-210", _validateMigration(true));
+    }
+
+    /// @notice MIG-CHAIN-0-220: the supplied legacy AnchorStateRegistry belongs to another chain.
+    function test_validate_chain220LegacyAsrFromOtherChain_succeeds() public view {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.legacyChainContracts[0].anchorStateRegistry = legacyContracts[1].anchorStateRegistry;
+        assertEq("MIG-CHAIN-0-220", _validateWithInput(input));
+    }
+
+    /// @notice MIG-CHAIN-LEGACY-MISMATCH: the legacy contract list does not pair with the chains.
+    function test_validate_legacyArrayLengthMismatch_succeeds() public view {
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory input = _defaultInput();
+        input.legacyChainContracts = new IOPContractsManagerMigrationValidator.LegacyChainContracts[](1);
+        assertEq("MIG-CHAIN-LEGACY-MISMATCH", _validateWithInput(input));
+    }
+
+    /// @notice The validator reports every game type in the canonical clearing list.
+    function test_validate_everyClearedGameTypeIsChecked_succeeds() public {
+        GameType[] memory gameTypes = GameTypes.clearedGameTypes();
+
+        string[] memory expectedCodes = new string[](7);
+        string[] memory gameTypeNames = new string[](7);
+        (expectedCodes[0], gameTypeNames[0]) = ("MIG-CHAIN-1-20", "CANNON");
+        (expectedCodes[1], gameTypeNames[1]) = ("MIG-CHAIN-1-30", "PERMISSIONED_CANNON");
+        (expectedCodes[2], gameTypeNames[2]) = ("MIG-CHAIN-1-40", "CANNON_KONA");
+        (expectedCodes[3], gameTypeNames[3]) = ("MIG-CHAIN-1-50", "SUPER_CANNON");
+        (expectedCodes[4], gameTypeNames[4]) = ("MIG-CHAIN-1-60", "SUPER_PERMISSIONED");
+        (expectedCodes[5], gameTypeNames[5]) = ("MIG-CHAIN-1-70", "SUPER_CANNON_KONA");
+        (expectedCodes[6], gameTypeNames[6]) = ("MIG-CHAIN-1-140", "ZK_DISPUTE_GAME");
+        assertEq(gameTypes.length, expectedCodes.length, "clearing list changed without choosing a code");
+
+        IDisputeGameFactory legacyDGF = chainContracts2.disputeGameFactory;
+        address dgfOwner = legacyDGF.owner();
+
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            // Set the legacy DGF to return a non zero address for this game type.
+            // Validator should report the corresponding code for that game type.
+            vm.prank(dgfOwner);
+            legacyDGF.setImplementation(gameTypes[i], IDisputeGame(address(0xdead)), hex"");
+
+            assertEq(
+                expectedCodes[i],
+                _validateMigration(true),
+                string.concat("validator should report ", expectedCodes[i], " for uncleared ", gameTypeNames[i])
+            );
+
+            vm.prank(dgfOwner);
+            legacyDGF.setImplementation(gameTypes[i], IDisputeGame(address(0)), hex"");
+        }
     }
 }

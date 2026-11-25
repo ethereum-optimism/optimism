@@ -9,27 +9,18 @@
 extern crate alloc;
 
 mod graph;
-pub use graph::MessageGraph;
+pub use graph::{BlockWithReceipts, BlocksWithReceipts, MessageGraph};
 
-mod event;
-pub use event::ManagedEvent;
-
-mod control;
-pub use control::ControlEvent;
-
-mod replacement;
-pub use replacement::BlockReplacement;
+mod rules;
+pub use rules::MessageRules;
 
 mod traits;
-pub use traits::{InteropProvider, InteropValidator};
+pub use traits::{InitiatingLogs, InteropProvider, LogCommitment};
 
 mod safety;
-pub use safety::SafetyLevelParseError;
 
 mod errors;
-pub use errors::{
-    InteropValidationError, MessageGraphError, MessageGraphResult, SuperRootError, SuperRootResult,
-};
+pub use errors::{MessageGraphError, MessageGraphResult, SuperRootError, SuperRootResult};
 
 mod root;
 pub use root::{ChainRootInfo, OutputRootWithChain, SuperRoot, SuperRootOutput};
@@ -41,7 +32,9 @@ pub use message::{
     parse_logs_to_executing_msgs,
 };
 
-pub use kona_genesis::{ChainDependency, DependencySet};
+pub use kona_genesis::{
+    ChainDependency, DependencySet, MessageExpiryOverride, MessageExpiryOverrideTooLong,
+};
 
 pub use op_alloy_consensus::interop::SafetyLevel;
 
@@ -49,8 +42,6 @@ mod access_list;
 pub use access_list::{
     parse_access_list_item_to_inbox_entries, parse_access_list_items_to_inbox_entries,
 };
-mod derived;
-pub use derived::{DerivedIdPair, DerivedRefPair};
 
 mod constants;
 pub use constants::{MESSAGE_EXPIRY_WINDOW, SUPER_ROOT_VERSION};
@@ -59,6 +50,6 @@ pub use constants::{MESSAGE_EXPIRY_WINDOW, SUPER_ROOT_VERSION};
 mod test_util;
 #[cfg(any(test, feature = "test-utils"))]
 pub use test_util::{
-    ChainBuilder, ExecutingMessageBuilder, InteropProviderError, MockInteropProvider,
+    ChainBuilder, ExecutingMessageBuilder, InteropProviderError, LeafList, MockInteropProvider,
     SuperchainBuilder,
 };

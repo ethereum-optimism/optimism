@@ -2,7 +2,12 @@
 title: Tracing deposits and withdrawals
 description: Learn how to use the viem library to trace deposits and withdrawals between L1
   and L2.
+diataxis: tutorial
 ---
+
+import TutorialSetupNodeProject from '/snippets/tutorial-setup-node-project.mdx';
+import TutorialSetupRepl from '/snippets/tutorial-setup-repl.mdx';
+
 In this tutorial, you'll learn how to use the [viem](https://viem.sh) library to trace a [Standard Bridge](/app-developers/guides/bridging/standard-bridge) deposit or withdrawal between L1 and L2.
 You'll specifically learn how to determine the status of a deposit or withdrawal and how to retrieve the transaction receipt for the executed transaction on L1 (for withdrawals) or L2 (for deposits).
 
@@ -13,32 +18,7 @@ You'll specifically learn how to determine the status of a deposit or withdrawal
 
 ## Create a demo project
 
-You're going to use the viem library for this tutorial.
-Since viem is a [Node.js](https://nodejs.org/en/) library, you'll need to create a Node.js project to use it.
-
-<Steps>
-  <Step title="Make a Project Folder">
-
-  ```bash
-  mkdir trace-trx
-  cd trace-trx
-  ```
-
-  </Step>
-  <Step title="Initialize the project">
-
-  ```bash
-  pnpm init
-  ```
-
-  </Step>
-  <Step title="Install viem">
-
-  ```bash
-  pnpm add viem 
-  ```
-  </Step>
-</Steps>
+<TutorialSetupNodeProject lib="viem" folder="trace-trx" packages="viem" />
 
 ## Add RPC URLs to your environment
 
@@ -53,13 +33,7 @@ export L2_RPC_URL="https://YOUR_L2_OP_SEPOLIA_RPC_URL_HERE"
 
 ## Start the Node REPL
 
-You're going to use the Node REPL to interact with viem. To start the Node REPL, run the following command in your terminal:
-
-```bash
-node
-```
-
-This will bring up a Node REPL prompt that allows you to run JavaScript code.
+<TutorialSetupRepl lib="viem" />
 
 ## Import dependencies
 

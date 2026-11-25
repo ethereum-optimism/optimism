@@ -1,0 +1,16 @@
+[package]
+name = "op-version"
+description = "Shared build/version metadata resolution for OP Stack binaries"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[lints]
+workspace = true

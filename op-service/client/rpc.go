@@ -11,9 +11,10 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
@@ -28,6 +29,7 @@ type RPC interface {
 
 type rpcConfig struct {
 	gethRPCOptions   []rpc.ClientOption
+	recorder         jsonrpc.Recorder
 	httpPollInterval time.Duration
 	backoffAttempts  int
 	limit            float64
@@ -106,11 +108,12 @@ func WithLazyDial() RPCOption {
 	}
 }
 
-// WithRPCRecorder makes the RPC client use the given RPC recorder.
+// WithRPCRecorder makes the RPC client report its requests and their responses to the given
+// recorder, if it is not nil. Subscriptions are not recorded.
 // Warning: this overwrites any previous recorder choice.
-func WithRPCRecorder(recorder rpc.Recorder) RPCOption {
+func WithRPCRecorder(recorder jsonrpc.Recorder) RPCOption {
 	return func(cfg *rpcConfig) {
-		cfg.gethRPCOptions = append(cfg.gethRPCOptions, rpc.WithRecorder(recorder))
+		cfg.recorder = recorder
 	}
 }
 
@@ -180,11 +183,23 @@ func CheckAndDial(ctx context.Context, log log.Logger, addr string, connectTimeo
 		log.Warn("failed to dial address, but may connect later", "addr", addr)
 		return nil, fmt.Errorf("address unavailable (%s)", addr)
 	}
-	client, err := rpc.DialOptions(ctx, addr, options...)
+	client, err := dialRPCWithOptions(ctx, addr, options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
 	}
 	return client, nil
+}
+
+// defaultWebsocketMessageSizeLimit is the websocket message size limit that dialRPCWithOptions
+// applies: 0, no limit, as over HTTP. Without it, geth's 32 MiB limit would apply. There should be
+// no limit: don't add one.
+const defaultWebsocketMessageSizeLimit = 0
+
+// dialRPCWithOptions dials addr with defaultWebsocketMessageSizeLimit. options can set a limit, since
+// they are applied after the default.
+func dialRPCWithOptions(ctx context.Context, addr string, options ...rpc.ClientOption) (*rpc.Client, error) {
+	options = append([]rpc.ClientOption{rpc.WithWebsocketMessageSizeLimit(defaultWebsocketMessageSizeLimit)}, options...)
+	return rpc.DialOptions(ctx, addr, options...)
 }
 
 func IsURLAvailable(ctx context.Context, address string, timeout time.Duration) bool {
@@ -231,6 +246,9 @@ func wrapClient(c *rpc.Client, cfg rpcConfig) RPC {
 	var wrapped RPC
 	wrapped = &BaseRPCClient{c: c, callTimeout: cfg.callTimeout, batchCallTimeout: cfg.batchCallTimeout}
 
+	if cfg.recorder != nil {
+		wrapped = newRecordingRPC(wrapped, cfg.recorder)
+	}
 	if cfg.limit != 0 {
 		wrapped = NewRateLimitingClient(wrapped, rate.Limit(cfg.limit), cfg.burst)
 	}

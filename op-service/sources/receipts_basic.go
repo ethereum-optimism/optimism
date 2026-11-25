@@ -5,14 +5,14 @@ import (
 	"io"
 	"sync"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type receiptsBatchCall = batching.IterativeBatchCall[common.Hash, *types.Receipt]
+type receiptsBatchCall = batching.IterativeBatchCall[common.Hash, *optypes.Receipt]
 
 type BasicRPCReceiptsFetcher struct {
 	client       rpcClient
@@ -33,7 +33,7 @@ func NewBasicRPCReceiptsFetcher(client rpcClient, maxBatchSize int) *BasicRPCRec
 
 // FetchReceipts fetches receipts for the given block and transaction hashes
 // it does not validate receipts, and expects the caller to do so
-func (f *BasicRPCReceiptsFetcher) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
+func (f *BasicRPCReceiptsFetcher) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (optypes.Receipts, error) {
 	block := eth.ToBlockID(blockInfo)
 	call := f.getOrCreateBatchCall(block.Hash, txHashes)
 
@@ -60,7 +60,7 @@ func (f *BasicRPCReceiptsFetcher) getOrCreateBatchCall(blockHash common.Hash, tx
 	if call, ok := f.calls[blockHash]; ok {
 		return call
 	}
-	call := batching.NewIterativeBatchCall[common.Hash, *types.Receipt](
+	call := batching.NewIterativeBatchCall[common.Hash, *optypes.Receipt](
 		txHashes,
 		makeReceiptRequest,
 		f.client.BatchCallContext,
@@ -77,8 +77,8 @@ func (f *BasicRPCReceiptsFetcher) deleteBatchCall(blockHash common.Hash) {
 	delete(f.calls, blockHash)
 }
 
-func makeReceiptRequest(txHash common.Hash) (*types.Receipt, rpc.BatchElem) {
-	out := new(types.Receipt)
+func makeReceiptRequest(txHash common.Hash) (*optypes.Receipt, rpc.BatchElem) {
+	out := new(optypes.Receipt)
 	return out, rpc.BatchElem{
 		Method: "eth_getTransactionReceipt",
 		Args:   []any{txHash},

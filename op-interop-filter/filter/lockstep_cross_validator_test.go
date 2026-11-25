@@ -5,13 +5,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-interop-filter/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+
+	"github.com/ethereum-optimism/optimism/op-core/interop"
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // Note: Test helpers (newTestCrossValidator, makeAccess, makeExecDescriptor) and
@@ -23,8 +26,8 @@ import (
 
 func TestCrossValidator_TimeoutExceedsExpiry(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(200)
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -38,9 +41,9 @@ func TestCrossValidator_TimeoutExceedsExpiry(t *testing.T) {
 	// 200 < 201, so should fail
 	exec := makeExecDescriptor(testChainA, 150, 51)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 	require.Contains(t, err.Error(), "expire before timeout")
 }
 
@@ -50,9 +53,9 @@ func TestCrossValidator_TimeoutExceedsExpiry(t *testing.T) {
 
 func TestCrossValidator_CrossUnsafe_Boundary(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
-	mock.AddLog(101, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
+	mock.AddLog(101, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(100)
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -66,14 +69,14 @@ func TestCrossValidator_CrossUnsafe_Boundary(t *testing.T) {
 	// At boundary: access at timestamp 100 == crossValidatedTs=100 should pass
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 150, 0)
-	err := cv.ValidateAccessEntry(access, types.CrossUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.CrossUnsafe, exec)
 	require.NoError(t, err)
 
 	// Beyond boundary: access at timestamp 101 > crossValidatedTs=100 should fail
 	access = makeAccess(testChainA, 101, 10, 0, checksum)
-	err = cv.ValidateAccessEntry(access, types.CrossUnsafe, exec)
+	err = cv.ValidateAccessEntry(access, safety.CrossUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrOutOfScope)
+	require.ErrorIs(t, err, interop.ErrOutOfScope)
 }
 
 // =============================================================================
@@ -82,8 +85,8 @@ func TestCrossValidator_CrossUnsafe_Boundary(t *testing.T) {
 
 func TestCrossValidator_KnownChain(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(200)
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -94,7 +97,7 @@ func TestCrossValidator_KnownChain(t *testing.T) {
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 150, 0)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.NoError(t, err)
 }
 
@@ -109,12 +112,12 @@ func TestCrossValidator_UnknownChain(t *testing.T) {
 
 	// Access from chain 902 which is not registered
 	unknownChainID := uint64(902)
-	access := makeAccess(unknownChainID, 100, 10, 0, types.MessageChecksum{0x01})
+	access := makeAccess(unknownChainID, 100, 10, 0, messages.MessageChecksum{0x01})
 	exec := makeExecDescriptor(testChainA, 150, 0)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrUnknownChain)
+	require.ErrorIs(t, err, interop.ErrUnknownChain)
 }
 
 func TestCrossValidator_InitiatingMessageNotFound(t *testing.T) {
@@ -128,12 +131,114 @@ func TestCrossValidator_InitiatingMessageNotFound(t *testing.T) {
 	cv := newTestCrossValidator(chains, testExpiryWindow, 100)
 
 	// Valid chain, valid timing, but log doesn't exist
-	access := makeAccess(testChainA, 100, 10, 0, types.MessageChecksum{0x01})
+	access := makeAccess(testChainA, 100, 10, 0, messages.MessageChecksum{0x01})
 	exec := makeExecDescriptor(testChainA, 150, 0)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
+}
+
+// TestCrossValidator_UsesSourceChainLagoonActivation checks the initiating message
+// against the activation of the chain that holds it. The source chain and the
+// destination chain activate Lagoon at different timestamps. A check against the
+// destination chain gives the wrong result in every subtest.
+func TestCrossValidator_UsesSourceChainLagoonActivation(t *testing.T) {
+	checksum := messages.MessageChecksum{0x01}
+	const (
+		preActivationTs  = uint64(102)
+		postActivationTs = uint64(104)
+		inclusionTs      = uint64(106)
+	)
+
+	// The source chain accepts initiating messages from postActivationTs onwards.
+	// The destination chain accepts none of the timestamps in this test.
+	newChains := func() (*mockChainIngester, *mockChainIngester, map[eth.ChainID]ChainIngester) {
+		source := newMockChainIngester()
+		source.SetFirstValidInitiatingTimestamp(postActivationTs)
+		source.AddLog(preActivationTs, 10, 0, checksum, messages.BlockSeal{})
+		source.AddLog(postActivationTs, 11, 0, checksum, messages.BlockSeal{})
+		source.SetLatestTimestamp(110)
+
+		destination := newMockChainIngester()
+		destination.SetFirstValidInitiatingTimestamp(1000)
+		destination.SetLatestTimestamp(110)
+
+		return source, destination, map[eth.ChainID]ChainIngester{
+			eth.ChainIDFromUInt64(testChainA): source,
+			eth.ChainIDFromUInt64(testChainB): destination,
+		}
+	}
+
+	addExecMsg := func(destination *mockChainIngester, initTs uint64, blockNum uint64) {
+		destination.AddExecMsg(IncludedMessage{
+			ExecutingMessage: &messages.ExecutingMessage{
+				ChainID:   eth.ChainIDFromUInt64(testChainA),
+				BlockNum:  blockNum,
+				LogIdx:    0,
+				Timestamp: initTs,
+				Checksum:  checksum,
+			},
+			InclusionBlockNum:  20,
+			InclusionTimestamp: inclusionTs,
+		})
+		destination.SetLatestTimestamp(110)
+	}
+
+	t.Run("access list rejects source message from the activation block", func(t *testing.T) {
+		_, _, chains := newChains()
+		cv := newTestCrossValidator(chains, testExpiryWindow, 105)
+
+		access := makeAccess(testChainA, preActivationTs, 10, 0, checksum)
+		exec := makeExecDescriptor(testChainB, inclusionTs, 0)
+
+		err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
+		require.ErrorIs(t, err, interop.ErrConflict)
+		require.ErrorContains(t, err, "Lagoon activation")
+		require.ErrorContains(t, err, eth.ChainIDFromUInt64(testChainA).String())
+	})
+
+	t.Run("access list accepts source message the destination chain predates", func(t *testing.T) {
+		_, _, chains := newChains()
+		cv := newTestCrossValidator(chains, testExpiryWindow, 105)
+
+		access := makeAccess(testChainA, postActivationTs, 11, 0, checksum)
+		exec := makeExecDescriptor(testChainB, inclusionTs, 0)
+
+		require.NoError(t, cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec))
+	})
+
+	t.Run("background validation rejects source message from the activation block", func(t *testing.T) {
+		_, destination, chains := newChains()
+		addExecMsg(destination, preActivationTs, 10)
+		cv := newTestCrossValidator(chains, testExpiryWindow, 105)
+
+		cv.advanceValidation() // Initialise at timestamp 105
+		cv.advanceValidation() // Validate the executing message included at timestamp 106
+
+		require.NotNil(t, cv.Error())
+		require.Contains(t, cv.Error().Message, "Lagoon activation")
+		require.Contains(t, cv.Error().Message, eth.ChainIDFromUInt64(testChainA).String())
+
+		ts, ok := cv.CrossValidatedTimestamp()
+		require.True(t, ok)
+		require.Equal(t, uint64(105), ts)
+	})
+
+	t.Run("background validation accepts source message the destination chain predates", func(t *testing.T) {
+		_, destination, chains := newChains()
+		addExecMsg(destination, postActivationTs, 11)
+		cv := newTestCrossValidator(chains, testExpiryWindow, 105)
+
+		cv.advanceValidation() // Initialise at timestamp 105
+		cv.advanceValidation() // Validate the executing message included at timestamp 106
+
+		require.Nil(t, cv.Error())
+
+		ts, ok := cv.CrossValidatedTimestamp()
+		require.True(t, ok)
+		require.Equal(t, uint64(110), ts)
+	})
 }
 
 // =============================================================================
@@ -145,20 +250,20 @@ func TestCrossValidator_ValidationFailureSetsError(t *testing.T) {
 	mockA := newMockChainIngester()
 	mockB := newMockChainIngester()
 
-	checksumA := types.MessageChecksum{0x01}
+	checksumA := messages.MessageChecksum{0x01}
 
 	// Add valid log on chain A
-	mockA.AddLog(100, 10, 0, checksumA, types.BlockSeal{})
+	mockA.AddLog(100, 10, 0, checksumA, messages.BlockSeal{})
 	mockA.SetLatestTimestamp(101)
 
 	// Add INVALID executing message on chain B that references a non-existent log
 	mockB.AddExecMsg(IncludedMessage{
-		ExecutingMessage: &types.ExecutingMessage{
+		ExecutingMessage: &messages.ExecutingMessage{
 			ChainID:   eth.ChainIDFromUInt64(testChainA), // References chain A
 			BlockNum:  999,                               // Non-existent block
 			LogIdx:    0,
-			Timestamp: 50,                          // Init timestamp
-			Checksum:  types.MessageChecksum{0xFF}, // Non-existent checksum
+			Timestamp: 50,                             // Init timestamp
+			Checksum:  messages.MessageChecksum{0xFF}, // Non-existent checksum
 		},
 		InclusionBlockNum:  11,
 		InclusionTimestamp: 101,
@@ -194,12 +299,12 @@ func TestCrossValidator_ValidationFailureSetsError(t *testing.T) {
 	// Update the invalid exec msg to have inclusionTimestamp=102
 	mockB.ClearExecMsgs()
 	mockB.AddExecMsg(IncludedMessage{
-		ExecutingMessage: &types.ExecutingMessage{
+		ExecutingMessage: &messages.ExecutingMessage{
 			ChainID:   eth.ChainIDFromUInt64(testChainA),
 			BlockNum:  999,
 			LogIdx:    0,
 			Timestamp: 50,
-			Checksum:  types.MessageChecksum{0xFF},
+			Checksum:  messages.MessageChecksum{0xFF},
 		},
 		InclusionBlockNum:  12,
 		InclusionTimestamp: 102,
@@ -252,8 +357,8 @@ func TestCrossValidator_StartTimestampZeroStillAdvances(t *testing.T) {
 
 func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(100) // Only ingested up to 100
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -265,9 +370,9 @@ func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 	access := makeAccess(testChainA, 150, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 200, 0)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrOutOfScope)
+	require.ErrorIs(t, err, interop.ErrOutOfScope)
 	require.Contains(t, err.Error(), "not yet ingested")
 }
 
@@ -277,8 +382,8 @@ func TestValidateAccessEntry_TimestampNotIngested(t *testing.T) {
 
 func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(200)
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -290,16 +395,16 @@ func TestValidateExecMsg_InitBeforeInclusion(t *testing.T) {
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 100, 0) // Same as init timestamp
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 	require.Contains(t, err.Error(), "not before inclusion")
 }
 
 func TestValidateExecMsg_MessageExpired(t *testing.T) {
 	mock := newMockChainIngester()
-	checksum := types.MessageChecksum{0x01}
-	mock.AddLog(100, 10, 0, checksum, types.BlockSeal{})
+	checksum := messages.MessageChecksum{0x01}
+	mock.AddLog(100, 10, 0, checksum, messages.BlockSeal{})
 	mock.SetLatestTimestamp(300)
 
 	chains := map[eth.ChainID]ChainIngester{
@@ -312,9 +417,9 @@ func TestValidateExecMsg_MessageExpired(t *testing.T) {
 	access := makeAccess(testChainA, 100, 10, 0, checksum)
 	exec := makeExecDescriptor(testChainA, 250, 0)
 
-	err := cv.ValidateAccessEntry(access, types.LocalUnsafe, exec)
+	err := cv.ValidateAccessEntry(access, safety.LocalUnsafe, exec)
 	require.Error(t, err)
-	require.ErrorIs(t, err, types.ErrConflict)
+	require.ErrorIs(t, err, interop.ErrConflict)
 	require.Contains(t, err.Error(), "expired")
 }
 
@@ -482,14 +587,13 @@ func TestValidateMessageTiming(t *testing.T) {
 			errContains:         "not before inclusion",
 		},
 		{
-			name:                "invalid: overflow in expiry calculation",
+			name:                "valid: timestamps near max uint64",
 			initTimestamp:       ^uint64(0) - 10, // near max uint64
 			inclusionTimestamp:  ^uint64(0),
-			messageExpiryWindow: 100, // will overflow
+			messageExpiryWindow: 100, // age is 10, well inside the window
 			timeout:             0,
 			execTimestamp:       0,
-			wantErr:             true,
-			errContains:         "overflow in expiry calculation",
+			wantErr:             false,
 		},
 		{
 			name:                "invalid: message expired at inclusion",
@@ -502,14 +606,14 @@ func TestValidateMessageTiming(t *testing.T) {
 			errContains:         "expired",
 		},
 		{
-			name:                "invalid: timeout overflow",
+			name:                "invalid: already past the window at execution",
 			initTimestamp:       100,
 			inclusionTimestamp:  150,
 			messageExpiryWindow: 100,
 			timeout:             ^uint64(0),      // max uint64
-			execTimestamp:       ^uint64(0) - 10, // will overflow when added to timeout
+			execTimestamp:       ^uint64(0) - 10, // age at execution already past the window
 			wantErr:             true,
-			errContains:         "overflow in max exec timestamp",
+			errContains:         "expire before timeout",
 		},
 		{
 			name:                "invalid: expires before timeout deadline",
@@ -530,11 +634,42 @@ func TestValidateMessageTiming(t *testing.T) {
 			execTimestamp:       150, // 200 >= 200, valid (equal is ok)
 			wantErr:             false,
 		},
+		{
+			name:                "valid: timestamps near max uint64 with timeout",
+			initTimestamp:       ^uint64(0) - 5,
+			inclusionTimestamp:  ^uint64(0),
+			messageExpiryWindow: 100,
+			timeout:             10, // fits in the remaining lifetime
+			execTimestamp:       ^uint64(0) - 5,
+			wantErr:             false,
+		},
+		{
+			name:                "invalid: one second past the expiry window",
+			initTimestamp:       100,
+			inclusionTimestamp:  201,
+			messageExpiryWindow: 100,
+			timeout:             0,
+			execTimestamp:       0,
+			wantErr:             true,
+			errContains:         "expired",
+		},
+		{
+			name:                "invalid: exec timestamp before initiating message",
+			initTimestamp:       100,
+			inclusionTimestamp:  150,
+			messageExpiryWindow: 100,
+			timeout:             50,
+			execTimestamp:       99,
+			wantErr:             true,
+			errContains:         "before initiating message timestamp",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateMessageTiming(
+				newMockChainIngester(),
+				eth.ChainIDFromUInt64(testChainA),
 				tt.initTimestamp,
 				tt.inclusionTimestamp,
 				tt.messageExpiryWindow,
@@ -544,7 +679,7 @@ func TestValidateMessageTiming(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.errContains)
-				require.ErrorIs(t, err, types.ErrConflict)
+				require.ErrorIs(t, err, interop.ErrConflict)
 			} else {
 				require.NoError(t, err)
 			}

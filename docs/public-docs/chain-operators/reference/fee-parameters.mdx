@@ -1,0 +1,108 @@
+---
+title: Fee parameters
+description: Reference for the fee-related SystemConfig parameters on an OP Stack chain — what each parameter controls, its setter and getter, and the OP Mainnet values.
+diataxis: reference
+---
+
+This page catalogues the fee-related parameters a chain operator can set on the `SystemConfig` contract, from the Jovian hardfork onward.
+For how fees are calculated and charged, see [transaction fees on OP Mainnet](https://docs.optimism.io/op-stack/transactions/fees#transaction-fees-on-op-mainnet).
+For when and how to adjust these parameters, see the [fee tuning guide](/chain-operators/guides/management/transaction-fees-101).
+
+<Info>
+Only the [SystemConfig owner](/op-stack/protocol/privileged-roles) can call the setter methods listed below.
+</Info>
+
+## Fee formulas
+
+On an OP Stack chain a transaction's **Total Fee** is made of three main components:
+
+`Total Fee = L2 Fee + L1 Fee + Operator Fee`
+
+| Component | Formula |
+| --- | --- |
+| L2 fee | `gasUsed * (baseFee + priorityFee)` |
+| L1 fee | `estimatedSizeScaled * l1FeeScaled / 1e12` (see below) |
+| Operator fee | `(gasUsed * operatorFeeScalar * 100) + operatorFeeConstant` |
+
+The L1 fee charges for posting L2 data to L1, based on the transaction's estimated compressed (FastLZ) size:
+
+```ts
+l1FeeScaled =
+  baseFeeScalar * 16 * l1BaseFee +
+  blobBaseFeeScalar * l1BlobBaseFee
+
+estimatedSizeScaled =
+  max(
+    minTransactionSize * 1e6,
+    intercept + fastlzCoef * fastlzSize
+  )
+
+l1Fee = estimatedSizeScaled * l1FeeScaled / 1e12
+```
+
+<Info>
+**Pre-Jovian (Isthmus) operator fee formula:** `operatorFee = (gasUsed * operatorFeeScalar / 1e6) + operatorFeeConstant`
+</Info>
+
+## Parameters
+
+All parameters live on the `SystemConfig` contract on L1 (see the [`ISystemConfig` interface](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L1/ISystemConfig.sol)).
+Each getter below is a `view` method with the same name as the parameter.
+
+| Parameter | Type | What it controls | Setter | OP Mainnet value |
+| --- | --- | --- | --- | --- |
+| `eip1559Denominator` | `uint32` | EIP-1559 max-change denominator: appears in the denominator of the per-block base fee delta. Lower = faster base fee response, more volatility. | `setEIP1559Params(uint32,uint32)` | `250` |
+| `eip1559Elasticity` | `uint32` | Elasticity multiplier: sets the gas target relative to the gas limit (`gas_target = gasLimit / elasticity`). Larger elasticity = smaller target, so base fee increases sooner under load. | `setEIP1559Params(uint32,uint32)` | `2` |
+| `gasLimit` | `uint64` | Maximum gas per block. Lower limit = less supply per block, making base fees more sensitive to demand. | `setGasLimit(uint64)` | `40,000,000` |
+| `minBaseFee` | `uint64` | Minimum floor on the base fee, in wei (can be 0). See [setting the minimum base fee](/chain-operators/guides/features/setting-min-base-fee). | `setMinBaseFee(uint64)` | `0` |
+| `basefeeScalar` | `uint32` | Scales the `l1BaseFee` (per-byte) contribution to the L1 data fee. | `setGasConfigEcotone(uint32,uint32)` | `5227` |
+| `blobbasefeeScalar` | `uint32` | Scales the `l1BlobBaseFee` (per-blob) contribution to the L1 data fee. | `setGasConfigEcotone(uint32,uint32)` | `1014213` |
+| `operatorFeeScalar` | `uint32` | Per-gas operator margin. See [setting the operator fee](/chain-operators/guides/features/setting-operator-fee). | `setOperatorFeeScalars(uint32,uint64)` | `0` |
+| `operatorFeeConstant` | `uint64` | Flat per-transaction operator fee, in wei. | `setOperatorFeeScalars(uint32,uint64)` | `0` |
+| `daFootprintGasScalar` | `uint16` | Scales estimated DA usage to the gas dimension to limit DA-heavy blocks. See [how the DA footprint block limit works](/chain-operators/reference/da-footprint). | `setDAFootprintGasScalar(uint16)` | `0` (treated as `400`) |
+
+<Warning>
+- Any non-zero operator fee makes the chain configuration [non-standard](/op-stack/protocol/superchain-registry#what-is-a-standard-chain).
+- A `daFootprintGasScalar` of `0` is treated as the default of `400`; set it to `1` to effectively disable the DA footprint limit.
+</Warning>
+
+The OP Mainnet values can be verified against the [OP Mainnet SystemConfig contract on Etherscan](https://etherscan.io/address/0x229047fed2591dbec1eF1118d64F7aF3dB9EB290#readProxyContract).
+
+## Fee vault recipients
+
+Fees are gathered in dedicated contract [fee vaults](/op-stack/transactions/fee-vaults). See the [fee vault operations guide](/chain-operators/guides/management/fee-vaults) for how to manage and withdraw from these vaults.
+
+| Fee component | Recipient vault |
+| --- | --- |
+| `baseFee` | `BaseFeeVault` |
+| `priorityFee` | `SequencerFeeVault` |
+| `l1Fee` | `L1FeeVault` |
+| `operatorFee` | `OperatorFeeVault` |
+
+## Reading current values
+
+Each parameter has a getter with the same name on the `SystemConfig` contract:
+
+```bash
+export L1_RPC=<L1_RPC>
+export SYSTEM_CONFIG=<SYSTEM_CONFIG_ADDRESS>
+
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "eip1559Denominator()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "eip1559Elasticity()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "gasLimit()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "minBaseFee()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "basefeeScalar()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "blobbasefeeScalar()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "operatorFeeScalar()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "operatorFeeConstant()"
+cast call --rpc-url $L1_RPC $SYSTEM_CONFIG "daFootprintGasScalar()"
+```
+
+## References
+
+- [Transaction fees on OP Mainnet](https://docs.optimism.io/op-stack/transactions/fees#transaction-fees-on-op-mainnet)
+- [Operator fee](https://docs.optimism.io/op-stack/transactions/fees#operator-fee)
+- [L1 data fee](https://docs.optimism.io/op-stack/transactions/fees#l1-data-fee)
+- [`ISystemConfig` interface](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/interfaces/L1/ISystemConfig.sol)
+- [DA footprint](https://docs.optimism.io/notices/archive/upgrade-17#block-header-changes)
+- [EIP-1559 parameters](https://docs.optimism.io/op-stack/protocol/differences#eip-1559-parameters)

@@ -4,13 +4,14 @@ pragma solidity 0.8.15;
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Features } from "src/libraries/Features.sol";
-import { GameType, GameTypes, Claim } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Claim, Proposal } from "src/dispute/lib/Types.sol";
 import { LibGameArgs } from "src/dispute/lib/LibGameArgs.sol";
 
 // Interfaces
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -24,7 +25,10 @@ import {
     DisputeGameImplementation,
     DisputeGameValidationArgs,
     DisputeGameImpls,
-    DisputeGameConfig
+    DisputeGameConfig,
+    SuperPermissionedDisputeGameImplementation,
+    SuperPermissionedDisputeGameImpls,
+    SuperPermissionedDisputeGameValidationArgs
 } from "src/L1/opcm/StandardValidatorUtils.sol";
 import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPContractsManagerMigrationValidator.sol";
 
@@ -33,7 +37,7 @@ import { IOPContractsManagerMigrationValidator } from "interfaces/L1/opcm/IOPCon
 ///         OPContractsManagerStandardValidator due to EIP-170 contract size limits.
 ///         This validator checks migration-specific state: shared DGF game type registration,
 ///         shared DGF proxy/impl/owner, super game parameters (delegated to StandardValidatorUtils
-///         for full drill-down validation including WETH, ASR, MIPS, PreimageOracle), shared
+///         for game-specific validation), shared
 ///         lockbox proxy/impl, per-chain portal ASR migration, per-chain DGF clearing, and
 ///         lockbox authorization.
 contract OPContractsManagerMigrationValidator {
@@ -45,15 +49,22 @@ contract OPContractsManagerMigrationValidator {
         IETHLockbox lockbox;
     }
 
-    /// @notice Parameters for a single super game type validation.
-    struct SuperGameParams {
+    /// @notice Parameters for shared super permissioned dispute game validation.
+    struct SuperPermissionedGameParams {
+        IDisputeGameFactory dgf;
+        ISystemConfig sysCfg;
+        IProxyAdmin proxyAdmin;
+        address proposer;
+        string prefix;
+        address expectedGameImpl;
+    }
+
+    /// @notice Parameters for shared super permissionless dispute game validation.
+    struct SuperPermissionlessGameParams {
         IDisputeGameFactory dgf;
         ISystemConfig sysCfg;
         IProxyAdmin proxyAdmin;
         bytes32 expectedPrestate;
-        bool isPermissioned;
-        address proposer;
-        address challenger;
         string prefix;
         address discoveredWeth;
         address expectedGameImpl;
@@ -74,8 +85,7 @@ contract OPContractsManagerMigrationValidator {
             _input,
             _allowFailure,
             IOPContractsManagerStandardValidator.ValidationOverrides({
-                l1PAOMultisig: address(0),
-                challenger: address(0)
+                l1PAOMultisig: address(0), challenger: address(0)
             }),
             _impls,
             _cfg
@@ -98,9 +108,6 @@ contract OPContractsManagerMigrationValidator {
         if (_overrides.l1PAOMultisig != address(0)) {
             _cfg.l1PAOMultisig = _overrides.l1PAOMultisig;
         }
-        if (_overrides.challenger != address(0)) {
-            _cfg.challenger = _overrides.challenger;
-        }
 
         string memory _errors = "";
 
@@ -120,40 +127,36 @@ contract OPContractsManagerMigrationValidator {
                 "MIG-SASR-RGT",
                 _errors
             );
+            _errors = assertValidAnchorStateIntent(_errors, IAnchorStateRegistry(_sharedContracts.asr), _input);
+            _errors = assertExpectedSharedContracts(_errors, _input, _sharedContracts);
         }
+
+        _errors = assertValidInitBonds(_errors, _input.dgf, _input.expectedInitBonds);
 
         ISystemConfig firstCfg =
             _input.chainSystemConfigs.length > 0 ? _input.chainSystemConfigs[0] : ISystemConfig(address(0));
 
-        // Super game checks. Always run — `assertValidSharedSuperGame` handles missing
+        // Super game checks. Always run — the validators handle missing
         // impls/args internally so a partially-broken setup still surfaces all errors.
-        _errors = assertValidSharedSuperGame(
+        _errors = assertValidSharedSuperPermissionedGame(
             _errors,
-            SuperGameParams({
+            SuperPermissionedGameParams({
                 dgf: _input.dgf,
                 sysCfg: firstCfg,
                 proxyAdmin: _sharedContracts.proxyAdmin,
-                expectedPrestate: _input.cannonPrestate,
-                isPermissioned: true,
                 proposer: _input.proposer,
-                challenger: _cfg.challenger,
                 prefix: "MIG-SPDG",
-                discoveredWeth: _sharedContracts.weth,
                 expectedGameImpl: _impls.superPermissionedDisputeGameImpl
             }),
-            _impls,
-            _cfg
+            _impls
         );
-        _errors = assertValidSharedSuperGame(
+        _errors = assertValidSharedSuperPermissionlessGame(
             _errors,
-            SuperGameParams({
+            SuperPermissionlessGameParams({
                 dgf: _input.dgf,
                 sysCfg: firstCfg,
                 proxyAdmin: _sharedContracts.proxyAdmin,
                 expectedPrestate: _input.cannonKonaPrestate,
-                isPermissioned: false,
-                proposer: address(0),
-                challenger: address(0),
                 prefix: "MIG-SCKDG",
                 discoveredWeth: _sharedContracts.weth,
                 expectedGameImpl: _impls.superFaultDisputeGameImpl
@@ -162,13 +165,15 @@ contract OPContractsManagerMigrationValidator {
             _cfg
         );
 
-        // Shared lockbox proxy/impl/admin (only if discovery surfaced one).
+        // Shared ETHLockbox invariants.
         if (_foundSharedContracts && address(_sharedContracts.lockbox) != address(0)) {
-            _errors = assertValidSharedLockbox(_errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, _impls);
+            _errors = assertValidSharedLockbox(
+                _errors, _sharedContracts.lockbox, _sharedContracts.proxyAdmin, _cfg.superchainConfig, _impls
+            );
         }
 
         // Per-chain invariants (portal points at shared ASR/lockbox, legacy game types cleared).
-        _errors = assertValidPerChainMigration(_errors, _input.chainSystemConfigs);
+        _errors = assertValidPerChainMigration(_errors, _input, _input.chainSystemConfigs, _cfg.superchainConfig);
 
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("OPContractsManagerMigrationValidator: ", _errors));
@@ -203,7 +208,7 @@ contract OPContractsManagerMigrationValidator {
     }
 
     /// @notice Validates the shape of the shared DGF — correct game types registered/unregistered.
-    ///         Post-migration interop requires SUPER_PERMISSIONED_CANNON and SUPER_CANNON_KONA
+    ///         Post-migration interop requires SUPER_PERMISSIONED and SUPER_CANNON_KONA
     ///         registered; all legacy game types (CANNON, PERMISSIONED_CANNON, CANNON_KONA,
     ///         SUPER_CANNON) unregistered.
     function assertValidSharedDGFShape(
@@ -214,14 +219,14 @@ contract OPContractsManagerMigrationValidator {
         view
         returns (string memory)
     {
-        _errors = internalRequire(
-            address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) != address(0), "MIG-DGF-10", _errors
-        );
+        _errors =
+            internalRequire(address(_dgf.gameImpls(GameTypes.SUPER_PERMISSIONED)) != address(0), "MIG-DGF-10", _errors);
         _errors =
             internalRequire(address(_dgf.gameImpls(GameTypes.SUPER_CANNON_KONA)) != address(0), "MIG-DGF-20", _errors);
         _errors = internalRequire(address(_dgf.gameImpls(GameTypes.CANNON)) == address(0), "MIG-DGF-30", _errors);
-        _errors =
-            internalRequire(address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "MIG-DGF-40", _errors);
+        _errors = internalRequire(
+            address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "MIG-DGF-40", _errors
+        );
         _errors = internalRequire(address(_dgf.gameImpls(GameTypes.CANNON_KONA)) == address(0), "MIG-DGF-50", _errors);
         _errors = internalRequire(address(_dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "MIG-DGF-60", _errors);
         return _errors;
@@ -254,12 +259,40 @@ contract OPContractsManagerMigrationValidator {
         return _errors;
     }
 
-    /// @notice Validates a single super game type by decoding its game args, performing
-    ///         migration-unique cross-checks, and delegating the remainder to
-    ///         `standardValidatorUtils.assertValidDisputeGame`.
-    function assertValidSharedSuperGame(
+    /// @notice Validates the shared super permissioned dispute game.
+    function assertValidSharedSuperPermissionedGame(
         string memory _errors,
-        SuperGameParams memory _p,
+        SuperPermissionedGameParams memory _p,
+        IOPContractsManagerMigrationValidator.SharedImplementations memory _impls
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        // If game impl is address(0), skip — already caught by shape checks.
+        address gameImplAddr = address(_p.dgf.gameImpls(GameTypes.SUPER_PERMISSIONED));
+        if (gameImplAddr == address(0)) return _errors;
+
+        bytes memory gameArgsBytes = _p.dgf.gameArgs(GameTypes.SUPER_PERMISSIONED);
+        bool argsOk = LibGameArgs.isValidSuperPermissionedArgs(gameArgsBytes);
+        _errors = internalRequire(argsOk, string.concat(_p.prefix, "-GARGS-10"), _errors);
+        if (!argsOk) return _errors;
+
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs = LibGameArgs.decodeSuperPermissioned(gameArgsBytes);
+
+        // Delegate full fault dispute game validation (impls, drill-downs) to the shared utility.
+        // Skip when we have no sysCfg (empty chain list) — nothing meaningful to validate against.
+        if (address(_p.sysCfg) != address(0)) {
+            _errors = _delegateSuperPermissionedGameValidation(_errors, _p, gameImplAddr, gameArgs, _impls);
+        }
+
+        return _errors;
+    }
+
+    /// @notice Validates the shared super permissionless dispute game.
+    function assertValidSharedSuperPermissionlessGame(
+        string memory _errors,
+        SuperPermissionlessGameParams memory _p,
         IOPContractsManagerMigrationValidator.SharedImplementations memory _impls,
         IOPContractsManagerMigrationValidator.SharedConfig memory _cfg
     )
@@ -267,23 +300,16 @@ contract OPContractsManagerMigrationValidator {
         view
         returns (string memory)
     {
-        GameType gameType = _p.isPermissioned ? GameTypes.SUPER_PERMISSIONED_CANNON : GameTypes.SUPER_CANNON_KONA;
-
         // If game impl is address(0), skip — already caught by shape checks.
-        address gameImplAddr = address(_p.dgf.gameImpls(gameType));
+        address gameImplAddr = address(_p.dgf.gameImpls(GameTypes.SUPER_CANNON_KONA));
         if (gameImplAddr == address(0)) return _errors;
 
-        // Validate game args length and decode.
-        LibGameArgs.GameArgs memory gameArgs;
-        {
-            bytes memory gameArgsBytes = _p.dgf.gameArgs(gameType);
-            bool argsOk = _p.isPermissioned
-                ? LibGameArgs.isValidPermissionedArgs(gameArgsBytes)
-                : LibGameArgs.isValidPermissionlessArgs(gameArgsBytes);
-            _errors = internalRequire(argsOk, string.concat(_p.prefix, "-GARGS-10"), _errors);
-            if (!argsOk) return _errors;
-            gameArgs = LibGameArgs.decode(gameArgsBytes);
-        }
+        bytes memory gameArgsBytes = _p.dgf.gameArgs(GameTypes.SUPER_CANNON_KONA);
+        bool argsOk = LibGameArgs.isValidPermissionlessArgs(gameArgsBytes);
+        _errors = internalRequire(argsOk, string.concat(_p.prefix, "-GARGS-10"), _errors);
+        if (!argsOk) return _errors;
+
+        LibGameArgs.GameArgs memory gameArgs = LibGameArgs.decode(gameArgsBytes);
 
         // Migration-unique cross-check: super game's weth must match the first chain's weth.
         if (_p.discoveredWeth != address(0)) {
@@ -291,26 +317,51 @@ contract OPContractsManagerMigrationValidator {
                 internalRequire(gameArgs.weth == _p.discoveredWeth, string.concat(_p.prefix, "-GARGS-30"), _errors);
         }
 
-        // Delegate full dispute game validation (impls, drill-downs) to the shared utility.
+        // Delegate full fault dispute game validation (impls, drill-downs) to the shared utility.
         // Skip when we have no sysCfg (empty chain list) — nothing meaningful to validate against.
         if (address(_p.sysCfg) != address(0)) {
-            _errors = _delegateSuperGameValidation(_errors, _p, gameType, gameImplAddr, gameArgs, _impls, _cfg);
-        }
-
-        // Permissioned-only: proposer/challenger checks.
-        if (_p.isPermissioned) {
-            _errors = internalRequire(gameArgs.challenger == _p.challenger, string.concat(_p.prefix, "-130"), _errors);
-            _errors = internalRequire(gameArgs.proposer == _p.proposer, string.concat(_p.prefix, "-140"), _errors);
+            _errors = _delegateSuperPermissionlessGameValidation(_errors, _p, gameImplAddr, gameArgs, _impls, _cfg);
         }
 
         return _errors;
     }
 
-    /// @notice Builds the struct payloads and calls `standardValidatorUtils.assertValidDisputeGame`.
-    function _delegateSuperGameValidation(
+    /// @notice Calls the simplified super permissioned dispute game validator.
+    function _delegateSuperPermissionedGameValidation(
         string memory _errors,
-        SuperGameParams memory _p,
-        GameType _gameType,
+        SuperPermissionedGameParams memory _p,
+        address _gameImplAddr,
+        LibGameArgs.SuperPermissionedGameArgs memory _gameArgs,
+        IOPContractsManagerMigrationValidator.SharedImplementations memory _impls
+    )
+        private
+        view
+        returns (string memory)
+    {
+        return _impls.standardValidatorUtils
+            .assertValidSuperPermissionedDisputeGame(
+                SuperPermissionedDisputeGameValidationArgs({
+                    errors: _errors,
+                    sysCfg: _p.sysCfg,
+                    game: SuperPermissionedDisputeGameImplementation({
+                        gameAddress: _gameImplAddr,
+                        asr: IAnchorStateRegistry(_gameArgs.anchorStateRegistry),
+                        proposer: _gameArgs.proposer
+                    }),
+                    admin: _p.proxyAdmin,
+                    expectedProposer: _p.proposer,
+                    errorPrefix: _p.prefix
+                }),
+                SuperPermissionedDisputeGameImpls({
+                    expectedGameImpl: _p.expectedGameImpl, anchorStateRegistryImpl: _impls.anchorStateRegistryImpl
+                })
+            );
+    }
+
+    /// @notice Builds the struct payloads and calls `standardValidatorUtils.assertValidDisputeGame`.
+    function _delegateSuperPermissionlessGameValidation(
+        string memory _errors,
+        SuperPermissionlessGameParams memory _p,
         address _gameImplAddr,
         LibGameArgs.GameArgs memory _gameArgs,
         IOPContractsManagerMigrationValidator.SharedImplementations memory _impls,
@@ -320,25 +371,26 @@ contract OPContractsManagerMigrationValidator {
         view
         returns (string memory)
     {
-        return _impls.standardValidatorUtils.assertValidDisputeGame(
-            DisputeGameValidationArgs({
-                errors: _errors,
-                sysCfg: _p.sysCfg,
-                game: _readSharedSuperGameImpl(_gameType, _gameImplAddr, _gameArgs),
-                absolutePrestate: _p.expectedPrestate,
-                l2ChainID: 0,
-                admin: _p.proxyAdmin,
-                gameType: _gameType,
-                errorPrefix: _p.prefix
-            }),
-            DisputeGameImpls({
-                expectedGameImpl: _p.expectedGameImpl,
-                mipsImpl: _impls.mipsImpl,
-                delayedWETHImpl: _impls.delayedWETHImpl,
-                anchorStateRegistryImpl: _impls.anchorStateRegistryImpl
-            }),
-            DisputeGameConfig({ l1PAOMultisig: _cfg.l1PAOMultisig, withdrawalDelaySeconds: _cfg.withdrawalDelaySeconds })
-        );
+        return _impls.standardValidatorUtils
+            .assertValidDisputeGame(
+                DisputeGameValidationArgs({
+                    errors: _errors,
+                    sysCfg: _p.sysCfg,
+                    game: _readSharedSuperGameImpl(GameTypes.SUPER_CANNON_KONA, _gameImplAddr, _gameArgs),
+                    absolutePrestate: _p.expectedPrestate,
+                    l2ChainID: 0,
+                    admin: _p.proxyAdmin,
+                    gameType: GameTypes.SUPER_CANNON_KONA,
+                    errorPrefix: _p.prefix
+                }),
+                DisputeGameImpls({
+                    expectedGameImpl: _p.expectedGameImpl,
+                    mipsImpl: _impls.mipsImpl,
+                    delayedWETHImpl: _impls.delayedWETHImpl,
+                    anchorStateRegistryImpl: _impls.anchorStateRegistryImpl
+                }),
+                DisputeGameConfig({ l1PAOMultisig: _cfg.l1PAOMultisig })
+            );
     }
 
     /// @notice Reads the on-chain fields of a super game impl into a `DisputeGameImplementation`.
@@ -370,11 +422,13 @@ contract OPContractsManagerMigrationValidator {
         });
     }
 
-    /// @notice Validates the shared ETHLockbox: version, proxy impl, ProxyAdmin.
+    /// @notice Validates the shared ETHLockbox: version, proxy impl, ProxyAdmin, and that its pause
+    ///         authority is the expected SuperchainConfig.
     function assertValidSharedLockbox(
         string memory _errors,
         IETHLockbox _lockbox,
         IProxyAdmin _proxyAdmin,
+        ISuperchainConfig _superchainConfig,
         IOPContractsManagerMigrationValidator.SharedImplementations memory _impls
     )
         internal
@@ -394,13 +448,19 @@ contract OPContractsManagerMigrationValidator {
             "MIG-SLOCKBOX-30",
             _errors
         );
+        _errors = internalRequire(
+            address(_lockbox.superchainConfig()) == address(_superchainConfig), "MIG-SLOCKBOX-40", _errors
+        );
         return _errors;
     }
 
-    /// @notice Validates per-chain migration state: portal ASR, per-chain DGF cleared, lockbox auth.
+    /// @notice Validates per-chain migration state: portal ASR, per-chain DGF cleared, lockbox auth,
+    ///         and that every chain's SystemConfig points at the expected SuperchainConfig.
     function assertValidPerChainMigration(
         string memory _errors,
-        ISystemConfig[] memory _chainSystemConfigs
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
+        ISystemConfig[] memory _chainSystemConfigs,
+        ISuperchainConfig _superchainConfig
     )
         internal
         view
@@ -410,11 +470,18 @@ contract OPContractsManagerMigrationValidator {
             return internalRequire(false, "MIG-CHAIN-EMPTY", _errors);
         }
 
+        // An interop set needs at least two chains. Report it and keep checking the one chain.
+        _errors = internalRequire(_chainSystemConfigs.length != 1, "MIG-CHAIN-SINGLE", _errors);
+
+        if (_chainSystemConfigs.length != _input.legacyChainContracts.length) {
+            return internalRequire(false, "MIG-CHAIN-LEGACY-MISMATCH", _errors);
+        }
+
         // Derive shared ASR, DGF, and lockbox from first chain.
         IOptimismPortal2 firstPortal = IOptimismPortal2(payable(_chainSystemConfigs[0].optimismPortal()));
         address sharedASR = address(firstPortal.anchorStateRegistry());
         IETHLockbox sharedLockbox = firstPortal.ethLockbox();
-        IDisputeGameFactory sharedDGF = IDisputeGameFactory(_chainSystemConfigs[0].disputeGameFactory());
+        address sharedWETH = _chainSystemConfigs[0].delayedWETH();
 
         // Guard against missing lockbox — would revert on authorizedPortals call.
         if (address(sharedLockbox) == address(0)) {
@@ -430,39 +497,7 @@ contract OPContractsManagerMigrationValidator {
                 address(portal.anchorStateRegistry()) == sharedASR, string.concat("MIG-CHAIN-", idx, "-10"), _errors
             );
 
-            IDisputeGameFactory perChainDGF = IDisputeGameFactory(_chainSystemConfigs[i].disputeGameFactory());
-            if (address(perChainDGF) != address(sharedDGF)) {
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.CANNON)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-20"),
-                    _errors
-                );
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-30"),
-                    _errors
-                );
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.CANNON_KONA)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-40"),
-                    _errors
-                );
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.SUPER_CANNON)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-50"),
-                    _errors
-                );
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-60"),
-                    _errors
-                );
-                _errors = internalRequire(
-                    address(perChainDGF.gameImpls(GameTypes.SUPER_CANNON_KONA)) == address(0),
-                    string.concat("MIG-CHAIN-", idx, "-70"),
-                    _errors
-                );
-            }
+            _errors = assertLegacyGamesCleared(_errors, _input.legacyChainContracts[i].disputeGameFactory, idx);
 
             _errors = internalRequire(
                 sharedLockbox.authorizedPortals(portal), string.concat("MIG-CHAIN-", idx, "-80"), _errors
@@ -482,9 +517,239 @@ contract OPContractsManagerMigrationValidator {
                 string.concat("MIG-CHAIN-", idx, "-110"),
                 _errors
             );
+
+            _errors = internalRequire(
+                _chainSystemConfigs[i].delayedWETH() == sharedWETH, string.concat("MIG-CHAIN-", idx, "-120"), _errors
+            );
+            _errors = internalRequire(
+                _chainSystemConfigs[i].superchainConfig() == _superchainConfig,
+                string.concat("MIG-CHAIN-", idx, "-130"),
+                _errors
+            );
+
+            _errors = assertRetiredContractsClean(_errors, _input, i, sharedLockbox, idx, _superchainConfig);
+            _errors = assertLegacyPauseRouting(_errors, _input, i, sharedLockbox, idx);
         }
 
         return _errors;
+    }
+
+    /// @notice Asserts that migration left single chain's retired contracts empty and unpaused.
+    /// @param _errors The accumulated error string.
+    /// @param _input The validation input.
+    /// @param _i The chain's index.
+    /// @param _sharedLockbox The shared lockbox, which is never treated as retired.
+    /// @param _idx The chain's index as a string, used to build the error codes.
+    /// @param _superchainConfig The expected SuperchainConfig, which holds the pause authority.
+    /// @return The accumulated error string.
+    function assertRetiredContractsClean(
+        string memory _errors,
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
+        uint256 _i,
+        IETHLockbox _sharedLockbox,
+        string memory _idx,
+        ISuperchainConfig _superchainConfig
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IOptimismPortal2 portal = IOptimismPortal2(payable(_input.chainSystemConfigs[_i].optimismPortal()));
+        IETHLockbox legacyLockbox = _input.legacyChainContracts[_i].ethLockbox;
+
+        _errors = internalRequire(address(portal).balance == 0, string.concat("MIG-CHAIN-", _idx, "-150"), _errors);
+
+        // A chain that never had its own lockbox, or one that kept the shared lockbox, retires
+        // nothing here.
+        bool hasRetiredLockbox = address(legacyLockbox) != address(0) && legacyLockbox != _sharedLockbox;
+        if (hasRetiredLockbox) {
+            _errors = internalRequire(
+                address(legacyLockbox).balance == 0, string.concat("MIG-CHAIN-", _idx, "-160"), _errors
+            );
+        }
+        _errors = internalRequire(
+            !_superchainConfig.paused(address(portal)), string.concat("MIG-CHAIN-", _idx, "-170"), _errors
+        );
+        if (hasRetiredLockbox) {
+            _errors = internalRequire(
+                !_superchainConfig.paused(address(legacyLockbox)), string.concat("MIG-CHAIN-", _idx, "-180"), _errors
+            );
+        }
+        return _errors;
+    }
+
+    /// @notice Asserts the shared contracts are the ones the migration was meant to
+    ///         produce, and that the factory the caller asked us to inspect is the one the
+    ///         migrated portals actually route to.
+    /// @param _errors The accumulated error string.
+    /// @param _input The validation input.
+    /// @param _shared The shared contracts discovered from chain 0.
+    /// @return The accumulated error string.
+    function assertExpectedSharedContracts(
+        string memory _errors,
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
+        SharedContracts memory _shared
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errors = internalRequire(
+            _shared.asr == address(_input.expectedShared.anchorStateRegistry), "MIG-SHARED-10", _errors
+        );
+        _errors = internalRequire(
+            address(_shared.lockbox) == address(_input.expectedShared.ethLockbox), "MIG-SHARED-20", _errors
+        );
+        _errors = internalRequire(_shared.weth == _input.expectedShared.delayedWETH, "MIG-SHARED-30", _errors);
+        _errors = internalRequire(
+            address(_input.dgf) == address(IAnchorStateRegistry(_shared.asr).disputeGameFactory()),
+            "MIG-SHARED-40",
+            _errors
+        );
+
+        return _errors;
+    }
+
+    /// @notice Asserts a chain's own DelayedWETH and AnchorStateRegistry were re-pointed at the
+    ///         shared ETHLockbox. Migration ditches both from the chain's own config but leaves
+    ///         them reachable to games created before the migration, which resolve pause,
+    ///         SuperchainConfig and guardian through whatever lockbox these still point to.
+    /// @param _errors The accumulated error string.
+    /// @param _input The validation input.
+    /// @param _i The chain's index.
+    /// @param _sharedLockbox The shared lockbox both contracts must now name.
+    /// @param _idx The chain's index as a string, used to build the error codes.
+    /// @return The accumulated error string.
+    function assertLegacyPauseRouting(
+        string memory _errors,
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input,
+        uint256 _i,
+        IETHLockbox _sharedLockbox,
+        string memory _idx
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IDelayedWETH legacyWETH = _input.legacyChainContracts[_i].delayedWETH;
+        IAnchorStateRegistry legacyASR = _input.legacyChainContracts[_i].anchorStateRegistry;
+        IProxyAdmin chainProxyAdmin = _input.chainSystemConfigs[_i].proxyAdmin();
+
+        bool wethPresent = address(legacyWETH) != address(0);
+        _errors = internalRequire(
+            wethPresent && address(legacyWETH.ethLockbox()) == address(_sharedLockbox),
+            string.concat("MIG-CHAIN-", _idx, "-190"),
+            _errors
+        );
+        _errors = internalRequire(
+            wethPresent && IProxyAdminOwnedBase(address(legacyWETH)).proxyAdmin() == chainProxyAdmin,
+            string.concat("MIG-CHAIN-", _idx, "-200"),
+            _errors
+        );
+
+        bool asrPresent = address(legacyASR) != address(0);
+        _errors = internalRequire(
+            asrPresent && address(legacyASR.ethLockbox()) == address(_sharedLockbox),
+            string.concat("MIG-CHAIN-", _idx, "-210"),
+            _errors
+        );
+        _errors = internalRequire(
+            asrPresent && IProxyAdminOwnedBase(address(legacyASR)).proxyAdmin() == chainProxyAdmin,
+            string.concat("MIG-CHAIN-", _idx, "-220"),
+            _errors
+        );
+        return _errors;
+    }
+
+    /// @notice Asserts the shared AnchorStateRegistry carries the intended starting anchor and
+    ///         respected game type.
+    /// @param _errors The accumulated error string.
+    /// @param _asr The shared AnchorStateRegistry.
+    /// @param _input The validation input.
+    /// @return The accumulated error string.
+    function assertValidAnchorStateIntent(
+        string memory _errors,
+        IAnchorStateRegistry _asr,
+        IOPContractsManagerMigrationValidator.MigrationValidationInput memory _input
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        Proposal memory anchor = _asr.getStartingAnchorRoot();
+        _errors = internalRequire(anchor.root.raw() == _input.startingAnchorRoot.root.raw(), "MIG-SASR-10", _errors);
+        _errors = internalRequire(
+            anchor.l2SequenceNumber == _input.startingAnchorRoot.l2SequenceNumber, "MIG-SASR-20", _errors
+        );
+        _errors = internalRequire(
+            _asr.respectedGameType().raw() == _input.startingRespectedGameType.raw(), "MIG-SASR-30", _errors
+        );
+        return _errors;
+    }
+
+    /// @notice Asserts every intended init bond is registered on the shared DisputeGameFactory.
+    /// @param _errors The accumulated error string.
+    /// @param _dgf The shared DisputeGameFactory.
+    /// @param _bonds The intended init bonds.
+    /// @return The accumulated error string.
+    function assertValidInitBonds(
+        string memory _errors,
+        IDisputeGameFactory _dgf,
+        IOPContractsManagerMigrationValidator.ExpectedInitBond[] memory _bonds
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        for (uint256 i = 0; i < _bonds.length; i++) {
+            _errors = internalRequire(
+                _dgf.initBonds(_bonds[i].gameType) == _bonds[i].initBond,
+                string.concat("MIG-BOND-", LibString.toString(i)),
+                _errors
+            );
+        }
+        return _errors;
+    }
+
+    /// @notice Asserts that every game type migrate() clears is zero in chain's
+    ///         pre-migration DisputeGameFactory.
+    /// @param _errors The accumulated error string.
+    /// @param _dgf The chain's pre-migration DisputeGameFactory.
+    /// @param _idx The chain's index, used to build the error codes.
+    /// @return The accumulated error string.
+    function assertLegacyGamesCleared(
+        string memory _errors,
+        IDisputeGameFactory _dgf,
+        string memory _idx
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        GameType[] memory gameTypes = GameTypes.clearedGameTypes();
+        for (uint256 i = 0; i < gameTypes.length; i++) {
+            _errors = internalRequire(
+                address(_dgf.gameImpls(gameTypes[i])) == address(0),
+                string.concat("MIG-CHAIN-", _idx, _clearedGameTypeCode(gameTypes[i])),
+                _errors
+            );
+        }
+        return _errors;
+    }
+
+    /// @notice Maps a cleared game type to its error code suffix.
+    /// @param _gameType The game type to map.
+    /// @return The error code suffix.
+    function _clearedGameTypeCode(GameType _gameType) private pure returns (string memory) {
+        uint32 raw = _gameType.raw();
+        if (raw == GameTypes.CANNON.raw()) return "-20";
+        if (raw == GameTypes.PERMISSIONED_CANNON.raw()) return "-30";
+        if (raw == GameTypes.CANNON_KONA.raw()) return "-40";
+        if (raw == GameTypes.SUPER_CANNON.raw()) return "-50";
+        if (raw == GameTypes.SUPER_PERMISSIONED.raw()) return "-60";
+        if (raw == GameTypes.SUPER_CANNON_KONA.raw()) return "-70";
+        if (raw == GameTypes.ZK_DISPUTE_GAME.raw()) return "-140";
+        return "-UNKNOWN";
     }
 
     /// @notice Internal function to require a condition to be true, otherwise append an error message.

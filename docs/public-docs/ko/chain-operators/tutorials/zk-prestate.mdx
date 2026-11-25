@@ -1,0 +1,101 @@
+---
+title: ZK absolute prestate 검증하기
+description: kona-sp1-program 릴리스의 ZK absolute prestate를 찾고, 소스에서 다시 빌드하여 검증하며, 커스텀 체인용 prestate를 빌드하고, proposer에 필요한 프로그램 파일을 게시합니다.
+diataxis: how-to
+---
+
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<ZkProofsStatus />
+
+ZK 분쟁 게임(dispute game)은 `absolutePrestate`가 식별하는 프로그램의 증명만 수락합니다. `absolutePrestate`는 `super-aggregation` 프로그램의 verification key이며, 이 프로그램은 다시 `super-range` 및 `log-commitment` 프로그램을 고정합니다. 그 이유는 [Absolute prestate](/ko/op-stack/zk-proofs/proof-system#absolute-prestate)를 참조하십시오.
+
+이 가이드에서는 릴리스의 prestate를 찾는 방법, 프로그램을 직접 다시 빌드하여 prestate를 확인하는 방법, superchain-registry에 등록되지 않은 체인용 prestate를 빌드하는 방법, 그리고 [`op-zk-proposer`](/ko/chain-operators/guides/configuration/zk-proposer)에 필요한 프로그램 파일을 제공하는 방법을 설명합니다.
+
+## 표준 prestate 찾기 {#find-the-standard-prestate}
+
+ZK 증명 프로그램은 Optimism 모노레포의 `kona-sp1-program/vX.Y.Z` 태그로 릴리스됩니다. 각 표준 릴리스의 prestate는 superchain-registry의 [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)에 해당 릴리스 버전 아래 `kona-sp1` 유형의 항목으로 기록됩니다.
+
+표준 prestate는 해당 릴리스 시점에 superchain-registry에 구성이 등록된 모든 체인을 지원합니다. 체인이 레지스트리에 등록되어 있다면 이를 사용하십시오.
+
+## 소스에서 prestate 다시 빌드하기 {#rebuild-the-prestate-from-source}
+
+프로그램은 Docker에서 재현 가능하게(reproducibly) 빌드되므로, 게시된 값을 신뢰하지 않고도 prestate를 확인할 수 있습니다. Docker와 [mise](https://mise.jdx.dev/)가 설치된 Linux amd64 머신이 필요합니다.
+
+1.  릴리스 태그를 체크아웃합니다.
+
+    ```bash
+    git clone https://github.com/ethereum-optimism/optimism.git
+    cd optimism
+    git checkout kona-sp1-program/v<version>
+    mise trust && mise install
+    ```
+
+2.  프로그램을 빌드합니다.
+
+    ```bash
+    cd rust/kona/sp1
+    just build-elfs
+    ```
+
+    이 명령은 먼저 `log-commitment`를 빌드하고, 다음으로 `log-commitment` key가 포함된 `super-range`를, 마지막으로 `super-range` key가 포함된 `super-aggregation`을 빌드합니다. 바이너리는 `elf/`에, verification key는 `elf/vkeys.toml`에 기록됩니다.
+
+3.  key를 확인합니다.
+
+    ```bash
+    cat elf/vkeys.toml
+    ```
+
+    ```toml
+    sp1_toolchain_tag = "<SP1 toolchain version>"
+    git_sha = "<commit>"
+
+    log-commitment = "0x..."
+    super-range = "0x..."
+    super-aggregation = "0x..."
+    ```
+
+`super-aggregation` 값이 prestate입니다. 이 값이 레지스트리 항목과 일치하는지, 그리고 `git_sha`가 `-dirty` 또는 `-custom` 접미사가 없는 태그된 커밋인지 확인하십시오.
+
+모든 빌드에는 빌드에 사용된 커밋이 포함되므로, 반드시 정확히 태그된 커밋에서 빌드해야 합니다. 동일한 코드라도 다른 커밋에서 빌드하면 다른 prestate가 생성됩니다.
+
+## 커스텀 체인용 prestate 빌드하기 {#build-a-prestate-for-a-custom-chain}
+
+프로그램은 구성이 컴파일되어 포함된 체인만 수락합니다. 체인이 superchain-registry에 등록되어 있지 않다면, 체인의 구성으로 프로그램을 빌드하십시오.
+
+```bash
+cd rust/kona/sp1
+KONA_CUSTOM_CONFIGS_DIR=/path/to/configs just build-elfs
+```
+
+디렉터리에는 superchain-registry 형식의 `chainList.json`, `configs.json`, `depsets.json`이 있어야 합니다. L1은 Ethereum mainnet, Sepolia, Holesky 중 하나여야 합니다.
+
+생성된 prestate는 사용한 구성과 빌드한 커밋에 고유하며, manifest의 `git_sha`는 `-custom`으로 끝납니다. 체인의 prestate를 검증하려는 사람에게는 구성 파일과 커밋이 모두 필요하므로, 둘 다 게시하십시오.
+
+## 프로그램 파일 게시 {#publish-the-program-files}
+
+`op-zk-proposer`는 `OP_ZK_PROPOSER_PRESTATES_URL`에서 verification key를 기준으로 각 prestate의 프로그램을 로드합니다. 해당 URL의 디렉터리는 사용 중인 모든 prestate에 대해 다음 파일을 제공해야 합니다.
+
+| 파일 | 내용 |
+| --- | --- |
+| `<vkey>.agg.bin.gz` | gzip으로 압축된 `super-aggregation` 바이너리 |
+| `<vkey>.range.bin.gz` | gzip으로 압축된 `super-range` 바이너리 |
+| `<vkey>.log.bin.gz` | gzip으로 압축된 `log-commitment` 바이너리 |
+
+`<vkey>`는 소문자로 된 `0x` 접두사가 붙은 `super-aggregation` key입니다.
+
+표준 릴리스의 경우 이 파일들은 모든 태그에 대해 `https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1/` 아래에 게시되므로, 이 URL을 그대로 사용할 수 있습니다. 커스텀 빌드의 경우 `elf/`의 파일을 압축하여 직접 제공하십시오.
+
+```bash
+VKEY=$(grep '^super-aggregation' elf/vkeys.toml | grep -oE '0x[0-9a-fA-F]{64}' | tr 'A-F' 'a-f')
+gzip -c elf/super-aggregation-elf > "$VKEY.agg.bin.gz"
+gzip -c elf/super-range-elf > "$VKEY.range.bin.gz"
+gzip -c elf/log-commitment-elf > "$VKEY.log.bin.gz"
+```
+
+각 prestate로 생성된 게임이 활성 상태일 수 있는 동안에는 해당 prestate의 파일을 계속 게시해 두십시오. proposer는 프로그램 파일을 로드할 수 없는 게임에 대해 방어, resolve, bond 청구를 할 수 없습니다.
+
+## 다음 단계 {#next-steps}
+
+*   체인에 prestate 설정하기: [ZK 증명으로 마이그레이션하기](/ko/chain-operators/tutorials/migrate-to-zk-proofs).
+*   proposer가 파일을 가리키도록 설정하기: [op-zk-proposer 구성](/ko/chain-operators/guides/configuration/zk-proposer).

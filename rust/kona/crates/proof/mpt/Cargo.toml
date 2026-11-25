@@ -32,7 +32,7 @@ alloy-transport-http.workspace = true
 alloy-rpc-types = { workspace = true, features = ["eth", "debug"] }
 
 # General
-rand.workspace = true
+rand = { workspace = true, features = ["thread_rng"] }
 reqwest.workspace = true
 proptest.workspace = true
 tokio = { workspace = true, features = ["full"] }

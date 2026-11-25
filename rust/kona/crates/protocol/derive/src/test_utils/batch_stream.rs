@@ -41,7 +41,12 @@ impl OriginProvider for TestBatchStreamProvider {
 
 #[async_trait]
 impl BatchStreamProvider for TestBatchStreamProvider {
-    fn flush(&mut self) {}
+    fn flush(&mut self) {
+        // Discard the unread remainder of the channel like the real provider does, so tests
+        // can assert that a flush actually dropped queued batches rather than only being
+        // signaled.
+        self.batches.clear();
+    }
 
     async fn next_batch(&mut self) -> PipelineResult<Batch> {
         self.batches.pop().ok_or(PipelineError::Eof.temp())?
@@ -69,10 +74,6 @@ impl Stage for TestBatchStreamProvider {
 
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         self.flushed = true;
-        Ok(())
-    }
-
-    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
         Ok(())
     }
 }

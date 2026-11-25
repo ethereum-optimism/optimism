@@ -6,8 +6,6 @@ import (
 
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -16,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -35,6 +34,10 @@ type L1Configurator interface {
 	WithL1ForkAtOffset(forks.Fork, *uint64) L1Configurator
 	WithL1BlobSchedule(schedule *params.BlobScheduleConfig) L1Configurator
 	WithPrefundedAccount(addr common.Address, amount uint256.Int) L1Configurator
+	// WithBlockTime sets the L1 block time in seconds. It is not part of the intent: it is
+	// read back with BlockTime by whatever runs the L1 chain.
+	WithBlockTime(seconds uint64) L1Configurator
+	BlockTime() uint64
 }
 
 type SuperchainConfigurator interface {
@@ -53,6 +56,7 @@ type L2Configurator interface {
 	WithL1StartBlockHash(hash common.Hash)
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
+	WithAltDA(cfg genesis.AltDADeployConfig)
 	WithCustomGasToken(name string, symbol string, initialLiquidity *big.Int, liquidityControllerOwner common.Address)
 	ContractsConfigurator
 	L2VaultsConfigurator
@@ -96,7 +100,10 @@ type L2FeesConfigurator interface {
 
 type L2HardforkConfigurator interface {
 	WithForkAtGenesis(fork opforks.Name)
+	// WithForkAtOffset activates fork at offset and deactivates every later fork; a nil
+	// offset deactivates fork too. Calls are order-sensitive.
 	WithForkAtOffset(fork opforks.Name, offset *uint64)
+	WithKeepKarstUpgradeGas()
 }
 
 type Builder interface {
@@ -169,6 +176,7 @@ func RoleToAddrProvider(t require.TestingT, dk devkeys.Keys, chainID eth.ChainID
 
 type intentBuilder struct {
 	l1StartBlockHash *common.Hash
+	l1BlockTime      uint64
 	intent           *state.Intent
 }
 
@@ -354,11 +362,21 @@ func (c *l1Configurator) WithPrefundedAccount(addr common.Address, amount uint25
 	return c
 }
 
+func (c *l1Configurator) WithBlockTime(seconds uint64) L1Configurator {
+	c.builder.l1BlockTime = seconds
+	return c
+}
+
+func (c *l1Configurator) BlockTime() uint64 {
+	return c.builder.l1BlockTime
+}
+
 func (c *l1Configurator) WithL1ForkAtGenesis(fork forks.Fork) L1Configurator {
 	c.initL1DevGenesisParams()
-	var future bool
+	require.True(c.t, fork >= forks.Cancun && fork <= forks.Amsterdam, "unsupported L1 fork %s", fork)
+	future := fork == forks.Cancun // Cancun is always active in the dev L1 genesis.
 	// NOTE: keep the start and end forks here in sync with WithL1ForkAtOffset.
-	for f := forks.Prague; f <= forks.BPO2; f++ {
+	for f := forks.Prague; f <= forks.Amsterdam; f++ {
 		if future {
 			c.WithL1ForkAtOffset(f, nil)
 		} else {
@@ -372,7 +390,7 @@ func (c *l1Configurator) WithL1ForkAtGenesis(fork forks.Fork) L1Configurator {
 }
 
 func (c *l1Configurator) WithL1ForkAtOffset(fork forks.Fork, offset *uint64) L1Configurator {
-	// NOTE: Keep the first and last forks listed here in sync with the loop in WithL1ForkAtOffset.
+	// NOTE: Keep the first and last forks listed here in sync with the loop in WithL1ForkAtGenesis.
 	switch fork {
 	case forks.Prague:
 		c.builder.intent.L1DevGenesisParams.PragueTimeOffset = offset
@@ -382,6 +400,14 @@ func (c *l1Configurator) WithL1ForkAtOffset(fork forks.Fork, offset *uint64) L1C
 		c.builder.intent.L1DevGenesisParams.BPO1TimeOffset = offset
 	case forks.BPO2:
 		c.builder.intent.L1DevGenesisParams.BPO2TimeOffset = offset
+	case forks.BPO3:
+		c.builder.intent.L1DevGenesisParams.BPO3TimeOffset = offset
+	case forks.BPO4:
+		c.builder.intent.L1DevGenesisParams.BPO4TimeOffset = offset
+	case forks.BPO5:
+		c.builder.intent.L1DevGenesisParams.BPO5TimeOffset = offset
+	case forks.Amsterdam:
+		c.builder.intent.L1DevGenesisParams.AmsterdamTimeOffset = offset
 	default:
 		require.Fail(c.t, "unknown fork", fork.String())
 	}
@@ -496,33 +522,32 @@ func (c *l2Configurator) WithOperatorFeeConstant(value uint64) {
 }
 
 func (c *l2Configurator) WithForkAtGenesis(fork opforks.Name) {
-	var future bool
-	for _, refFork := range opforks.All {
-		if refFork == opforks.Bedrock {
-			continue
-		}
-
-		if future {
-			c.WithForkAtOffset(refFork, nil)
-		} else {
-			c.WithForkAtOffset(refFork, new(uint64))
-		}
-
-		if refFork == fork {
-			future = true
-		}
+	require.True(c.t, opforks.IsValid(fork))
+	overrides, err := genesis.ForkOverridesAtGenesis(fork)
+	require.NoError(c.t, err)
+	for k, v := range overrides {
+		c.builder.intent.Chains[c.chainIndex].DeployOverrides[k] = v
 	}
+}
+
+func (c *l2Configurator) WithKeepKarstUpgradeGas() {
+	c.builder.intent.Chains[c.chainIndex].DeployOverrides["keepKarstUpgradeGas"] = true
 }
 
 func (c *l2Configurator) WithForkAtOffset(fork opforks.Name, offset *uint64) {
 	require.True(c.t, opforks.IsValid(fork))
-	key := fmt.Sprintf("l2Genesis%sTimeOffset", cases.Title(language.English).String(string(fork)))
-
-	if offset == nil {
-		delete(c.builder.intent.Chains[c.chainIndex].DeployOverrides, key)
-	} else {
-		// The typing is important, or op-deployer merge-JSON tricks will fail
-		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
+	overrides := c.builder.intent.Chains[c.chainIndex].DeployOverrides
+	for i, f := range opforks.From(fork) {
+		key, ok := genesis.ForkOffsetKey(f)
+		require.True(c.t, ok, "fork %q has no deploy-config time offset", f)
+		var v *uint64
+		if i == 0 {
+			v = offset
+		}
+		// A typed nil, not an omitted key: op-deployer merges overrides over its default
+		// schedule, so an omitted later fork could activate before this one. The typing is
+		// important, or op-deployer merge-JSON tricks will fail.
+		overrides[key] = (*hexutil.Uint64)(v)
 	}
 }
 
@@ -553,4 +578,8 @@ func (c *l2Configurator) WithAdditionalDisputeGames(games []state.AdditionalDisp
 
 func (c *l2Configurator) WithFinalizationPeriodSeconds(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].DeployOverrides["l2FinalizationPeriodSeconds"] = value
+}
+
+func (c *l2Configurator) WithAltDA(cfg genesis.AltDADeployConfig) {
+	c.builder.intent.Chains[c.chainIndex].DangerousAltDAConfig = cfg
 }

@@ -14,10 +14,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	gethevent "github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node/runcfg"
@@ -25,10 +25,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/tracer"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -36,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -57,21 +57,13 @@ type L1Client interface {
 	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error)
-	InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error)
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
 	GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error)
 	GetStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockTag string) (common.Hash, error)
 	ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error)
 	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
 	ChainID(ctx context.Context) (*big.Int, error)
 	Close()
-}
-
-// BeaconClient is the interface that op-node uses to interact with L1 Beacon.
-// This allows wrapped or mocked clients to be used
-type BeaconClient interface {
-	GetVersion(ctx context.Context) (string, error)
-	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
 }
 
 type closableSafeDB interface {
@@ -89,7 +81,7 @@ type L1Source interface {
 	ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, optypes.Receipts, error)
 	Close()
 }
 
@@ -108,9 +100,10 @@ type OpNode struct {
 
 	superAuthority rollup.SuperAuthority // Supernode authority for payload validation (may be nil)
 
-	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
-	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
-	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+	l1HeadsSub              ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
+	l1SafeSub               ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+	l1FinalizedSub          ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+	l1ReceiptsPrefetchGroup gosync.WaitGroup
 
 	eventSys   event.System
 	eventDrain driver.Drain
@@ -132,8 +125,6 @@ type OpNode struct {
 	metricsSrv   *httputil.HTTPServer
 
 	beacon L1Beacon
-
-	interopSys interop.SubSystem
 
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
@@ -245,8 +236,7 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 		n.l1Source = overrides.L1Source
 	}
 
-	// initL2 may use side effects to register interop subsystem to the node.EventSystem
-	n.l2Source, n.interopSys, n.l2Driver, n.safeDB, err = initL2(ctx, cfg, n)
+	n.l2Source, n.l2Driver, n.safeDB, err = initL2(ctx, cfg, n)
 	if err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
 	}
@@ -302,6 +292,7 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config, overrides Initial
 	}
 
 	n.metrics.RecordInfo(n.appVersion)
+	n.metrics.RecordHardforkActivationTimes(&cfg.Rollup)
 	n.metrics.RecordUp()
 
 	n.pprofService, err = initPProf(cfg, n)
@@ -346,10 +337,19 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 		return nil, nil, nil, errors.New("l2 driver must be initialized")
 	}
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
-		// TODO(#16917) Remove Event System Refactor Comments
-		//  L1UnsafeEvent fan out is updated to procedural method calls
 		if node.cfg.Tracer != nil {
 			node.cfg.Tracer.OnNewL1Head(ctx, sig)
+		}
+		if cfg.Driver.SequencerEnabled {
+			node.l1ReceiptsPrefetchGroup.Add(1)
+			go func() {
+				defer node.l1ReceiptsPrefetchGroup.Done()
+				if _, _, err := node.l1Source.FetchReceipts(ctx, sig.Hash); err != nil {
+					node.log.Warn("Failed to prefetch L1 receipts", "hash", sig.Hash, "err", err)
+				} else {
+					node.log.Debug("Successfully prefetched L1 receipts", "hash", sig.Hash)
+				}
+			}()
 		}
 		node.l2Driver.SyncDeriver.L1Tracker.OnL1Unsafe(sig)
 		node.l2Driver.StatusTracker.OnL1Unsafe(sig)
@@ -359,8 +359,6 @@ func initL1Handlers(cfg *config.Config, node *OpNode) (ethereum.Subscription, et
 		node.l2Driver.StatusTracker.OnL1Safe(sig)
 	}
 	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
-		// TODO(#16917) Remove Event System Refactor Comments
-		//  FinalizeL1Event fan out is updated to procedural method calls
 		node.l2Driver.StatusTracker.OnL1Finalized(sig)
 		node.l2Driver.Finalizer.OnL1Finalized(sig)
 		node.l2Driver.SyncDeriver.OnL1Finalized(ctx)
@@ -493,18 +491,18 @@ func initL1BeaconAPI(ctx context.Context, cfg *config.Config, node *OpNode) (*so
 	}
 	beacon := sources.NewL1BeaconClient(beaconClient, beaconCfg, fallbacks...)
 
-	// Retry retrieval of the Beacon API version, to be more robust on startup against Beacon API connection issues.
-	beaconVersion, missingEndpoint, err := retry.Do2[string, bool](ctx, 5, retry.Exponential(), func() (string, bool, error) {
+	// Ping the Beacon API on startup to be more robust against connection issues.
+	missingEndpoint, err := retry.Do[bool](ctx, 5, retry.Exponential(), func() (bool, error) {
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
-		beaconVersion, err := beacon.GetVersion(ctx)
+		_, err := beaconClient.BeaconGenesis(ctx)
 		if err != nil {
 			if errors.Is(err, client.ErrNoEndpoint) {
-				return "", true, nil // don't return an error, we do not have to retry when there is a config issue.
+				return true, nil // don't return an error, we do not have to retry when there is a config issue.
 			}
-			return "", false, err
+			return false, err
 		}
-		return beaconVersion, false, nil
+		return false, nil
 	})
 	if missingEndpoint {
 		// Allow the user to continue if they explicitly ignore the requirement of the endpoint.
@@ -522,42 +520,33 @@ func initL1BeaconAPI(ctx context.Context, cfg *config.Config, node *OpNode) (*so
 		}
 	} else if err != nil {
 		if cfg.Beacon.ShouldIgnoreBeaconCheck() {
-			node.log.Warn("Failed to check L1 Beacon API version, but configuration ignores results. "+
+			node.log.Warn("Failed to connect to L1 Beacon API, but configuration ignores results. "+
 				"The node may be unable to retrieve EIP-4844 blobs data.", "err", err)
 			return beacon, nil
 		} else {
-			return nil, fmt.Errorf("failed to check L1 Beacon API version: %w", err)
+			return nil, fmt.Errorf("failed to connect to L1 Beacon API: %w", err)
 		}
 	} else {
-		node.log.Info("Connected to L1 Beacon API, ready for EIP-4844 blobs retrieval.", "version", beaconVersion)
+		node.log.Info("Connected to L1 Beacon API, ready for EIP-4844 blobs retrieval.")
 		return beacon, nil
 	}
 }
 
-func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.EngineClient, interop.SubSystem, *driver.Driver, closableSafeDB, error) {
+func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.EngineClient, *driver.Driver, closableSafeDB, error) {
 	rpcClient, rpcCfg, err := cfg.L2.Setup(ctx, node.log, &cfg.Rollup, node.metrics)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
 	}
 
 	rpcCfg.FetchWithdrawalRootFromState = cfg.FetchWithdrawalRootFromState
 
 	l2Source, err := sources.NewEngineClient(rpcClient, node.log, node.metrics.L2SourceCache, rpcCfg)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to create Engine client: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create Engine client: %w", err)
 	}
 
-	if err := cfg.Rollup.ValidateL2Config(ctx, l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
-		return nil, nil, nil, nil, err
-	}
-
-	indexingMode := false
-	sys, err := cfg.InteropConfig.Setup(ctx, node.log, &node.cfg.Rollup, cfg.SupervisorEnabled, node.l1Source, l2Source, node.metrics)
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to setup interop: %w", err)
-	} else if sys != nil { // we continue with legacy mode if no interop sub-system is set up.
-		_, indexingMode = sys.(*indexing.IndexingMode)
-		node.eventSys.Register("interop", sys)
+	if err := cfg.Rollup.ValidateL2Config(ctx, node.log, l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
+		return nil, nil, nil, err
 	}
 
 	var sequencerConductor conductor.SequencerConductor = &conductor.NoOpConductor{}
@@ -568,7 +557,7 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	// if altDA is not explicitly activated in the node CLI, the config + any error will be ignored.
 	rpCfg, err := cfg.Rollup.GetOPAltDAConfig()
 	if cfg.AltDA.Enabled && err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to get altDA config: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to get altDA config: %w", err)
 	}
 	altDA := altda.NewAltDA(node.log, cfg.AltDA, rpCfg, node.metrics.AltDAMetrics)
 	var safeDB closableSafeDB
@@ -576,14 +565,14 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 		node.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
 		safeDB, err = safedb.NewSafeDB(node.log, cfg.SafeDBPath)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("failed to create safe head database at %v: %w", cfg.SafeDBPath, err)
+			return nil, nil, nil, fmt.Errorf("failed to create safe head database at %v: %w", cfg.SafeDBPath, err)
 		}
 	} else {
 		safeDB = safedb.Disabled
 	}
 
 	if cfg.Rollup.ChainOpConfig == nil {
-		return nil, nil, nil, nil, fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w", err)
+		return nil, nil, nil, fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w", err)
 	}
 
 	var upstreamFollowSource driver.UpstreamFollowSource
@@ -592,16 +581,9 @@ func initL2(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.Eng
 	}
 
 	l2Driver := driver.NewDriver(node.eventSys, node.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.L1ChainConfig, cfg.DependencySet, l2Source, node.l1Source, upstreamFollowSource,
-		node.beacon, node, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode, node.superAuthority)
+		node.beacon, node, node.log, node.metrics, cfg.ConfigPersistence, safeDB, &cfg.Sync, sequencerConductor, altDA, node.superAuthority)
 
-	// Wire up IndexingMode to engine controller for direct procedure call
-	if sys != nil {
-		if indexingMode, ok := sys.(*indexing.IndexingMode); ok {
-			indexingMode.SetEngineController(l2Driver.SyncDeriver.Engine)
-		}
-	}
-
-	return l2Source, sys, l2Driver, safeDB, nil
+	return l2Source, l2Driver, safeDB, nil
 }
 
 func initFollowSource(ctx context.Context, cfg *config.Config, node *OpNode) (*sources.FollowClient, error) {
@@ -619,7 +601,7 @@ func initFollowSource(ctx context.Context, cfg *config.Config, node *OpNode) (*s
 func initRPCServer(cfg *config.Config, node *OpNode) (*oprpc.Server, error) {
 	server := newRPCServer(&cfg.RPC, &cfg.Rollup, cfg.DependencySet,
 		node.l2Source.L2Client, node.l2Driver, node.safeDB,
-		node.log, node.metrics, node.appVersion)
+		node.log, node.appVersion)
 	if err := registerAPIs(cfg, node, server.Handler); err != nil {
 		// panic here is to match the behavior of oprcp.Server.AddAPI,
 		// which wraps the Handler and panics if the API can't be added.
@@ -642,6 +624,14 @@ func registerAPIs(cfg *config.Config, node *OpNode, handler *oprpc.Handler) erro
 		Service:   api,
 	}); err != nil {
 		return fmt.Errorf("failed to add Optimism API: %w", err)
+	}
+
+	// `superroot_atTimestamp` for non-interop chains; always-on, harmless until games activate.
+	if err := handler.AddAPI(rpc.API{
+		Namespace: "superroot",
+		Service:   NewSuperrootAPI(&cfg.Rollup, node.l2Source.L2Client, node.l2Driver, node.safeDB),
+	}); err != nil {
+		return fmt.Errorf("failed to add Superroot API: %w", err)
 	}
 
 	if p2pNode := node.getP2PNodeIfEnabled(); p2pNode != nil {
@@ -721,7 +711,7 @@ func initP2P(cfg *config.Config, node *OpNode) (*p2p.NodeP2P, error) {
 		}
 		// embed syncDeriver and tracer(optional) to the blockReceiver to handle unsafe payloads via p2p
 		rec := p2p.NewBlockReceiver(node.log, node.metrics, node.l2Driver.SyncDeriver, node.cfg.Tracer)
-		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.l2Source, node.runCfg, node.metrics, node.clock)
+		p2pNode, err := p2p.NewNodeP2P(node.resourcesCtx, &cfg.Rollup, node.log, cfg.P2P, rec, node.runCfg, node.metrics, node.clock)
 		if err != nil {
 			return nil, err
 		}
@@ -744,12 +734,6 @@ func initP2PSigner(ctx context.Context, cfg *config.Config, node *OpNode) (p2p.S
 }
 
 func (n *OpNode) Start(ctx context.Context) error {
-	if n.interopSys != nil {
-		if err := n.interopSys.Start(ctx); err != nil {
-			n.log.Error("Could not start interop sub system", "err", err)
-			return err
-		}
-	}
 	n.log.Info("Starting execution engine driver")
 	// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
 	if err := n.l2Driver.Start(); err != nil {
@@ -792,7 +776,10 @@ func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.Exec
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {
-			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", envelope.ID())
+			// Permanent: a signer does not appear without a restart, so retrying
+			// only holds the block at the head of the publish queue.
+			return fmt.Errorf("%w: node has no p2p signer, payload %s cannot be published",
+				async.ErrPermanentPublish, envelope.ID())
 		}
 		n.log.Info("Publishing signed execution payload on p2p", "id", envelope.ID())
 		return p2pNode.GossipOut().SignAndPublishL2Payload(ctx, envelope, n.p2pSigner)
@@ -801,25 +788,13 @@ func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.Exec
 	return nil
 }
 
-func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
-	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil && p2pNode.AltSyncEnabled() {
-		if unixTimeStale(start.Time, 12*time.Hour) {
-			n.log.Debug(
-				"ignoring request to sync L2 range, timestamp is too old for p2p",
-				"start", start,
-				"end", end,
-				"start_time", start.Time)
-			return nil
-		}
-		return p2pNode.RequestL2Range(ctx, start, end)
+// GossipTimestampThreshold reports the age past which peers reject a block. Zero
+// when p2p is disabled, where publishing is a no-op anyway.
+func (n *OpNode) GossipTimestampThreshold() time.Duration {
+	if !n.p2pEnabled() {
+		return 0
 	}
-	n.log.Debug("ignoring request to sync L2 range, no sync method available", "start", start, "end", end)
-	return nil
-}
-
-// unixTimeStale returns true if the unix timestamp is before the current time minus the supplied duration.
-func unixTimeStale(timestamp uint64, duration time.Duration) bool {
-	return time.Unix(int64(timestamp), 0).Before(time.Now().Add(-1 * duration))
+	return n.cfg.P2P.GetGossipTimestampThreshold()
 }
 
 func (n *OpNode) P2P() p2p.Node {
@@ -883,6 +858,7 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.l1HeadsSub != nil {
 		n.l1HeadsSub.Unsubscribe()
 	}
+	n.l1ReceiptsPrefetchGroup.Wait()
 	// stop polling for L1 safe-head changes
 	if n.l1SafeSub != nil {
 		n.l1SafeSub.Unsubscribe()
@@ -896,13 +872,6 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.l2Driver != nil {
 		if err := n.l2Driver.Close(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
-		}
-	}
-
-	// close the interop sub system
-	if n.interopSys != nil {
-		if err := n.interopSys.Stop(ctx); err != nil {
-			result = errors.Join(result, fmt.Errorf("failed to close interop sub-system: %w", err))
 		}
 	}
 
@@ -963,22 +932,6 @@ func (n *OpNode) HTTPEndpoint() string {
 
 func (n *OpNode) HTTPPort() (int, error) {
 	return n.server.Port()
-}
-
-func (n *OpNode) InteropRPC() (rpcEndpoint string, jwtSecret eth.Bytes32) {
-	m, ok := n.interopSys.(*indexing.IndexingMode)
-	if !ok {
-		return "", [32]byte{}
-	}
-	return m.WSEndpoint(), m.JWTSecret()
-}
-
-func (n *OpNode) InteropRPCPort() (int, error) {
-	m, ok := n.interopSys.(*indexing.IndexingMode)
-	if !ok {
-		return 0, fmt.Errorf("failed to fetch interop port for op-node")
-	}
-	return m.WSPort()
 }
 
 func (n *OpNode) getP2PNodeIfEnabled() *p2p.NodeP2P {

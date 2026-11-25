@@ -2,35 +2,54 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet, btree_map::Entry},
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
 use kona_genesis::{
-    Chain, ChainConfig, ChainList, DependencySet, InteropConfig, Superchain, SuperchainConfig,
-    Superchains, aggregate_clusters,
+    Chain, ChainConfig, ChainList, DependencySet, REGISTRY_L1_CHAIN_IDS, Superchain,
+    SuperchainConfig, Superchains, aggregate_clusters, with_single_chain_defaults,
 };
 use serde::de::DeserializeOwned;
 
-fn main() {
-    // Always reset `etc/depsets.json` to the empty list before deriving the embedded
-    // depsets from KONA_BIND / KONA_CUSTOM_CONFIGS, so the file content is deterministic
-    // for the configured inputs and never carries stale entries from a prior build.
-    let etc_dir = std::path::Path::new("etc");
-    if !etc_dir.exists() {
-        std::fs::create_dir_all(etc_dir).unwrap();
-    }
-    let depsets_path = std::path::Path::new("etc/depsets.json");
-    write_depsets(depsets_path, &[]);
+#[path = "build_checks.rs"]
+mod build_checks;
+use build_checks::{CustomConfigError, check_dependency_sets, check_l1s};
 
-    // If the `KONA_BIND` environment variable is _not_ set, then return early.
-    let kona_bind: bool =
-        std::env::var("KONA_BIND").unwrap_or_else(|_| "false".to_string()) == "true";
-    println!("cargo:rerun-if-env-changed=KONA_BIND");
+fn main() {
+    let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let committed_etc_dir = manifest_dir.join("etc");
+
+    // The three committed snapshots under `etc/` are `include_str!`d at compile time,
+    // but `include_str!` does not register file dependencies with cargo. Declare them
+    // here so a hand-edit or `KONA_SYNC_SUPERCHAIN=true` regeneration busts the
+    // cache instead of silently reusing a stale compilation of `lib.rs`.
+    for file in ["chainList.json", "configs.json", "depsets.json"] {
+        println!("cargo:rerun-if-changed={}", committed_etc_dir.join(file).display());
+    }
+
+    // If the `KONA_SYNC_SUPERCHAIN` environment variable is _not_ set, then return early.
+    // The committed `etc/depsets.json` snapshot is the authoritative input in this
+    // mode; do not touch it. (Custom-config merges, if enabled, additively layer
+    // on top of the committed snapshot.)
+    let custom_configs_dir = custom_configs_dir();
+    let kona_bind: bool = matches!(env::var("KONA_SYNC_SUPERCHAIN").as_deref(), Ok("1" | "true"));
+    println!("cargo:rerun-if-env-changed=KONA_SYNC_SUPERCHAIN");
     if !kona_bind {
-        merge_custom_configs();
+        let etc_dir = prepare_etc_dir(&committed_etc_dir, custom_configs_dir.is_some());
+        println!("cargo:rustc-env=KONA_REGISTRY_DIR={}", etc_dir.display());
+        merge_custom_configs(custom_configs_dir.as_deref(), &etc_dir);
         return;
     }
+
+    let chain_list_path = committed_etc_dir.join("chainList.json");
+    let configs_path = committed_etc_dir.join("configs.json");
+    let depsets_path = committed_etc_dir.join("depsets.json");
+
+    // Reset the embedded depsets to the empty list before re-deriving from the
+    // superchain-registry submodule, so the content is deterministic for the configured
+    // inputs and never carries stale entries from a prior build.
+    write_depsets(&depsets_path, &[]);
 
     // Resolve the monorepo root via `git rev-parse --show-toplevel` so we don't
     // depend on this crate's location inside the workspace.
@@ -42,22 +61,17 @@ fn main() {
     let repo_root = String::from_utf8(repo_root.stdout).unwrap();
     let repo_root = repo_root.trim_end();
 
-    // The `superchain-registry` submodule lives under
-    // `packages/contracts-bedrock/lib/superchain-registry` at the monorepo root.
-    let superchain_registry =
-        format!("{repo_root}/packages/contracts-bedrock/lib/superchain-registry");
+    // The `superchain-registry` submodule lives at the monorepo root.
+    let superchain_registry = format!("{repo_root}/superchain-registry");
     assert!(
         std::path::Path::new(&superchain_registry).exists(),
-        "Git Submodule missing. Please run `just source` to initialize the submodule."
+        "Git Submodule missing. Please run `just update-superchain-registry-submodule` \
+         from the repo root to initialize it."
     );
 
-    // Copy the `superchain-registry/chainList.json` file to `etc/chainList.json`
+    // Copy the `superchain-registry/chainList.json` file into the embedded registry snapshot.
     let chain_list = format!("{superchain_registry}/chainList.json");
-    let etc_dir = std::path::Path::new("etc");
-    if !etc_dir.exists() {
-        std::fs::create_dir_all(etc_dir).unwrap();
-    }
-    std::fs::copy(chain_list, "etc/chainList.json").unwrap();
+    fs::copy(chain_list, &chain_list_path).unwrap();
 
     // Get the `superchain-registry/superchain/configs` directory`
     let configs_dir = format!("{superchain_registry}/superchain/configs");
@@ -86,9 +100,15 @@ fn main() {
                     continue;
                 }
 
-                // Read the config file as a `ChainConfig`
+                // Read the config file as a `ChainConfig`. ChainConfig rejects unknown fields, so a
+                // registry key promoted into the config that ChainConfig does not yet model fails
+                // here rather than being silently dropped.
                 let config = std::fs::read_to_string(config_file_path).unwrap();
-                let config: ChainConfig = toml::from_str(&config).unwrap();
+                let config: ChainConfig = toml::from_str(&config).unwrap_or_else(|e| {
+                    panic!(
+                        "failed to parse superchain-registry chain config {config_file_name}: {e}"
+                    )
+                });
                 superchain.chains.push(config);
             }
             superchains.superchains.push(superchain);
@@ -103,71 +123,138 @@ fn main() {
         superchain.chains.sort_by_key(|a| a.chain_id);
     }
 
-    let output_path = std::path::Path::new("etc/configs.json");
-    std::fs::write(output_path, serde_json::to_string_pretty(&superchains).unwrap()).unwrap();
+    fs::write(&configs_path, serde_json::to_string_pretty(&superchains).unwrap()).unwrap();
 
-    // Aggregate per-cluster `DependencySet`s from each chain's `[interop]` block and
-    // overwrite `etc/depsets.json` with the resulting list.
-    let interop_chains: Vec<(u64, &InteropConfig)> = superchains
-        .superchains
-        .iter()
-        .flat_map(|sc| sc.chains.iter())
-        .filter_map(|c| c.interop.as_ref().map(|i| (c.chain_id, i)))
-        .collect();
-    let depsets = aggregate_clusters(interop_chains.iter().map(|(id, cfg)| (*id, *cfg)))
-        .unwrap_or_else(|e| {
-            panic!("failed to aggregate interop clusters from superchain configs: {e}")
-        });
-    write_depsets(depsets_path, &depsets);
+    // Aggregate per-cluster `DependencySet`s from each chain's `[interop]` block, then give
+    // every remaining chain a self-only depset.
+    let all_chains: Vec<&ChainConfig> =
+        superchains.superchains.iter().flat_map(|sc| sc.chains.iter()).collect();
+    let depsets = aggregate_clusters(
+        all_chains.iter().filter_map(|c| c.interop.as_ref().map(|i| (c.chain_id, i))),
+    )
+    .unwrap_or_else(|e| {
+        panic!("failed to aggregate interop clusters from superchain configs: {e}")
+    });
+    let depsets = with_single_chain_defaults(depsets, all_chains.iter().map(|c| c.chain_id));
+    write_depsets(&depsets_path, &depsets);
 
-    merge_custom_configs();
+    let etc_dir = prepare_etc_dir(&committed_etc_dir, custom_configs_dir.is_some());
+    println!("cargo:rustc-env=KONA_REGISTRY_DIR={}", etc_dir.display());
+    merge_custom_configs(custom_configs_dir.as_deref(), &etc_dir);
 }
 
-fn merge_custom_configs() {
-    let kona_custom_configs =
-        std::env::var("KONA_CUSTOM_CONFIGS").unwrap_or_else(|_| "false".to_string()) == "true";
+fn custom_configs_dir() -> Option<PathBuf> {
     println!("cargo:rerun-if-env-changed=KONA_CUSTOM_CONFIGS");
-    println!("cargo:rerun-if-env-changed=KONA_CUSTOM_CONFIGS_TEST");
-
-    // if we're running tests, bust the cache if the base etc configs are updated. This ensures that
-    // the test build can be repeated after modifying the base configs
-    if std::env::var("KONA_CUSTOM_CONFIGS_TEST") == Ok("true".to_string()) {
-        println!("cargo:rerun-if-changed=etc/chainList.json");
-        println!("cargo:rerun-if-changed=etc/configs.json");
-        println!("cargo:rerun-if-changed=etc/depsets.json");
-    }
-
-    if !kona_custom_configs {
-        return;
-    }
-
-    let custom_configs_dir = std::env::var("KONA_CUSTOM_CONFIGS_DIR")
-        .expect("KONA_CUSTOM_CONFIGS_DIR must be set when KONA_CUSTOM_CONFIGS is enabled");
     println!("cargo:rerun-if-env-changed=KONA_CUSTOM_CONFIGS_DIR");
-    let custom_configs_dir = PathBuf::from(custom_configs_dir);
+    println!("cargo:rerun-if-env-changed=CARGO_CFG_KONA_CUSTOM_CONFIGS");
+    println!("cargo:rerun-if-env-changed=CARGO_CFG_KONA_CUSTOM_CONFIGS_DIR");
+    println!("cargo:rerun-if-env-changed=KONA_CUSTOM_CONFIGS_TEST");
+    println!("cargo:rustc-check-cfg=cfg(kona_custom_configs, values(\"true\"))");
+
+    let enabled = env::var("KONA_CUSTOM_CONFIGS").is_ok_and(|value| value == "true") ||
+        env::var("CARGO_CFG_KONA_CUSTOM_CONFIGS").is_ok_and(|value| value == "true");
+    if !enabled {
+        return None;
+    }
+
+    let custom_configs_dir = env::var_os("KONA_CUSTOM_CONFIGS_DIR")
+        .or_else(|| env::var_os("CARGO_CFG_KONA_CUSTOM_CONFIGS_DIR"))
+        .map(PathBuf::from)
+        .expect(
+            "KONA_CUSTOM_CONFIGS_DIR or --cfg kona_custom_configs_dir=\"...\" must be set when \
+             custom configs are enabled",
+        );
     assert!(
         custom_configs_dir.exists(),
-        "Custom configs directory {} does not exist",
+        "KONA_CUSTOM_CONFIGS_DIR or --cfg kona_custom_configs_dir=\"...\" points to {}, which \
+         does not exist",
         custom_configs_dir.display()
     );
+    Some(custom_configs_dir)
+}
+
+fn prepare_etc_dir(committed_etc_dir: &Path, use_scratch: bool) -> PathBuf {
+    if !use_scratch {
+        return committed_etc_dir.to_path_buf();
+    }
+
+    let scratch_etc_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("registry-etc");
+    if scratch_etc_dir.exists() {
+        fs::remove_dir_all(&scratch_etc_dir).unwrap();
+    }
+    fs::create_dir_all(&scratch_etc_dir).unwrap();
+    for file in ["chainList.json", "configs.json", "depsets.json"] {
+        fs::copy(committed_etc_dir.join(file), scratch_etc_dir.join(file)).unwrap();
+    }
+    scratch_etc_dir
+}
+
+fn merge_custom_configs(custom_configs_dir: Option<&Path>, etc_dir: &Path) {
+    let Some(custom_configs_dir) = custom_configs_dir else {
+        return;
+    };
 
     let custom_chain_list_path = custom_configs_dir.join("chainList.json");
     let custom_configs_path = custom_configs_dir.join("configs.json");
+    let custom_depsets_path = custom_configs_dir.join("depsets.json");
 
     println!("cargo:rerun-if-changed={}", custom_chain_list_path.display());
     println!("cargo:rerun-if-changed={}", custom_configs_path.display());
+    println!("cargo:rerun-if-changed={}", custom_depsets_path.display());
 
-    let target_chain_list = Path::new("etc/chainList.json");
-    let target_superchains = Path::new("etc/configs.json");
-    let target_depsets = Path::new("etc/depsets.json");
+    let target_chain_list = etc_dir.join("chainList.json");
+    let target_superchains = etc_dir.join("configs.json");
+    let target_depsets = etc_dir.join("depsets.json");
 
     validate_chain_configs(&custom_chain_list_path, &custom_configs_path);
 
-    merge_chain_list(&custom_chain_list_path, target_chain_list);
-    merge_superchain_configs(&custom_configs_path, target_superchains);
-    merge_custom_depsets(&custom_configs_dir, target_depsets);
-    validate_chain_configs(target_chain_list, target_superchains);
-    validate_depsets(target_depsets, target_chain_list);
+    merge_chain_list(&custom_chain_list_path, &target_chain_list);
+    merge_superchain_configs(&custom_configs_path, &target_superchains);
+    merge_custom_depsets(&custom_depsets_path, &target_depsets);
+    validate_chain_configs(&target_chain_list, &target_superchains);
+
+    let chain_list: ChainList = read_json(&target_chain_list);
+    let superchains: Superchains = read_json(&target_superchains);
+    let depsets: Vec<DependencySet> = read_json(&target_depsets);
+    let custom_chain_ids: BTreeSet<u64> = read_json::<ChainList>(&custom_chain_list_path)
+        .chains
+        .iter()
+        .map(|chain| chain.chain_id)
+        .collect();
+    check_dependency_sets(&depsets, &chain_list, &superchains)
+        .and_then(|()| check_l1s(&superchains, &custom_chain_ids))
+        .unwrap_or_else(|error| fail_custom_configs(error, custom_configs_dir));
+}
+
+/// Panics with a message that names the custom file to fix: the registry's own configs always
+/// pass the checks.
+fn fail_custom_configs(error: CustomConfigError, custom_configs_dir: &Path) -> ! {
+    let file = |name: &str| custom_configs_dir.join(name).display().to_string();
+    match error {
+        CustomConfigError::UnknownChain(chain_id) => panic!(
+            "Chain id {chain_id} in {} is in neither the registry nor {}",
+            file("depsets.json"),
+            file("chainList.json")
+        ),
+        CustomConfigError::NoDependencySet { identifier, chain_id } => panic!(
+            "Chain `{identifier}` (chain id {chain_id}) has no dependency set; add one to {}",
+            file("depsets.json")
+        ),
+        CustomConfigError::InconsistentInterop(error) => {
+            panic!("Invalid `interop` sections in {}: {error}", file("configs.json"))
+        }
+        CustomConfigError::ClusterWithoutSet(chain_ids) => panic!(
+            "The `interop` sections in {} declare the cluster {chain_ids:?}, but no set in {} \
+             lists exactly these chains",
+            file("configs.json"),
+            file("depsets.json")
+        ),
+        CustomConfigError::UnsupportedL1 { group, l1_chain_id } => panic!(
+            "Chain group `{group}` in {} has L1 chain id {l1_chain_id}, which kona-registry has \
+             no L1 config for; custom chains must be on one of the L1s {REGISTRY_L1_CHAIN_IDS:?}",
+            file("configs.json")
+        ),
+    }
 }
 
 fn merge_chain_list(custom_path: &Path, target_path: &Path) {
@@ -359,13 +446,9 @@ fn write_depsets(target: &Path, depsets: &[DependencySet]) {
     fs::write(target, json).unwrap_or_else(|e| panic!("Failed to write {}: {e}", target.display()));
 }
 
-fn merge_custom_depsets(custom_dir: &Path, target: &Path) {
-    let path = custom_dir.join("depsets.json");
-    println!("cargo:rerun-if-changed={}", path.display());
-    if !path.exists() {
-        return;
-    }
-    let custom: Vec<DependencySet> = read_json(&path);
+fn merge_custom_depsets(custom_path: &Path, target: &Path) {
+    assert!(custom_path.exists(), "Custom depsets {} does not exist", custom_path.display());
+    let custom: Vec<DependencySet> = read_json(custom_path);
     let mut existing: Vec<DependencySet> = read_json(target);
     for new_ds in custom {
         for existing_ds in &existing {
@@ -385,19 +468,4 @@ fn merge_custom_depsets(custom_dir: &Path, target: &Path) {
         }
     }
     write_depsets(target, &existing);
-}
-
-fn validate_depsets(target: &Path, chain_list_path: &Path) {
-    let depsets: Vec<DependencySet> = read_json(target);
-    let chain_list: ChainList = read_json(chain_list_path);
-    let known: BTreeSet<u64> = chain_list.chains.iter().map(|c| c.chain_id).collect();
-    for ds in &depsets {
-        for id in ds.dependencies.keys() {
-            assert!(
-                known.contains(id),
-                "Depset references chain id {id} which is not in {}",
-                chain_list_path.display()
-            );
-        }
-    }
 }

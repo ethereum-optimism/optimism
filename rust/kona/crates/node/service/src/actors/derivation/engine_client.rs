@@ -1,7 +1,7 @@
 use crate::{EngineActorRequest, EngineClientError, EngineClientResult, ResetRequest};
 use async_trait::async_trait;
 use derive_more::Constructor;
-use kona_engine::ConsolidateInput;
+use kona_engine::{ConsolidateInput, FinalizeBlockId};
 use std::fmt::Debug;
 use tokio::sync::mpsc;
 
@@ -12,9 +12,9 @@ pub trait DerivationEngineClient: Debug + Send + Sync {
     /// Resets the engine's forkchoice.
     async fn reset_engine_forkchoice(&self) -> EngineClientResult<()>;
 
-    /// Sends a request to finalize the L2 block at the provided block number.
+    /// Sends a request to finalize the L2 block identified by the provided [`FinalizeBlockId`].
     /// Note: This does not wait for the engine to process it.
-    async fn send_finalized_l2_block(&self, block_number: u64) -> EngineClientResult<()>;
+    async fn send_finalized_l2_block(&self, block_id: FinalizeBlockId) -> EngineClientResult<()>;
 
     /// Sends a consolidation signal to the engine.
     ///
@@ -38,26 +38,20 @@ impl DerivationEngineClient for QueuedDerivationEngineClient {
     async fn reset_engine_forkchoice(&self) -> EngineClientResult<()> {
         let (result_tx, mut result_rx) = mpsc::channel(1);
 
-        info!(target: "derivation", "Sending reset request to engine.");
         self.engine_actor_request_tx
-            .send(EngineActorRequest::ResetRequest(Box::new(ResetRequest { result_tx })))
+            .send(EngineActorRequest::Reset(Box::new(ResetRequest { result_tx })))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 
-        result_rx
-            .recv()
-            .await
-            .inspect(|_| info!(target: "derivation", "Engine reset successfully."))
-            .ok_or_else(|| {
-                error!(target: "derivation_engine_client", "Failed to receive built payload");
-                EngineClientError::ResponseError("response channel closed.".to_string())
-            })?
+        result_rx.recv().await.ok_or_else(|| {
+            error!(target: "derivation_engine_client", "Failed to receive built payload");
+            EngineClientError::ResponseError("response channel closed.".to_string())
+        })?
     }
 
-    async fn send_finalized_l2_block(&self, block_number: u64) -> EngineClientResult<()> {
-        trace!(target: "derivation", block_number, "Sending finalized L2 block number to engine.");
+    async fn send_finalized_l2_block(&self, block_id: FinalizeBlockId) -> EngineClientResult<()> {
         self.engine_actor_request_tx
-            .send(EngineActorRequest::ProcessFinalizedL2BlockNumberRequest(Box::new(block_number)))
+            .send(EngineActorRequest::ProcessFinalizedL2Block(Box::new(block_id)))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 
@@ -65,9 +59,8 @@ impl DerivationEngineClient for QueuedDerivationEngineClient {
     }
 
     async fn send_safe_l2_signal(&self, signal: ConsolidateInput) -> EngineClientResult<()> {
-        trace!(target: "derivation", ?signal, "Sending safe L2 signal info to engine.");
         self.engine_actor_request_tx
-            .send(EngineActorRequest::ProcessSafeL2SignalRequest(signal))
+            .send(EngineActorRequest::ProcessSafeL2Signal(signal))
             .await
             .map_err(|_| EngineClientError::RequestError("request channel closed.".to_string()))?;
 

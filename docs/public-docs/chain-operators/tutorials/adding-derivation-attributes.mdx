@@ -1,13 +1,12 @@
 ---
 title: Adding attributes to the derivation function
 description: Learn how to modify the derivation function for an OP Stack chain to track the amount of ETH being burned on L1.
+diataxis: tutorial
 ---
 
-<Info>
-  OP Stack Hacks are explicitly things that you can do with the OP Stack that are *not* currently intended for production use.
+import OpStackHacksWarning from "/snippets/op-stack-hacks-warning.mdx"
 
-  OP Stack Hacks are not for the faint of heart. You will not be able to receive significant developer support for OP Stack Hacks — be prepared to get your hands dirty and to work without support.
-</Info>
+<OpStackHacksWarning />
 
 ## Overview
 
@@ -75,7 +74,7 @@ Deploy this smart contract to your L2 (using any tool you find convenient). Make
 
 ## Add the burn transaction
 
-Now you need to add logic to the `op-node` to automatically submit a burn report whenever an L1 block is produced. Since this transaction is very similar to the system transaction that reports other L1 block info (found in [l1\_block\_info.go](https://github.com/ethereum-optimism/optimism/blob/c9cd1215b76111888e25ee27a49a0bc0c4eeb0f8/op-node/rollup/derive/l1_block_info.go)), you'll use that transaction as a jumping-off point.
+Now you need to add logic to the `op-node` to automatically submit a burn report whenever an L1 block is produced. Since this transaction is very similar to the system transaction that reports other L1 block info (found in [l1\_block\_info.go](https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/derive/l1_block_info.go)), you'll use that transaction as a jumping-off point.
 
 <Steps>
   <Step title="Navigate to the `op-node` package:">

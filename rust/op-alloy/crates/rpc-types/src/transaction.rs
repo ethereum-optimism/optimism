@@ -1,10 +1,12 @@
 //! Optimism specific types related to transactions.
 
-use alloy_consensus::{Transaction as TransactionTrait, Typed2718, transaction::Recovered};
+use alloy_consensus::{Sealed, Transaction as TransactionTrait, Typed2718, transaction::Recovered};
 use alloy_eips::{Encodable2718, eip2930::AccessList, eip7702::SignedAuthorization};
 use alloy_primitives::{Address, B256, BlockHash, Bytes, ChainId, TxKind, U256};
 use alloy_serde::OtherFields;
-use op_alloy_consensus::{OpTransaction, OpTxEnvelope, transaction::OpTransactionInfo};
+use op_alloy_consensus::{
+    OpTransaction, OpTxEnvelope, TxDeposit, TxPostExec, transaction::OpTransactionInfo,
+};
 use serde::{Deserialize, Serialize};
 
 mod request;
@@ -38,16 +40,19 @@ impl<T: OpTransaction + TransactionTrait> Transaction<T> {
     pub fn from_transaction(tx: Recovered<T>, tx_info: OpTransactionInfo) -> Self {
         let base_fee = tx_info.inner.base_fee;
         let effective_gas_price = if tx.is_deposit() {
-            // For deposits, we must always set the `gasPrice` field to 0 in rpc
-            // deposit tx don't have a gas price field, but serde of `Transaction` will take care of
-            // it
-            0
+            // Deposits have no gas price, but the legacy RPC shape reports an explicit zero.
+            Some(0)
+        } else if tx.as_post_exec().is_some() {
+            // PostExec has no fee fields: https://specs.optimism.io/protocol/lagoon/post-exec.html#generic-transaction-interface-representation
+            None
         } else {
-            base_fee
-                .map(|base_fee| {
-                    tx.effective_tip_per_gas(base_fee).unwrap_or_default() + base_fee as u128
-                })
-                .unwrap_or_else(|| tx.max_fee_per_gas())
+            Some(
+                base_fee
+                    .map(|base_fee| {
+                        tx.effective_tip_per_gas(base_fee).unwrap_or_default() + base_fee as u128
+                    })
+                    .unwrap_or_else(|| tx.max_fee_per_gas()),
+            )
         };
 
         Self {
@@ -56,7 +61,7 @@ impl<T: OpTransaction + TransactionTrait> Transaction<T> {
                 block_hash: tx_info.inner.block_hash,
                 block_number: tx_info.inner.block_number,
                 transaction_index: tx_info.inner.index,
-                effective_gas_price: Some(effective_gas_price),
+                effective_gas_price,
                 block_timestamp: tx_info.inner.block_timestamp,
             },
             deposit_nonce: tx_info.deposit_meta.deposit_nonce,
@@ -175,8 +180,8 @@ impl<T: TransactionTrait + Encodable2718> alloy_network_primitives::TransactionR
 #[serde(rename_all = "camelCase")]
 pub struct OpTransactionFields {
     /// The ETH value to mint on L2
-    #[serde(default, skip_serializing_if = "Option::is_none", with = "alloy_serde::quantity::opt")]
-    pub mint: Option<u128>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mint: Option<U256>,
     /// Hash that uniquely identifies the source of the deposit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_hash: Option<B256>,
@@ -198,6 +203,27 @@ impl From<OpTransactionFields> for OtherFields {
 impl<T> AsRef<T> for Transaction<T> {
     fn as_ref(&self) -> &T {
         self.inner.as_ref()
+    }
+}
+
+// Unused in-tree (callers lower to `OpTxEnvelope` first), but required by downstream chains with
+// their own extended envelope, which cannot write this impl themselves under the orphan rule —
+// see the `Recovered<T>` impl in op-alloy-consensus. Do not remove as dead code.
+//
+// Deposit classification MUST come from the inner consensus tx, never the `deposit_nonce` /
+// `deposit_receipt_version` RPC side fields (an untrusted peer can set those independently of the
+// inner `type`). Keeps it consistent with the delegated `Typed2718::ty()`; guarded by the test.
+impl<T: OpTransaction> OpTransaction for Transaction<T> {
+    fn is_deposit(&self) -> bool {
+        self.inner.as_ref().is_deposit()
+    }
+
+    fn as_deposit(&self) -> Option<&Sealed<TxDeposit>> {
+        self.inner.as_ref().as_deposit()
+    }
+
+    fn as_post_exec(&self) -> Option<&Sealed<TxPostExec>> {
+        self.inner.as_ref().as_post_exec()
     }
 }
 
@@ -374,6 +400,29 @@ mod tests {
     }
 
     #[test]
+    fn can_roundtrip_bedrock_system_deposit() {
+        // op-geth eth_getBlockByHash response for a pre-Regolith L1-info deposit.
+        let rpc_tx = r#"{"blockHash":"0x2a3d4ceb37456815f793e8900fe9c863a15737bfbba646df4c51a5914149b4dd","blockNumber":"0xb","blockTimestamp":"0x6aad7010","from":"0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001","gas":"0x8f0d180","gasPrice":"0x0","hash":"0x67c97e03f0759855b20459dd9b5f9ddebdc094f3669bf039011252bae68f5f24","input":"0x015d8eb90000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006aad7005000000000000000000000000000000000000000000000000000000003b9aca001b7ca7f22fd5e435bbc1f175d4e7721cee397530e7ef753563b0b8772ec58d86000000000000000000000000000000000000000000000000000000000000000b0000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc000000000000000000000000000000000000000000000000000000000000083400000000000000000000000000000000000000000000000000000000000f4240","nonce":"0x0","to":"0x4200000000000000000000000000000000000015","transactionIndex":"0x0","value":"0x0","type":"0x7e","v":"0x0","r":"0x0","s":"0x0","sourceHash":"0xfd3be1af69bee3e315a5dc5b773c64432230d76db68edae7a64193522118a377","mint":"0x0","isSystemTx":true}"#;
+        let expected_hash = "0x67c97e03f0759855b20459dd9b5f9ddebdc094f3669bf039011252bae68f5f24"
+            .parse::<B256>()
+            .unwrap();
+
+        let tx = serde_json::from_str::<Transaction>(rpc_tx).unwrap();
+        let deposit = tx.as_ref().as_deposit().expect("expected deposit transaction");
+        assert!(deposit.is_system_transaction);
+        assert_eq!(deposit.hash(), expected_hash);
+        assert_eq!(deposit.inner().tx_hash(), expected_hash);
+
+        let serialized = serde_json::to_value(&tx).unwrap();
+        assert_eq!(serialized["isSystemTx"], serde_json::json!(true));
+        let round_trip = serde_json::from_value::<Transaction>(serialized).unwrap();
+        let deposit =
+            round_trip.as_ref().as_deposit().expect("expected deposit transaction after roundtrip");
+        assert!(deposit.is_system_transaction);
+        assert_eq!(deposit.hash(), expected_hash);
+    }
+
+    #[test]
     fn can_serialize_post_exec_rpc_transaction() {
         let post_exec = build_post_exec_tx(42, vec![SDMGasEntry { index: 3, gas_refund: 7 }]);
         let expected_input = serde_json::to_value(post_exec.input.clone()).unwrap();
@@ -390,7 +439,54 @@ mod tests {
         assert_eq!(value.get("input"), Some(&expected_input));
         assert_eq!(value.get("hash"), Some(&expected_hash));
         assert_eq!(value.get("from"), Some(&serde_json::to_value(Address::ZERO).unwrap()));
+        assert_eq!(value.get("gas"), Some(&serde_json::json!("0x0")));
+        assert_eq!(value.get("value"), Some(&serde_json::json!("0x0")));
+        assert!(value.get("gasPrice").is_none());
+        assert!(value.get("nonce").is_none());
+        assert!(value.get("to").is_none());
         assert!(value.get("gasRefundEntries").is_none());
         assert!(value.get("version").is_none());
+    }
+
+    /// Deposit classification on the rpc wrapper derives from the inner consensus tx, never the
+    /// `depositReceiptVersion`/`depositNonce` side fields — including across the serde round-trip,
+    /// where a peer can attach `depositReceiptVersion` to a non-deposit tx.
+    #[test]
+    fn deposit_classification_ignores_side_fields() {
+        use alloy_consensus::{Sealable, SignableTransaction, TxEip1559, Typed2718};
+        use alloy_primitives::Signature;
+
+        let deposit = Transaction::from_transaction(
+            Recovered::new_unchecked(
+                OpTxEnvelope::Deposit(TxDeposit::default().seal_slow()),
+                Address::ZERO,
+            ),
+            OpTransactionInfo::default(),
+        );
+        assert!(OpTransaction::is_deposit(&deposit));
+        assert_eq!(OpTransaction::as_deposit(&deposit).is_some(), deposit.ty() == 0x7e);
+
+        let eip1559 = Transaction::from_transaction(
+            Recovered::new_unchecked(
+                OpTxEnvelope::Eip1559(
+                    TxEip1559::default().into_signed(Signature::test_signature()),
+                ),
+                Address::ZERO,
+            ),
+            OpTransactionInfo::default(),
+        );
+        assert!(!OpTransaction::is_deposit(&eip1559));
+
+        // `depositReceiptVersion` injected on the non-deposit tx survives deserialization (unlike
+        // `depositNonce`, it is not filtered) but must not flip classification.
+        let mut value = serde_json::to_value(&eip1559).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .insert("depositReceiptVersion".into(), serde_json::json!("0x1"));
+        let tx = serde_json::from_value::<Transaction>(value).unwrap();
+        assert_eq!(tx.deposit_receipt_version, Some(1));
+        assert!(!OpTransaction::is_deposit(&tx));
+        assert!(OpTransaction::as_deposit(&tx).is_none());
     }
 }

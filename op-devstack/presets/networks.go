@@ -4,14 +4,15 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
@@ -60,30 +61,13 @@ func (c *presetCommon) require() *testreq.Assertions {
 
 type presetNetworkBase struct {
 	presetCommon
-	chainCfg *params.ChainConfig
-	chainID  eth.ChainID
+	chainID eth.ChainID
 
-	faucets     []*faucetFrontend
 	syncTesters []*syncTesterFrontend
 }
 
 func (n *presetNetworkBase) ChainID() eth.ChainID {
 	return n.chainID
-}
-
-func (n *presetNetworkBase) ChainConfig() *params.ChainConfig {
-	return n.chainCfg
-}
-
-func (n *presetNetworkBase) Faucets() []stack.Faucet {
-	return mapSlice(sortByNameFunc(n.faucets), func(v *faucetFrontend) stack.Faucet { return v })
-}
-
-func (n *presetNetworkBase) AddFaucet(v *faucetFrontend) {
-	n.require().Equal(n.chainID, v.ChainID(), "faucet %s must be on chain %s", v.Name(), n.chainID)
-	_, exists := componentByName(n.faucets, v.Name())
-	n.require().False(exists, "faucet %s must not already exist", v.Name())
-	n.faucets = append(n.faucets, v)
 }
 
 func (n *presetNetworkBase) SyncTesters() []stack.SyncTester {
@@ -99,6 +83,7 @@ func (n *presetNetworkBase) AddSyncTester(v *syncTesterFrontend) {
 
 type presetL1Network struct {
 	presetNetworkBase
+	chainCfg *params.ChainConfig
 
 	l1ELNodes []*l1ELFrontend
 	l1CLNodes []*l1CLFrontend
@@ -113,10 +98,14 @@ func newPresetL1Network(t devtest.T, name string, chainCfg *params.ChainConfig) 
 	return &presetL1Network{
 		presetNetworkBase: presetNetworkBase{
 			presetCommon: newPresetCommon(t, name),
-			chainCfg:     chainCfg,
 			chainID:      chainID,
 		},
+		chainCfg: chainCfg,
 	}
+}
+
+func (n *presetL1Network) ChainConfig() *params.ChainConfig {
+	return n.chainCfg
 }
 
 func (n *presetL1Network) AddL1ELNode(v *l1ELFrontend) {
@@ -143,6 +132,7 @@ func (n *presetL1Network) L1CLNodes() []stack.L1CLNode {
 
 type presetL2Network struct {
 	presetNetworkBase
+	chainCfg *opparams.ChainConfig
 
 	rollupCfg  *rollup.Config
 	deployment stack.L2Deployment
@@ -150,14 +140,12 @@ type presetL2Network struct {
 
 	l1 *presetL1Network
 
-	l2Batchers       []*l2BatcherFrontend
-	l2Proposers      []*l2ProposerFrontend
-	l2Challengers    []*l2ChallengerFrontend
-	l2CLNodes        []*l2CLFrontend
-	l2ELNodes        []*l2ELFrontend
-	conductors       []*conductorFrontend
-	rollupBoostNodes []*rollupBoostFrontend
-	oprBuilderNodes  []*oprBuilderFrontend
+	l2Batchers    []*l2BatcherFrontend
+	l2Proposers   []*l2ProposerFrontend
+	l2Challengers []*l2ChallengerFrontend
+	l2CLNodes     []*l2CLFrontend
+	l2ELNodes     []*l2ELFrontend
+	conductors    []*conductorFrontend
 }
 
 var _ stack.L2Network = (*presetL2Network)(nil)
@@ -165,7 +153,7 @@ var _ stack.L2Network = (*presetL2Network)(nil)
 func newPresetL2Network(
 	t devtest.T,
 	name string,
-	chainCfg *params.ChainConfig,
+	chainCfg *opparams.ChainConfig,
 	rollupCfg *rollup.Config,
 	deployment stack.L2Deployment,
 	keys *keyringImpl,
@@ -179,14 +167,18 @@ func newPresetL2Network(
 	return &presetL2Network{
 		presetNetworkBase: presetNetworkBase{
 			presetCommon: newPresetCommon(t, name),
-			chainCfg:     chainCfg,
 			chainID:      chainID,
 		},
+		chainCfg:   chainCfg,
 		rollupCfg:  rollupCfg,
 		deployment: deployment,
 		keys:       keys,
 		l1:         l1,
 	}
+}
+
+func (n *presetL2Network) ChainConfig() *opparams.ChainConfig {
+	return n.chainCfg
 }
 
 func (n *presetL2Network) RollupConfig() *rollup.Config {
@@ -251,20 +243,6 @@ func (n *presetL2Network) AddConductor(v *conductorFrontend) {
 	n.conductors = append(n.conductors, v)
 }
 
-func (n *presetL2Network) AddRollupBoostNode(v *rollupBoostFrontend) {
-	n.require().Equal(n.chainID, v.ChainID(), "rollup boost node %s must be on chain %s", v.Name(), n.chainID)
-	_, exists := componentByName(n.rollupBoostNodes, v.Name())
-	n.require().False(exists, "rollup boost node %s must not already exist", v.Name())
-	n.rollupBoostNodes = append(n.rollupBoostNodes, v)
-}
-
-func (n *presetL2Network) AddOPRBuilderNode(v *oprBuilderFrontend) {
-	n.require().Equal(n.chainID, v.ChainID(), "OPR builder node %s must be on chain %s", v.Name(), n.chainID)
-	_, exists := componentByName(n.oprBuilderNodes, v.Name())
-	n.require().False(exists, "OPR builder node %s must not already exist", v.Name())
-	n.oprBuilderNodes = append(n.oprBuilderNodes, v)
-}
-
 func (n *presetL2Network) L2Batchers() []stack.L2Batcher {
 	return mapSlice(sortByNameFunc(n.l2Batchers), func(v *l2BatcherFrontend) stack.L2Batcher { return v })
 }
@@ -287,14 +265,6 @@ func (n *presetL2Network) L2ELNodes() []stack.L2ELNode {
 
 func (n *presetL2Network) Conductors() []stack.Conductor {
 	return mapSlice(sortByNameFunc(n.conductors), func(v *conductorFrontend) stack.Conductor { return v })
-}
-
-func (n *presetL2Network) RollupBoostNodes() []stack.RollupBoostNode {
-	return mapSlice(sortByNameFunc(n.rollupBoostNodes), func(v *rollupBoostFrontend) stack.RollupBoostNode { return v })
-}
-
-func (n *presetL2Network) OPRBuilderNodes() []stack.OPRBuilderNode {
-	return mapSlice(sortByNameFunc(n.oprBuilderNodes), func(v *oprBuilderFrontend) stack.OPRBuilderNode { return v })
 }
 
 type named interface {

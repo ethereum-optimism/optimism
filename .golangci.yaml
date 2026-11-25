@@ -7,10 +7,11 @@ linters:
     - misspell
     - errorlint
     - bigint
+    - depguard
+    - forbidigo
 
     # Only enabled in specific cases. See settings and exclusions below
     - exhaustruct
-    - err113
 
     # Enabled by default but be explicit so it's easy to see what we're running
     - errcheck
@@ -24,6 +25,30 @@ linters:
         type: "module"
         description: "Optimism big.Int checks"
         settings: {}
+    depguard:
+      rules:
+        # op-service/log is the monorepo's logging API; geth.go is its one
+        # binding to the go-ethereum logger.
+        geth-log:
+          files:
+            - $all
+            - "!**/op-service/log/geth.go"
+            - "!**/op-service/log/geth_test.go"
+          deny:
+            - pkg: github.com/ethereum/go-ethereum/log$
+              desc: import github.com/ethereum-optimism/optimism/op-service/log instead
+    forbidigo:
+      analyze-types: true
+      forbid:
+        # Every L2 block carries OP deposit (0x7E) and possibly post-exec (0x7D)
+        # txs, which upstream go-ethereum cannot decode, so these reads fail on an
+        # L2 endpoint at runtime although they compile.
+        # The rule matches the receiver's static type only: a call through an
+        # interface or a type embedding *ethclient.Client is not seen, so don't
+        # wrap an L2 read in one.
+        - pattern: ^ethclient\.Client\.(BlockByNumber|BlockByHash|BlockReceipts|TransactionInBlock|TransactionByHash)$
+          pkg: ^github\.com/ethereum/go-ethereum/ethclient$
+          msg: "L2 deposit and post-exec txs don't decode with upstream go-ethereum: read L2 headers with HeaderBy* and L2 bodies with the op-service/sources accessors (InfoAndUserTxsBy*, InfoAndDepositsBy*, PayloadBy*); for an L1 read add //nolint:forbidigo // L1: <reason>, and for an L2 read that can only return a user tx add //nolint:forbidigo // L2 user tx: <reason>"
     # Require specifying all fields in op-deployer's OPCM input and output structs
     exhaustruct:
       include:
@@ -59,10 +84,6 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      # Only apply err113 to op-program/client
-      - linters:
-          - err113
-        path-except: op-program/client/.*
       - path: (.+)\.go$
         text: errors.As
       - path: (.+)\.go$

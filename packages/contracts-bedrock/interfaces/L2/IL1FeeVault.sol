@@ -36,6 +36,7 @@ interface IL1FeeVault is IProxyAdminOwnedBase {
     function setMinWithdrawalAmount(uint256 _newMinWithdrawalAmount) external;
     function setRecipient(address _newRecipient) external;
     function setWithdrawalNetwork(Types.WithdrawalNetwork _newWithdrawalNetwork) external;
+    function setWithdrawalRoute(address _newRecipient, Types.WithdrawalNetwork _newWithdrawalNetwork) external;
 
     function version() external view returns (string memory);
 }

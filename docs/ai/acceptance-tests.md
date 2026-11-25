@@ -8,7 +8,7 @@ Acceptance tests live in `op-acceptance-tests/tests/` and run full in-process de
 
 ## Running Tests
 
-All `just` targets below automatically build dependencies (contracts, cannon prestates, Rust binaries) before running tests. The builds are incremental — re-running is fast when nothing changed.
+The `just test` target automatically builds dependencies (contracts, cannon prestates, Rust binaries) before running tests. The builds are incremental — re-running is fast when nothing changed.
 
 **Prerequisites:** mise tools must be installed (see [dev-workflow.md](dev-workflow.md#setup)), and a working C toolchain (`clang` or `gcc`) must be available for Rust builds.
 
@@ -20,10 +20,10 @@ Run from `op-acceptance-tests/`:
 
 ```bash
 # Run a single test
-RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just test -run TestMyTest ./op-acceptance-tests/tests/base/
+cd op-acceptance-tests && RUST_JIT_BUILD=1 mise exec -- just test -run TestMyTest ./op-acceptance-tests/tests/base/
 
 # Run a package
-RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just test ./op-acceptance-tests/tests/base/...
+cd op-acceptance-tests && RUST_JIT_BUILD=1 mise exec -- just test ./op-acceptance-tests/tests/base/...
 ```
 
 The `just test` target builds deps, then runs `go test -count=1 -timeout 30m` with your arguments.
@@ -31,63 +31,90 @@ The `just test` target builds deps, then runs `go test -count=1 -timeout 30m` wi
 ### All Tests
 
 ```bash
-RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just acceptance-test
+cd op-acceptance-tests && RUST_JIT_BUILD=1 mise exec -- just acceptance-test
 ```
 
-Runs all test packages with gotestsum, structured logging, and auto-tuned parallelism.
+Runs all test packages with gotestsum, structured logging, and bounded parallelism.
 
-### Gated Subsets
+### Selecting the L2 Clients
 
-Gate files in `op-acceptance-tests/gates/` list package subsets:
+Every run covers the whole `./op-acceptance-tests/tests/...` tree; there is no per-package
+subset target. The L2 EL is always op-reth. The L2 CL is chosen by `DEVSTACK_L2CL_KIND`, read
+in `op-devstack/sysgo/mixed_runtime.go`: `op-node` (the default) or `kona-node`.
 
 ```bash
-RUST_JIT_BUILD=1 cd op-acceptance-tests && mise exec -- just acceptance-test base
+cd op-acceptance-tests && DEVSTACK_L2CL_KIND=kona-node RUST_JIT_BUILD=1 mise exec -- just acceptance-test
 ```
 
-This runs only packages listed in `gates/base.txt`.
+CI runs two variants of the `op-acceptance-tests` job: `memory-all-opn-op-reth-<l1_fork>`
+(op-node + op-reth) and `memory-all-kona-op-reth-<l1_fork>` (kona-node + op-reth).
 
-### Kona Reproducible Prestate
+A test that cannot run under kona-node skips itself in code with `sysgo.SkipOnKonaNode` rather
+than being left out of a list. Skip only for a real client gap.
 
-Some tests (e.g. superfaultproofs, interop fault proofs) require a reproducible kona prestate. This is **not** handled by `build-deps` or `RUST_JIT_BUILD`:
+The supernode presets (`NewSimpleInterop`, `NewTwoL2SupernodeInterop`, ...) start only op-node
+and op-supernode CLs, whatever `DEVSTACK_L2CL_KIND` says, so under kona-node they would repeat
+the op-node job. Each of them calls `skipOpNodeOnlyPresetOnKonaNode` first, which skips the test
+under kona-node before anything starts, so a new test on those presets needs no handling of its
+own. The interop presets without a supernode (`NewSingleChainInteropNoSupernode`, ...) start the
+CL kind `DEVSTACK_L2CL_KIND` selects and run in both jobs. A test that starts both CLs itself,
+through `sysgo.NewMixedSingleChainRuntime` with explicit CL kinds, still runs in both jobs.
+
+### Kona Prestate
+
+Some tests (e.g. superfaultproofs, interop fault proofs) require a kona prestate. This is **not** handled by `build-deps` or `RUST_JIT_BUILD`. There are two ways to build it:
+
+**Reproducible build** (preferred when Docker is available):
 
 ```bash
 mise exec -- just reproducible-prestate-kona
 ```
 
-**Requires Docker.** If Docker is not available in your environment, ask the user to run this command for you.
+This produces a prestate whose hash matches CI/release builds. It works on any host with Docker installed.
+
+**Native build** (fallback when Docker is not available):
+
+```bash
+cd rust && mise exec -- just build-kona-prestates
+```
+
+Only works on **Linux** with the **MIPS cross-compile toolchain** installed. The produced hash will not match release builds, so this is only suitable for local test runs where the hash doesn't need to match a deployed release. If neither Docker nor the MIPS toolchain is available, ask the user to build the prestate for you.
 
 ## What `build-deps` Does
 
-The `just build-deps` target (called automatically by `just test` and `just acceptance-test`) runs these steps when not in CI:
+The `just build-deps` target (called automatically by `just test`) runs these steps when not in CI:
 
 1. **mise** — `mise install` (ensures gotestsum, forge, etc. are available)
 2. **Contracts** — `cd packages/contracts-bedrock && just install && just build-no-tests`
-3. **Cannon prestates** — `just cannon-prestates` (builds cannon, op-program, and prestate artifacts)
-4. **Rust binaries** — `just build-rust-release` (kona-node, op-rbuilder, rollup-boost)
+3. **Cannon prestates** — `just cannon-prestates` (builds the kona prestate artifacts)
+4. **Rust binaries** — `just build-rust-release` (kona-node, kona-host, and op-reth). SDM
+   acceptance fixtures use hidden, default-off testing flags on the normal op-reth binary.
 
 You can also run `just build-deps` directly to pre-build without running tests.
 
 ## Tuning Parallelism (`acceptance-test` only)
 
-When using `just acceptance-test`, the runner auto-detects CPU count and sets:
-- `ACCEPTANCE_TEST_JOBS` — number of packages to test in parallel (default: CPU count)
-- `ACCEPTANCE_TEST_PARALLEL` — `go test -parallel` value per package (default: CPU count / 2)
-- `ACCEPTANCE_TEST_TIMEOUT` — per-package timeout (default: 2h)
+When using `just acceptance-test`, the runner sets:
+- `ACCEPTANCE_TEST_JOBS` — number of tests to run at once (default: 8)
+- `ACCEPTANCE_TEST_PARALLEL` — `go test -parallel` value per test (default: 1)
+- `ACCEPTANCE_TEST_TIMEOUT` — per-test timeout (default: 30m)
 
 Override with environment variables:
 
 ```bash
-ACCEPTANCE_TEST_PARALLEL=2 ACCEPTANCE_TEST_TIMEOUT=1h cd op-acceptance-tests && mise exec -- just acceptance-test
+cd op-acceptance-tests && ACCEPTANCE_TEST_PARALLEL=2 ACCEPTANCE_TEST_TIMEOUT=1h mise exec -- just acceptance-test
 ```
 
 ## Log Output (`acceptance-test` only)
 
 When using `just acceptance-test`, logs are written to `op-acceptance-tests/logs/testrun-<timestamp>/`:
-- `all.log` — full test output
-- `raw_go_events.log` — JSON test events
+- `all.log` — console output
+- `raw_go_events-<node>-<package>.<test>.log` — JSON test events, one file per top-level test
+- `per-test/<dotted package>/<test>.log` — each test's own output
+- `failed/<node>-<package>.<test>.log` — console output of each test that failed, plus any still running if the run was cut off
 - `flaky-tests.txt` — tests marked with `MarkFlaky()`
 
-Results XML goes to `op-acceptance-tests/results/results.xml`.
+Results XML goes to `op-acceptance-tests/results/results-<node>-<package>.<test>.xml`, one file per top-level test.
 
 When using `just test`, output goes to stdout only.
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -337,5 +338,42 @@ func TestFetchBatched(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, tc.Run)
+	}
+}
+
+func TestFetchConcurrentCompletion(t *testing.T) {
+	const fetchers = 8
+	getSingle := func(_ context.Context, result any, _ string, args ...any) error {
+		*(*result.(*any)).(*string) = fmt.Sprintf("mock result id %d", args[0].(int))
+		return nil
+	}
+	keys := make([]int, fetchers)
+	for i := range keys {
+		keys[i] = i
+	}
+	for range 500 {
+		iter := NewIterativeBatchCall[int, *string](keys, makeTestRequest, nil, getSingle, 1)
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		panics := make(chan any, fetchers)
+		for range fetchers {
+			wg.Go(func() {
+				defer func() {
+					if r := recover(); r != nil {
+						panics <- r
+					}
+				}()
+				<-start
+				for iter.Fetch(t.Context()) != io.EOF {
+				}
+			})
+		}
+		close(start)
+		wg.Wait()
+		close(panics)
+		for r := range panics {
+			t.Fatalf("concurrent Fetch panicked: %v", r)
+		}
+		require.True(t, iter.Complete())
 	}
 }

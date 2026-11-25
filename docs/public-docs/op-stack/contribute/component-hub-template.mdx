@@ -1,0 +1,115 @@
+---
+title: Component hub template
+description: The uniform skeleton every OP Stack component hub page follows, with guidance for each section.
+diataxis: reference
+---
+
+Every component listed in the [Stack Components](/op-stack/components/index)
+section gets exactly one identity page — its **hub** — and every hub follows
+the same skeleton. Structural uniformity is the point: a reader who has used
+one hub knows where to look on every other hub, and reviewers can check a new
+hub against this template mechanically, section by section.
+
+The pattern follows Cloudflare's
+[documentation content strategy](https://developers.cloudflare.com/style-guide/documentation-content-strategy/),
+which gives every product's documentation set the same shape and documents
+each product in a single canonical place.
+
+## The skeleton
+
+A hub page contains these sections, in this order, using these exact H2
+headings:
+
+```mdx
+---
+title: <component name>
+description: <one sentence: what the component is and does>
+diataxis: explanation
+---
+
+<One-paragraph orientation: what this component is, in plain language.>
+
+## Overview
+
+<What the component does, why it exists, and who runs it.>
+
+## Get started
+
+<The one canonical starting point: a tutorial or setup guide.>
+
+## How-tos
+
+<Links to the task guides that involve this component.>
+
+## Configuration & flags reference
+
+<Link to the component's configuration reference page.>
+
+## Releases
+
+<Link to the component's release history.>
+
+## Source & spec links
+
+<Links to the source directory, in-repo deep docs, and the normative spec.>
+```
+
+## Section guidance
+
+Hubs are thin identity-and-links pages, not content pages. They follow the
+[content guide](/op-stack/contribute/content-guide)'s dual-sourcing ban:
+wherever a canonical source exists — a guide, a reference page, a spec
+section, an in-repo document — the hub links it and never restates it.
+
+### Overview
+
+Answer three questions in at most a few short paragraphs: **what** the
+component does, **why** it exists (what breaks without it), and **who runs
+it** (chain operators, node operators, dispute participants, nobody directly).
+Volatile facts — versions, activation dates, flag defaults — do not belong
+here; they live in generated or source-linked pages.
+
+### Get started
+
+Exactly one canonical starting point. If a tutorial exists on this site, link
+it. If the component's only setup documentation is its in-repo README, link
+that and say so.
+
+### How-tos
+
+Link the task guides on this site that configure or operate the component.
+Do not summarize them — one line per link describing the task.
+
+### Configuration & flags reference
+
+Link the component's configuration reference page. While these pages are
+hand-maintained, note the release they were written against (the reference
+page itself carries that provenance). When a generated reference exists, this
+slot points at the generated page instead — the hub does not change shape.
+If no reference page exists yet, link the component's `--help` surface via its
+README and say the docs reference is pending.
+
+### Releases
+
+Link the component's page under [Releases](/releases) when it has one,
+otherwise the component's release tags on GitHub.
+
+### Source & spec links
+
+Always in this order, when they exist:
+
+1.  The source directory in the monorepo (or the component's home repository).
+2.  In-repo deep documentation (design docs, runbooks) worth surfacing.
+3.  The component's section of the [OP Stack specifications](https://specs.optimism.io/)
+    — deep-link the exact page, never the spec root.
+
+## What hubs are not
+
+*   **Not a second guide.** If you find yourself writing instructions, that
+    content belongs in a how-to page the hub links.
+*   **Not a reference.** No flag tables, no RPC methods, no version matrices.
+*   **Not a news page.** Release announcements live on the releases pages.
+
+Questions about a hub that this template does not settle go through the
+[content guide](/op-stack/contribute/content-guide)'s canonical-home matrix;
+if the matrix does not cover the case either, raise it in the docs PR.

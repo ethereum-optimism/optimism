@@ -6,8 +6,9 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-alt-da/store"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 )
 
 const (
@@ -91,7 +92,7 @@ var optionalFlags = []cli.Flag{
 }
 
 func init() {
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, logcli.CLIFlags(EnvVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 
@@ -135,8 +136,8 @@ func (c CLIConfig) S3Enabled() bool {
 	return !(c.S3Bucket == "" && c.S3Endpoint == "" && c.S3AccessKeyID == "" && c.S3AccessKeySecret == "")
 }
 
-func (c CLIConfig) S3Config() S3Config {
-	return S3Config{
+func (c CLIConfig) S3Config() store.S3Config {
+	return store.S3Config{
 		Bucket:          c.S3Bucket,
 		Endpoint:        c.S3Endpoint,
 		AccessKeyID:     c.S3AccessKeyID,

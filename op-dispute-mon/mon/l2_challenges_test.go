@@ -5,23 +5,23 @@ import (
 
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMonitorL2Challenges(t *testing.T) {
-	games := []*types.EnrichedGameData{
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x44}}, BlockNumberChallenged: true, AgreeWithClaim: true, L2SequenceNumber: 44, BlockNumberChallenger: common.Address{0x55}},
-		{BlockNumberChallenged: false, AgreeWithClaim: true},
-		{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, BlockNumberChallenged: true, AgreeWithClaim: false, L2SequenceNumber: 22, BlockNumberChallenger: common.Address{0x33}},
-		{BlockNumberChallenged: false, AgreeWithClaim: false},
-		{BlockNumberChallenged: false, AgreeWithClaim: false},
-		{BlockNumberChallenged: false, AgreeWithClaim: true},
+	games := []*types.FaultGameData{
+		{CommonGameData: types.CommonGameData{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x44}}, AgreeWithClaim: true, L2SequenceNumber: 44}, BlockNumberChallenged: true, BlockNumberChallenger: common.Address{0x55}},
+		{CommonGameData: types.CommonGameData{AgreeWithClaim: true}},
+		{CommonGameData: types.CommonGameData{GameMetadata: gameTypes.GameMetadata{Proxy: common.Address{0x22}}, AgreeWithClaim: false, L2SequenceNumber: 22}, BlockNumberChallenged: true, BlockNumberChallenger: common.Address{0x33}},
+		{},
+		{},
+		{CommonGameData: types.CommonGameData{AgreeWithClaim: true}},
 	}
 	metrics := &stubL2ChallengeMetrics{}
-	logger, capturedLogs := testlog.CaptureLogger(t, log.LvlDebug)
+	logger, capturedLogs := testlog.CaptureLogger(t, log.LevelDebug)
 	monitor := NewL2ChallengesMonitor(logger, metrics)
 	monitor.CheckL2Challenges(games)
 	require.Equal(t, 1, metrics.challengeCount[true])

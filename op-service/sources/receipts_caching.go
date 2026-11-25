@@ -4,18 +4,18 @@ import (
 	"context"
 	"sync"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // A CachingReceiptsProvider caches successful receipt fetches from the inner
 // ReceiptsProvider. It also avoids duplicate in-flight requests per block hash.
 type CachingReceiptsProvider struct {
 	inner ReceiptsProvider
-	cache *caching.LRUCache[common.Hash, types.Receipts]
+	cache *caching.LRUCache[common.Hash, optypes.Receipts]
 
 	// lock fetching process for each block hash to avoid duplicate requests
 	fetching   map[common.Hash]*sync.Mutex
@@ -25,7 +25,7 @@ type CachingReceiptsProvider struct {
 func NewCachingReceiptsProvider(inner ReceiptsProvider, m caching.Metrics, cacheSize int) *CachingReceiptsProvider {
 	return &CachingReceiptsProvider{
 		inner:    inner,
-		cache:    caching.NewLRUCache[common.Hash, types.Receipts](m, "receipts", cacheSize),
+		cache:    caching.NewLRUCache[common.Hash, optypes.Receipts](m, "receipts", cacheSize),
 		fetching: make(map[common.Hash]*sync.Mutex),
 	}
 }
@@ -53,7 +53,7 @@ func (p *CachingReceiptsProvider) deleteFetchingLock(blockHash common.Hash) {
 
 // FetchReceipts fetches receipts for the given block and transaction hashes
 // it expects that the inner FetchReceipts implementation handles validation
-func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (types.Receipts, error) {
+func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo eth.BlockInfo, txHashes []common.Hash) (optypes.Receipts, error) {
 	block := eth.ToBlockID(blockInfo)
 	if r, ok := p.cache.Get(block.Hash); ok {
 		return r, nil
@@ -72,6 +72,7 @@ func (p *CachingReceiptsProvider) FetchReceipts(ctx context.Context, blockInfo e
 
 	r, err := p.inner.FetchReceipts(ctx, blockInfo, txHashes)
 	if err != nil {
+		p.deleteFetchingLock(block.Hash)
 		return nil, err
 	}
 

@@ -6,8 +6,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -16,8 +15,12 @@ import (
 
 const EnvVarPrefix = "OP_PROPOSER"
 
-func prefixEnvVars(name string) []string {
-	return opservice.PrefixEnvVar(EnvVarPrefix, name)
+func prefixEnvVars(names ...string) []string {
+	envs := make([]string, 0, len(names))
+	for _, name := range names {
+		envs = append(envs, EnvVarPrefix+"_"+name)
+	}
+	return envs
 }
 
 var (
@@ -32,15 +35,11 @@ var (
 		Usage:   "HTTP provider URL for the rollup node. A comma-separated list enables the active rollup provider.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
-	SupervisorRpcsFlag = &cli.StringSliceFlag{
-		Name:    "supervisor-rpcs",
-		Usage:   "HTTP provider URLs for the supervisor nodes. Multiple URLs can be provided to automatically fail over.",
-		EnvVars: prefixEnvVars("SUPERVISOR_RPCS"),
-	}
-	SuperNodeRpcsFlag = &cli.StringSliceFlag{
-		Name:    "supernode-rpcs",
-		Usage:   "HTTP provider URLs for the supernode instances. Multiple URLs can be provided to automatically fail over.",
-		EnvVars: prefixEnvVars("SUPERNODE_RPCS"),
+	SuperRootRpcsFlag = &cli.StringSliceFlag{
+		Name:    "superroot-rpcs",
+		Aliases: []string{"supernode-rpcs"},
+		Usage:   "HTTP provider URLs for super root RPC sources (op-node or op-supernode). Multiple URLs can be provided to automatically fail over.",
+		EnvVars: prefixEnvVars("SUPERROOT_RPCS", "SUPERNODE_RPCS"),
 	}
 
 	// Optional flags
@@ -94,8 +93,7 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	RollupRpcFlag,
-	SupervisorRpcsFlag,
-	SuperNodeRpcsFlag,
+	SuperRootRpcsFlag,
 	PollIntervalFlag,
 	AllowNonFinalizedFlag,
 	L2OutputHDPathFlag,
@@ -108,7 +106,7 @@ var optionalFlags = []cli.Flag{
 
 func init() {
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, logcli.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(EnvVarPrefix)...)

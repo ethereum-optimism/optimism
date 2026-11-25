@@ -207,10 +207,6 @@ where
         self.batch = None;
         self.prev.flush_channel().await
     }
-
-    async fn provide_block(&mut self, block: BlockInfo) -> PipelineResult<()> {
-        self.prev.provide_block(block).await
-    }
 }
 
 #[cfg(test)]
@@ -233,6 +229,7 @@ mod tests {
                 withdrawals: None,
                 parent_beacon_block_root: None,
                 slot_number: None,
+                target_gas_limit: None,
             },
             no_tx_pool: Some(false),
             transactions: None,

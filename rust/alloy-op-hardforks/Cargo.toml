@@ -2,9 +2,9 @@
 name = "alloy-op-hardforks"
 description = "Bindings for named OP hardforks"
 
-version = "0.4.7"
+version = "0.5.0"
 edition = "2024"
-rust-version = "1.94"
+rust-version = "1.99"
 authors = ["Alloy Contributors", "OpLabsPBC"]
 license.workspace = true
 homepage = "https://github.com/ethereum-optimism/optimism"
@@ -21,7 +21,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 alloy-hardforks = { workspace = true }
 
 # ethereum
-alloy-chains = { workspace = true }
 alloy-primitives = { workspace = true }
 
 # misc
@@ -32,6 +31,5 @@ serde = { workspace = true, optional = true }
 serde = [
 	"dep:serde",
 	"alloy-hardforks/serde",
-	"alloy-chains/serde",
 	"alloy-primitives/serde"
 ]

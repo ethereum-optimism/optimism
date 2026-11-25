@@ -6,7 +6,7 @@ import (
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const MaxResolveDelay = time.Minute
@@ -29,7 +29,7 @@ func NewResolutionMonitor(logger log.Logger, metrics ResolutionMetrics, clock RC
 	}
 }
 
-func (r *ResolutionMonitor) CheckResolutions(games []*types.EnrichedGameData) {
+func (r *ResolutionMonitor) CheckResolutions(games []*types.FaultGameData) {
 	statusMetrics := make(map[metrics.ResolutionStatus]int)
 	for _, game := range games {
 		complete := game.Status != gameTypes.GameStatusInProgress

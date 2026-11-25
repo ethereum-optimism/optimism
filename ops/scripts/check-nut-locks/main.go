@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-core/nuts"
+	nutsstate "github.com/ethereum-optimism/optimism/op-core/nuts/state"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
@@ -65,8 +67,35 @@ func validateEntry(fork string, entry nuts.ForkLockEntry, bundleContent []byte) 
 	return nil
 }
 
+// checkPreForkState verifies the locked fork's own pre-fork state artifacts exist
+// — op-core/nuts/state/<fork>_state.json, the state as of this fork, and from
+// Lagoon onward <fork>_multichain_state.json. Locking a fork's bundle should also
+// produce these states (post-activation) so the NEXT fork's activation test can
+// boot from them. Catching a forgotten one here keeps the chain of states
+// complete, and cheaply (the proofs suite needs kona-host).
+func checkPreForkState(root, fork string) error {
+	names := []string{fork + "_state.json"}
+	if nutsstate.HasMultiChainState(forks.Name(fork)) {
+		names = append(names, fork+"_multichain_state.json")
+	}
+	for _, name := range names {
+		rel := filepath.Join("op-core", "nuts", "state", name)
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			return fmt.Errorf(
+				"fork %s is locked but its pre-fork state %s is missing — generate and commit it so "+
+					"the next fork can boot from it (see op-core/nuts/state/README.md)", fork, rel)
+		}
+	}
+	return nil
+}
+
 // checkCommitAncestry verifies that a commit is an ancestor of origin/develop.
 func checkCommitAncestry(root, fork string, commit string) error {
+	// Note: if you are here because you want to enable a bundle for a fork to be generated from a
+	// commit on a branch other than `develop`, you will
+	// 1. need to add a special case to this function
+	// 2. need to cherry pick the PR to the `develop` branch.
+	// See the "Regarding L2 contract releases" section in release-process.md for more information..
 	cmd := exec.Command("git", "merge-base", "--is-ancestor", commit, "origin/develop")
 	cmd.Dir = root
 	if err := cmd.Run(); err != nil {
@@ -111,7 +140,11 @@ func run(dir string) error {
 			return err
 		}
 
-		fmt.Printf("fork %s: bundle hash OK\n", fork)
+		if err := checkPreForkState(root, fork); err != nil {
+			return err
+		}
+
+		fmt.Printf("fork %s: bundle hash + pre-fork state OK\n", fork)
 	}
 
 	// Reverse check: verify all NUT bundle JSONs have a lock entry

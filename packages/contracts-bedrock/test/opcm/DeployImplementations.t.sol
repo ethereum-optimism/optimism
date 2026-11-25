@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { Test } from "test/setup/Test.sol";
 import { stdStorage, StdStorage } from "forge-std/StdStorage.sol";
+import { MockSP1Verifier } from "test/dispute/zk/MockSP1Verifier.sol";
 import "../setup/FeatureFlags.sol";
 
 // Libraries
@@ -16,6 +17,7 @@ import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
+import { ISP1Verifier } from "interfaces/vendor/ISP1Verifier.sol";
 
 import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
 
@@ -25,20 +27,25 @@ contract DeployImplementations_Test is Test, FeatureFlags {
     DeployImplementations deployImplementations;
 
     // Define default inputs for testing.
-    uint256 withdrawalDelaySeconds = 100;
+    uint256 minWithdrawalDelaySeconds = 1;
+    uint256 maxWithdrawalDelaySeconds = 604800;
     uint256 minProposalSizeBytes = 200;
     uint256 challengePeriodSeconds = 300;
-    uint256 proofMaturityDelaySeconds = 400;
-    uint256 disputeGameFinalityDelaySeconds = 500;
+    uint256 minProofMaturityDelaySeconds = 1;
+    uint256 maxProofMaturityDelaySeconds = 604800;
+    uint256 minDisputeGameFinalityDelaySeconds = 1;
+    uint256 maxDisputeGameFinalityDelaySeconds = 302400;
     ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
     address l1ProxyAdminOwner = makeAddr("l1ProxyAdminOwner");
     address challenger = makeAddr("challenger");
+    ISP1Verifier sp1Verifier;
 
     function setUp() public virtual {
         resolveFeaturesFromEnv();
         // We'll need to store some code on this address so that the deployment script checks pass
         vm.etch(address(superchainConfigProxy), hex"01");
+        sp1Verifier = new MockSP1Verifier();
 
         deployImplementations = new DeployImplementations();
     }
@@ -81,10 +88,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         );
 
         // for the super DG implementation deployments
-        if (
-            isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)
-                || isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
-        ) {
+        if (isDevFeatureEnabled(DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
             assertNotEq(
                 address(output.superFaultDisputeGameImpl), address(0), "SuperFaultDisputeGame should be deployed"
             );
@@ -109,28 +113,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 302400,
                 "SuperFaultDisputeGame maxClockDuration incorrect"
             );
-
-            // Validate constructor args for SuperPermissionedDisputeGame
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxGameDepth(),
-                73,
-                "SuperPermissionedDisputeGame maxGameDepth incorrect"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.splitDepth(),
-                30,
-                "SuperPermissionedDisputeGame splitDepth incorrect"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.clockExtension().raw(),
-                10800,
-                "SuperPermissionedDisputeGame clockExtension incorrect"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
-                302400,
-                "SuperPermissionedDisputeGame maxClockDuration incorrect"
-            );
         } else {
             assertEq(
                 address(output.superFaultDisputeGameImpl), address(0), "SuperFaultDisputeGame should not be deployed"
@@ -141,6 +123,15 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 "SuperPermissionedDisputeGame should not be deployed"
             );
         }
+    }
+
+    /// @notice Test that the DelayedWETH implementation is deployed with the configured delay bounds
+    ///         and no delay of its own; the delay lives in per-chain proxy storage.
+    function test_run_delayedWETHBounds_succeeds() public {
+        DeployImplementations.Output memory output = deployImplementations.run(defaultInput());
+        assertEq(output.delayedWETHImpl.minDelay(), minWithdrawalDelaySeconds, "DelayedWETH minDelay");
+        assertEq(output.delayedWETHImpl.maxDelay(), maxWithdrawalDelaySeconds, "DelayedWETH maxDelay");
+        assertEq(output.delayedWETHImpl.delay(), 0, "DelayedWETH impl delay");
     }
 
     /// @notice Test that the deployImplementations function succeeds when reusing the same valid input.
@@ -168,18 +159,34 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         assertEq(address(output1.ethLockboxImpl), address(output2.ethLockboxImpl), "1300");
         assertEq(address(output1.faultDisputeGameImpl), address(output2.faultDisputeGameImpl), "1400");
         assertEq(address(output1.permissionedDisputeGameImpl), address(output2.permissionedDisputeGameImpl), "1500");
+        assertEq(address(output1.sp1PlonkAdapterSingleton), address(output2.sp1PlonkAdapterSingleton), "1600");
 
         assertNotEq(address(output1.faultDisputeGameImpl), address(0), "V2 contracts should not be null");
         assertNotEq(address(output1.permissionedDisputeGameImpl), address(0), "V2 contracts should not be null");
     }
 
+    /// @notice Different release-approved raw verifiers must produce different deterministic adapters.
+    function test_differentSP1Verifiers_deployDifferentAdapters_succeeds() public {
+        DeployImplementations.Input memory inputA = defaultInput();
+        DeployImplementations.Output memory outputA = deployImplementations.run(inputA);
+
+        ISP1Verifier verifierB = new MockSP1Verifier();
+        DeployImplementations.Input memory inputB = defaultInput();
+        inputB.sp1Verifier = verifierB;
+        DeployImplementations.Output memory outputB = deployImplementations.run(inputB);
+
+        assertNotEq(address(outputA.sp1PlonkAdapterSingleton), address(outputB.sp1PlonkAdapterSingleton));
+        assertEq(address(outputA.sp1PlonkAdapterSingleton.sp1Verifier()), address(sp1Verifier));
+        assertEq(address(outputB.sp1PlonkAdapterSingleton.sp1Verifier()), address(verifierB));
+    }
+
     /// @notice Test that the deployImplementations script succeeds with a range of input values.
     function testFuzz_run_memory_succeeds(
-        uint256 _withdrawalDelaySeconds,
+        uint256 _minWithdrawalDelaySeconds,
         uint256 _minProposalSizeBytes,
         uint64 _challengePeriodSeconds,
-        uint256 _proofMaturityDelaySeconds,
-        uint256 _disputeGameFinalityDelaySeconds,
+        uint256 _minProofMaturityDelaySeconds,
+        uint256 _minDisputeGameFinalityDelaySeconds,
         address _superchainConfigImpl,
         uint256 _faultGameV2MaxGameDepth,
         uint256 _faultGameV2SplitDepth,
@@ -189,11 +196,13 @@ contract DeployImplementations_Test is Test, FeatureFlags {
     )
         public
     {
-        _withdrawalDelaySeconds = bound(_withdrawalDelaySeconds, 1, type(uint256).max);
+        _minWithdrawalDelaySeconds = bound(_minWithdrawalDelaySeconds, 1, type(uint128).max);
         _minProposalSizeBytes = bound(_minProposalSizeBytes, 1, 1000000);
         _challengePeriodSeconds = uint64(bound(uint256(_challengePeriodSeconds), 1, type(uint64).max));
-        _proofMaturityDelaySeconds = bound(_proofMaturityDelaySeconds, 1, type(uint256).max);
-        _disputeGameFinalityDelaySeconds = bound(_disputeGameFinalityDelaySeconds, 1, type(uint256).max);
+        // The upper bounds are derived (2x the lower bound) to keep the fuzz signature within the
+        // stack limit; the deployed implementations are checked against both below.
+        _minProofMaturityDelaySeconds = bound(_minProofMaturityDelaySeconds, 1, type(uint128).max);
+        _minDisputeGameFinalityDelaySeconds = bound(_minDisputeGameFinalityDelaySeconds, 1, type(uint128).max);
 
         // Ensure superchainConfigImpl is not zero address
         vm.assume(_superchainConfigImpl != address(0));
@@ -225,11 +234,14 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         _faultGameV2MaxClockDuration = bound(_faultGameV2MaxClockDuration, _faultGameV2ClockExtension * 2, 30 days);
 
         DeployImplementations.Input memory input = DeployImplementations.Input(
-            _withdrawalDelaySeconds,
+            _minWithdrawalDelaySeconds,
+            _minWithdrawalDelaySeconds * 2,
             _minProposalSizeBytes,
             uint256(_challengePeriodSeconds),
-            _proofMaturityDelaySeconds,
-            _disputeGameFinalityDelaySeconds,
+            _minProofMaturityDelaySeconds,
+            _minProofMaturityDelaySeconds * 2,
+            _minDisputeGameFinalityDelaySeconds,
+            _minDisputeGameFinalityDelaySeconds * 2,
             StandardConstants.MIPS_VERSION, // mipsVersion
             _devFeatureBitmap, // devFeatureBitmap (fuzzed)
             _faultGameV2MaxGameDepth, // faultGameV2MaxGameDepth (bounded)
@@ -239,7 +251,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             superchainConfigProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
-            challenger
+            challenger,
+            sp1Verifier
         );
 
         DeployImplementations.Output memory output = deployImplementations.run(input);
@@ -260,6 +273,30 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
         assertNotEq(address(output.faultDisputeGameImpl), address(0), "V2 should be deployed when enabled");
         assertNotEq(address(output.permissionedDisputeGameImpl), address(0), "V2 should be deployed when enabled");
+
+        // Verify the per-chain delay bounds match fuzz inputs. The DelayedWETH bounds are checked in
+        // test_run_delayedWETHBounds_succeeds: asserting them here pushes this function past the
+        // stack limit.
+        assertEq(
+            output.optimismPortalImpl.minProofMaturityDelaySeconds(),
+            _minProofMaturityDelaySeconds,
+            "portal minProofMaturityDelaySeconds"
+        );
+        assertEq(
+            output.optimismPortalImpl.maxProofMaturityDelaySeconds(),
+            _minProofMaturityDelaySeconds * 2,
+            "portal maxProofMaturityDelaySeconds"
+        );
+        assertEq(
+            output.anchorStateRegistryImpl.minDisputeGameFinalityDelaySeconds(),
+            _minDisputeGameFinalityDelaySeconds,
+            "ASR minDisputeGameFinalityDelaySeconds"
+        );
+        assertEq(
+            output.anchorStateRegistryImpl.maxDisputeGameFinalityDelaySeconds(),
+            _minDisputeGameFinalityDelaySeconds * 2,
+            "ASR maxDisputeGameFinalityDelaySeconds"
+        );
 
         // Verify V2 constructor parameters match fuzz inputs
         assertEq(output.faultDisputeGameImpl.maxGameDepth(), _faultGameV2MaxGameDepth, "FDGv2 maxGameDepth");
@@ -288,8 +325,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             "PDGv2 maxClockDuration"
         );
 
-        bool superGamesEnabled = DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)
-            || DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
+        bool superGamesEnabled =
+            DevFeatures.isDevFeatureEnabled(_devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION);
         if (superGamesEnabled) {
             assertNotEq(
                 address(output.superFaultDisputeGameImpl), address(0), "super game should be deployed when enabled"
@@ -311,25 +348,6 @@ contract DeployImplementations_Test is Test, FeatureFlags {
                 output.superFaultDisputeGameImpl.maxClockDuration().raw(),
                 uint64(_faultGameV2MaxClockDuration),
                 "SuperDG maxClockDuration"
-            );
-
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxGameDepth(),
-                _faultGameV2MaxGameDepth,
-                "PSuperDG maxGameDepth"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.splitDepth(), _faultGameV2SplitDepth, "PSuperDG splitDepth"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.clockExtension().raw(),
-                uint64(_faultGameV2ClockExtension),
-                "PSuperDG clockExtension"
-            );
-            assertEq(
-                output.superPermissionedDisputeGameImpl.maxClockDuration().raw(),
-                uint64(_faultGameV2MaxClockDuration),
-                "PSuperDG maxClockDuration"
             );
         } else {
             assertEq(address(output.superFaultDisputeGameImpl), address(0), "super game should be null when disabled");
@@ -376,6 +394,7 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
         // Architecture assertions.
         assertEq(address(output.mipsSingleton.oracle()), address(output.preimageOracleSingleton), "600");
+        assertEq(address(output.sp1PlonkAdapterSingleton.sp1Verifier()), address(sp1Verifier), "SP1 verifier mismatch");
     }
 
     /// @notice Test that the deployImplementations script reverts when the Mips version is set to 1 on Mainnet or
@@ -411,8 +430,13 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         DeployImplementations.Input memory input;
 
         input = defaultInput();
-        input.withdrawalDelaySeconds = 0;
-        vm.expectRevert("DeployImplementations: withdrawalDelaySeconds not set");
+        input.minWithdrawalDelaySeconds = 0;
+        vm.expectRevert("DeployImplementations: minWithdrawalDelaySeconds not set");
+        deployImplementations.run(input);
+
+        input = defaultInput();
+        input.minWithdrawalDelaySeconds = input.maxWithdrawalDelaySeconds + 1;
+        vm.expectRevert("DeployImplementations: withdrawalDelaySeconds bounds inverted");
         deployImplementations.run(input);
 
         input = defaultInput();
@@ -426,13 +450,23 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.proofMaturityDelaySeconds = 0;
-        vm.expectRevert("DeployImplementations: proofMaturityDelaySeconds not set");
+        input.minProofMaturityDelaySeconds = 0;
+        vm.expectRevert("DeployImplementations: minProofMaturityDelaySeconds not set");
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.disputeGameFinalityDelaySeconds = 0;
-        vm.expectRevert("DeployImplementations: disputeGameFinalityDelaySeconds not set");
+        input.minProofMaturityDelaySeconds = input.maxProofMaturityDelaySeconds + 1;
+        vm.expectRevert("DeployImplementations: proofMaturityDelaySeconds bounds inverted");
+        deployImplementations.run(input);
+
+        input = defaultInput();
+        input.minDisputeGameFinalityDelaySeconds = 0;
+        vm.expectRevert("DeployImplementations: minDisputeGameFinalityDelaySeconds not set");
+        deployImplementations.run(input);
+
+        input = defaultInput();
+        input.minDisputeGameFinalityDelaySeconds = input.maxDisputeGameFinalityDelaySeconds + 1;
+        vm.expectRevert("DeployImplementations: disputeGameFinalityDelaySeconds bounds inverted");
         deployImplementations.run(input);
 
         input = defaultInput();
@@ -458,6 +492,26 @@ contract DeployImplementations_Test is Test, FeatureFlags {
         input = defaultInput();
         input.challenger = address(0);
         vm.expectRevert("DeployImplementations: challenger not set");
+        deployImplementations.run(input);
+    }
+
+    /// @notice Tests that the raw SP1 verifier must be set to a contract.
+    function test_run_sp1VerifierNotContract_reverts() public {
+        DeployImplementations.Input memory input = defaultInput();
+        input.sp1Verifier = ISP1Verifier(address(0));
+
+        vm.expectRevert("DeployImplementations: sp1Verifier must be a contract");
+        deployImplementations.run(input);
+    }
+
+    /// @notice Tests that the raw SP1 verifier exposes the expected verifier interface.
+    function test_run_sp1VerifierWithoutVersion_reverts() public {
+        address verifierWithoutVersion = makeAddr("verifierWithoutVersion");
+        vm.etch(verifierWithoutVersion, hex"00");
+        DeployImplementations.Input memory input = defaultInput();
+        input.sp1Verifier = ISP1Verifier(verifierWithoutVersion);
+
+        vm.expectRevert("DeployImplementations: sp1Verifier must expose VERSION()");
         deployImplementations.run(input);
     }
 
@@ -518,11 +572,14 @@ contract DeployImplementations_Test is Test, FeatureFlags {
 
     function defaultInput() private view returns (DeployImplementations.Input memory input_) {
         input_ = DeployImplementations.Input(
-            withdrawalDelaySeconds,
+            minWithdrawalDelaySeconds,
+            maxWithdrawalDelaySeconds,
             minProposalSizeBytes,
             challengePeriodSeconds,
-            proofMaturityDelaySeconds,
-            disputeGameFinalityDelaySeconds,
+            minProofMaturityDelaySeconds,
+            maxProofMaturityDelaySeconds,
+            minDisputeGameFinalityDelaySeconds,
+            maxDisputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
             devFeatureBitmap,
             73, // faultGameV2MaxGameDepth
@@ -532,7 +589,8 @@ contract DeployImplementations_Test is Test, FeatureFlags {
             superchainConfigProxy,
             superchainProxyAdmin,
             l1ProxyAdminOwner,
-            challenger
+            challenger,
+            sp1Verifier
         );
     }
 }

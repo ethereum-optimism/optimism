@@ -16,9 +16,11 @@ use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_preimage::{
     BidirectionalChannel, Channel, HintReader, HintWriter, OracleReader, OracleServer,
+    VerifyingPreimageFetcher,
 };
 use kona_proof_interop::HintType;
 use kona_providers_alloy::{OnlineBeaconClient, OnlineBlobProvider};
+use kona_registry::DEPENDENCY_SETS;
 use kona_std_fpvm::{FileChannel, FileDescriptor};
 use op_alloy_network::Optimism;
 use serde::Serialize;
@@ -132,20 +134,39 @@ pub enum InteropHostError {
     /// A RPC error.
     #[error("Rpc Error: {0}")]
     RpcError(#[from] alloy_transport::RpcError<alloy_transport::TransportErrorKind>),
+    /// A blob provider error.
+    #[error("Blob provider error: {0}")]
+    BlobProviderError(#[from] kona_derive::BlobProviderError),
     /// An error when no provider found for chain ID.
     #[error("No provider found for chain ID: {0}")]
     RootProviderError(u64),
-    /// Interop is scheduled for a supplied rollup config but no dependency-set file was provided.
+    /// Lagoon is scheduled for a supplied rollup config but no dependency-set file was provided.
     #[error(
-        "Interop is scheduled for chain {chain_id} (interop_time = {interop_time:?}), but \
+        "Lagoon is scheduled for chain {chain_id} (lagoon_time = {lagoon_time:?}), but \
          --depset-cfg was not provided. Supply the dependency-set JSON file matching op-node's \
-         --interop.dependency-set to avoid silent state divergence on interop activation."
+         --interop.dependency-set to avoid silent state divergence on Lagoon activation."
     )]
     InteropWithoutDependencySet {
-        /// The L2 chain ID whose rollup config has interop scheduled.
+        /// The L2 chain ID whose rollup config has Lagoon scheduled.
         chain_id: u64,
-        /// The `interop_time` from that rollup config.
-        interop_time: Option<u64>,
+        /// The `lagoon_time` from that rollup config.
+        lagoon_time: Option<u64>,
+    },
+    /// The dependency-set file cannot be read.
+    #[error("Failed reading dependency set {path:?}: {source}")]
+    UnreadableDependencySet {
+        /// The dependency-set file.
+        path: PathBuf,
+        /// The IO error.
+        source: std::io::Error,
+    },
+    /// The dependency-set file does not parse.
+    #[error("Failed deserializing dependency set {path:?}: {source}")]
+    InvalidDependencySet {
+        /// The dependency-set file.
+        path: PathBuf,
+        /// The parse error.
+        source: serde_json::Error,
     },
     /// Any other error.
     #[error("Error: {0}")]
@@ -155,8 +176,6 @@ pub enum InteropHostError {
 impl InteropHost {
     /// Starts the [`InteropHost`] application.
     pub async fn start(self) -> Result<(), InteropHostError> {
-        self.require_dependency_set_if_interop_scheduled()?;
-
         if self.server {
             let hint = FileChannel::new(FileDescriptor::HintRead, FileDescriptor::HintWrite);
             let preimage =
@@ -168,7 +187,7 @@ impl InteropHost {
         }
     }
 
-    /// Refuses to start when any supplied rollup config schedules the Interop hardfork but no
+    /// Refuses to start when any supplied rollup config schedules the Lagoon hardfork but no
     /// `--depset-cfg` was provided. Mirrors the same invariant enforced by `kona-node`, turning a
     /// silent state-divergence bug into a startup crash.
     ///
@@ -179,8 +198,15 @@ impl InteropHost {
         require_dependency_set_for_configs(&configs, &self.dependency_set_path)
     }
 
+    /// Refuses to start with a configured dependency set that cannot be read or parsed, rather
+    /// than serving the client no dependency set later.
+    fn require_readable_dependency_set(&self) -> Result<(), InteropHostError> {
+        self.read_dependency_set().transpose()?;
+        Ok(())
+    }
+
     /// Starts the preimage server, communicating with the client over the provided channels.
-    async fn start_server<C>(
+    pub async fn start_server<C>(
         &self,
         hint: C,
         preimage: C,
@@ -188,6 +214,9 @@ impl InteropHost {
     where
         C: Channel + Send + Sync + 'static,
     {
+        self.require_dependency_set_if_interop_scheduled()?;
+        self.require_readable_dependency_set()?;
+
         let kv_store = self.create_key_value_store()?;
 
         let task_handle = if self.is_offline() {
@@ -195,7 +224,7 @@ impl InteropHost {
                 PreimageServer::new(
                     OracleServer::new(preimage),
                     HintReader::new(hint),
-                    Arc::new(OfflineHostBackend::new(kv_store)),
+                    Arc::new(VerifyingPreimageFetcher::new(OfflineHostBackend::new(kv_store))),
                 )
                 .start()
                 .await
@@ -208,15 +237,13 @@ impl InteropHost {
                 kv_store.clone(),
                 providers,
                 InteropHintHandler,
-            )
-            .with_proactive_hint(HintType::L2BlockData)
-            .with_proactive_hint(HintType::L2PayloadWitness);
+            );
 
             task::spawn(async {
                 PreimageServer::new(
                     OracleServer::new(preimage),
                     HintReader::new(hint),
-                    Arc::new(backend),
+                    Arc::new(VerifyingPreimageFetcher::new(backend)),
                 )
                 .start()
                 .await
@@ -290,11 +317,31 @@ impl InteropHost {
     pub fn read_dependency_set(&self) -> Option<Result<DependencySet, InteropHostError>> {
         let path = self.dependency_set_path.as_ref()?;
 
-        Some((|| {
-            let ser_config = std::fs::read_to_string(path)?;
-            let dep_set: DependencySet = serde_json::from_str(&ser_config)?;
-            Ok(dep_set)
-        })())
+        Some(
+            std::fs::read_to_string(path)
+                .map_err(|source| InteropHostError::UnreadableDependencySet {
+                    path: path.clone(),
+                    source,
+                })
+                .and_then(|s| {
+                    serde_json::from_str(&s).map_err(|source| {
+                        InteropHostError::InvalidDependencySet { path: path.clone(), source }
+                    })
+                }),
+        )
+    }
+
+    /// Returns the [`DependencySet`] the client derives for a proof of `chain_id`. The client
+    /// takes the superchain-registry's set for the chain when there is one, and otherwise the set
+    /// the host serves from `--depset-cfg`.
+    pub fn dependency_set_for(
+        &self,
+        chain_id: u64,
+    ) -> Result<Option<DependencySet>, InteropHostError> {
+        if let Some(dependency_set) = DEPENDENCY_SETS.get(&chain_id) {
+            return Ok(Some(dependency_set.clone()));
+        }
+        self.read_dependency_set().transpose()
     }
 
     /// Creates the key-value store for the host backend.
@@ -303,7 +350,7 @@ impl InteropHost {
     /// ensure compatibility with existing data. Otherwise, `--data-format` is used as the default.
     fn create_key_value_store(&self) -> Result<SharedKeyValueStore, InteropHostError> {
         let local_kv_store = InteropLocalInputs::new(self.clone());
-        Ok(create_key_value_store(local_kv_store, self.data_dir.as_deref(), self.data_format))
+        Ok(create_key_value_store(local_kv_store, self.data_dir.as_deref(), self.data_format)?)
     }
 
     /// Creates the providers required for the preimage server backend.
@@ -318,7 +365,7 @@ impl InteropHost {
                 .clone()
                 .ok_or(InteropHostError::Other("Beacon API URL must be set"))?,
         ))
-        .await;
+        .await?;
 
         // Resolve all chain IDs to their corresponding providers.
         let l2_node_addresses = self
@@ -339,6 +386,11 @@ impl InteropHost {
 impl OnlineHostBackendCfg for InteropHost {
     type HintType = HintType;
     type Providers = InteropProviders;
+
+    /// `L2PayloadWitness` bulk-populates the store via `debug_executePayload`.
+    /// `L2BlockData` re-executes a replaced optimistic block and bulk-populates its preimages.
+    const HIGH_LEVEL_HINTS: &'static [HintType] =
+        &[HintType::L2PayloadWitness, HintType::L2BlockData];
 }
 
 /// The providers required for the single chain host.
@@ -359,7 +411,7 @@ impl InteropProviders {
     }
 }
 
-/// Returns `Err` when any config in `configs` schedules the Interop hardfork but
+/// Returns `Err` when any config in `configs` schedules the Lagoon hardfork but
 /// `dependency_set_path` is `None`.
 fn require_dependency_set_for_configs(
     configs: &BTreeMap<u64, RollupConfig>,
@@ -369,10 +421,10 @@ fn require_dependency_set_for_configs(
         return Ok(());
     }
     for (chain_id, cfg) in configs {
-        if cfg.hardforks.interop_time.is_some() {
+        if cfg.hardforks.lagoon_time.is_some() {
             return Err(InteropHostError::InteropWithoutDependencySet {
                 chain_id: *chain_id,
-                interop_time: cfg.hardforks.interop_time,
+                lagoon_time: cfg.hardforks.lagoon_time,
             });
         }
     }
@@ -384,10 +436,11 @@ mod tests {
     use super::*;
     use alloy_primitives::b256;
     use kona_genesis::HardForkConfig;
+    use kona_interop::MESSAGE_EXPIRY_WINDOW;
 
-    fn rollup_config_with_interop_time(interop_time: Option<u64>) -> RollupConfig {
+    fn rollup_config_with_lagoon_time(lagoon_time: Option<u64>) -> RollupConfig {
         RollupConfig {
-            hardforks: HardForkConfig { interop_time, ..Default::default() },
+            hardforks: HardForkConfig { lagoon_time, ..Default::default() },
             ..Default::default()
         }
     }
@@ -395,13 +448,13 @@ mod tests {
     #[test]
     fn test_require_dependency_set_interop_scheduled_without_depset() {
         let configs: BTreeMap<u64, RollupConfig> =
-            BTreeMap::from([(10u64, rollup_config_with_interop_time(Some(42)))]);
+            BTreeMap::from([(10u64, rollup_config_with_lagoon_time(Some(42)))]);
 
         let err = require_dependency_set_for_configs(&configs, &None).unwrap_err();
         match err {
-            InteropHostError::InteropWithoutDependencySet { chain_id, interop_time } => {
+            InteropHostError::InteropWithoutDependencySet { chain_id, lagoon_time } => {
                 assert_eq!(chain_id, 10);
-                assert_eq!(interop_time, Some(42));
+                assert_eq!(lagoon_time, Some(42));
             }
             other => panic!("expected InteropWithoutDependencySet, got {other:?}"),
         }
@@ -410,7 +463,7 @@ mod tests {
     #[test]
     fn test_require_dependency_set_interop_scheduled_with_depset() {
         let configs: BTreeMap<u64, RollupConfig> =
-            BTreeMap::from([(10u64, rollup_config_with_interop_time(Some(42)))]);
+            BTreeMap::from([(10u64, rollup_config_with_lagoon_time(Some(42)))]);
         let depset = Some(PathBuf::from("/tmp/depset.json"));
 
         assert!(require_dependency_set_for_configs(&configs, &depset).is_ok());
@@ -419,9 +472,99 @@ mod tests {
     #[test]
     fn test_require_dependency_set_no_interop_no_depset() {
         let configs: BTreeMap<u64, RollupConfig> =
-            BTreeMap::from([(10u64, rollup_config_with_interop_time(None))]);
+            BTreeMap::from([(10u64, rollup_config_with_lagoon_time(None))]);
 
         assert!(require_dependency_set_for_configs(&configs, &None).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_start_server_requires_dependency_set_when_interop_scheduled() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let rollup_config_path = temp_dir.path().join("rollup.json");
+        std::fs::write(
+            &rollup_config_path,
+            serde_json::to_string(&rollup_config_with_lagoon_time(Some(42))).unwrap(),
+        )
+        .unwrap();
+
+        let host = InteropHost {
+            server: true,
+            rollup_config_paths: Some(vec![rollup_config_path]),
+            ..Default::default()
+        };
+        let hint = BidirectionalChannel::new().unwrap();
+        let preimage = BidirectionalChannel::new().unwrap();
+
+        let err = host.start_server(hint.host, preimage.host).await.unwrap_err();
+
+        match err {
+            InteropHostError::InteropWithoutDependencySet { chain_id, lagoon_time } => {
+                assert_eq!(chain_id, 0);
+                assert_eq!(lagoon_time, Some(42));
+            }
+            other => panic!("expected InteropWithoutDependencySet, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_registry_chain_uses_the_registry_dependency_set() {
+        const OP_SEPOLIA: u64 = 11155420;
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("depset.json");
+        std::fs::write(&file, r#"{"dependencies":{"901":{}}}"#).unwrap();
+
+        // The client takes the embedded set before the one the host serves, so the host must too.
+        for dependency_set_path in [None, Some(file)] {
+            let host = InteropHost { dependency_set_path, ..Default::default() };
+            assert_eq!(
+                host.dependency_set_for(OP_SEPOLIA).unwrap(),
+                Some(DEPENDENCY_SETS[&OP_SEPOLIA].clone())
+            );
+        }
+    }
+
+    #[test]
+    fn a_chain_outside_the_registry_uses_the_configured_dependency_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("depset.json");
+        std::fs::write(&file, r#"{"dependencies":{"901":{}}}"#).unwrap();
+
+        let host = InteropHost { dependency_set_path: Some(file), ..Default::default() };
+        let dependency_set = host.dependency_set_for(901).unwrap().unwrap();
+        assert_eq!(dependency_set.dependencies.keys().copied().collect::<Vec<_>>(), [901]);
+
+        assert_eq!(InteropHost::default().dependency_set_for(901).unwrap(), None);
+    }
+
+    #[test]
+    fn test_require_readable_dependency_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let host = |dependency_set_path| InteropHost { dependency_set_path, ..Default::default() };
+
+        assert!(host(None).require_readable_dependency_set().is_ok());
+
+        let missing = dir.path().join("missing.json");
+        assert!(matches!(
+            host(Some(missing)).require_readable_dependency_set(),
+            Err(InteropHostError::UnreadableDependencySet { .. })
+        ));
+
+        let too_long = dir.path().join("depset.json");
+        std::fs::write(&too_long, r#"{"dependencies":{},"overrideMessageExpiryWindow":604801}"#)
+            .unwrap();
+        let err = host(Some(too_long)).require_readable_dependency_set().unwrap_err();
+        assert!(matches!(err, InteropHostError::InvalidDependencySet { .. }));
+        assert!(err.to_string().contains("overrideMessageExpiryWindow 604801s exceeds"));
+
+        let at_limit = dir.path().join("depset-at-limit.json");
+        std::fs::write(
+            &at_limit,
+            format!(
+                r#"{{"dependencies":{{}},"overrideMessageExpiryWindow":{MESSAGE_EXPIRY_WINDOW}}}"#
+            ),
+        )
+        .unwrap();
+        assert!(host(Some(at_limit)).require_readable_dependency_set().is_ok());
     }
 
     #[test]

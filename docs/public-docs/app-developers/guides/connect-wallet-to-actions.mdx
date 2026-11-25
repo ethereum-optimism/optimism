@@ -1,0 +1,49 @@
+---
+title: Connecting a wallet to Actions SDK
+description: Connect an embedded provider wallet to Actions SDK so it can perform DeFi actions like Lend, Borrow, Swap, and Pay.
+diataxis: how-to
+---
+
+Actions SDK works with wallets from popular embedded wallet providers, regardless of where and how transactions are signed.
+This guide shows you how to connect a provider wallet to Actions so it can call Actions functions.
+
+For help deciding which wallet schema fits your use case, see [Integrating wallets](/app-developers/reference/actions/integrating-wallets).
+
+## Connect your wallet
+
+<Steps>
+  <Step title="Choose a wallet provider">
+    Follow embedded wallet provider documentation and installation steps.
+    Actions works with Typescript clients, both frontend React and backend Node.
+  </Step>
+  <Step title="Import Actions SDK">
+    Import [Actions SDK](https://actions.money/) alongside your chosen wallet
+    provider SDK.
+    The [quickstart](/app-developers/quickstarts/actions#installation) covers
+    installing Actions SDK in your project.
+  </Step>
+  <Step title="Create and fetch embedded user wallets">
+    Follow embedded wallet provider documentation for wallet creation and
+    access.
+  </Step>
+  <Step title="Pass the wallet to Actions">
+    Call `actions.wallet.toActionsWallet(...)`, and [pass
+    in](/app-developers/quickstarts/actions#choose-a-wallet-provider) the
+    provider wallet.
+    The quickstart includes provider-specific code examples for both frontend
+    and backend clients.
+  </Step>
+  <Step title="Take Action">
+    The returned
+    [Wallet](/app-developers/reference/actions/wallet-definitions) is now
+    capable of calling Actions
+    [functions](/app-developers/quickstarts/actions#take-action) like Lend,
+    Borrow, Swap and Pay!
+  </Step>
+</Steps>
+
+## Next steps
+
+*   Follow the [Configuring Actions](/app-developers/guides/configuring-actions) guide to define which protocols, chains, and assets to support.
+*   Learn about [smart wallets & signers](/app-developers/reference/actions/integrating-wallets#smart-wallets--signers) if you want Actions to deploy smart contract wallets controlled by your users' embedded wallets.
+*   See the [Wallet Documentation](/app-developers/reference/actions/wallet-definitions) for API details on wallet classes, functions, and parameters.

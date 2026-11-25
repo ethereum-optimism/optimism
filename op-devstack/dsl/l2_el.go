@@ -2,22 +2,26 @@ package dsl
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
+
+	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 var emptyHash = common.Hash{}
@@ -45,14 +49,25 @@ func (el *L2ELNode) Escape() stack.L2ELNode {
 	return el.inner
 }
 
+// UserRPC returns the execution node's user RPC endpoint.
+func (el *L2ELNode) UserRPC() string {
+	return el.inner.UserRPC()
+}
+
 func (el *L2ELNode) EthClient() apis.EthClient {
 	return el.inner.EthClient()
 }
 
-func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.L2BlockRef {
+// blockRefByLabel returns the block ref for a label and its lookup error, so the polling helpers
+// can retry transient failures. BlockRefByLabel is the one-shot variant that fails the test.
+func (el *L2ELNode) blockRefByLabel(label eth.BlockLabel) (eth.L2BlockRef, error) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
-	block, err := el.inner.L2EthClient().L2BlockRefByLabel(ctx, label)
+	return el.inner.L2EthClient().L2BlockRefByLabel(ctx, label)
+}
+
+func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.L2BlockRef {
+	block, err := el.blockRefByLabel(label)
 	el.require.NoError(err, "block not found using block label")
 	return block
 }
@@ -65,22 +80,124 @@ func (el *L2ELNode) BlockRefByHash(hash common.Hash) eth.L2BlockRef {
 	return block
 }
 
-func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64) CheckFunc {
+// WaitForGasUsed waits for the head at label to use at least minGasUsed gas.
+// Transient block-label lookup failures are retried until timeout.
+func (el *L2ELNode) WaitForGasUsed(label eth.BlockLabel, minGasUsed uint64, timeout time.Duration) eth.BlockInfo {
+	ctx, cancel := context.WithTimeout(el.ctx, timeout)
+	defer cancel()
+
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "label", label,
+		"minimum_gas_used", minGasUsed, "timeout", timeout)
+	logger.Info("Waiting for L2 block gas usage")
+
+	var lastBlock eth.BlockInfo
+	var lastLookupErr error
+	err := wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
+		block, err := el.inner.EthClient().InfoByLabel(ctx, label)
+		if err != nil {
+			lastLookupErr = err
+			logger.Warn("Block-label lookup failed; will retry", "err", err)
+			return false, nil
+		}
+
+		lastBlock = block
+		lastLookupErr = nil
+		if block.GasUsed() >= minGasUsed {
+			logger.Info("L2 block gas usage reached", "block", eth.ToBlockID(block), "gas_used", block.GasUsed())
+			return true, nil
+		}
+		logger.Info("L2 block gas usage not reached", "block", eth.ToBlockID(block), "gas_used", block.GasUsed())
+		return false, nil
+	})
+	if err != nil {
+		lastObservation := "no block observed"
+		if lastBlock != nil {
+			lastObservation = fmt.Sprintf("block %s used %d gas", eth.ToBlockID(lastBlock), lastBlock.GasUsed())
+		}
+		el.require.NoError(err,
+			"expected %s block on chain %s to use at least %d gas within %s; last observation: %s; last lookup error: %v",
+			label, el.ChainID(), minGasUsed, timeout, lastObservation, lastLookupErr)
+	}
+	return lastBlock
+}
+
+// AdvancedOption configures an AdvancedFn call.
+type AdvancedOption func(*advancedOpts)
+
+type advancedOpts struct {
+	attempts int // number of 2-second polling attempts
+}
+
+// WithTimeout overrides AdvancedFn's default polling budget. The argument is
+// the number of attempts; each attempt polls 2 seconds apart, so attempts*2
+// is the total wall-clock timeout.
+func WithTimeout(attempts int) AdvancedOption {
+	return func(o *advancedOpts) { o.attempts = attempts }
+}
+
+func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64, opts ...AdvancedOption) CheckFunc {
+	o := advancedOpts{attempts: int(block + 30)}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	return func() error {
-		initial := el.BlockRefByLabel(label)
-		target := initial.Number + block
-		el.log.Info("expecting chain to advance", "chain", el.inner.ChainID(), "label", label, "target", target)
-		attempts := int(block + 3) // intentionally allow few more attempts for avoid flaking
-		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+		var initial eth.L2BlockRef
+		if err := retry.Do0(el.ctx, o.attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
-				head := el.BlockRefByLabel(label)
-				if head.Number >= target {
-					el.log.Info("chain advanced", "chain", el.inner.ChainID(), "target", target)
-					return nil
+				head, err := el.blockRefByLabel(label)
+				if err != nil {
+					el.log.Warn("block-label lookup failed; will retry", "chain", el.inner.ChainID(), "label", label, "err", err)
+					return err
 				}
-				el.log.Info("chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", target)
-				return fmt.Errorf("expected head to advance: %s", label)
-			})
+				initial = head
+				return nil
+			}); err != nil {
+			return err
+		}
+		target := initial.Number + block
+		el.log.Info("expecting chain to advance", "chain", el.inner.ChainID(), "label", label, "target", target, "attempts", o.attempts)
+		return el.ReachedFn(label, target, o.attempts)()
+	}
+}
+
+// KeptAdvancingFn returns a CheckFunc that observes the head for the given
+// label over observeFor and fails if the head ever goes longer than maxGap of
+// wall-clock time without advancing to a higher block number. Use it to assert
+// sustained liveness (e.g. continuous block production) rather than eventual
+// progress: AdvancedFn passes as long as the target is reached eventually,
+// while KeptAdvancingFn also fails on a long stall followed by a catch-up burst.
+// Transient lookup errors are tolerated until they persist past maxGap.
+func (el *L2ELNode) KeptAdvancingFn(label eth.BlockLabel, observeFor time.Duration, maxGap time.Duration) CheckFunc {
+	return func() error {
+		start := time.Now()
+		last, err := el.blockRefByLabel(label)
+		if err != nil {
+			return fmt.Errorf("initial %s head lookup failed: %w", label, err)
+		}
+		lastAdvance := start
+		el.log.Info("expecting chain to keep advancing", "chain", el.inner.ChainID(), "label", label,
+			"from", last.Number, "observe_for", observeFor, "max_gap", maxGap)
+		for time.Since(start) < observeFor {
+			if err := clock.SystemClock.SleepCtx(el.ctx, 500*time.Millisecond); err != nil { // nosemgrep: flake-sleep-in-test -- fixed-cadence sampling to measure production gaps; there is no single chain event to wait on
+				return err
+			}
+			head, lookupErr := el.blockRefByLabel(label)
+			if lookupErr != nil {
+				el.log.Warn("head lookup failed; will retry", "chain", el.inner.ChainID(), "label", label, "err", lookupErr)
+			} else if head.Number > last.Number {
+				el.log.Info("chain advanced", "chain", el.inner.ChainID(), "label", label,
+					"block", head.Number, "gap", time.Since(lastAdvance).Round(time.Millisecond))
+				last = head
+				lastAdvance = time.Now()
+			}
+			if gap := time.Since(lastAdvance); gap > maxGap {
+				return fmt.Errorf("chain %s %s head stalled at block %d: no new block for %s (max allowed %s)",
+					el.inner.ChainID(), label, last.Number, gap.Round(time.Millisecond), maxGap)
+			}
+		}
+		el.log.Info("chain kept advancing for the whole observation window",
+			"chain", el.inner.ChainID(), "label", label, "at", last.Number, "observed", observeFor)
+		return nil
 	}
 }
 
@@ -89,7 +206,9 @@ func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel, attempts int) CheckFunc 
 		el.log.Info("expecting chain not to advance", "chain", el.inner.ChainID(), "label", label)
 		initial := el.BlockRefByLabel(label)
 		for range attempts {
-			time.Sleep(2 * time.Second)
+			if err := clock.SystemClock.SleepCtx(el.ctx, 2*time.Second); err != nil { // nosemgrep: flake-sleep-in-test -- asserting absence of progress; no chain event to wait on
+				return err
+			}
 			head := el.BlockRefByLabel(label)
 			el.log.Info("chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", initial.Number)
 			if head.Hash == initial.Hash {
@@ -107,7 +226,11 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 		logger.Info("Expecting L2EL to reach")
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
-				head := el.BlockRefByLabel(label)
+				head, err := el.blockRefByLabel(label)
+				if err != nil {
+					logger.Warn("block-label lookup failed; will retry", "err", err)
+					return err
+				}
 				if head.Number >= target {
 					logger.Info("L2EL advanced", "target", target)
 					return nil
@@ -118,12 +241,43 @@ func (el *L2ELNode) ReachedFn(label eth.BlockLabel, target uint64, attempts int)
 	}
 }
 
-func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
+// ReachedWithProgressFn is the progress-aware analogue of ReachedFn: it waits
+// for the head at label to reach target, tolerating a self-recovering slowdown
+// while failing fast on a genuinely stuck node. It succeeds when label reaches
+// target, and fails when either progressLabel (a strictly more-live label, e.g.
+// eth.Unsafe) has not advanced for stallTimeout, or the overall maxWait elapses.
+// Use it for a catch-up wait whose target head is gated by a pipeline that can
+// transiently stall under load (e.g. the EL safe label catching up after interop
+// resumes). Polls every 2s. See L2CLNode.ReachedWithProgressFn.
+func (el *L2ELNode) ReachedWithProgressFn(label, progressLabel eth.BlockLabel, target uint64, maxWait, stallTimeout time.Duration) CheckFunc {
+	return func() error {
+		logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "label", label, "progress_label", progressLabel, "target", target)
+		headNum := func(l eth.BlockLabel) func() (uint64, error) {
+			return func() (uint64, error) {
+				ref, err := el.blockRefByLabel(l)
+				return ref.Number, err
+			}
+		}
+		return awaitHeadWithProgress(el.ctx, logger, headNum(label), headNum(progressLabel), target, maxWait, stallTimeout,
+			fmt.Sprintf("expected head for label=%s to advance to target=%d", label, target), string(progressLabel))
+	}
+}
+
+func (el *L2ELNode) blockRefByNumber(num uint64) (eth.L2BlockRef, error) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
-	block, err := el.inner.L2EthClient().L2BlockRefByNumber(ctx, num)
+	return el.inner.L2EthClient().L2BlockRefByNumber(ctx, num)
+}
+
+func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
+	block, err := el.blockRefByNumber(num)
 	el.require.NoError(err, "block not found using block number %d", num)
 	return block
+}
+
+// GasLimitAtBlock returns the gas limit of the block at the given number.
+func (el *L2ELNode) GasLimitAtBlock(num uint64) uint64 {
+	return uint64(el.PayloadByNumber(num).ExecutionPayload.GasLimit)
 }
 
 // ReorgTriggeredFn returns a lambda that checks that a L2 reorg occurred on or before the expected block
@@ -192,6 +346,10 @@ func (el *L2ELNode) Reached(label eth.BlockLabel, block uint64, attempts int) {
 	el.require.NoError(el.ReachedFn(label, block, attempts)())
 }
 
+func (el *L2ELNode) KeptAdvancing(label eth.BlockLabel, observeFor time.Duration, maxGap time.Duration) {
+	el.require.NoError(el.KeptAdvancingFn(label, observeFor, maxGap)())
+}
+
 func (el *L2ELNode) NotAdvanced(label eth.BlockLabel, attempts int) {
 	el.require.NoError(el.NotAdvancedFn(label, attempts)())
 }
@@ -219,12 +377,16 @@ func (el *L2ELNode) L1OriginReachedFn(label eth.BlockLabel, l1OriginTarget uint6
 		logger.Info("Expecting L2EL to reach L1 origin")
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 1 * time.Second},
 			func() error {
-				head := el.BlockRefByLabel(label)
+				head, err := el.blockRefByLabel(label)
+				if err != nil {
+					logger.Warn("Failed to fetch L2EL head, retrying", "err", err)
+					return fmt.Errorf("fetch %s head: %w", label, err)
+				}
 				if head.L1Origin.Number >= l1OriginTarget {
 					logger.Info("L2EL advanced L1 origin", "l1OriginTarget", l1OriginTarget)
 					return nil
 				}
-				logger.Debug("L2EL sync status", "head", head.ID())
+				logger.Debug("L2EL sync status", "head", head.ID(), "l1Origin", head.L1Origin.Number)
 				return fmt.Errorf("L1 origin of %s not advanced yet", label)
 			})
 	}
@@ -243,7 +405,12 @@ func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, a
 	logger.Info("Expecting L2EL L1 origin to match")
 	el.require.NoError(retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 		func() error {
-			head := el.BlockRefByLabel(label)
+			// A reorg can temporarily make the label or a historical block unavailable.
+			// Return lookup errors to the retry loop instead of failing the test here.
+			head, err := el.blockRefByLabel(label)
+			if err != nil {
+				return fmt.Errorf("fetch %s head: %w", label, err)
+			}
 			if head.L1Origin.Number < target.Number {
 				logger.Debug("L2EL L1 origin not yet reached", "head", head.ID(), "l1Origin", head.L1Origin)
 				return fmt.Errorf("L1 origin of %s head has not reached target yet", label)
@@ -252,7 +419,11 @@ func (el *L2ELNode) WaitL1OriginHash(label eth.BlockLabel, target eth.BlockID, a
 			// the L2 block whose L1 origin number matches the target.
 			block := head
 			for block.L1Origin.Number > target.Number && block.Number > 0 {
-				block = el.BlockRefByNumber(block.Number - 1)
+				number := block.Number - 1
+				block, err = el.blockRefByNumber(number)
+				if err != nil {
+					return fmt.Errorf("fetch L2 block %d: %w", number, err)
+				}
 			}
 			if block.L1Origin.Hash == target.Hash {
 				logger.Info("L2EL L1 origin matched", "l2Block", block.ID(), "l1Origin", block.L1Origin)
@@ -359,8 +530,17 @@ func (el *L2ELNode) Start() {
 	lifecycle.Start()
 }
 
+// Wipe discards the stopped node's chain data so the next Start begins from genesis.
+// Stop alone does not guarantee this: op-reth keeps its datadir across restarts.
+func (el *L2ELNode) Wipe() {
+	el.log.Info("Wiping", "name", el.inner.Name())
+	wipeable, ok := el.inner.(stack.Wipeable)
+	el.require.Truef(ok, "L2EL node %s is not wipeable", el.inner.Name())
+	wipeable.Wipe()
+}
+
 func (el *L2ELNode) PeerWith(peer *L2ELNode) {
-	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC(), false)
+	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
 }
 
 func (el *L2ELNode) DisconnectPeerWith(peer *L2ELNode) {
@@ -427,36 +607,18 @@ func (el *L2ELNode) ForkchoiceUpdateRaw(unsafe, safe, finalized common.Hash, att
 	return result
 }
 
-func (el *L2ELNode) FinishedELSync(refNode *L2ELNode, unsafe, safe, finalized uint64) {
-	el.log.Info("Trigger EL Sync", "unsafe", unsafe, "safe", safe, "finalized", finalized)
-	trial := 1
-	el.require.NoError(retry.Do0(el.ctx, 5, &retry.FixedStrategy{Dur: 2 * time.Second}, func() error {
-		el.log.Info("FCU to trigger EL Sync", "trial", trial)
-		res := el.ForkchoiceUpdate(refNode, unsafe, safe, finalized, nil)
-		// If EL Sync triggered, Example logs from L2EL(geth)
-		//  New skeleton head announced
-		//  Backfilling with the network
-		if res.Result.PayloadStatus.Status == eth.ExecutionValid {
-			el.log.Info("Finished EL Sync")
-			return nil
-		}
-		trial += 1
-		return errors.New("EL Sync not finished")
-	}))
-}
-
-func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl suptypes.SafetyLevel) eth.BlockID {
+func (el *L2ELNode) ChainSyncStatus(chainID eth.ChainID, lvl safety.Level) eth.BlockID {
 	el.require.Equal(chainID, el.inner.ChainID(), "chain ID mismatch")
 	var blockRef eth.L2BlockRef
 	switch lvl {
-	case suptypes.Finalized:
+	case safety.Finalized:
 		blockRef = el.BlockRefByLabel(eth.Finalized)
-	case suptypes.CrossSafe, suptypes.LocalSafe:
+	case safety.CrossSafe, safety.LocalSafe:
 		blockRef = el.BlockRefByLabel(eth.Safe)
-	case suptypes.CrossUnsafe, suptypes.LocalUnsafe:
+	case safety.LocalUnsafe:
 		blockRef = el.BlockRefByLabel(eth.Unsafe)
 	default:
-		el.require.NoError(errors.New("invalid safety level"))
+		el.require.NoError(fmt.Errorf("%w: %v", errNoChainHeadForLevel, lvl))
 	}
 	return blockRef.ID()
 }
@@ -471,8 +633,8 @@ func (el *L2ELNode) ChainBlockID(chainID eth.ChainID, number uint64) (eth.BlockI
 }
 
 // WaitForReceipt waits for a transaction receipt to be available, retrying until found or timeout.
-func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
-	var receipt *types.Receipt
+func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *optypes.Receipt {
+	var receipt *optypes.Receipt
 	err := retry.Do0(el.ctx, 30, &retry.FixedStrategy{Dur: 500 * time.Millisecond}, func() error {
 		var err error
 		receipt, err = el.inner.EthClient().TransactionReceipt(el.ctx, txHash)
@@ -485,24 +647,42 @@ func (el *L2ELNode) WaitForReceipt(txHash common.Hash) *types.Receipt {
 	return receipt
 }
 
-func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) CheckFunc {
+// AccountProofAt returns addr's account and its state-trie proof at blockNum. op-reth serves
+// proofs from a store that can lag the blocks it has inserted, so this retries until the proof
+// is available.
+func (el *L2ELNode) AccountProofAt(addr common.Address, blockNum uint64) *eth.AccountResult {
+	logger := el.log.With("name", el.inner.Name(), "chain", el.ChainID(), "account", addr, "block", blockNum)
+	proof, err := retry.Do(el.ctx, 30, &retry.FixedStrategy{Dur: time.Second}, func() (*eth.AccountResult, error) {
+		ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+		defer cancel()
+		proof, err := el.inner.EthClient().GetProof(ctx, addr, []common.Hash{}, hexutil.EncodeUint64(blockNum))
+		if err != nil {
+			logger.Info("Waiting for account proof", "err", err)
+		}
+		return proof, err
+	})
+	el.require.NoError(err, "account proof of %s at block %d", addr, blockNum)
+	return proof
+}
+
+func (el *L2ELNode) MatchedFn(refNode SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return MatchedFn(el, refNode, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
-func (el *L2ELNode) InSyncFn(other SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) CheckFunc {
+func (el *L2ELNode) InSyncFn(other SyncStatusProvider, lvl safety.Level, attempts int) CheckFunc {
 	return InSyncFn(el, other, el.log, el.ctx, lvl, el.ChainID(), attempts)
 }
 
-func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
+func (el *L2ELNode) Matched(refNode SyncStatusProvider, lvl safety.Level, attempts int) {
 	el.require.NoError(el.MatchedFn(refNode, lvl, attempts)())
 }
 
-func (el *L2ELNode) InSync(other SyncStatusProvider, lvl suptypes.SafetyLevel, attempts int) {
+func (el *L2ELNode) InSync(other SyncStatusProvider, lvl safety.Level, attempts int) {
 	el.require.NoError(el.InSyncFn(other, lvl, attempts)())
 }
 
 func (el *L2ELNode) MatchedUnsafe(refNode SyncStatusProvider, attempts int) {
-	el.Matched(refNode, suptypes.LocalUnsafe, attempts)
+	el.Matched(refNode, safety.LocalUnsafe, attempts)
 }
 
 // WaitForPendingNonceMatchFn returns a lambda that waits for the pending nonce of an account to match the provided reference nonce
@@ -546,29 +726,31 @@ func (el *L2ELNode) FinalizedHead() *BlockRefResult {
 }
 
 func (el *L2ELNode) AssertExecMessageNotInBlock(execMessage *ExecMessage) {
-	el.AssertTxNotInBlock(bigs.Uint64Strict(execMessage.BlockNumber()), execMessage.TxHash())
+	el.AssertUserTxNotInBlock(bigs.Uint64Strict(execMessage.BlockNumber()), execMessage.TxHash())
 }
 
-// AssertTxNotInBlock asserts that a transaction with the given hash does not exist in the block at the given number.
-func (el *L2ELNode) AssertTxNotInBlock(blockNumber uint64, txHash common.Hash) {
+// AssertUserTxNotInBlock asserts that no user transaction with the given hash exists in the block
+// at the given number. Deposits and post-exec transactions are not checked.
+func (el *L2ELNode) AssertUserTxNotInBlock(blockNumber uint64, txHash common.Hash) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
 
-	_, txs, err := el.inner.EthClient().InfoAndTxsByNumber(ctx, blockNumber)
+	_, txs, err := el.inner.L2EthClient().InfoAndUserTxsByNumber(ctx, blockNumber)
 	el.require.NoError(err, "failed to fetch block %d", blockNumber)
 
 	for _, tx := range txs {
-		el.require.NotEqualf(tx.Hash(), txHash, "transaction should not exist in block", "Found tx %v in block %v", tx.Hash(), blockNumber)
+		el.require.NotEqualf(tx.Hash(), txHash, "found tx %v in block %d", txHash, blockNumber)
 	}
 	el.log.Info("confirmed transaction not in block", "blockNumber", blockNumber, "txHash", txHash)
 }
 
-// AssertTxInBlock asserts that a transaction with the given hash does not exist in the block at the given number.
-func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
+// AssertUserTxInBlock asserts that a user transaction with the given hash exists in the block at
+// the given number.
+func (el *L2ELNode) AssertUserTxInBlock(blockNumber uint64, txHash common.Hash) {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
 
-	_, txs, err := el.inner.EthClient().InfoAndTxsByNumber(ctx, blockNumber)
+	_, txs, err := el.inner.L2EthClient().InfoAndUserTxsByNumber(ctx, blockNumber)
 	el.require.NoError(err, "failed to fetch block %d", blockNumber)
 
 	for _, tx := range txs {
@@ -577,7 +759,59 @@ func (el *L2ELNode) AssertTxInBlock(blockNumber uint64, txHash common.Hash) {
 			return
 		}
 	}
-	el.require.Fail("transaction should exist in block", "blockNumber", blockNumber, "txHash", txHash)
+	el.require.Failf("transaction should exist in block", "tx %v not found in block %d", txHash, blockNumber)
+}
+
+// ResendUntilSafe broadcasts a transaction from makeTx and waits for it to derive onto this
+// node's irreversible safe chain, retrying with a newly built transaction whenever a broadcast
+// fails to settle. It returns the block number and hash where the transaction landed, and fails
+// the test if nothing settles within sendAttempts broadcasts of pollPerAttempt seconds each.
+//
+// makeTx is invoked once per send attempt and must return a transaction ready to broadcast. It
+// does not have to build a brand-new transaction every time, but it is responsible for nonce
+// safety across retries: a previous attempt's broadcast may still be pending or have been
+// orphaned, so reusing an account naively can hit "nonce too low" or underpriced-replacement
+// rejections. Returning a transaction from a freshly funded account each call is the simplest
+// way to keep nonce space clean.
+func (el *L2ELNode) ResendUntilSafe(makeTx func() *txplan.PlannedTx, sendAttempts, pollPerAttempt int) (uint64, common.Hash) {
+	client := el.EthClient()
+	for attempt := 0; attempt < sendAttempts; attempt++ {
+		tx := makeTx()
+		signed, err := tx.Signed.Eval(el.ctx)
+		if err != nil {
+			el.log.Warn("could not sign tx; retrying with a fresh tx", "attempt", attempt, "err", err)
+			continue
+		}
+		txHash := signed.Hash()
+		// Broadcast only; inclusion is confirmed by the safe-head poll below, so an orphaned
+		// send just falls through to the next attempt instead of hard-failing the test.
+		if _, err := tx.Submitted.Eval(el.ctx); err != nil {
+			el.log.Warn("broadcast rejected; retrying with a fresh tx", "attempt", attempt, "err", err)
+			continue
+		}
+		var settledBlock uint64
+		err = retry.Do0(el.ctx, pollPerAttempt, &retry.FixedStrategy{Dur: time.Second}, func() error {
+			rcpt, err := client.TransactionReceipt(el.ctx, txHash)
+			if err != nil || rcpt == nil {
+				return fmt.Errorf("no receipt yet for %s", txHash)
+			}
+			safe, err := el.blockRefByLabel(eth.Safe)
+			if err != nil {
+				return err
+			}
+			if block := bigs.Uint64Strict(rcpt.BlockNumber); block <= safe.Number {
+				settledBlock = block
+				return nil
+			}
+			return fmt.Errorf("tx %s included but not yet at/below safe head", txHash)
+		})
+		if err == nil {
+			el.log.Info("tx settled on safe chain", "block", settledBlock, "tx", txHash)
+			return settledBlock, txHash
+		}
+	}
+	el.require.Fail("transaction did not reach the safe chain within the resend budget")
+	return 0, emptyHash
 }
 
 type BlockRefResult struct {

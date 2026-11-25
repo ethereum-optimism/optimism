@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -98,8 +98,8 @@ var Subcommands = cli.Commands{
 				config.SetDeployments(deployments)
 			}
 
-			cfg := oplog.DefaultCLIConfig()
-			logger := oplog.NewLogger(ctx.App.Writer, cfg)
+			cfg := logcli.DefaultCLIConfig()
+			logger := logcli.NewLogger(ctx.App.Writer, cfg)
 			if err := config.Check(logger); err != nil {
 				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
 			}
@@ -135,8 +135,8 @@ var Subcommands = cli.Commands{
 			"or it can be provided as a JSON file.",
 		Flags: l2Flags,
 		Action: func(ctx *cli.Context) error {
-			cfg := oplog.DefaultCLIConfig()
-			logger := oplog.NewLogger(ctx.App.Writer, cfg)
+			cfg := logcli.DefaultCLIConfig()
+			logger := logcli.NewLogger(ctx.App.Writer, cfg)
 
 			deployConfig := ctx.Path(deployConfigFlag.Name)
 			logger.Info("Deploy config", "path", deployConfig)
@@ -179,7 +179,7 @@ var Subcommands = cli.Commands{
 
 			logger.Info("Using L1 Start Block", "number", startBlock)
 			// retry because local devnet can experience a race condition where L1 geth isn't ready yet
-			l1StartBlock, err := retry.Do(ctx.Context, 24, retry.Fixed(1*time.Second), func() (*types.Block, error) { return client.BlockByNumber(ctx.Context, startBlock) })
+			l1StartBlock, err := retry.Do(ctx.Context, 24, retry.Fixed(1*time.Second), func() (*types.Block, error) { return client.BlockByNumber(ctx.Context, startBlock) }) //nolint:forbidigo // L1: the rollup's L1 start block
 			if err != nil {
 				return fmt.Errorf("fetching start block by number: %w", err)
 			}

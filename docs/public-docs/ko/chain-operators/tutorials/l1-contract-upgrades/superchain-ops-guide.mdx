@@ -1,0 +1,107 @@
+---
+title: superchain-ops를 사용하여 업그레이드하기
+description: 템플릿으로 task를 생성하고, 이를 구성 및 시뮬레이션한 다음, 직접 실행하거나 검토를 위해 제출하여 superchain-ops로 체인의 L1 컨트랙트를 업그레이드합니다.
+diataxis: how-to
+---
+
+이 가이드는 `superchain-ops` 저장소를 사용하여 Optimism 체인을 업그레이드하는 과정을 설명합니다. 주로 Security Council이 관리하는 OP Stack 체인, Foundation 또는 Security Council이 서명자인 체인, 그리고/또는 매우 안전한 프로세스가 필요한 체인을 대상으로 합니다.
+
+superchain-ops의 강화된 보안이나 Security Council 서명이 필요하지 않은 체인은 다른 업그레이드 도구를 사용할 수 있습니다. 단, `op-deployer upgrade` 명령은 [`op-contracts/v5.0.0`까지](/ko/notices/archive/op-deployer-upgrade-deprecation)의 업그레이드만 지원한다는 점에 유의하십시오.
+
+Optimism 거버넌스가 적용되지 않는 체인은 자체 도구를 사용하여 OPCM과 직접 상호작용하여 체인을 업그레이드할 수 있습니다.
+
+`superchain-ops`는 Optimism 체인을 위해 설계된 매우 안전한 서비스입니다. 체인 업그레이드에 대해 체계적이고 보안 중심적인 접근 방식을 제공합니다. 이 과정에서는 미리 정의된 템플릿을 사용하여 필요한 업그레이드 트랜잭션을 생성하는 task를 만듭니다.
+
+## `superchain-ops`를 사용해야 하는 대상
+
+`superchain-ops`는 주로 다음을 대상으로 합니다.
+
+1.  **Security Council이 관리하는 OP Stack 체인**: Optimism Security Council이 관리하는 표준 체인의 경우 일반적으로 `superchain-ops`를 통해 업그레이드가 처리됩니다.
+
+2.  **Foundation 또는 Security Council이 서명자인 체인**: 체인의 서명자에 Foundation 멀티시그 또는 Security Council이 포함된 경우 업그레이드 task는 `superchain-ops`를 거쳐야 합니다.
+
+3.  **매우 안전한 프로세스가 필요한 체인**: 자동화보다 보안을 우선시하는 체인을 위해 `superchain-ops`는 철저한 검증 단계(예: EVM 상태 diff 검사)를 갖춘 의도적인 수동 워크플로를 제공합니다.
+
+이러한 범주에 해당하지 않는 체인은 다른 방법으로 업그레이드에 적합한 call data를 생성하거나, OPCM 기반이 아닌 업그레이드를 위한 자체 업그레이드 프로세스를 개발해야 합니다.
+
+## 템플릿과 task 이해하기
+
+`superchain-ops`는 두 가지 핵심 개념을 사용합니다.
+
+*   **템플릿(Templates)**: 업그레이드가 무엇인지 정의하며 특정 업그레이드 경로에 대한 코드를 포함합니다(예: [`op-contracts/v1.8.0`에서 `op-contracts/v2.0.0`으로](https://github.com/ethereum-optimism/superchain-ops/blob/main/src/improvements/template/OPCMUpgradeV200.sol)). 템플릿은 버전별로 존재하며 [/src/improvements/template](https://github.com/ethereum-optimism/superchain-ops/tree/main/src/improvements/template) 디렉터리에 있습니다.
+
+*   **Task**: 템플릿을 사용하여 체인에 대한 특정 업그레이드 트랜잭션을 정의합니다. 여러 task가 동일한 템플릿을 사용할 수 있습니다. Task는 [/src/improvements/tasks](https://github.com/ethereum-optimism/superchain-ops/tree/main/src/improvements/tasks) 디렉터리에 네트워크별(`eth` 또는 `sep`)로 정리되어 있습니다.
+
+## 일반적인 업그레이드 과정
+
+다음은 [`op-contracts/v1.8.0`에서 `op-contracts/v2.0.0`으로](https://github.com/ethereum-optimism/superchain-ops/blob/main/src/improvements/template/OPCMUpgradeV200.sol)의 업그레이드를 예로 들어 `superchain-ops`를 사용하여 체인을 업그레이드하는 과정을 설명합니다. 다른 OPCM 기반 업그레이드(예: [`op-contracts/v2.0.0`에서 `op-contracts/v3.0.0`으로](https://github.com/ethereum-optimism/superchain-ops/blob/main/src/improvements/template/OPCMUpgradeV300.sol))에도 동일한 패턴이 적용됩니다.
+
+### 1단계: `superchain-ops` 저장소 클론하기
+
+```bash
+git clone https://github.com/ethereum-optimism/superchain-ops.git
+cd superchain-ops/src/improvements
+```
+
+### 1a단계: 의존성 설치(최초 1회)
+`README.md` 파일의 ['Quick Start'](https://github.com/ethereum-optimism/superchain-ops/blob/main/README.md#quick-start) 섹션에 있는 'Install Dependencies' 안내를 따르십시오.
+
+### 2단계: quick start를 사용하여 새 task 생성하기
+
+```bash
+just new task
+```
+
+프롬프트에 따라 적절한 템플릿(예: `op-contracts/v1.8.0`에서 `op-contracts/v2.0.0`으로의 업그레이드에는 `OPCMUpgradeV200`)을 선택하고 필요한 세부 정보를 입력합니다.
+
+그러면 `config.toml`과 `README` 파일이 포함된 새 task 디렉터리가 생성됩니다. 구성 파일은 다음과 같습니다.
+
+```bash
+l2chains = [] # e.g. [{name = "OP Mainnet", chainId = 10}]
+templateName = "OPCMUpgradeV200"
+```
+
+### 3단계: task 구성하기
+
+task를 완전히 구성하려면 `config.toml` 파일에 추가 속성을 넣어야 합니다. 예를 들어 `op-contracts/v1.8.0`에서 `op-contracts/v2.0.0`으로 업그레이드할 때는 이전 task를 참고할 수 있습니다: [src/improvements/tasks/eth/002-opcm-upgrade-v200/config.toml](https://github.com/ethereum-optimism/superchain-ops/blob/main/src/improvements/tasks/eth/002-opcm-upgrade-v200/config.toml)
+
+<Info>
+  이것은 예시 task입니다. 자신의 task에 필요한 값은 직접 파악해야 합니다. 아래 예시의 모든 주소와 기타 값을 반드시 교체하십시오.
+</Info>
+
+```bash
+l2chains = [
+    {name = "Unichain", chainId = 130}
+]
+
+templateName = "OPCMUpgradeV200"
+
+[opcmUpgrades]
+absolutePrestates = [
+    {absolutePrestate = "0x039facea52b20c605c05efb0a33560a92de7074218998f75bcdf61e8989cb5d9", chainId = 130},
+]
+
+[addresses]
+OPCM = "0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76"
+StandardValidatorV200 = "0xecabaeaa1d58261f1579232520c5b460ca58a164"
+```
+
+### 5단계: task 시뮬레이션하기
+
+업그레이드를 실행하기 전에 모든 것이 올바르게 구성되었는지 확인하기 위해 시뮬레이션합니다.
+
+```bash
+just --dotenv-path $(pwd)/.env simulate [child-safe-name-depth-1] [child-safe-name-depth-2]
+# Both [child-safe-name-depth-1] and [child-safe-name-depth-2] are optional. You'll only need to specify
+# [child-safe-name-depth-2] if it's a nested safe and [child-safe-name-depth-2] if it has multiple levels of nesting.
+# Omit both arguments if it's a single safe.
+```
+
+이 명령은 실제로 트랜잭션을 실행하지 않고 업그레이드 과정을 진행합니다.
+simulate 명령에 대한 자세한 내용은 [README](https://github.com/ethereum-optimism/superchain-ops/blob/main/README.md#quick-start)를 참조하십시오. 
+
+### 6단계: 실행 또는 검토 제출
+
+Security Council이 관리하는 OP Stack 체인의 경우 task를 검토받기 위해 pull request를 제출하십시오. 체인이 Security Council의 관리를 받지 않는 경우 트랜잭션을 직접 실행하십시오.
+
+

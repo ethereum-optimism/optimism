@@ -12,10 +12,11 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -125,7 +126,9 @@ func TestL1TraversalAdvance(t *testing.T) {
 				// TODO: don't need full L1 info in receipts fetching API maybe?
 			}
 			if test.l1Receipts != nil {
-				src.ExpectFetchReceipts(test.nextBlock.Hash, info, test.l1Receipts, nil)
+				opReceipts, err := optypes.FromGethReceipts(test.l1Receipts)
+				require.NoError(t, err)
+				src.ExpectFetchReceipts(test.nextBlock.Hash, info, opReceipts, nil)
 			}
 
 			cfg := &rollup.Config{

@@ -10,10 +10,10 @@ import (
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -53,7 +53,7 @@ func (f *InputFetcher) FetchInputs(ctx context.Context, blockHash common.Hash, o
 			return nil, fmt.Errorf("failed to retrieve receipts for block %v: %w", blockNum, err)
 		}
 		for _, rcpt := range receipts {
-			inputData, err := f.extractRelevantLeavesFromReceipt(rcpt, oracle, ident)
+			inputData, err := f.extractRelevantLeavesFromReceipt(&rcpt.Receipt, oracle, ident)
 			if err != nil {
 				return nil, err
 			}

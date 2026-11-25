@@ -1,0 +1,55 @@
+---
+title: "공지 아카이브"
+sidebarTitle: "아카이브"
+description: "OP Stack 운영자를 위한 완료된 네트워크 공지를 최신순으로, 각 변경 사항의 발효일과 함께 제공합니다."
+diataxis: reference
+---
+
+{/*
+  MAINTENANCE: this page is the browse entry point for every notice under
+  notices/archive/. The archived pages are deliberately not in the docs.json
+  sidebar (they are listed in scripts/lint/nav-allowlist.json instead), so a
+  notice that is missing from the table below is unreachable by browsing.
+  When you archive a notice: add a row here, keep the table sorted newest
+  first, and set the page's date: frontmatter to the same value.
+  Archived URLs never change. Do not move or rename these files.
+*/}
+
+이 페이지의 모든 공지는 완료된 것입니다. 즉, 업그레이드가 활성화되었거나,
+지원 중단이 발효되었거나, 훈련이 완료되었습니다. 현재 페이지들이 이 공지들을 링크하고 있고,
+당시 운영자에게 요청된 사항을 기록하고 있기 때문에 보관하고 있습니다. 이 공지들의 URL은 영구적입니다.
+
+여전히 조치가 필요한 공지는 [공지](/ko/notices)를 참조하십시오. 네트워크 업그레이드의
+영구 기록(활성화 타임스탬프, 관련 사양, 최소 구성 요소 버전)은
+[하드포크 레지스트리](/ko/op-stack/protocol/network-upgrades)를 참조하십시오. 컨트랙트 전용
+업그레이드는 레지스트리의
+[컨트랙트 업그레이드 표](/ko/op-stack/protocol/network-upgrades#contract-upgrades)에 있습니다.
+
+## 보관된 공지
+
+**발효일** 열은 변경 사항이 발효된 날짜입니다. mainnet 하드포크
+활성화일, 지원 종료일, 컨트랙트 업그레이드의 mainnet 실행일, 또는 기간 한정 실험의 시작일을 나타냅니다. 일부 공지는
+날짜를 기록하지 않았습니다. 해당 행에는 그 사실을 표시하고, 근거 없는 날짜를 부여하는 대신
+순서상 가장 가까운 알려진 위치에 배치했습니다.
+
+| 발효일 | 공지 | 다룬 내용 |
+| --- | --- | --- |
+| 2026-09-24 | [Upgrade 20: Super Root 분쟁 게임](/ko/notices/archive/upgrade-20) | 결함 증명(Fault Proofs)을 Output Root 분쟁 게임에서 Super Root 분쟁 게임(`SUPER_PERMISSIONED` 및 `SUPER_CANNON_KONA`)으로 전환하고, `SystemConfig.batchInbox()` 및 `setGasConfig(uint256,uint256)`를 제거하는 컨트랙트 업그레이드입니다. [`op-contracts/v8.0.0`](/ko/releases/op-contracts)에 포함되어 출시되었습니다. |
+| 2026-07-08 | [Upgrade 19: Karst 하드포크](/ko/notices/archive/upgrade-19) | Karst: L2 Contract Manager(L2CM), 승인된 게임 유형(respected game type)으로 승격된 `CANNON_KONA`, L2에 적용되는 Osaka EIP 일부, 선제적인 BN256 pairing 입력 크기 축소. |
+| 2026-06-26 | [Req/Res CL P2P sync 지원 중단](/ko/notices/archive/req-resp-cl-sync-deprecation) | 실행 클라이언트를 통한 동기화로 대체하기 위해 `op-node`의 request-response 합의 계층 P2P sync 클라이언트를 폐기합니다. `op-node/v1.19.1`에서 제거되었습니다. |
+| 2026-05-31 | [op-geth 및 op-program 지원 종료](/ko/notices/archive/op-geth-deprecation) | Karst를 지원하지 않는 op-geth와 op-program의 지원 종료. 실행 클라이언트는 op-reth로, 결함 증명은 kona-client로 마이그레이션하십시오. |
+| 2026-05-26 | [OP Mainnet의 스테이크 기반 우선순위 정렬](/ko/notices/archive/stake-based-priority-ordering) | `PolicyEngineStaking` 컨트랙트의 스테이커에게 트랜잭션 정렬 우선순위를 부여하는, 최대 4주로 제한된 OP Mainnet 기간 한정 실험. |
+| 날짜 없음 | [op-deployer upgrade 및 manage 명령 지원 중단](/ko/notices/archive/op-deployer-upgrade-deprecation) | `op-deployer manage`가 폐기되고, `op-deployer upgrade`는 `op-contracts/v5.0.0`까지로 제한됩니다. 그 이후의 L1 컨트랙트 업그레이드는 superchain-ops 또는 OPCM을 직접 사용합니다. `op-contracts/v6.0.0` 이후의 공지입니다. |
+| 날짜 없음 | [Upgrade 18: Cannon + Kona 및 Custom Gas Token v2](/ko/notices/archive/upgrade-18) | `CANNON`(0)과 함께 `CANNON_KONA`(8) 게임 유형을 추가하고, Custom Gas Token v2와 creator 패턴 분쟁 게임 리팩터링을 포함하는 컨트랙트 전용 업그레이드. [`op-contracts/v6.0.0`](/ko/releases/op-contracts)(2026-03-16 릴리스)에 포함되어 출시되었습니다. |
+| 2025-12-03 | [Fusaka 업그레이드 공지](/ko/notices/archive/fusaka-notice) | Fusaka 및 blob 파라미터 전용 포크를 활성화한 L1에서 OP Stack 체인이 계속 도출할 수 있도록 하는 대비 작업. L2에서의 Fusaka 도입은 아닙니다. |
+| 2025-12-02 | [Upgrade 17: Jovian 하드포크](/ko/notices/archive/upgrade-17) | Jovian: 구성 가능한 최소 기본 수수료, 데이터 가용성 footprint 블록 한도, Cannon의 Go 1.24 지원. |
+| 2025-10-02 | [Upgrade 16a](/ko/notices/archive/upgrade-16a) | Upgrade 16을 대체하는 유지 관리 컨트랙트 업그레이드: 사용되지 않는 interop 출금 증명 코드를 제거하고 `SystemConfig` 기능 토글을 추가합니다. |
+| 2025-07-24 | [Upgrade 16: interop 대비](/ko/notices/archive/upgrade-16) | `OptimismPortal`을 interop에 대비시키고, 업데이트된 Stage 1 요구 사항을 충족하며, Cannon에 Go 1.23 지원을 추가하고, `MAX_GAS_LIMIT`를 500M으로 상향하는 컨트랙트 업그레이드. 기존 출금 증명이 무효화되었습니다. |
+| 2025-05-14 | [Superchain 출금 일시 중지 테스트](/ko/notices/archive/superchain-withdrawal-pause-test) | Superchain 전체의 `pause` 및 `unpause` 사고 대응 경로에 대한 예정된 훈련. 사용자나 운영자의 조치는 필요하지 않았습니다. |
+| 2025-05-09 | [Upgrade 15: Isthmus 하드포크](/ko/notices/archive/upgrade-15) | Isthmus: OP Stack의 Prague 기능, 블록 헤더의 L2 출금 루트, 운영자 수수료(operator fee). |
+| 날짜 없음 | [Upgrade 14: MT-Cannon 및 Isthmus L1 컨트랙트](/ko/notices/archive/upgrade-14) | 멀티스레드 64비트 Cannon(MT-Cannon)과 Isthmus L1 컨트랙트를 출시한 컨트랙트 업그레이드. [`op-contracts/v3.0.0`](/ko/releases/op-contracts)(2025-05-08 릴리스)에 포함되어 출시되었으며, 공지에 기재된 mainnet 날짜는 추정치였습니다. |
+| 날짜 없음 | [L1 Pectra 사용자 수수료 및 체인 수익성](/ko/notices/archive/pectra-fees) | L1 Pectra의 [EIP-7623](https://eips.ethereum.org/EIPS/eip-7623) gas 가격 재조정이 blob 대신 여전히 calldata로 데이터를 게시하는 체인에 미친 영향과 확인해야 할 Ecotone scalar. |
+| 2025-04-02 | [Upgrade 13: OPCM 및 사고 대응](/ko/notices/archive/upgrade-13) | OP Contracts Manager(OPCM), 결함 증명 사고 대응 개선, `DeputyPauseModule`을 도입한 컨트랙트 업그레이드. |
+| 2025-03-20 | [Superchain testnet의 blob 수수료 버그](/ko/notices/archive/blob-fee-bug) | L1 수수료를 과다 청구한 testnet 전용 blob 기본 수수료 계산 오류와 이를 수정한 하드포크 활성화. Mainnet 체인은 영향을 받지 않았습니다. |
+| 날짜 없음 | [Pectra 호환성을 깨는 변경 사항 대비](/ko/notices/archive/pectra-changes) | L1에서 Pectra가 활성화될 때 체인 운영자와 노드 운영자에게 영향을 준 호환성을 깨는 변경 사항. 이 페이지에는 이후 대체된 잠정 L1 슬롯 시간만 기재되어 있으며, 마지막 수정일은 2025-03-11입니다. |
+| 2025-01-09 | [Holocene 호환성을 깨는 변경 사항 대비](/ko/notices/archive/holocene-changes) | Holocene: 더 엄격해진 블록 도출, `SystemConfig`를 통해 구성 가능해진 EIP-1559 파라미터, MIPS 컨트랙트 업그레이드. |

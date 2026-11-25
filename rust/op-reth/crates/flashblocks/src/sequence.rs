@@ -1,5 +1,5 @@
 use crate::{FlashBlock, FlashBlockCompleteSequenceRx};
-use alloy_primitives::{B256, Bytes};
+use alloy_primitives::{B256, Bloom, Bytes};
 use alloy_rpc_types_engine::PayloadId;
 use core::mem;
 use eyre::{OptionExt, bail};
@@ -30,13 +30,22 @@ impl FollowupRejectionReason {
 }
 
 /// Outcome from executing a flashblock sequence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Carries every header field that `block_hash` commits to and that local execution, rather than
+/// the stream, determines, so a payload rebuilt from the sequence stays consistent with its hash.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[allow(unnameable_types)]
 pub struct SequenceExecutionOutcome {
     /// The block hash of the executed pending block
     pub block_hash: B256,
     /// Properly computed state root
     pub state_root: B256,
+    /// Receipts root of the executed pending block, including any post-exec transaction's receipt
+    pub receipts_root: B256,
+    /// Logs bloom of the executed pending block
+    pub logs_bloom: Bloom,
+    /// Gas used by the executed pending block, net of post-exec refunds
+    pub gas_used: u64,
 }
 
 /// An ordered B-tree keeping the track of a sequence of [`FlashBlock`]s by their indices.
@@ -444,8 +453,11 @@ mod tests {
             let fb0 = factory.flashblock_at(0).build();
             sequence.insert(fb0);
 
-            let outcome =
-                SequenceExecutionOutcome { block_hash: B256::random(), state_root: B256::random() };
+            let outcome = SequenceExecutionOutcome {
+                block_hash: B256::random(),
+                state_root: B256::random(),
+                ..Default::default()
+            };
             sequence.set_execution_outcome(Some(outcome));
 
             let complete = sequence.finalize().unwrap();
@@ -636,8 +648,11 @@ mod tests {
             let mut complete = FlashBlockCompleteSequence::new(vec![fb0], None).unwrap();
             assert!(complete.execution_outcome().is_none());
 
-            let outcome =
-                SequenceExecutionOutcome { block_hash: B256::random(), state_root: B256::random() };
+            let outcome = SequenceExecutionOutcome {
+                block_hash: B256::random(),
+                state_root: B256::random(),
+                ..Default::default()
+            };
             complete.set_execution_outcome(Some(outcome));
 
             assert_eq!(complete.execution_outcome(), Some(outcome));
@@ -690,8 +705,11 @@ mod tests {
             let fb0 = factory.flashblock_at(0).build();
             pending.insert(fb0);
 
-            let outcome =
-                SequenceExecutionOutcome { block_hash: B256::random(), state_root: B256::random() };
+            let outcome = SequenceExecutionOutcome {
+                block_hash: B256::random(),
+                state_root: B256::random(),
+                ..Default::default()
+            };
             pending.set_execution_outcome(Some(outcome));
 
             let complete: FlashBlockCompleteSequence = pending.try_into().unwrap();

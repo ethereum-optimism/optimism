@@ -3,7 +3,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_disputeGameFinalityDelaySeconds",
+        "name": "_minDisputeGameFinalityDelaySeconds",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_maxDisputeGameFinalityDelaySeconds",
         "type": "uint256"
       }
     ],
@@ -107,6 +112,19 @@
   },
   {
     "inputs": [],
+    "name": "ethLockbox",
+    "outputs": [
+      {
+        "internalType": "contract IETHLockbox",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "getAnchorRoot",
     "outputs": [
       {
@@ -164,8 +182,8 @@
   {
     "inputs": [
       {
-        "internalType": "contract ISystemConfig",
-        "name": "_systemConfig",
+        "internalType": "contract IETHLockbox",
+        "name": "_ethLockbox",
         "type": "address"
       },
       {
@@ -194,6 +212,11 @@
         "internalType": "GameType",
         "name": "_startingRespectedGameType",
         "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_disputeGameFinalityDelaySeconds",
+        "type": "uint256"
       }
     ],
     "name": "initialize",
@@ -355,6 +378,32 @@
   },
   {
     "inputs": [],
+    "name": "maxDisputeGameFinalityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minDisputeGameFinalityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "paused",
     "outputs": [
       {
@@ -434,6 +483,19 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "_disputeGameFinalityDelaySeconds",
+        "type": "uint256"
+      }
+    ],
+    "name": "setDisputeGameFinalityDelaySeconds",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "GameType",
         "name": "_gameType",
         "type": "uint32"
@@ -450,19 +512,6 @@
     "outputs": [
       {
         "internalType": "contract ISuperchainConfig",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "systemConfig",
-    "outputs": [
-      {
-        "internalType": "contract ISystemConfig",
         "name": "",
         "type": "address"
       }
@@ -521,6 +570,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "uint256",
+        "name": "disputeGameFinalityDelaySeconds",
+        "type": "uint256"
+      }
+    ],
+    "name": "DisputeGameFinalityDelaySecondsSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "uint8",
         "name": "version",
         "type": "uint8"
@@ -558,6 +620,16 @@
   {
     "inputs": [],
     "name": "AnchorStateRegistry_InvalidAnchorGame",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AnchorStateRegistry_InvalidDisputeGameFinalityDelay",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AnchorStateRegistry_InvalidDisputeGameFinalityDelayBounds",
     "type": "error"
   },
   {

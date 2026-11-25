@@ -3,7 +3,7 @@ package metrics
 import (
 	"testing"
 
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	metricstest "github.com/ethereum-optimism/optimism/op-service/metrics/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +21,7 @@ func TestMetrics(test *testing.T) {
 	metrics.RecordInfo(infoLabel)
 	metrics.RecordUp()
 
-	checker := opmetrics.NewMetricChecker(test, metrics.Registry())
+	checker := metricstest.NewMetricChecker(test, metrics.Registry())
 	sequenceNumberMetric := checker.FindByName(prefix + "proposed_sequence_number").FindByLabels(nil).Gauge.GetValue()
 	infoMetric := checker.FindByName(prefix + "info").FindByLabels(map[string]string{"version": infoLabel}).Gauge.GetValue()
 	upMetric := checker.FindByName(prefix + "up").FindByLabels(nil).Gauge.GetValue()

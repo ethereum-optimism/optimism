@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-alt-da/bindings"
@@ -23,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -62,7 +62,7 @@ func NewL2AltDA(t helpers.Testing, params ...AltDAParam) *L2AltDA {
 	for _, apply := range params {
 		apply(p)
 	}
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
@@ -72,8 +72,7 @@ func NewL2AltDA(t helpers.Testing, params ...AltDAParam) *L2AltDA {
 	miner := helpers.NewL1Miner(t, log, sd.L1Cfg)
 	l1Client := miner.EthClient()
 
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-	engine := helpers.NewL2Engine(t, log, sd.L2Cfg, jwtPath)
+	engine := helpers.NewL2Engine(t, log, sd.L2Cfg)
 	engCl := engine.EngineClient(t, sd.RollupCfg)
 
 	storage := &altda.DAErrFaker{Client: altda.NewMockDAClient(log)}
@@ -90,13 +89,14 @@ func NewL2AltDA(t helpers.Testing, params ...AltDAParam) *L2AltDA {
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
 
-	batcher := helpers.NewL2Batcher(log, sd.RollupCfg, helpers.AltDABatcherCfg(dp, storage), sequencer.RollupClient(), l1Client, engine.EthClient(), engCl)
+	batcher := helpers.NewL2Batcher(log, sd.RollupCfg, helpers.AltDABatcherCfg(dp, storage), sequencer.RollupClient(), l1Client, engCl)
 
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	cl := engine.EthClient()
 	l2UserEnv := &helpers.BasicUserEnv[*helpers.L2Bindings]{
 		EthCl:          cl,
-		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		Receipts:       engine.SourceClient(),
+		Signer:         types.LatestSignerForChainID(sd.L2Cfg.Config.ChainID),
 		AddressCorpora: addresses,
 		Bindings:       helpers.NewL2Bindings(t, cl, engine.GethClient()),
 	}
@@ -136,8 +136,7 @@ func (a *L2AltDA) StorageClient() *altda.DAErrFaker {
 }
 
 func (a *L2AltDA) NewVerifier(t helpers.Testing) *helpers.L2Verifier {
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-	engine := helpers.NewL2Engine(t, a.log, a.sd.L2Cfg, jwtPath)
+	engine := helpers.NewL2Engine(t, a.log, a.sd.L2Cfg)
 	engCl := engine.EngineClient(t, a.sd.RollupCfg)
 	l1F, err := sources.NewL1Client(a.miner.RPCClient(), a.log, nil, sources.L1ClientDefaultConfig(a.sd.RollupCfg, false, sources.RPCKindBasic))
 	require.NoError(t, err)
@@ -249,11 +248,9 @@ func (a *L2AltDA) ActL1Blocks(t helpers.Testing, n uint64) {
 	}
 }
 
-func (a *L2AltDA) GetLastTxBlock(t helpers.Testing) *types.Block {
+func (a *L2AltDA) GetLastTxBlock(t helpers.Testing) *types.Header {
 	rcpt := a.alice.L2.LastTxReceipt(t)
-	blk, err := a.engine.EthClient().BlockByHash(t.Ctx(), rcpt.BlockHash)
-	require.NoError(t, err)
-	return blk
+	return a.engine.HeaderByHash(t, rcpt.BlockHash)
 }
 
 func (a *L2AltDA) ActL1Finalized(t helpers.Testing) {
@@ -296,7 +293,7 @@ func TestAltDA_ChallengeExpired(gt *testing.T) {
 	harness.sequencer.ActL2PipelineFull(t)
 
 	// get new block with same number to compare
-	newBlk, err := harness.engine.EthClient().BlockByNumber(t.Ctx(), blk.Number())
+	newBlk, err := harness.engine.EthClient().HeaderByNumber(t.Ctx(), blk.Number)
 	require.NoError(t, err)
 
 	// reorg happened even though data was available
@@ -424,7 +421,7 @@ func TestAltDA_ChallengeReorg(gt *testing.T) {
 	// derivation pipeline reorgs the commitment out of the chain
 	harness.sequencer.ActL2PipelineFull(t)
 
-	newBlk, err := harness.engine.EthClient().BlockByNumber(t.Ctx(), blk.Number())
+	newBlk, err := harness.engine.EthClient().HeaderByNumber(t.Ctx(), blk.Number)
 	require.NoError(t, err)
 
 	// confirm the reorg did happen
@@ -476,7 +473,7 @@ func TestAltDA_SequencerStalledMultiChallenges(gt *testing.T) {
 	a.sequencer.ActL1HeadSignal(t)
 
 	unsafe := a.sequencer.L2Unsafe()
-	unsafeBlk, err := a.engine.EthClient().BlockByHash(t.Ctx(), unsafe.Hash)
+	unsafeBlk, err := a.engine.EthClient().HeaderByHash(t.Ctx(), unsafe.Hash)
 	require.NoError(t, err)
 
 	// advance the pipeline until it errors out as it is still stuck
@@ -518,7 +515,7 @@ func TestAltDA_SequencerStalledMultiChallenges(gt *testing.T) {
 	a.sequencer.ActL2PipelineFull(t)
 
 	// verify that the chain did not reorg out
-	safeBlk, err := a.engine.EthClient().BlockByNumber(t.Ctx(), unsafeBlk.Number())
+	safeBlk, err := a.engine.EthClient().HeaderByNumber(t.Ctx(), unsafeBlk.Number)
 	require.NoError(t, err)
 	require.Equal(t, unsafeBlk.Hash(), safeBlk.Hash())
 }

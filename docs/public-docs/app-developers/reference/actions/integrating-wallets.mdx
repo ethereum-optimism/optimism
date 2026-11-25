@@ -1,6 +1,7 @@
 ---
 title: Integrating wallets
-description: Reference guide for integrating wallet providers with Actions SDK.
+description: Understand the wallet options Actions SDK supports, embedded wallet providers, gas sponsorship, and smart wallets.
+diataxis: explanation
 ---
 
 ## Which wallets are right for my use case?
@@ -47,33 +48,7 @@ Actions supports gas sponsorship via a combination of smart contract wallets and
 ## Connect your wallet to Actions
 
 Regardless of where and how transactions are signed, Actions has you covered.
-
-<Steps>
-  <Step title="Choose a wallet provider">
-    Follow embedded wallet provider documentation and installation steps.
-    Actions works with Typescript clients, both frontend React and backend Node.
-  </Step>
-  <Step title="Import Actions SDK">
-    Import [Actions SDK](https://actions.money/) alongside your chosen wallet
-    provider SDK.
-  </Step>
-  <Step title="Create and fetch embedded user wallets">
-    Follow embedded wallet provider documentation for wallet creation and
-    access.
-  </Step>
-  <Step title="Pass the wallet to Actions">
-    Call `actions.wallet.toActionsWallet(...)`, and [pass
-    in](/app-developers/quickstarts/actions#choose-a-wallet-provider) the
-    provider wallet.
-  </Step>
-  <Step title="Take Action">
-    The returned [Wallet
-    ](/app-developers/reference/actions/integrating-wallets#wallet-instance) is
-    now capable of calling Actions
-    [functions](/app-developers/quickstarts/actions#take-action) like Lend,
-    Borrow, Swap and Pay!
-  </Step>
-</Steps>
+Once you've chosen a wallet provider, follow the guide on [connecting a wallet to Actions SDK](/app-developers/guides/connect-wallet-to-actions) to pass the provider wallet to Actions and start calling Actions functions like Lend, Borrow, Swap, and Pay.
 
 ## Smart wallets & signers
 

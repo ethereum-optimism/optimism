@@ -6,12 +6,13 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type Beacon interface {
@@ -34,7 +35,9 @@ type Builder struct {
 	beacon     Beacon
 	blockchain Blockchain
 	genesis    *types.Header
-	config     types.BlockType
+	// The full chain config is both the block-type descriptor and the source of the
+	// fork schedule used to select Engine API versions.
+	config *params.ChainConfig
 
 	registry work.Jobs
 

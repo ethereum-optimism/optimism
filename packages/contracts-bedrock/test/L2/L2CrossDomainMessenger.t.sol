@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { GasBurner } from "test/mocks/GasBurner.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { stdError } from "forge-std/StdError.sol";
 
@@ -12,11 +11,12 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import "src/libraries/GasConstants.sol" as GasConstants;
 
 // Interfaces
 import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 
 /// @title L2CrossDomainMessenger_TestInit
 /// @notice Reusable test initialization for `L2CrossDomainMessenger` tests.
@@ -30,8 +30,9 @@ abstract contract L2CrossDomainMessenger_TestInit is CommonTest {
 contract L2CrossDomainMessenger_Constructor_Test is L2CrossDomainMessenger_TestInit {
     /// @notice Tests that the implementation is initialized correctly.
     function test_constructor_succeeds() external view {
-        IL2CrossDomainMessenger impl =
-            IL2CrossDomainMessenger(EIP1967Helper.getImplementation(artifacts.mustGetAddress("L2CrossDomainMessenger")));
+        IL2CrossDomainMessenger impl = IL2CrossDomainMessenger(
+            EIP1967Helper.getImplementation(artifacts.mustGetAddress("L2CrossDomainMessenger"))
+        );
         assertEq(address(impl.OTHER_MESSENGER()), address(0));
         assertEq(address(impl.otherMessenger()), address(0));
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
@@ -282,97 +283,6 @@ contract L2CrossDomainMessenger_Uncategorized_Test is L2CrossDomainMessenger_Tes
         );
     }
 
-    /// @notice Tests that `relayMessage` on L2 will always succeed for any potential message,
-    ///         regardless of the size of the message, the minimum gas limit, or the amount of gas
-    ///         used by the target contract.
-    function testFuzz_relayMessage_baseGasSufficient_succeeds(
-        uint24 _messageLength,
-        uint32 _minGasLimit,
-        uint32 _gasToUse
-    )
-        external
-    {
-        // TODO(#14609): Update this test to use default.isolate = true once a new stable Foundry
-        // release is available that includes #9904. That will allow us to use this test to check
-        // for changes to the EVM itself that might cause our gas formula to be incorrect.
-
-        // Skip if this is a fork test, won't work.
-        skipIfForkTest("L2CrossDomainMessenger doesn't exist on L1 in forked test");
-
-        // Using smaller uint so the fuzzer doesn't give as many massive values that get bounded.
-        // TODO: Known issue, messages above 34k can actually OOG on the receiving side if the
-        // target uses all available gas. Can be resolved by capping data sizes on the XDM or by
-        // increasing the amount of available relay gas to ~100k. If increasing relay gas, should
-        // have the relay gas only increase when the calldata size is large to avoid disrupting
-        // in-flight L2 -> L1 messages.
-        _messageLength = uint24(bound(_messageLength, 0, 34_000));
-
-        // Need more than 500 since GasBurner requires it.
-        // It's ok to try to use more than minGasLimit since the L2CrossDomainMessenger should
-        // catch the revert and store the message hash in the failedMessages mapping.
-        _gasToUse = uint32(bound(_gasToUse, 500, type(uint32).max));
-
-        // Generate random bytes, more useful than having a _message parameter.
-        bytes memory _message = vm.randomBytes(_messageLength);
-
-        // Compute the base gas.
-        // Base gas should really be computed on the fully encoded message but that would break the
-        // expected API, so we instead just add the encoding overhead to the message length inside
-        // of the baseGas function.
-        uint64 baseGas = l2CrossDomainMessenger.baseGas(_message, _minGasLimit);
-
-        // Deploy a gas burner.
-        address target = address(new GasBurner(_gasToUse));
-
-        // Encode the message.
-        bytes memory encoded = Encoding.encodeCrossDomainMessage(
-            Encoding.encodeVersionedNonce(0, 1), // nonce
-            alice, // Sender doesn't matter
-            target,
-            0, // Value doesn't matter
-            _minGasLimit,
-            _message
-        );
-
-        // Count the number of non-zero bytes in the message.
-        uint256 zeroBytesInCalldata = 0;
-        uint256 nonzeroBytesInCalldata = 0;
-        for (uint256 i = 0; i < encoded.length; i++) {
-            if (encoded[i] != bytes1(0)) {
-                nonzeroBytesInCalldata++;
-            } else {
-                zeroBytesInCalldata++;
-            }
-        }
-
-        // Base gas must always be sufficient to cover the floor cost from EIP-7623.
-        assertGt(baseGas, 21000 + ((zeroBytesInCalldata + nonzeroBytesInCalldata * 4) * 10));
-
-        // In the L2 => L1 direction we actually get all of the base gas supplied, nothing is
-        // deducted. This is an advantage over the L1 => L2 direction because it means the base
-        // gas goes a lot further.
-        uint256 gasSupplied = baseGas;
-
-        // Store the value of l2Sender in the OptimismPortal2 contract.
-        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "l2Sender");
-        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(abi.encode(address(l2CrossDomainMessenger))));
-
-        // We'll trigger the L1CrossDomainMessenger as if we're the OptimismPortal2
-        vm.prank(address(optimismPortal2));
-
-        // Trigger the L1CrossDomainMessenger.
-        // Should NOT fail.
-        (bool success,) = address(l1CrossDomainMessenger).call{ gas: gasSupplied }(encoded);
-        assertTrue(success, "L1CrossDomainMessenger call should not fail");
-
-        // Message should either be in the failed or successful messages mapping.
-        bool inFailedMessages = l1CrossDomainMessenger.failedMessages(keccak256(encoded));
-        bool inSuccessfulMessages = l1CrossDomainMessenger.successfulMessages(keccak256(encoded));
-        assertTrue(
-            inFailedMessages || inSuccessfulMessages, "message should be in either failed or successful messages"
-        );
-    }
-
     /// @notice Tests that `relayMessage` correctly resets the `xDomainMessageSender` to the
     ///         original value after a message is relayed.
     function test_xDomainMessageSender_reset_succeeds() external {
@@ -434,5 +344,59 @@ contract L2CrossDomainMessenger_Uncategorized_Test is L2CrossDomainMessenger_Tes
         assertEq(address(target).balance, value);
         assertEq(l2CrossDomainMessenger.successfulMessages(hash), true);
         assertEq(l2CrossDomainMessenger.failedMessages(hash), true);
+    }
+
+    /// @notice Tests that `L2_RELAY_GAS_CHECK_BUFFER` covers the gas spent between the `hasMinGas`
+    ///         check and the CALL in `relayMessage`.
+    function test_relayMessage_gasCheckBufferCoversWindow_succeeds() external {
+        // Records the gas it receives, less the 2 that GAS costs: GAS PUSH1 0 SSTORE STOP.
+        address target = address(0xbeefbeef);
+        vm.etch(target, hex"5a60005500");
+        uint32 minGasLimit = 100_000;
+
+        // Find the least gas that passes `hasMinGas`, so that the check sees exactly its threshold.
+        uint256 lo = minGasLimit;
+        uint256 hi = 1_000_000;
+        uint256 received = _relayWithGas(hi, target, minGasLimit);
+        assertGt(received, 0);
+        while (lo < hi) {
+            uint256 mid = (lo + hi) / 2;
+            uint256 got = _relayWithGas(mid, target, minGasLimit);
+            if (got > 0) (hi, received) = (mid, got);
+            else lo = mid + 1;
+        }
+
+        uint256 gasAtCheck =
+            (uint256(minGasLimit)
+                    * 64
+                    + 63
+                    * (GasConstants.RELAY_CALL_OVERHEAD
+                        + GasConstants.L2_RELAY_RESERVED_GAS
+                        + GasConstants.L2_RELAY_GAS_CHECK_BUFFER)
+                    + 62) / 63;
+        uint256 gasAtCall = received + 2 + GasConstants.L2_RELAY_RESERVED_GAS;
+        assertLe(gasAtCheck - gasAtCall, GasConstants.L2_RELAY_GAS_CHECK_BUFFER);
+    }
+
+    /// @notice Relays a fresh message with `_gas` and returns the gas `_target` recorded, or zero
+    ///         if it was not called.
+    function _relayWithGas(uint256 _gas, address _target, uint32 _minGasLimit) internal returns (uint256) {
+        vm.store(_target, 0, 0);
+        vm.cool(address(l2CrossDomainMessenger));
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
+        (bool success,) = address(l2CrossDomainMessenger).call{ gas: _gas }(
+            abi.encodeCall(
+                ICrossDomainMessenger.relayMessage,
+                (
+                    Encoding.encodeVersionedNonce(uint240(_gas), 1),
+                    address(l1CrossDomainMessenger),
+                    _target,
+                    0,
+                    _minGasLimit,
+                    hex""
+                )
+            )
+        );
+        return success ? uint256(vm.load(_target, 0)) : 0;
     }
 }

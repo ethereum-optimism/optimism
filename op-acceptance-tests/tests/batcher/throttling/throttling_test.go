@@ -6,15 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/loadtest"
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherConfig "github.com/ethereum-optimism/optimism/op-batcher/config"
+	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -42,19 +45,21 @@ func TestDABlockThrottling(gt *testing.T) {
 	const minFullSize = blockSizeLimit * 95 / 100
 
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
+	l2Client := sys.L2EL.Escape().L2EthClient()
 	var consecutiveFull uint64
 	for {
 		select {
 		case <-time.Tick(l2BlockTime):
-			_, txs, err := sys.L2EL.Escape().EthClient().InfoAndTxsByLabel(t.Ctx(), eth.Unsafe)
+			envelope, err := l2Client.PayloadByLabel(t.Ctx(), eth.Unsafe)
 			t.Require().NoError(err)
 
 			var calldataSize uint64
-			for _, tx := range txs {
-				if tx.IsDepositTx() {
+			for _, tx := range envelope.ExecutionPayload.Transactions {
+				switch sources.RawTransaction(tx).Type() {
+				case optypes.DepositTxType, optypes.PostExecTxType:
 					continue
 				}
-				calldataSize += bigs.Uint64Strict(tx.RollupCostData().EstimatedDASize())
+				calldataSize += bigs.Uint64Strict(opfees.NewRollupCostData(tx).EstimatedDASize())
 			}
 			t.Require().LessOrEqual(calldataSize, uint64(blockSizeLimit))
 
@@ -75,7 +80,7 @@ func TestDABlockThrottling(gt *testing.T) {
 
 func spamTxs(sys *presets.Minimal) {
 	l2BlockTime := time.Duration(sys.L2Chain.Escape().RollupConfig().BlockTime) * time.Second
-	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FaucetL2)
+	eoas := loadtest.FundEOAs(sys.T, eth.HundredEther, 50, l2BlockTime, sys.L2EL, sys.Wallet, sys.FunderL2)
 	eoasRR := loadtest.NewRoundRobin(eoas)
 	spammer := loadtest.SpammerFunc(func(t devtest.T) error {
 		_, err := eoasRR.Get().Include(t, txplan.WithTo(&predeploys.L1BlockAddr), txplan.WithData(make([]byte, 0)), txplan.WithGasLimit(70_000))

@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
-import { GameType, Claim, GameTypes } from "src/dispute/lib/Types.sol";
+import { GameType, Claim, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
@@ -13,7 +13,10 @@ import {
     DisputeGameImplementation,
     DisputeGameValidationArgs,
     DisputeGameImpls,
-    DisputeGameConfig
+    DisputeGameConfig,
+    SuperPermissionedDisputeGameImplementation,
+    SuperPermissionedDisputeGameImpls,
+    SuperPermissionedDisputeGameValidationArgs
 } from "src/L1/opcm/StandardValidatorUtils.sol";
 
 // Interfaces
@@ -40,11 +43,11 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
 /// It is a stateless contract that can be used to ensure that the L1 contracts are configured correctly.
 /// It is intended to be used by the L1 PAO multisig to validate the configuration of the L1 contracts
-/// before and after an upgrade.
+/// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 2.9.1
-    string public constant version = "2.9.1";
+    /// @custom:semver 6.0.0
+    string public constant version = "6.0.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -54,9 +57,6 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice The challenger address for permissioned dispute games.
     address public challenger;
-
-    /// @notice The withdrawal delay in seconds for the DelayedWETH contract.
-    uint256 public withdrawalDelaySeconds;
 
     // Implementation addresses as state variables
 
@@ -117,6 +117,9 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The migration validator contract for post-interop-migration validation.
     IOPContractsManagerMigrationValidator public migrationValidator;
 
+    /// @notice The release-approved SP1 PLONK adapter address.
+    address public sp1PlonkAdapterImpl;
+
     /// @notice Struct containing the implementation addresses of the L1 contracts.
     struct Implementations {
         address l1ERC721BridgeImpl;
@@ -135,6 +138,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         address superFaultDisputeGameImpl;
         address superPermissionedDisputeGameImpl;
         address zkDisputeGameImpl;
+        address sp1PlonkAdapterImpl;
     }
 
     /// @notice Struct containing the input parameters for the validation process.
@@ -145,11 +149,12 @@ contract OPContractsManagerStandardValidator is ISemver {
         address proposer;
     }
 
-    /// @notice Struct containing the input parameters for the validation process when dev features are enabled.
+    /// @notice Validation input carrying the expected Cannon, Cannon-Kona and ZK prestates.
     struct ValidationInputDev {
         ISystemConfig sysCfg;
         bytes32 cannonPrestate;
         bytes32 cannonKonaPrestate;
+        bytes32 zkPrestate;
         uint256 l2ChainID;
         address proposer;
     }
@@ -168,13 +173,11 @@ contract OPContractsManagerStandardValidator is ISemver {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _challenger,
-        uint256 _withdrawalDelaySeconds,
         bytes32 _devFeatureBitmap
     ) {
         superchainConfig = _superchainConfig;
         l1PAOMultisig = _l1PAOMultisig;
         challenger = _challenger;
-        withdrawalDelaySeconds = _withdrawalDelaySeconds;
         devFeatureBitmap = _devFeatureBitmap;
         standardValidatorUtils = _standardValidatorUtils;
         migrationValidator = _migrationValidator;
@@ -196,6 +199,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         superFaultDisputeGameImpl = _implementations.superFaultDisputeGameImpl;
         superPermissionedDisputeGameImpl = _implementations.superPermissionedDisputeGameImpl;
         zkDisputeGameImpl = _implementations.zkDisputeGameImpl;
+        sp1PlonkAdapterImpl = _implementations.sp1PlonkAdapterImpl;
     }
 
     /// @notice Returns a string representing the overrides that are set.
@@ -272,7 +276,8 @@ contract OPContractsManagerStandardValidator is ISemver {
     function assertValidSystemConfig(
         string memory _errors,
         ISystemConfig _sysCfg,
-        IProxyAdmin _admin
+        IProxyAdmin _admin,
+        uint256 _l2ChainID
     )
         internal
         view
@@ -297,6 +302,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(_sysCfg.operatorFeeScalar() == 0, "SYSCON-110", _errors);
         _errors = internalRequire(_sysCfg.operatorFeeConstant() == 0, "SYSCON-120", _errors);
         _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-130", _errors);
+        _errors = internalRequire(_sysCfg.l2ChainId() == _l2ChainID, "SYSCON-140", _errors);
         return _errors;
     }
 
@@ -391,8 +397,9 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(
             LibString.eq(getVersion(address(_bridge)), getVersion(l1ERC721BridgeImpl)), "L721B-10", _errors
         );
-        _errors =
-            internalRequire(getProxyImplementation(_admin, address(_bridge)) == l1ERC721BridgeImpl, "L721B-20", _errors);
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_bridge)) == l1ERC721BridgeImpl, "L721B-20", _errors
+        );
 
         IL1CrossDomainMessenger _l1XDM = IL1CrossDomainMessenger(_sysCfg.l1CrossDomainMessenger());
         _errors = internalRequire(address(_bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE, "L721B-30", _errors);
@@ -430,8 +437,10 @@ contract OPContractsManagerStandardValidator is ISemver {
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
         IETHLockbox _lockbox = IETHLockbox(_portal.ethLockbox());
 
-        // If this chain isn't using the ETHLockbox, skip the validation.
-        if (!_sysCfg.isFeatureEnabled(Features.ETH_LOCKBOX)) {
+        // Validate the chain's ETHLockbox configuration.
+        _errors = internalRequire(_sysCfg.isFeatureEnabled(Features.ETH_LOCKBOX), "LOCKBOX-00", _errors);
+        _errors = internalRequire(address(_lockbox) != address(0), "LOCKBOX-05", _errors);
+        if (address(_lockbox) == address(0)) {
             return _errors;
         }
 
@@ -441,7 +450,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors =
             internalRequire(getProxyImplementation(_admin, address(_lockbox)) == ethLockboxImpl, "LOCKBOX-20", _errors);
         _errors = internalRequire(getProxyAdmin(address(_lockbox)) == _admin, "LOCKBOX-30", _errors);
-        _errors = internalRequire(_lockbox.systemConfig() == _sysCfg, "LOCKBOX-40", _errors);
+        _errors = internalRequire(_lockbox.superchainConfig() == _sysCfg.superchainConfig(), "LOCKBOX-40", _errors);
         _errors = internalRequire(_lockbox.authorizedPortals(_portal), "LOCKBOX-50", _errors);
         return _errors;
     }
@@ -463,7 +472,8 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Asserts that dispute games are correctly configured for super root mode.
-    ///         Checks that legacy game types are disabled and super game types are registered.
+    ///         Checks that legacy game types and SUPER_CANNON are unregistered, SUPER_PERMISSIONED is
+    ///         registered, and SUPER_CANNON_KONA or ZK_DISPUTE_GAME is registered.
     ///         This only validates system shape, not full game configuration. State transition
     ///         checks (e.g., "was this chain already migrated?") belong in Superchain Ops scripts.
     function assertValidSuperRootDisputeGames(
@@ -506,6 +516,10 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
+        if (_gameType.raw() == GameTypes.SUPER_PERMISSIONED.raw()) {
+            return assertValidSuperPermissionedDisputeGame(_errors, _sysCfg, _admin, _proposer, _errorPrefix);
+        }
+
         // Collect game implementation parameters
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl = false;
@@ -530,10 +544,44 @@ contract OPContractsManagerStandardValidator is ISemver {
             _buildDisputeGameConfig(_overrides)
         );
 
-        // Challenger and proposer are specific to permissioned dispute game contracts.
+        // Challenger is specific to legacy permissioned dispute game contracts.
         address _challenger = expectedChallenger(_overrides);
         _errors = internalRequire(gameImpl.challenger == _challenger, string.concat(_errorPrefix, "-130"), _errors);
         _errors = internalRequire(gameImpl.proposer == _proposer, string.concat(_errorPrefix, "-140"), _errors);
+
+        return _errors;
+    }
+
+    /// @notice Asserts that the SuperPermissionedDisputeGame contract is valid.
+    function assertValidSuperPermissionedDisputeGame(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin,
+        address _proposer,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        SuperPermissionedDisputeGameImplementation memory gameImpl;
+        bool failedToGetImpl = false;
+        (gameImpl, _errors, failedToGetImpl) = getSuperPermissionedGameImplementation(_errors, _sysCfg, _errorPrefix);
+        if (failedToGetImpl) {
+            return _errors;
+        }
+
+        _errors = standardValidatorUtils.assertValidSuperPermissionedDisputeGame(
+            SuperPermissionedDisputeGameValidationArgs({
+                errors: _errors,
+                sysCfg: _sysCfg,
+                game: gameImpl,
+                admin: _admin,
+                expectedProposer: _proposer,
+                errorPrefix: _errorPrefix
+            }),
+            _buildSuperPermissionedDisputeGameImpls()
+        );
 
         return _errors;
     }
@@ -553,6 +601,11 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
+        require(
+            _gameType.raw() != GameTypes.SUPER_PERMISSIONED.raw(),
+            "OPContractsManagerStandardValidator: SPDG is not permissionless"
+        );
+
         // Collect game implementation parameters
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl = false;
@@ -577,9 +630,17 @@ contract OPContractsManagerStandardValidator is ISemver {
             _buildDisputeGameConfig(_overrides)
         );
 
+        _errors = internalRequire(
+            IDisputeGameFactory(_sysCfg.disputeGameFactory()).initBonds(_gameType) > 0,
+            string.concat(_errorPrefix, "-160"),
+            _errors
+        );
+
         return _errors;
     }
 
+    /// @notice Internal function to get the game implementation and decode game args for a given game type.
+    ///        Returns a boolean indicating whether the retrieval and decoding of the game implementation failed
     function getGameImplementation(
         string memory _initialErrors,
         GameType _gameType,
@@ -591,9 +652,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (DisputeGameImplementation memory gameImpl_, string memory errors_, bool failed_)
     {
         errors_ = _initialErrors;
-        bool isPermissioned = _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
-            || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw();
-        bool isZK = _gameType.raw() == GameTypes.ZK_DISPUTE_GAME.raw();
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         IPermissionedDisputeGame _game = IPermissionedDisputeGame(address(_factory.gameImpls(_gameType)));
 
@@ -607,13 +665,53 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         bytes memory _gameArgs = _factory.gameArgs(_gameType);
         bool lenCheckFailed;
-        (errors_, lenCheckFailed) = assertGameArgsLength(errors_, _gameArgs, isPermissioned, isZK, _errorPrefix);
+        (errors_, lenCheckFailed) = assertGameArgsLength(errors_, _gameArgs, _gameType, _errorPrefix);
         if (lenCheckFailed) {
             // Return early to avoid decoding invalid game args
             failed_ = true;
             return (gameImpl_, errors_, failed_);
         }
         gameImpl_ = _decodeDisputeGameImpl(_game, _gameArgs, _gameType);
+
+        return (gameImpl_, errors_, failed_);
+    }
+
+    /// @notice Internal function to get the game implementation and decode game args for a super permissioned game.
+    ///        Returns a boolean indicating whether the length check failed, since this is used as a guard
+    function getSuperPermissionedGameImplementation(
+        string memory _initialErrors,
+        ISystemConfig _sysCfg,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (SuperPermissionedDisputeGameImplementation memory gameImpl_, string memory errors_, bool failed_)
+    {
+        errors_ = _initialErrors;
+        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        address gameAddress = address(_factory.gameImpls(GameTypes.SUPER_PERMISSIONED));
+
+        if (gameAddress == address(0)) {
+            errors_ = internalRequire(false, string.concat(_errorPrefix, "-10"), errors_);
+            failed_ = true;
+            return (gameImpl_, errors_, failed_);
+        }
+
+        bytes memory gameArgsBytes = _factory.gameArgs(GameTypes.SUPER_PERMISSIONED);
+        bool lenCheckFailed;
+        (errors_, lenCheckFailed) =
+            assertGameArgsLength(errors_, gameArgsBytes, GameTypes.SUPER_PERMISSIONED, _errorPrefix);
+        if (lenCheckFailed) {
+            failed_ = true;
+            return (gameImpl_, errors_, failed_);
+        }
+
+        LibGameArgs.SuperPermissionedGameArgs memory gameArgs = LibGameArgs.decodeSuperPermissioned(gameArgsBytes);
+        gameImpl_ = SuperPermissionedDisputeGameImplementation({
+            gameAddress: gameAddress,
+            asr: IAnchorStateRegistry(gameArgs.anchorStateRegistry),
+            proposer: gameArgs.proposer
+        });
 
         return (gameImpl_, errors_, failed_);
     }
@@ -635,7 +733,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     function expectedGameImpl(GameType _gameType) internal view returns (address) {
         uint32 raw = _gameType.raw();
         if (raw == GameTypes.PERMISSIONED_CANNON.raw()) return permissionedDisputeGameImpl;
-        if (raw == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) return superPermissionedDisputeGameImpl;
+        if (raw == GameTypes.SUPER_PERMISSIONED.raw()) return superPermissionedDisputeGameImpl;
         if (raw == GameTypes.SUPER_CANNON.raw()) return superFaultDisputeGameImpl;
         if (raw == GameTypes.SUPER_CANNON_KONA.raw()) return superFaultDisputeGameImpl;
         if (raw == GameTypes.ZK_DISPUTE_GAME.raw()) return zkDisputeGameImpl;
@@ -652,16 +750,24 @@ contract OPContractsManagerStandardValidator is ISemver {
         });
     }
 
+    /// @notice Builds the SPDG implementation references from this validator's storage.
+    function _buildSuperPermissionedDisputeGameImpls()
+        internal
+        view
+        returns (SuperPermissionedDisputeGameImpls memory)
+    {
+        return SuperPermissionedDisputeGameImpls({
+            expectedGameImpl: superPermissionedDisputeGameImpl, anchorStateRegistryImpl: anchorStateRegistryImpl
+        });
+    }
+
     /// @notice Builds the `DisputeGameConfig` struct, resolving overrides against storage.
     function _buildDisputeGameConfig(ValidationOverrides memory _overrides)
         internal
         view
         returns (DisputeGameConfig memory)
     {
-        return DisputeGameConfig({
-            l1PAOMultisig: expectedL1PAOMultisig(_overrides),
-            withdrawalDelaySeconds: withdrawalDelaySeconds
-        });
+        return DisputeGameConfig({ l1PAOMultisig: expectedL1PAOMultisig(_overrides) });
     }
 
     /// @notice Internal function to require a condition to be true, otherwise append an error message.
@@ -714,8 +820,7 @@ contract OPContractsManagerStandardValidator is ISemver {
             _input,
             _allowFailure,
             IOPContractsManagerStandardValidator.ValidationOverrides({
-                l1PAOMultisig: _overrides.l1PAOMultisig,
-                challenger: _overrides.challenger
+                l1PAOMultisig: _overrides.l1PAOMultisig, challenger: _overrides.challenger
             }),
             _buildSharedImplementations(),
             _buildSharedConfig()
@@ -743,19 +848,39 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice Builds the SharedConfig struct from this validator's state.
     function _buildSharedConfig() private view returns (IOPContractsManagerMigrationValidator.SharedConfig memory) {
         return IOPContractsManagerMigrationValidator.SharedConfig({
-            l1PAOMultisig: l1PAOMultisig,
-            challenger: challenger,
-            withdrawalDelaySeconds: withdrawalDelaySeconds
+            l1PAOMultisig: l1PAOMultisig, superchainConfig: superchainConfig
         });
     }
 
-    /// @notice Validates the configuration of the L1 contracts.
+    /// @notice Returns whether the selected validation branch validates the respected game type.
+    ///         SUPER_CANNON_KONA and ZK_DISPUTE_GAME count only when the factory registers them;
+    ///         the SHAPE checks require every other accepted type.
+    function isRespectedGameTypeValidated(
+        GameType _gameType,
+        bool _isSuperMode,
+        ISystemConfig _sysCfg
+    )
+        internal
+        view
+        returns (bool)
+    {
+        uint32 raw = _gameType.raw();
+        if (!_isSuperMode) {
+            return raw == GameTypes.PERMISSIONED_CANNON.raw() || raw == GameTypes.CANNON_KONA.raw();
+        }
+        if (raw == GameTypes.SUPER_PERMISSIONED.raw()) return true;
+        if (raw != GameTypes.SUPER_CANNON_KONA.raw() && raw != GameTypes.ZK_DISPUTE_GAME.raw()) return false;
+        return address(IDisputeGameFactory(_sysCfg.disputeGameFactory()).gameImpls(_gameType)) != address(0);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts. Passes zero Cannon-Kona and ZK
+    ///         prestates, so chains registering those games report their prestate errors.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
         ValidationInputDev memory devInput = _toValidationInputDev(_input);
         return validate(devInput, _allowFailure);
     }
 
-    /// @notice Validates the configuration of the L1 contracts when dev features are enabled.
+    /// @notice Validates the configuration of the L1 contracts against the given prestates.
     function validate(ValidationInputDev memory _input, bool _allowFailure) public view returns (string memory) {
         return validateWithOverrides(
             _input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) })
@@ -763,7 +888,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
-    /// the ValidationOverrides struct.
+    /// the ValidationOverrides struct. Passes zero Cannon-Kona and ZK prestates.
     function validateWithOverrides(
         ValidationInput memory _input,
         bool _allowFailure,
@@ -778,7 +903,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
-    /// the ValidationOverrides struct. Includes validation fields relevant for dev features.
+    /// the ValidationOverrides struct.
     function validateWithOverrides(
         ValidationInputDev memory _input,
         bool _allowFailure,
@@ -794,46 +919,64 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         _errors = assertValidSuperchainConfig(_errors);
         _errors = assertValidProxyAdmin(_errors, _proxyAdmin, _overrides);
-        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidSystemConfig(_errors, _input.sysCfg, _proxyAdmin, _input.l2ChainID);
         _errors = assertValidL1CrossDomainMessenger(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidL1StandardBridge(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidL1ERC721Bridge(_errors, _input.sysCfg, _proxyAdmin);
         _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _proxyAdmin);
-        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _proxyAdmin, _overrides);
 
-        // Determine if the chain is in super game mode by checking the ASR's respectedGameType.
-        bool isSuperMode = false;
-        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)) {
-            IOptimismPortal2 portal = IOptimismPortal2(payable(_input.sysCfg.optimismPortal()));
-            IAnchorStateRegistry asr = portal.anchorStateRegistry();
-            GameType rgt = asr.respectedGameType();
-            isSuperMode = GameTypes.isSuperGame(rgt);
+        // Migrated interop chains retain their own ProxyAdmins, while the shared contracts use
+        // the first member's ProxyAdmin. Use the factory's admin for the shared contract checks,
+        // preserving both their common admin and the expected PAO owner.
+        IProxyAdmin _sharedProxyAdmin = _proxyAdmin;
+        if (_input.sysCfg.isFeatureEnabled(Features.INTEROP)) {
+            _sharedProxyAdmin = getProxyAdmin(_input.sysCfg.disputeGameFactory());
+            _errors = internalRequire(
+                _sharedProxyAdmin.owner() == expectedL1PAOMultisig(_overrides), "SHARED-PROXYA-10", _errors
+            );
         }
+        // Under INTEROP, DF-40 compares the factory's admin with itself. SHARED-PROXYA-10
+        // checks its PAO owner; the ASR, WETH and lockbox checks enforce the same shared admin.
+        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides);
+
+        GameType rgt =
+            IOptimismPortal2(payable(_input.sysCfg.optimismPortal())).anchorStateRegistry().respectedGameType();
+        bool isSuperMode = DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.SUPER_ROOT_GAMES_MIGRATION)
+            && GameTypes.isSuperGame(rgt);
+
+        _errors = internalRequire(isRespectedGameTypeValidated(rgt, isSuperMode, _input.sysCfg), "ASR-RGT", _errors);
 
         if (isSuperMode) {
             _errors = assertValidSuperRootDisputeGames(_errors, _input.sysCfg);
             _errors = assertValidPermissionedDisputeGame(
                 _errors,
                 _input.sysCfg,
-                GameTypes.SUPER_PERMISSIONED_CANNON,
+                GameTypes.SUPER_PERMISSIONED,
                 _input.cannonPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _input.proposer,
                 _overrides,
                 "SPDG"
             );
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
-                GameTypes.SUPER_CANNON_KONA,
-                _input.cannonKonaPrestate,
-                _input.l2ChainID,
-                _proxyAdmin,
-                _overrides,
-                "SCKDG"
-            );
+            // Optional: DF-60 requires SUPER_CANNON_KONA or ZK_DISPUTE_GAME.
+            if (
+                address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.SUPER_CANNON_KONA))
+                    != address(0)
+            ) {
+                _errors = assertValidPermissionlessDisputeGame(
+                    _errors,
+                    _input.sysCfg,
+                    GameTypes.SUPER_CANNON_KONA,
+                    _input.cannonKonaPrestate,
+                    _input.l2ChainID,
+                    _sharedProxyAdmin,
+                    _overrides,
+                    "SCKDG"
+                );
+            }
+            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _sharedProxyAdmin, _overrides, _input.zkPrestate);
         } else {
             // Super game types must not be registered in non-super mode.
             _errors = assertValidNonSuperRootDisputeGames(_errors, _input.sysCfg);
@@ -843,7 +986,7 @@ contract OPContractsManagerStandardValidator is ISemver {
                 GameTypes.PERMISSIONED_CANNON,
                 _input.cannonPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _input.proposer,
                 _overrides,
                 "PDDG"
@@ -851,39 +994,16 @@ contract OPContractsManagerStandardValidator is ISemver {
             _errors = assertValidPermissionlessDisputeGame(
                 _errors,
                 _input.sysCfg,
-                GameTypes.CANNON,
-                _input.cannonPrestate,
-                _input.l2ChainID,
-                _proxyAdmin,
-                _overrides,
-                "PLDG"
-            );
-            _errors = assertValidPermissionlessDisputeGame(
-                _errors,
-                _input.sysCfg,
                 GameTypes.CANNON_KONA,
                 _input.cannonKonaPrestate,
                 _input.l2ChainID,
-                _proxyAdmin,
+                _sharedProxyAdmin,
                 _overrides,
                 "CKDG"
             );
         }
 
-        // ZK dispute game validation: gated on the ZK_DISPUTE_GAME dev feature flag.
-        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.ZK_DISPUTE_GAME)) {
-            _errors = assertValidZKDisputeGame(_errors, _input.sysCfg, _input.l2ChainID, _proxyAdmin, _overrides);
-        } else {
-            // ZK game type must not be registered when the ZK feature is not enabled.
-            _errors = internalRequire(
-                address(IDisputeGameFactory(_input.sysCfg.disputeGameFactory()).gameImpls(GameTypes.ZK_DISPUTE_GAME))
-                    == address(0),
-                "ZKDG-NOSHAPE",
-                _errors
-            );
-        }
-
-        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _proxyAdmin);
+        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _sharedProxyAdmin);
 
         string memory overridesString = getOverridesString(_overrides);
         string memory finalErrors = _errors;
@@ -907,12 +1027,14 @@ contract OPContractsManagerStandardValidator is ISemver {
         return finalErrors;
     }
 
-    /// @notice Transforms current ValidationInput structs into the dev feature format.
+    /// @notice Converts a ValidationInput into a ValidationInputDev with zero Cannon-Kona and ZK
+    ///         prestates.
     function _toValidationInputDev(ValidationInput memory _input) internal pure returns (ValidationInputDev memory) {
         return ValidationInputDev({
             sysCfg: _input.sysCfg,
             cannonPrestate: _input.absolutePrestate,
             cannonKonaPrestate: bytes32(0),
+            zkPrestate: bytes32(0),
             l2ChainID: _input.l2ChainID,
             proposer: _input.proposer
         });
@@ -921,8 +1043,7 @@ contract OPContractsManagerStandardValidator is ISemver {
     function assertGameArgsLength(
         string memory _errors,
         bytes memory _gameArgsBytes,
-        bool _isPermissioned,
-        bool _isZK,
+        GameType _gameType,
         string memory _errorPrefix
     )
         internal
@@ -930,11 +1051,16 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory errors_, bool failed_)
     {
         _errorPrefix = string.concat(_errorPrefix, "-GARGS");
-        if (_isZK) {
+        uint32 rawGameType = _gameType.raw();
+        if (rawGameType == GameTypes.ZK_DISPUTE_GAME.raw()) {
             bool ok = LibGameArgs.isValidZKArgs(_gameArgsBytes);
             _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
             return (_errors, !ok);
-        } else if (_isPermissioned) {
+        } else if (rawGameType == GameTypes.SUPER_PERMISSIONED.raw()) {
+            bool ok = LibGameArgs.isValidSuperPermissionedArgs(_gameArgsBytes);
+            _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
+            return (_errors, !ok);
+        } else if (rawGameType == GameTypes.PERMISSIONED_CANNON.raw()) {
             bool ok = LibGameArgs.isValidPermissionedArgs(_gameArgsBytes);
             _errors = internalRequire(ok, string.concat(_errorPrefix, "-10"), _errors);
             return (_errors, !ok);
@@ -945,13 +1071,14 @@ contract OPContractsManagerStandardValidator is ISemver {
         }
     }
 
-    /// @notice Validates the decoded ZK game args (chainId, weth, asr) against the chain config.
+    /// @notice Validates the decoded ZK game args against the chain config and the expected ZK
+    ///         prestate.
     function _assertValidZKGameArgs(
         string memory _errors,
         ISystemConfig _sysCfg,
-        uint256 _l2ChainID,
         IProxyAdmin _admin,
         ValidationOverrides memory _overrides,
+        bytes32 _zkPrestate,
         string memory _errorPrefix
     )
         private
@@ -959,21 +1086,49 @@ contract OPContractsManagerStandardValidator is ISemver {
         returns (string memory)
     {
         IDisputeGameFactory factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        (address _asr, address _weth, uint256 chainId) =
-            LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
-        _errors = internalRequire(chainId == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
+        LibGameArgs.ZKGameArgs memory args = LibGameArgs.decodeZK(factory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
+        _errors = internalRequire(
+            _zkPrestate != bytes32(0) && args.absolutePrestate == _zkPrestate,
+            string.concat(_errorPrefix, "-70"),
+            _errors
+        );
+        _errors = internalRequire(
+            args.verifier == sp1PlonkAdapterImpl && sp1PlonkAdapterImpl.code.length > 0,
+            string.concat(_errorPrefix, "-80"),
+            _errors
+        );
+        // Durations are capped at uint32 max so that `block.timestamp + duration` cannot overflow
+        // the uint64 deadline cast in ZKDisputeGame, which would place the deadline in the past.
+        _errors = internalRequire(
+            args.maxChallengeDuration > 0 && args.maxChallengeDuration <= type(uint32).max,
+            string.concat(_errorPrefix, "-90"),
+            _errors
+        );
+        _errors = internalRequire(
+            args.maxProveDuration > 0 && args.maxProveDuration <= type(uint32).max,
+            string.concat(_errorPrefix, "-100"),
+            _errors
+        );
+        _errors = internalRequire(args.challengerBond > 0, string.concat(_errorPrefix, "-110"), _errors);
+        (Hash anchorRoot,) = IAnchorStateRegistry(args.anchorStateRegistry).getAnchorRoot();
+        _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
         _errors = standardValidatorUtils.assertValidDelayedWETH(
             _errors,
             _sysCfg,
-            IDelayedWETH(payable(_weth)),
+            IDelayedWETH(payable(args.weth)),
             _admin,
             expectedL1PAOMultisig(_overrides),
             delayedWETHImpl,
-            withdrawalDelaySeconds,
             _errorPrefix
         );
         _errors = standardValidatorUtils.assertValidAnchorStateRegistry(
-            _errors, _sysCfg, factory, IAnchorStateRegistry(_asr), _admin, anchorStateRegistryImpl, _errorPrefix
+            _errors,
+            _sysCfg,
+            factory,
+            IAnchorStateRegistry(args.anchorStateRegistry),
+            _admin,
+            anchorStateRegistryImpl,
+            _errorPrefix
         );
         return _errors;
     }
@@ -982,14 +1137,22 @@ contract OPContractsManagerStandardValidator is ISemver {
     function assertValidZKDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
-        uint256 _l2ChainID,
         IProxyAdmin _admin,
-        ValidationOverrides memory _overrides
+        ValidationOverrides memory _overrides,
+        bytes32 _zkPrestate
     )
         internal
         view
         returns (string memory)
     {
+        // ZK_DISPUTE_GAME is optional; there is nothing to validate when it is not registered.
+        // TODO(#21529): once SUPER_CANNON_KONA is removed, drop this early return so chains without a ZK game
+        // fail validation.
+        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        if (address(_factory.gameImpls(GameTypes.ZK_DISPUTE_GAME)) == address(0)) {
+            return _errors;
+        }
+
         string memory errorPrefix = "ZKDG";
         DisputeGameImplementation memory gameImpl;
         bool failedToGetImpl;
@@ -1001,7 +1164,13 @@ contract OPContractsManagerStandardValidator is ISemver {
             string.concat(errorPrefix, "-20"),
             _errors
         );
-        return _assertValidZKGameArgs(_errors, _sysCfg, _l2ChainID, _admin, _overrides, errorPrefix);
+        _errors =
+            internalRequire(gameImpl.gameAddress == zkDisputeGameImpl, string.concat(errorPrefix, "-150"), _errors);
+        _errors = _assertValidZKGameArgs(_errors, _sysCfg, _admin, _overrides, _zkPrestate, errorPrefix);
+        // ZK game creation is permissionless, so a zero init bond leaves root claims free to spam.
+        return internalRequire(
+            _factory.initBonds(GameTypes.ZK_DISPUTE_GAME) > 0, string.concat(errorPrefix, "-160"), _errors
+        );
     }
 
     /// @notice Internal function to read all information from a dispute game.

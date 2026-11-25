@@ -20,31 +20,31 @@
 set -euo pipefail
 
 if [ $# -lt 2 ]; then
-    echo "usage: uptodate.sh TARGET SOURCE [SOURCE...]" >&2
-    exit 1
+  echo "usage: uptodate.sh TARGET SOURCE [SOURCE...]" >&2
+  exit 1
 fi
 
 target="$1"
 shift
 
 if [ ! -f "$target" ]; then
-    exit 1
+  exit 1
 fi
 
 for src in "$@"; do
-    if [ ! -e "$src" ]; then
-        echo "warning: source '$src' does not exist, forcing rebuild" >&2
-        exit 1
-    elif [ -d "$src" ]; then
-        newer=$(find "$src" -type f -newer "$target" -print -quit 2>/dev/null)
-        if [ -n "$newer" ]; then
-            exit 1
-        fi
-    else
-        if [ "$src" -nt "$target" ]; then
-            exit 1
-        fi
+  if [ ! -e "$src" ]; then
+    echo "warning: source '$src' does not exist, forcing rebuild" >&2
+    exit 1
+  elif [ -d "$src" ]; then
+    newer=$(find "$src" -type f -newer "$target" -print -quit 2> /dev/null)
+    if [ -n "$newer" ]; then
+      exit 1
     fi
+  else
+    if [ "$src" -nt "$target" ]; then
+      exit 1
+    fi
+  fi
 done
 
 exit 0

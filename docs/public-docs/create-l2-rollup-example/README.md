@@ -1,13 +1,13 @@
 # Create L2 Rollup - Code Example
 
-This directory contains the complete working implementation that accompanies the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup). It provides automated deployment of an OP Stack L2 rollup testnet using official published Docker images.
+This directory contains the complete working implementation that accompanies the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup). It provides automated deployment of an OP Stack L2 rollup testnet using official published Docker images.
 
 ## Overview
 
 This implementation deploys a fully functional OP Stack L2 rollup testnet, including:
 
 - **L1 Smart Contracts** deployed on Sepolia testnet (via op-deployer)
-- **Execution Client** (op-geth) processing transactions
+- **Execution Client** (op-reth) processing transactions
 - **Consensus Client** (op-node) managing rollup consensus
 - **Batcher** (op-batcher) publishing transaction data to L1
 - **Proposer** (op-proposer) submitting state root proposals
@@ -109,7 +109,7 @@ The `.env` file will be automatically loaded by Docker Compose.
 
 ## Manual Setup (Alternative)
 
-For detailed manual setup instructions, see the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup). The tutorial provides step-by-step guidance for setting up each component individually if you prefer not to use the automated approach.
+For detailed manual setup instructions, see the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup). The tutorial provides step-by-step guidance for setting up each component individually if you prefer not to use the automated approach.
 
 ## Directory Structure
 
@@ -140,19 +140,19 @@ challenger/              # op-challenger configuration
 └── data/                # Challenger data directory
 sequencer/               # op-sequencer configuration
 ├── .env                 # op-sequencer environment variables
-├── genesis.json         # op-geth genesis file
+├── genesis.json         # L2 genesis file (initializes op-reth)
 ├── jwt.txt              # JWT secret for auth RPC
 ├── rollup.json          # op-node rollup configuration
-└── op-geth-data/        # op-geth data directory
+└── op-reth-data/        # op-reth data directory (Docker named volume)
 ```
 
 ## Service Ports
 
 | Service | Port | Description |
 |---------|------|-------------|
-| op-geth | 8545 | HTTP RPC endpoint |
-| op-geth | 8546 | WebSocket RPC endpoint |
-| op-geth | 8551 | Auth RPC for op-node |
+| op-reth | 8545 | HTTP RPC endpoint |
+| op-reth | 8546 | WebSocket RPC endpoint |
+| op-reth | 8551 | Auth RPC for op-node |
 | op-node | 8547 | op-node RPC endpoint |
 | op-node | 9222 | P2P networking |
 
@@ -164,7 +164,7 @@ make logs
 
 # View specific service logs
 docker-compose logs -f op-node
-docker-compose logs -f op-geth
+docker-compose logs -f op-reth
 
 # Check service health
 make status
@@ -178,7 +178,7 @@ docker-compose restart op-batcher
 
 ## P2P Networking Configuration
 
-By default, this devnet disables P2P networking entirely to avoid validation warnings when running locally. The `--p2p.disable` flag is set in `docker-compose.yml` (line 26).
+By default, this devnet disables P2P networking entirely to avoid validation warnings when running locally. The `--p2p.disable` flag is set on the `op-node` service in `docker-compose.yml`.
 
 <Warning>
 **For production deployments**, you must **remove** the `--p2p.disable` flag and configure P2P networking properly. P2P is essential for:
@@ -255,7 +255,7 @@ make up
 
 ## About This Code
 
-This code example accompanies the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup/create-l2-rollup) in the Optimism documentation. It provides a complete, working implementation that demonstrates the concepts covered in the tutorial.
+This code example accompanies the [Create L2 Rollup tutorial](/chain-operators/tutorials/create-l2-rollup) in the Optimism documentation. It provides a complete, working implementation that demonstrates the concepts covered in the tutorial.
 
 ## Contributing
 

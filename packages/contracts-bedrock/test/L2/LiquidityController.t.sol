@@ -47,7 +47,9 @@ contract LiquidityController_TestInit is CommonTest {
         assumeNotForgeAddress(_minter);
         assumeNotZeroAddress(_minter);
         // Authorize the minter
-        stdstore.target(address(liquidityController)).sig(liquidityController.minters.selector).with_key(_minter)
+        stdstore.target(address(liquidityController))
+            .sig(liquidityController.minters.selector)
+            .with_key(_minter)
             .checked_write(true);
     }
 }

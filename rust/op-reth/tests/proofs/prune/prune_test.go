@@ -67,9 +67,8 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 	}
 	t.Logf("Target block for proof validation (pre-prune): %d", targetBlock)
 
-	// Make sure validator has the block too (keeps the test stable).
-	sys.L2ELValidatorNode().WaitForBlockNumber(targetBlock)
-	utils.WaitForProofsStoreBlock(t, sys.L2ELValidatorNode().Escape().L2EthClient(), targetBlock)
+	// Make sure the proof store has indexed the target block before verifying.
+	utils.WaitForProofsStoreBlock(t, ethClient, targetBlock)
 
 	// Pre-prune proof verification at targetBlock.
 	// This verifies the proof against the block's state root (efficient correctness check).
@@ -89,7 +88,7 @@ func TestPruneProofStorageWithGetProofConsistency(gt *testing.T) {
 	requiredLatest := targetBlock + proofWindow
 	if initialStatus.Latest < requiredLatest {
 		t.Logf("Waiting for chain to advance to at least block %d so pruning can pass targetBlock", requiredLatest)
-		opRethELNode.WaitForBlockNumber(requiredLatest)
+		utils.WaitForProofsStoreBlock(t, ethClient, requiredLatest)
 	}
 
 	t.Logf("Waiting for pruner to advance earliest past targetBlock=%d ...", targetBlock)

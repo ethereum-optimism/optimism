@@ -7,10 +7,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/solabi"
 )
 
@@ -44,7 +44,7 @@ var (
 func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns := make([]hexutil.Bytes, 0, 6)
 
-	deployL1BlockTransaction, err := types.NewTx(&types.DepositTx{
+	deployL1BlockTransaction, err := (&optypes.DepositTx{
 		SourceHash:          deployL1BlockSource.SourceHash(),
 		From:                L1BlockDeployerAddress,
 		To:                  nil,
@@ -61,7 +61,7 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 
 	upgradeTxns = append(upgradeTxns, deployL1BlockTransaction)
 
-	deployGasPriceOracle, err := types.NewTx(&types.DepositTx{
+	deployGasPriceOracle, err := (&optypes.DepositTx{
 		SourceHash:          deployGasPriceOracleSource.SourceHash(),
 		From:                GasPriceOracleDeployerAddress,
 		To:                  nil,
@@ -78,7 +78,7 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 
 	upgradeTxns = append(upgradeTxns, deployGasPriceOracle)
 
-	updateL1BlockProxy, err := types.NewTx(&types.DepositTx{
+	updateL1BlockProxy, err := (&optypes.DepositTx{
 		SourceHash:          updateL1BlockProxySource.SourceHash(),
 		From:                common.Address{},
 		To:                  &predeploys.L1BlockAddr,
@@ -95,7 +95,7 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 
 	upgradeTxns = append(upgradeTxns, updateL1BlockProxy)
 
-	updateGasPriceOracleProxy, err := types.NewTx(&types.DepositTx{
+	updateGasPriceOracleProxy, err := (&optypes.DepositTx{
 		SourceHash:          updateGasPriceOracleSource.SourceHash(),
 		From:                common.Address{},
 		To:                  &predeploys.GasPriceOracleAddr,
@@ -112,7 +112,7 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 
 	upgradeTxns = append(upgradeTxns, updateGasPriceOracleProxy)
 
-	enableEcotone, err := types.NewTx(&types.DepositTx{
+	enableEcotone, err := (&optypes.DepositTx{
 		SourceHash:          enableEcotoneSource.SourceHash(),
 		From:                L1InfoDepositerAddress,
 		To:                  &predeploys.GasPriceOracleAddr,
@@ -127,7 +127,7 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	}
 	upgradeTxns = append(upgradeTxns, enableEcotone)
 
-	deployEIP4788, err := types.NewTx(&types.DepositTx{
+	deployEIP4788, err := (&optypes.DepositTx{
 		From:                EIP4788From,
 		To:                  nil, // contract-deployment tx
 		Mint:                big.NewInt(0),

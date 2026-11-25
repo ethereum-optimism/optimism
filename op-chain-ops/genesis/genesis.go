@@ -6,11 +6,13 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-core/eip1559"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
+	opparams "github.com/ethereum-optimism/optimism/op-core/params"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -26,9 +28,15 @@ var HoloceneExtraData = eip1559.EncodeHoloceneExtraData(250, 6)
 var MinBaseFeeExtraData = eip1559.EncodeJovianExtraData(250, 6, 0)
 
 // NewL2Genesis will create a new L2 genesis
-func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Genesis, error) {
+func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*opgenesis.Genesis, error) {
 	if config.L2ChainID == 0 {
 		return nil, errors.New("must define L2 ChainID")
+	}
+	// Chain ID 10 is OP Mainnet, whose genesis is its Bedrock migration and never built here.
+	// opparams.ChainConfig.GethChainConfig gives any chain ID 10 OP Mainnet's legacy Berlin
+	// and London blocks, so a genesis built here would lack London at genesis.
+	if config.L2ChainID == opparams.OPMainnetChainID {
+		return nil, fmt.Errorf("%w: L2ChainID %d is reserved for OP Mainnet", ErrInvalidDeployConfig, opparams.OPMainnetChainID)
 	}
 
 	eip1559Denom := config.EIP1559Denominator
@@ -44,42 +52,25 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 		eip1559Elasticity = 10
 	}
 
-	l1StartTime := l1StartHeader.Time
+	l2GenesisTime, err := config.L2GenesisTime(l1StartHeader.Time)
+	if err != nil {
+		return nil, err
+	}
 
-	optimismChainConfig := params.ChainConfig{
-		ChainID:                 new(big.Int).SetUint64(config.L2ChainID),
-		HomesteadBlock:          big.NewInt(0),
-		DAOForkBlock:            nil,
-		DAOForkSupport:          false,
-		EIP150Block:             big.NewInt(0),
-		EIP155Block:             big.NewInt(0),
-		EIP158Block:             big.NewInt(0),
-		ByzantiumBlock:          big.NewInt(0),
-		ConstantinopleBlock:     big.NewInt(0),
-		PetersburgBlock:         big.NewInt(0),
-		IstanbulBlock:           big.NewInt(0),
-		MuirGlacierBlock:        big.NewInt(0),
-		BerlinBlock:             big.NewInt(0),
-		LondonBlock:             big.NewInt(0),
-		ArrowGlacierBlock:       big.NewInt(0),
-		GrayGlacierBlock:        big.NewInt(0),
-		MergeNetsplitBlock:      big.NewInt(0),
-		TerminalTotalDifficulty: big.NewInt(0),
-		BedrockBlock:            new(big.Int).SetUint64(uint64(config.L2GenesisBlockNumber)),
-		RegolithTime:            config.RegolithTime(l1StartTime),
-		CanyonTime:              config.CanyonTime(l1StartTime),
-		ShanghaiTime:            config.CanyonTime(l1StartTime),
-		CancunTime:              config.EcotoneTime(l1StartTime),
-		EcotoneTime:             config.EcotoneTime(l1StartTime),
-		FjordTime:               config.FjordTime(l1StartTime),
-		GraniteTime:             config.GraniteTime(l1StartTime),
-		HoloceneTime:            config.HoloceneTime(l1StartTime),
-		IsthmusTime:             config.IsthmusTime(l1StartTime),
-		JovianTime:              config.JovianTime(l1StartTime),
-		KarstTime:               config.KarstTime(l1StartTime),
-		PragueTime:              config.IsthmusTime(l1StartTime),
-		InteropTime:             config.InteropTime(l1StartTime),
-		Optimism: &params.OptimismConfig{
+	chainConfig := &opparams.ChainConfig{
+		ChainID:      new(big.Int).SetUint64(config.L2ChainID),
+		BedrockBlock: new(big.Int).SetUint64(uint64(config.L2GenesisBlockNumber)),
+		RegolithTime: config.RegolithTime(l2GenesisTime),
+		CanyonTime:   config.CanyonTime(l2GenesisTime),
+		EcotoneTime:  config.EcotoneTime(l2GenesisTime),
+		FjordTime:    config.FjordTime(l2GenesisTime),
+		GraniteTime:  config.GraniteTime(l2GenesisTime),
+		HoloceneTime: config.HoloceneTime(l2GenesisTime),
+		IsthmusTime:  config.IsthmusTime(l2GenesisTime),
+		JovianTime:   config.JovianTime(l2GenesisTime),
+		KarstTime:    config.KarstTime(l2GenesisTime),
+		LagoonTime:   config.LagoonTime(l2GenesisTime),
+		Optimism: &opparams.OptimismConfig{
 			EIP1559Denominator:       eip1559Denom,
 			EIP1559Elasticity:        eip1559Elasticity,
 			EIP1559DenominatorCanyon: &eip1559DenomCanyon,
@@ -99,10 +90,10 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 		difficulty = newHexBig(0)
 	}
 
-	genesis := &core.Genesis{
-		Config:     &optimismChainConfig,
+	genesis := &opgenesis.Genesis{
+		Config:     chainConfig,
 		Nonce:      uint64(config.L2GenesisBlockNonce),
-		Timestamp:  l1StartTime,
+		Timestamp:  l2GenesisTime,
 		GasLimit:   uint64(gasLimit),
 		Difficulty: difficulty.ToInt(),
 		Mixhash:    config.L2GenesisBlockMixHash,
@@ -114,17 +105,17 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 		Alloc:      map[common.Address]types.Account{},
 	}
 
-	if optimismChainConfig.IsEcotone(genesis.Timestamp) {
+	if chainConfig.IsEcotone(genesis.Timestamp) {
 		genesis.BlobGasUsed = u64ptr(0)
 		genesis.ExcessBlobGas = u64ptr(0)
 	}
-	if optimismChainConfig.IsHolocene(genesis.Timestamp) {
+	if chainConfig.IsHolocene(genesis.Timestamp) {
 		genesis.ExtraData = HoloceneExtraData
 	}
-	if optimismChainConfig.IsIsthmus(genesis.Timestamp) {
+	if chainConfig.IsIsthmus(genesis.Timestamp) {
 		genesis.Alloc[params.HistoryStorageAddress] = types.Account{Nonce: 1, Code: params.HistoryStorageCode, Balance: common.Big0}
 	}
-	if optimismChainConfig.IsJovian(genesis.Timestamp) {
+	if chainConfig.IsJovian(genesis.Timestamp) {
 		genesis.ExtraData = MinBaseFeeExtraData
 	}
 
@@ -137,15 +128,16 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, fmt.Errorf("expected non-nil 0 L1 cancun time offset, but got %v", config.L1CancunTimeOffset)
 	}
 	return NewL1GenesisMinimal(&DevL1DeployConfigMinimal{
-		DevL1DeployConfig:  config.DevL1DeployConfig,
-		L1ChainID:          eth.ChainIDFromUInt64(config.L1ChainID),
-		L1PragueTimeOffset: (*uint64)(config.L1PragueTimeOffset),
-		L1OsakaTimeOffset:  (*uint64)(config.L1OsakaTimeOffset),
-		L1BPO1TimeOffset:   (*uint64)(config.L1BPO1TimeOffset),
-		L1BPO2TimeOffset:   (*uint64)(config.L1BPO2TimeOffset),
-		L1BPO3TimeOffset:   (*uint64)(config.L1BPO3TimeOffset),
-		L1BPO4TimeOffset:   (*uint64)(config.L1BPO4TimeOffset),
-		BlobScheduleConfig: config.L1BlobScheduleConfig,
+		DevL1DeployConfig:     config.DevL1DeployConfig,
+		L1ChainID:             eth.ChainIDFromUInt64(config.L1ChainID),
+		L1PragueTimeOffset:    (*uint64)(config.L1PragueTimeOffset),
+		L1OsakaTimeOffset:     (*uint64)(config.L1OsakaTimeOffset),
+		L1BPO1TimeOffset:      (*uint64)(config.L1BPO1TimeOffset),
+		L1BPO2TimeOffset:      (*uint64)(config.L1BPO2TimeOffset),
+		L1BPO3TimeOffset:      (*uint64)(config.L1BPO3TimeOffset),
+		L1BPO4TimeOffset:      (*uint64)(config.L1BPO4TimeOffset),
+		L1AmsterdamTimeOffset: (*uint64)(config.L1AmsterdamTimeOffset),
+		BlobScheduleConfig:    config.L1BlobScheduleConfig,
 	})
 }
 
@@ -165,6 +157,10 @@ type DevL1DeployConfigMinimal struct {
 	L1BPO3TimeOffset *uint64
 	// When BPO4 activates. Relative to L1 genesis.
 	L1BPO4TimeOffset *uint64
+	// When BPO5 activates. Relative to L1 genesis.
+	L1BPO5TimeOffset *uint64
+	// When Amsterdam activates. Relative to L1 genesis.
+	L1AmsterdamTimeOffset *uint64
 	// Blob schedule config.
 	BlobScheduleConfig *params.BlobScheduleConfig
 }
@@ -241,6 +237,14 @@ func NewL1GenesisMinimal(config *DevL1DeployConfigMinimal) (*core.Genesis, error
 	if config.L1BPO4TimeOffset != nil {
 		bpo4Time := uint64(timestamp) + uint64(*config.L1BPO4TimeOffset)
 		chainConfig.BPO4Time = &bpo4Time
+	}
+	if config.L1BPO5TimeOffset != nil {
+		bpo5Time := uint64(timestamp) + uint64(*config.L1BPO5TimeOffset)
+		chainConfig.BPO5Time = &bpo5Time
+	}
+	if config.L1AmsterdamTimeOffset != nil {
+		amsterdamTime := uint64(timestamp) + uint64(*config.L1AmsterdamTimeOffset)
+		chainConfig.AmsterdamTime = &amsterdamTime
 	}
 	if config.BlobScheduleConfig != nil {
 		chainConfig.BlobScheduleConfig = config.BlobScheduleConfig

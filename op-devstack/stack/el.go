@@ -11,5 +11,6 @@ type ELNode interface {
 	Common
 	ChainID() eth.ChainID
 	EthClient() apis.EthClient
+	UserRPC() string
 	TransactionTimeout() time.Duration
 }

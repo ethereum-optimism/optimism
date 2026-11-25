@@ -2,6 +2,7 @@
 
 mod task;
 pub use task::BuildTask;
+pub(in crate::task_queue) use task::start_build;
 
 mod error;
 pub use error::{BuildTaskError, EngineBuildError};

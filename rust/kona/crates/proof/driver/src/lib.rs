@@ -24,6 +24,9 @@ pub use executor::Executor;
 mod core;
 pub use core::Driver;
 
+mod metrics;
+pub use metrics::{DriverMetrics, DriverPhase, NoopDriverMetrics};
+
 mod cursor;
 pub use cursor::PipelineCursor;
 

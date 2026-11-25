@@ -9,31 +9,31 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod validator;
-pub use validator::{OpL1BlockInfo, OpTransactionValidator};
+pub use validator::{OpGasLimitConfig, OpL1BlockInfo, OpTransactionValidator};
 
 pub mod conditional;
 mod pool;
 pub use pool::OpPool;
-pub mod supervisor;
+pub mod interop_filter;
 mod transaction;
 pub use transaction::{OpPooledTransaction, OpPooledTx};
 mod error;
 pub mod interop;
 pub mod maintain;
-pub use error::InvalidCrossTx;
+pub use error::{DaFootprintExceedsGasLimit, InvalidCrossTx};
 pub mod estimated_da_size;
 
-use reth_transaction_pool::{CoinbaseTipOrdering, Pool, TransactionValidationTaskExecutor};
+use reth_transaction_pool::{
+    Pool, TransactionValidationTaskExecutor, blobstore::DiskFileBlobStore,
+};
 
-/// Type alias for default optimism transaction pool.
+/// Optimism transaction pool generic over its validator `V` and ordering `O`.
 ///
-/// The [`OpPool`] wrapper delegates most behavior to the inner [`Pool`] handle,
-/// and overrides only a subset of the functions.
-/// This enables implementing custom behaviors and filtering of the pooled transactions.
-pub type OpTransactionPool<Client, S, Evm, T = OpPooledTransaction> = OpPool<
-    Pool<
-        TransactionValidationTaskExecutor<OpTransactionValidator<Client, T, Evm>>,
-        CoinbaseTipOrdering<T>,
-        S,
-    >,
->;
+/// This is the single definition of the optimism pool's type structure: the [`OpPool`] wrapper
+/// around a [`Pool`] with a [`TransactionValidationTaskExecutor`]-wrapped validator and a
+/// [`DiskFileBlobStore`].
+///
+/// Downstream builders use this directly when they substitute a custom ordering or a validator
+/// wrapper (e.g. admission control) without forking pool construction.
+pub type OpCustomTransactionPool<V, O> =
+    OpPool<Pool<TransactionValidationTaskExecutor<V>, O, DiskFileBlobStore>>;

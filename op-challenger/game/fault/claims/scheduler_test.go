@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,7 +73,7 @@ func TestBondClaimScheduler_Schedule(t *testing.T) {
 }
 
 func setupTestBondClaimScheduler(t *testing.T) (*BondClaimScheduler, *stubMetrics, *stubClaimer) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	metrics := &stubMetrics{}
 	claimer := &stubClaimer{}
 	scheduler := NewBondClaimScheduler(logger, metrics, claimer)

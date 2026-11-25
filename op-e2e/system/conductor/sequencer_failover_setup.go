@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
@@ -23,12 +22,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-node/config"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -82,9 +82,9 @@ func setupSequencerFailoverTest(t *testing.T) (*e2esys.System, map[string]*condu
 
 	// start sequencing on leader
 	lid, _ := findLeader(t, conductors)
-	unsafeHead, err := sys.NodeClient(lid).BlockByNumber(ctx, nil)
+	unsafeHead, err := sys.NodeClient(lid).HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
-	require.Equal(t, uint64(0), unsafeHead.NumberU64())
+	require.Equal(t, uint64(0), bigs.Uint64Strict(unsafeHead.Number))
 	require.NoError(t, sys.RollupClient(lid).StartSequencer(ctx, unsafeHead.Hash()))
 
 	// 1 batcher that listens to all 3 sequencers, in started mode.
@@ -191,7 +191,7 @@ func setupHAInfra(t *testing.T, ctx context.Context) (*e2esys.System, map[string
 		nodePRC := sys.RollupNodes[cfg.name].UserRPC().RPC()
 		engineRPC := sys.EthInstances[cfg.name].UserRPC().RPC()
 
-		conduc, err := setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.bootstrap, cfg.paused, *sys.RollupConfig)
+		conduc, err := setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.bootstrap, cfg.paused)
 		require.NoError(t, err, "failed to set up conductor %s", cfg.name)
 		out[cfg.name] = conduc
 		// Signal that the conductor RPC endpoint is ready
@@ -205,7 +205,6 @@ func setupConductor(
 	t *testing.T,
 	serverID, dir, nodeRPC, engineRPC string,
 	bootstrap bool, paused bool,
-	rollupCfg rollup.Config,
 ) (*conductor, error) {
 	cfg := con.Config{
 		ConsensusAddr:           localhost,
@@ -232,10 +231,9 @@ func setupConductor(
 			UnsafeInterval: 30,
 			SafeInterval:   30,
 		},
-		RollupCfg:      rollupCfg,
 		RPCEnableProxy:  true,
 		HTTPBodyLimitMB: 5,
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level: log.LevelDebug,
 			Color: false,
 		},
@@ -264,7 +262,7 @@ func setupConductor(
 		return nil, err
 	}
 	t.Cleanup(rawClient.Close)
-	client := conrpc.NewAPIClient(rawClient)
+	client := conrpc.NewAPIClient(opclient.NewBaseRPCClient(rawClient))
 
 	return &conductor{
 		service: service,
@@ -298,9 +296,9 @@ func setupBatcher(t *testing.T, sys *e2esys.System, conductors map[string]*condu
 		SubSafetyMargin:        4,
 		PollInterval:           1 * time.Second,
 		TxMgrConfig:            setuputils.NewTxMgrConfig(sys.EthInstances["l1"].UserRPC(), sys.Cfg.Secrets.Batcher),
-		LogConfig: oplog.CLIConfig{
+		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelDebug,
-			Format: oplog.FormatText,
+			Format: log.FormatText,
 		},
 		Stopped:                      false,
 		BatchType:                    derive.SpanBatchType,
@@ -364,7 +362,6 @@ func sequencerCfg(conductorRPCEndpoint config.ConductorRPCFunc) *config.Config {
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
-		InteropConfig:               &interop.Config{},
 		L1EpochPollInterval:         time.Second * 2,
 		RuntimeConfigReloadInterval: time.Minute * 10,
 		ConfigPersistence:           &config.DisabledConfigPersistence{},
@@ -385,46 +382,6 @@ func waitForLeadership(t *testing.T, c *conductor) error {
 			return false, err
 		}
 		return isLeader, nil
-	}
-
-	return wait.For(ctx, 1*time.Second, condition)
-}
-
-func waitForLeadershipChange(t *testing.T, prev *conductor, prevID string, conductors map[string]*conductor, sys *e2esys.System) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	condition := func() (bool, error) {
-		isLeader, err := prev.client.Leader(ctx)
-		if err != nil {
-			return false, err
-		}
-		return !isLeader, nil
-	}
-
-	err := wait.For(ctx, 1*time.Second, condition)
-	require.NoError(t, err)
-
-	ensureOnlyOneLeader(t, sys, conductors)
-	newLeader, err := prev.client.LeaderWithID(ctx)
-	require.NoError(t, err)
-	require.NotEmpty(t, newLeader.ID)
-	require.NotEqual(t, prevID, newLeader.ID, "Expected a new leader")
-	require.NoError(t, waitForSequencerStatusChange(t, sys.RollupClient(newLeader.ID), true))
-
-	return newLeader.ID
-}
-
-func waitForSequencerStatusChange(t *testing.T, rollupClient *sources.RollupClient, active bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	condition := func() (bool, error) {
-		isActive, err := rollupClient.SequencerActive(ctx)
-		if err != nil {
-			return false, err
-		}
-		return isActive == active, nil
 	}
 
 	return wait.For(ctx, 1*time.Second, condition)
@@ -482,31 +439,6 @@ func findFollower(t *testing.T, conductors map[string]*conductor) (string, *cond
 		}
 	}
 	return "", nil
-}
-
-func ensureOnlyOneLeader(t *testing.T, sys *e2esys.System, conductors map[string]*conductor) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	condition := func() (bool, error) {
-		leaders := 0
-		for name, con := range conductors {
-			leader, err := con.client.Leader(ctx)
-			if err != nil {
-				continue
-			}
-			active, err := sys.RollupClient(name).SequencerActive(ctx)
-			if err != nil {
-				continue
-			}
-
-			if leader && active {
-				leaders++
-			}
-		}
-		return leaders == 1, nil
-	}
-	require.NoError(t, wait.For(ctx, 1*time.Second, condition))
 }
 
 func memberIDs(membership *consensus.ClusterMembership) []string {

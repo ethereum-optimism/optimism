@@ -7,6 +7,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/ethereum-optimism/optimism/op-core/forks"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
@@ -58,9 +59,28 @@ func WriteLockFile(lockPath string, locks ForkLock) error {
 		return err
 	}
 
+	// Encode entries in chronological fork order so that adding a new fork
+	// doesn't reshuffle older entries.
 	enc := toml.NewEncoder(f)
-	if err := enc.Encode(locks); err != nil {
-		return fmt.Errorf("writing fork lock file: %w", err)
+	written := make(map[string]bool, len(locks))
+	for _, fork := range forks.All {
+		entry, ok := locks[string(fork)]
+		if !ok {
+			continue
+		}
+		if err := enc.Encode(map[string]ForkLockEntry{string(fork): entry}); err != nil {
+			return fmt.Errorf("writing fork lock file: %w", err)
+		}
+		written[string(fork)] = true
+	}
+	// Write any unknown fork names last (alphabetical fallback).
+	for name, entry := range locks {
+		if written[name] {
+			continue
+		}
+		if err := enc.Encode(map[string]ForkLockEntry{name: entry}); err != nil {
+			return fmt.Errorf("writing fork lock file: %w", err)
+		}
 	}
 
 	_, err = fmt.Fprint(f, `

@@ -53,14 +53,6 @@ variable "OP_DISPUTE_MON_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable "OP_PROGRAM_VERSION" {
-  default = "${GIT_VERSION}"
-}
-
-variable "OP_SUPERVISOR_VERSION" {
-  default = "${GIT_VERSION}"
-}
-
 variable "OP_SUPERNODE_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -188,32 +180,6 @@ target "da-server" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/da-server:${tag}"]
 }
 
-target "op-program" {
-  dockerfile = "ops/docker/op-stack-go/Dockerfile"
-  context = "."
-  args = {
-    GIT_COMMIT = "${GIT_COMMIT}"
-    GIT_DATE = "${GIT_DATE}"
-    OP_PROGRAM_VERSION = "${OP_PROGRAM_VERSION}"
-  }
-  target = "op-program-target"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-program:${tag}"]
-}
-
-target "op-supervisor" {
-  dockerfile = "ops/docker/op-stack-go/Dockerfile"
-  context = "."
-  args = {
-    GIT_COMMIT = "${GIT_COMMIT}"
-    GIT_DATE = "${GIT_DATE}"
-    OP_SUPERVISOR_VERSION = "${OP_SUPERVISOR_VERSION}"
-  }
-  target = "op-supervisor-target"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supervisor:${tag}"]
-}
-
 target "op-supernode" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
@@ -264,17 +230,6 @@ target "cannon" {
   target = "cannon-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
-}
-
-target "holocene-deployer" {
-  dockerfile = "./packages/contracts-bedrock/scripts/upgrades/holocene/upgrade.dockerfile"
-  context = "./packages/contracts-bedrock/scripts/upgrades/holocene"
-  args = {
-    REV = "op-contracts/v1.8.0-rc.1"
-  }
-  target="holocene-deployer"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/holocene-deployer:${tag}"]
 }
 
 target "op-deployer" {
@@ -341,6 +296,9 @@ target "kona-node" {
     REPO_LOCATION = "local"
     BIN_TARGET = "kona-node"
     BUILD_PROFILE = "release"
+    GIT_VERSION = "${GIT_VERSION}"
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/kona-node:${tag}"]
@@ -376,12 +334,37 @@ target "kona-client" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/kona-client:${tag}"]
 }
 
+target "op-zk-proposer" {
+  dockerfile = "kona/docker/apps/kona_app_generic.dockerfile"
+  context = "rust"
+  contexts = {
+    nuts-bundles = "op-core/nuts/bundles"
+    contracts-bedrock-abis = "packages/contracts-bedrock/snapshots/abi"
+  }
+  args = {
+    REPO_LOCATION = "local"
+    BUILDER_VARIANT = "contract-abis"
+    BIN_TARGET = "op-zk-proposer"
+    BUILD_PROFILE = "release"
+  }
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-zk-proposer:${tag}"]
+}
+
 target "op-reth" {
   dockerfile = "op-reth/DockerfileOp"
   context = "rust"
+  # The chainspec build.rs reads the superchain-registry submodule (at the repo
+  # root, outside the "rust" context); expose it as a named context so the
+  # Dockerfile can COPY the subset it needs.
+  contexts = {
+    superchain-registry = "superchain-registry"
+  }
   args = {
     BUILD_PROFILE = "maxperf"
-    FEATURES = ""
+    GIT_VERSION = "${GIT_VERSION}"
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-reth:${tag}"]
@@ -392,11 +375,4 @@ target "cannon-builder" {
   context = "rust/kona/docker/cannon"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon-builder:${tag}"]
-}
-
-target "ci-base-clang" {
-  dockerfile = "Dockerfile"
-  context = "ops/docker/ci-base-clang"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-base-clang:${tag}"]
 }

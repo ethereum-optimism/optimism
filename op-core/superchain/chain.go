@@ -1,9 +1,11 @@
+// Package superchain models the superchain-registry's configs and loads them from a registry
+// bundle. It embeds no bundle itself, so downstream modules can import it; the registry built
+// into the monorepo is in [github.com/ethereum-optimism/optimism/op-core/superchain/bundle].
 package superchain
 
 import (
 	"archive/zip"
 	"bytes"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,19 +15,15 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/BurntSushi/toml"
 	"github.com/klauspost/compress/zstd"
+
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
-
-//go:embed superchain-configs.zip
-var builtInConfigData []byte
-
-var BuiltInConfigs *ChainConfigLoader
-
-var Chains map[uint64]*Chain
 
 var ErrUnknownChain = errors.New("unknown chain")
 
+// ChainConfigLoader loads chain and superchain configs from a registry bundle, the zip that
+// bundle/sync-superchain.sh builds.
 type ChainConfigLoader struct {
 	configDataReader     fs.FS
 	Chains               map[uint64]*Chain
@@ -74,20 +72,12 @@ func NewChainConfigLoader(configData []byte) (*ChainConfigLoader, error) {
 	}, nil
 }
 
-func ChainIDByName(name string) (uint64, error) {
-	return BuiltInConfigs.ChainIDByName(name)
-}
-
 func (c *ChainConfigLoader) ChainIDByName(name string) (uint64, error) {
 	id, ok := c.idsByName[name]
 	if !ok {
 		return 0, fmt.Errorf("%w %q", ErrUnknownChain, name)
 	}
 	return id, nil
-}
-
-func ChainNames() []string {
-	return BuiltInConfigs.ChainNames()
 }
 
 func (c *ChainConfigLoader) ChainNames() []string {
@@ -97,31 +87,6 @@ func (c *ChainConfigLoader) ChainNames() []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-func GetChain(chainID uint64) (*Chain, error) {
-	return BuiltInConfigs.GetChain(chainID)
-}
-
-func GetDepset(chainID uint64) (map[string]Dependency, error) {
-	chain, err := BuiltInConfigs.GetChain(chainID)
-	if err != nil {
-		return nil, err
-	}
-	cfg, err := chain.Config()
-	if err != nil {
-		return nil, err
-	}
-
-	// depset of 1 (self) is the default when no dependencies are specified but interop_time is set
-	if cfg.Interop == nil {
-		cfg.Interop = &Interop{
-			Dependencies: make(map[string]Dependency),
-		}
-		cfg.Interop.Dependencies[fmt.Sprintf("%d", cfg.ChainID)] = Dependency{}
-	}
-
-	return cfg.Interop.Dependencies, nil
 }
 
 func (c *ChainConfigLoader) GetChain(chainID uint64) (*Chain, error) {
@@ -170,7 +135,10 @@ func (c *Chain) populateConfig() {
 	defer configFile.Close()
 
 	var cfg ChainConfig
-	if _, err := toml.NewDecoder(configFile).Decode(&cfg); err != nil {
+	// No allowed-unknown keys: the ChainConfig struct models every field the registry chain
+	// configs carry (TestAllEmbeddedConfigsDecodeStrictly enforces this), so any unmodeled key is a
+	// drift to reject rather than drop.
+	if err := jsonutil.DecodeTOMLStrict(configFile, &cfg, nil); err != nil {
 		c.err = fmt.Errorf("error decoding chain config file %s/%s: %w", c.Network, c.Name, err)
 		return
 	}
@@ -197,13 +165,4 @@ func (c *Chain) populateGenesis() {
 		return
 	}
 	c.genesis = out
-}
-
-func init() {
-	var err error
-	BuiltInConfigs, err = NewChainConfigLoader(builtInConfigData)
-	if err != nil {
-		panic(err)
-	}
-	Chains = BuiltInConfigs.Chains
 }

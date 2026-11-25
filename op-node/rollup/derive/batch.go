@@ -7,8 +7,9 @@ import (
 	"io"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // Batch format

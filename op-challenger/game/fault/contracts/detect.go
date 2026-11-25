@@ -34,9 +34,9 @@ func DetectGameType(ctx context.Context, addr common.Address, caller *batching.M
 		gameTypes.CannonKonaGameType,
 		gameTypes.AlphabetGameType,
 		gameTypes.FastGameType,
-		gameTypes.SuperCannonGameType,
 		gameTypes.SuperPermissionedGameType,
-		gameTypes.SuperCannonKonaGameType:
+		gameTypes.SuperCannonKonaGameType,
+		gameTypes.ZKDisputeGameType:
 		return gameType, nil
 	default:
 		return gameTypes.UnknownGameType, fmt.Errorf("unsupported game type: %d", gameType)

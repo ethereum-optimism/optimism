@@ -6,17 +6,17 @@ import (
 	"net/http"
 	"strconv"
 
-	gethlog "github.com/ethereum/go-ethereum/log"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // MetricsService encapsulates an HTTP server that serves the MetricsRouter.
 type MetricsService struct {
-	log    gethlog.Logger
+	log    oplog.Logger
 	server *http.Server
 }
 
 // NewMetricsService constructs a metrics HTTP server bound to the given address/port using the provided handler.
-func NewMetricsService(log gethlog.Logger, listenAddr string, port int, handler http.Handler) *MetricsService {
+func NewMetricsService(log oplog.Logger, listenAddr string, port int, handler http.Handler) *MetricsService {
 	addr := net.JoinHostPort(listenAddr, strconv.Itoa(port))
 	return &MetricsService{
 		log:    log,

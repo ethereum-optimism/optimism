@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 type Superchain struct {
@@ -23,10 +24,6 @@ type L1Config struct {
 	Explorer  string `toml:"explorer"`
 }
 
-func GetSuperchain(network string) (Superchain, error) {
-	return BuiltInConfigs.GetSuperchain(network)
-}
-
 func (c *ChainConfigLoader) GetSuperchain(network string) (Superchain, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -41,7 +38,7 @@ func (c *ChainConfigLoader) GetSuperchain(network string) (Superchain, error) {
 		return sc, err
 	}
 
-	if _, err := toml.NewDecoder(zr).Decode(&sc); err != nil {
+	if err := jsonutil.DecodeTOMLStrict(zr, &sc, nil); err != nil {
 		return sc, fmt.Errorf("error decoding superchain config: %w", err)
 	}
 

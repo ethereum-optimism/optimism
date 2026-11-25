@@ -1,8 +1,6 @@
 package dsl
 
 import (
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -10,8 +8,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	nodebindings "github.com/ethereum-optimism/optimism/op-node/bindings"
+	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
@@ -20,11 +21,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
-	"github.com/holiman/uint256"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // ProvenWithdrawalParameters is the set of parameters to pass to the ProveWithdrawalTransaction
@@ -52,6 +54,7 @@ type StandardBridge struct {
 
 	l1Client *L1ELNode
 	l2Client apis.EthClient
+	l2EL     *L2ELNode
 
 	// L1 bridge contract
 	l1StandardBridge bindings.L1StandardBridge
@@ -89,18 +92,29 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *Stand
 
 		l1Client:         l1EL,
 		l2Client:         l2Client,
+		l2EL:             l2Network.PrimaryEL(),
 		l1StandardBridge: l1StandardBridge,
 	}
 }
 
 func (b *StandardBridge) GameResolutionDelay() time.Duration {
 	gameType := b.RespectedGameType()
+	if gameTypes.GameType(gameType) == gameTypes.SuperPermissionedGameType {
+		return 0
+	}
 	gameImplAddr, err := contractio.Read(b.disputeGameFactory.GameImpls(gameType), b.ctx)
 	b.require.NoErrorf(err, "failed to get implementation for game type %v", gameType)
-	game := bindings.NewBindings[bindings.FaultDisputeGame](bindings.WithClient(b.l1Client.EthClient()), bindings.WithTo(gameImplAddr), bindings.WithTest(b.t))
-	clockDuration, err := contractio.Read(game.MaxClockDuration(), b.ctx)
-	b.require.NoErrorf(err, "failed to get max clock duration for game type %v", gameType)
-	return time.Duration(clockDuration) * time.Second
+	return b.maxClockDuration(gameImplAddr)
+}
+
+// maxClockDuration returns the max clock duration of a dispute game, as deployed.
+func (b *StandardBridge) maxClockDuration(game common.Address) time.Duration {
+	gameContract := bindings.NewBindings[bindings.FaultDisputeGame](
+		bindings.WithClient(b.l1Client.EthClient()), bindings.WithTo(game), bindings.WithTest(b.t))
+	clock, err := contractio.Read(gameContract.MaxClockDuration(), b.ctx)
+	b.require.NoErrorf(err, "failed to read the max clock duration of dispute game %s", game)
+	b.log.Info("Dispute game max clock duration", "game", game, "seconds", clock)
+	return time.Duration(clock) * time.Second
 }
 
 func (b *StandardBridge) WithdrawalDelay() time.Duration {
@@ -138,19 +152,20 @@ func (b *StandardBridge) UsesSuperRoots() bool {
 	gameType := gameTypes.GameType(b.RespectedGameType())
 	return gameType == gameTypes.SuperPermissionedGameType ||
 		gameType == gameTypes.SuperAsteriscKonaGameType ||
-		gameType == gameTypes.SuperCannonKonaGameType
+		gameType == gameTypes.SuperCannonKonaGameType ||
+		gameType == gameTypes.ZKDisputeGameType
 }
 
 type Deposit struct {
 	bridge    *StandardBridge
-	l1Receipt *types.Receipt
+	l1Receipt *optypes.Receipt
 }
 
 func (d Deposit) GasCost() eth.ETH {
 	if d.bridge == nil {
 		panic("bridge reference not set on deposit")
 	}
-	return d.bridge.gasCost(d.l1Receipt, d.bridge.l1Client.EthClient())
+	return d.bridge.l1GasCost(d.l1Receipt)
 }
 
 func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) Deposit {
@@ -163,9 +178,9 @@ func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) Deposit {
 	idx := len(l1DepositReceipt.Logs) - 1
 	l2DepositTx, err := derive.UnmarshalDepositLogEvent(l1DepositReceipt.Logs[idx])
 	b.require.NoError(err, "Could not reconstruct L2 Deposit")
-	l2DepositTxHash := types.NewTx(l2DepositTx).Hash()
+	l2DepositTxHash := l2DepositTx.Hash()
 	// Give time for L2CL to include the L2 deposit tx
-	var l2DepositReceipt *types.Receipt
+	var l2DepositReceipt *optypes.Receipt
 	b.require.Eventually(func() bool {
 		l2DepositReceipt, err = b.l2Client.TransactionReceipt(b.ctx, l2DepositTxHash)
 		return err == nil
@@ -189,6 +204,24 @@ func (b *StandardBridge) InitiateWithdrawal(amount eth.ETH, from *EOA) *Withdraw
 	}
 }
 
+// WithdrawalFromReceipt adopts an already-included L2 transaction that emitted a
+// MessagePassed event as a Withdrawal (its first, if it emitted more), so it can be proven and
+// finalized like one initiated by InitiateWithdrawal. Use it for withdrawals initiated by a
+// contract call (e.g. an L2CrossDomainMessenger.sendMessage) rather than by a plain transfer to
+// the message passer.
+func (b *StandardBridge) WithdrawalFromReceipt(rcpt *optypes.Receipt) *Withdrawal {
+	b.require.NotNil(rcpt, "withdrawal receipt must not be nil")
+	b.require.Equal(types.ReceiptStatusSuccessful, rcpt.Status, "withdrawal-initiating transaction failed")
+	ev, err := withdrawals.ParseMessagePassed(&rcpt.Receipt)
+	b.require.NoError(err, "receipt does not contain a MessagePassed event")
+	b.log.Info("Adopted withdrawal", "tx", rcpt.TxHash, "nonce", ev.Nonce, "target", ev.Target)
+	return &Withdrawal{
+		commonImpl:  commonFromT(b.t),
+		bridge:      b,
+		initReceipt: rcpt,
+	}
+}
+
 // ERC20Deposit performs an ERC20 deposit from L1 to L2
 func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr common.Address, amount eth.ETH, from *EOA) *Deposit {
 	// Use the l1StandardBridge to deposit ERC20 tokens
@@ -199,7 +232,7 @@ func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr co
 
 	// Wait for the deposit to be processed on the L2
 	// Find the deposit log to get the L2 deposit transaction
-	var l2DepositTx *types.DepositTx
+	var l2DepositTx *optypes.DepositTx
 	for _, log := range depositReceipt.Logs {
 		if l2DepositTx, err = derive.UnmarshalDepositLogEvent(log); err == nil {
 			break
@@ -207,11 +240,11 @@ func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr co
 	}
 	b.require.NotNil(l2DepositTx, "Could not find L2 deposit transaction in logs")
 
-	l2DepositTxHash := types.NewTx(l2DepositTx).Hash()
+	l2DepositTxHash := l2DepositTx.Hash()
 
 	// Give time for L2CL to include the L2 deposit tx
 	sequencingWindowDuration := time.Duration(b.rollupCfg.SeqWindowSize) * b.l1Client.EstimateBlockTime()
-	var l2DepositReceipt *types.Receipt
+	var l2DepositReceipt *optypes.Receipt
 	b.require.Eventually(func() bool {
 		l2DepositReceipt, err = b.l2Client.TransactionReceipt(b.ctx, l2DepositTxHash)
 		return err == nil
@@ -244,7 +277,7 @@ func (b *StandardBridge) CreateL2Token(l1TokenAddr common.Address, name string, 
 }
 
 // extractL2TokenFromLogs extracts the L2 token address from OptimismMintableERC20Created event
-func (b *StandardBridge) extractL2TokenFromLogs(receipt *types.Receipt) common.Address {
+func (b *StandardBridge) extractL2TokenFromLogs(receipt *optypes.Receipt) common.Address {
 	// Look for the OptimismMintableERC20Created event
 	for _, log := range receipt.Logs {
 		if log.Address == predeploys.OptimismMintableERC20FactoryAddr && len(log.Topics) > 2 {
@@ -256,110 +289,42 @@ func (b *StandardBridge) extractL2TokenFromLogs(receipt *types.Receipt) common.A
 	return common.Address{} // Never reached
 }
 
-type disputeGame struct {
-	Index          *big.Int
-	Address        common.Address
-	L2BlockNumber  uint64
-	SequenceNumber uint64
-	UsesSuperRoots bool
-}
-
-// forGamePublished waits until a game is published on L1 for the given l2BlockNumber
-// Note that the l2 block number is passed even for super games. Conversion to timestamp is done automatically
-// when required by the respected game type
-func (b *StandardBridge) forGamePublished(l2BlockNumber *big.Int) disputeGame {
-	respectedGameType := b.RespectedGameType()
-	l2SequenceNumber := bigs.Uint64Strict(l2BlockNumber)
-	superRootsActive := b.UsesSuperRoots()
-	if superRootsActive {
-		l2SequenceNumber = b.rollupCfg.TimestampForBlock(l2SequenceNumber)
-	}
-
-	var game bindings.DisputeGame
-	var gameSeqNum uint64
-	var gameIndex *big.Int
-	b.require.Eventuallyf(func() bool {
-		var err error
-		game, gameIndex, err = b.findLatestGame(respectedGameType)
-		if err != nil {
-			b.log.Warn("No game of required type found", "err", err)
-			return false
-		}
-		gameContract := bindings.NewBindings[bindings.FaultDisputeGame](
-			bindings.WithClient(b.l1Client.EthClient()),
-			bindings.WithTo(game.Proxy),
-			bindings.WithTest(b.t))
-		seqNum, err := contractio.Read(gameContract.L2SequenceNumber(), b.ctx)
-		b.require.NoError(err, "Failed to read sequence number")
-		gameSeqNum = bigs.Uint64Strict(seqNum)
-		b.log.Info("Found latest game", "index", gameIndex, "seqNum", gameSeqNum)
-		return gameSeqNum >= l2SequenceNumber
-	}, 90*time.Second, 100*time.Millisecond, "did not find a game of type %v at or after l2 sequence number %v", respectedGameType, l2SequenceNumber)
-
-	gameBlockNum := gameSeqNum
-	if superRootsActive {
-		blockNum, err := b.rollupCfg.TargetBlockNumber(gameSeqNum)
-		b.require.NoError(err, "Failed to convert game timestamp to block number")
-		gameBlockNum = blockNum
-	}
-	return disputeGame{
-		Index:          gameIndex,
-		Address:        game.Proxy,
-		L2BlockNumber:  gameBlockNum,
-		SequenceNumber: gameSeqNum,
-		UsesSuperRoots: superRootsActive,
-	}
-}
-
-// findLatestGame finds the latest game in the DisputeGameFactory contract.
-// Ported from op-node/withdrawals/utils.go to fit in the op-devstack, using op-service ethclient
-func (b *StandardBridge) findLatestGame(gameType uint32) (bindings.DisputeGame, *big.Int, error) {
-	gameCount, err := contractio.Read(b.disputeGameFactory.GameCount(), b.ctx)
-	b.require.NoError(err, "Failed to read game count")
-	if gameCount.Cmp(common.Big0) == 0 {
-		return bindings.DisputeGame{}, nil, errors.New("no games")
-	}
-
-	gameIdx := new(big.Int).Sub(gameCount, common.Big1)
-	for gameIdx.Cmp(common.Big0) >= 0 {
-		latestGame, err := contractio.Read(b.disputeGameFactory.GameAtIndex(gameIdx), b.ctx)
-		b.require.NoErrorf(err, "Failed to find latest game for %v", gameType)
-		if latestGame.GameType != gameType {
-			// Wrong game type, continue searching backwards
-			gameIdx = new(big.Int).Sub(gameIdx, common.Big1)
-			continue
-		}
-		return latestGame, gameIdx, nil
-	}
-	return bindings.DisputeGame{}, nil, errors.New("no suitable games found")
-}
-
 type Withdrawal struct {
 	commonImpl
 	bridge      *StandardBridge
-	initReceipt *types.Receipt
+	initReceipt *optypes.Receipt
 
 	proveParams     ProvenWithdrawalParameters
-	proveReceipt    *types.Receipt
-	finalizeReceipt *types.Receipt
+	proveReceipt    *optypes.Receipt
+	finalizeReceipt *optypes.Receipt
 }
 
 func (w *Withdrawal) InitiateGasCost() eth.ETH {
-	return w.bridge.gasCost(w.initReceipt, w.bridge.l2Client)
+	return w.bridge.l2GasCost(w.initReceipt)
 }
 
 func (w *Withdrawal) ProveGasCost() eth.ETH {
 	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal before calculating gas cost")
-	return w.bridge.gasCost(w.proveReceipt, w.bridge.l1Client.EthClient())
+	return w.bridge.l1GasCost(w.proveReceipt)
+}
+
+func (w *Withdrawal) ProvenDisputeGameIndex() *big.Int {
+	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal before reading dispute game index")
+	w.require.NotNil(w.proveParams.DisputeGameIndex, "Proven withdrawal is missing dispute game index")
+	return new(big.Int).Set(w.proveParams.DisputeGameIndex)
 }
 
 func (w *Withdrawal) FinalizeGasCost() eth.ETH {
 	w.require.NotNil(w.finalizeReceipt, "Must have finalized withdrawal before calculating gas cost")
-	return w.bridge.gasCost(w.finalizeReceipt, w.bridge.l1Client.EthClient())
+	return w.bridge.l1GasCost(w.finalizeReceipt)
 }
 
 func (w *Withdrawal) InitiateBlockHash() common.Hash {
 	return w.initReceipt.BlockHash
+}
+
+func (w *Withdrawal) InitiateTxHash() common.Hash {
+	return w.initReceipt.TxHash
 }
 
 func (w *Withdrawal) Prove(user *EOA) {
@@ -376,9 +341,30 @@ func (w *Withdrawal) Prove(user *EOA) {
 		Data:     params.Data,
 	}
 
+	// OptimismPortal2.proveWithdrawalTransaction reverts with
+	// OptimismPortal_InvalidProofTimestamp (selector 0xb4caa4e5) when
+	// block.timestamp <= disputeGameProxy.createdAt(). estimateGas evaluates
+	// against the current L1 head, so any attempt before the head advances past
+	// the game's createdAt is guaranteed to revert. Wait for that precondition
+	// explicitly instead of burning the prove-tx retry budget on guaranteed-revert
+	// estimateGas calls; under CI load L1 block production can stall and the
+	// prior retry-only approach exhausted its 30s budget before the head moved
+	// (#19963).
+	gameContract := bindings.NewBindings[bindings.FaultDisputeGame](
+		bindings.WithClient(w.bridge.l1Client.EthClient()),
+		bindings.WithTo(params.DisputeGameAddress),
+		bindings.WithTest(w.t))
+	gameCreatedAt, err := contractio.Read(gameContract.CreatedAt(), w.ctx)
+	w.require.NoError(err, "failed to read dispute game createdAt")
+	w.require.Eventuallyf(func() bool {
+		head, err := w.bridge.l1Client.EthClient().InfoByLabel(w.ctx, eth.Unsafe)
+		if err != nil {
+			return false
+		}
+		return head.Time() > gameCreatedAt
+	}, 60*time.Second, 500*time.Millisecond, "L1 head did not advance past dispute game createdAt %d", gameCreatedAt)
+
 	call := w.bridge.l1Portal.ProveWithdrawalTransaction(tx, params.DisputeGameIndex, params.OutputRootProof, params.WithdrawalProof)
-	// Retry as withdrawals can't be proven in the same block as the game is created.
-	// estimateGas works against the current head so we may need to retry until it has progressed enough.
 	w.require.Eventually(func() bool {
 		proveReceipt, err := contractio.Write(call, w.ctx, user.Plan())
 		if err != nil {
@@ -386,7 +372,7 @@ func (w *Withdrawal) Prove(user *EOA) {
 			return false
 		}
 		w.require.Equal(types.ReceiptStatusSuccessful, proveReceipt.Status, "prove withdrawal was not successful")
-		w.require.Equal(2, len(proveReceipt.Logs)) // emit WithdrawalProven, WithdrawalProvenExtension1
+		w.require.Equal(3, len(proveReceipt.Logs), "prove receipt must carry WithdrawalProven, WithdrawalProvenExtension1 and WithdrawalProvenExtension2")
 
 		w.proveParams = params
 		w.proveReceipt = proveReceipt
@@ -394,108 +380,144 @@ func (w *Withdrawal) Prove(user *EOA) {
 	}, 30*time.Second, 1*time.Second, "Sending prove transaction")
 }
 
-// ProveWithdrawalParameters calls ProveWithdrawalParametersForBlock with the most recent L2 output after the latest game.
-// Ported from op-node/withdrawals/utils.go to fit in the op-devstack
-func (w *Withdrawal) proveWithdrawalParameters() ProvenWithdrawalParameters {
-	// Wait for a suitable game to be published
-	latestGame := w.bridge.forGamePublished(w.initReceipt.BlockNumber)
-
-	// Fetch the block header from the L2 node
-	l2Header, err := w.bridge.l2Client.InfoByNumber(w.ctx, latestGame.L2BlockNumber)
-	w.require.NoErrorf(err, "failed to fetch block header %v", latestGame.L2BlockNumber)
-
-	ev, err := withdrawals.ParseMessagePassed(w.initReceipt)
-	w.require.NoError(err, "failed to parse message passed receipt")
-	return w.proveWithdrawalParametersForEvent(ev, l2Header, latestGame)
+func (w *Withdrawal) FaultProofProveParams(advanceTime ...func(time.Duration)) withdrawals.ProvenWithdrawalParameters {
+	var params withdrawals.ProvenWithdrawalParameters
+	var lastErr error
+	w.require.Eventuallyf(func() bool {
+		params, lastErr = w.bridge.faultProofProveParams(w)
+		if lastErr == nil {
+			return true
+		}
+		w.log.Warn("Failed to build fault proof withdrawal parameters", "err", lastErr)
+		if len(advanceTime) != 0 {
+			advanceTime[0](2 * time.Second)
+		}
+		return false
+	}, 90*time.Second, time.Second, "failed to build fault proof withdrawal parameters")
+	return params
 }
 
-// proveWithdrawalParametersForEvent queries L1 to generate all withdrawal parameters and proof necessary to prove a withdrawal on L1.
-// The l2Header provided is very important. It should be a block for which there is a submitted output in the L2 Output Oracle
-// contract. If not, the withdrawal will fail as it the storage proof cannot be verified if there is no submitted state root.
-// Ported from op-node/withdrawals/utils.go to fit in the op-devstack, using op-service ethclient
-func (w *Withdrawal) proveWithdrawalParametersForEvent(ev *nodebindings.L2ToL1MessagePasserMessagePassed, l2Header eth.BlockInfo, disputeGame disputeGame) ProvenWithdrawalParameters {
-	// Generate then verify the withdrawal proof
-	withdrawalHash, err := withdrawals.WithdrawalHash(ev)
-	w.require.NoErrorf(err, "failed to calculate hash for withdrawal %v", ev)
-	w.require.Equal(withdrawalHash[:], ev.WithdrawalHash[:], "computed withdrawal hash incorrectly")
-	slot := withdrawals.StorageSlotOfWithdrawalHash(withdrawalHash)
+func (b *StandardBridge) faultProofProveParams(withdrawal *Withdrawal) (withdrawals.ProvenWithdrawalParameters, error) {
+	l1Client, err := ethclient.DialContext(b.ctx, b.l1Client.Escape().UserRPC())
+	if err != nil {
+		return withdrawals.ProvenWithdrawalParameters{}, fmt.Errorf("failed to dial L1 RPC: %w", err)
+	}
+	defer l1Client.Close()
 
-	p, err := w.bridge.l2Client.GetProof(w.ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{slot}, hexutil.Uint64(l2Header.NumberU64()).String())
-	w.require.NoErrorf(err, "failed to fetch proof for withdrawal %v", ev)
-	w.require.Len(p.StorageProof, 1, "invalid amount of storage proofs")
+	l2RPC, err := rpc.DialContext(b.ctx, b.l2EL.Escape().UserRPC())
+	if err != nil {
+		return withdrawals.ProvenWithdrawalParameters{}, fmt.Errorf("failed to dial L2 RPC: %w", err)
+	}
+	defer l2RPC.Close()
 
-	err = verifyProof(l2Header.Root(), p)
-	w.require.NoErrorf(err, "failed to verify proof for withdrawal")
+	proofClient := gethclient.New(l2RPC)
+	l2Client := ethclient.NewClient(l2RPC)
+	defer l2Client.Close()
 
-	// Encode it as expected by the contract
-	trieNodes := make([][]byte, len(p.StorageProof[0].Proof))
-	for i, s := range p.StorageProof[0].Proof {
-		trieNodes[i] = s
+	portal, err := bindingspreview.NewOptimismPortal2(b.l1PortalAddr, l1Client)
+	if err != nil {
+		return withdrawals.ProvenWithdrawalParameters{}, fmt.Errorf("failed to bind OptimismPortal2: %w", err)
+	}
+	factoryAddr, err := portal.DisputeGameFactory(&bind.CallOpts{Context: b.ctx})
+	if err != nil {
+		return withdrawals.ProvenWithdrawalParameters{}, fmt.Errorf("failed to read dispute game factory: %w", err)
+	}
+	factory, err := nodebindings.NewDisputeGameFactoryCaller(factoryAddr, l1Client)
+	if err != nil {
+		return withdrawals.ProvenWithdrawalParameters{}, fmt.Errorf("failed to bind dispute game factory: %w", err)
 	}
 
-	return ProvenWithdrawalParameters{
-		Nonce:              ev.Nonce,
-		Sender:             ev.Sender,
-		Target:             ev.Target,
-		Value:              ev.Value,
-		GasLimit:           ev.GasLimit,
-		DisputeGameAddress: disputeGame.Address,
-		DisputeGameIndex:   disputeGame.Index,
-		Data:               ev.Data,
-		OutputRootProof: bindings.OutputRootProof{
-			Version:                  [32]byte{}, // Empty for version 1
-			StateRoot:                l2Header.Root(),
-			MessagePasserStorageRoot: *l2Header.WithdrawalsRoot(),
-			LatestBlockhash:          l2Header.Hash(),
-		},
-		WithdrawalProof: trieNodes,
-	}
-}
-
-// Ported from op-node/withdrawals/proof.go to fit in the op-devstack, using op-service proof types
-func verifyProof(stateRoot common.Hash, proof *eth.AccountResult) error {
-	balance, overflow := uint256.FromBig(proof.Balance.ToInt())
-	if overflow {
-		return fmt.Errorf("proof balance overflows uint256: %d", proof.Balance.ToInt())
-	}
-	proofHex := []string{}
-	for _, p := range proof.AccountProof {
-		proofHex = append(proofHex, hex.EncodeToString(p))
-	}
-	err := withdrawals.VerifyAccountProof(
-		stateRoot,
-		proof.Address,
-		types.StateAccount{
-			Nonce:    uint64(proof.Nonce),
-			Balance:  balance,
-			Root:     proof.StorageHash,
-			CodeHash: proof.CodeHash[:],
-		},
-		proofHex,
+	params, err := withdrawals.ProveWithdrawalParametersFaultProofs(
+		b.ctx,
+		proofClient,
+		l2Client,
+		l2Client,
+		withdrawal.InitiateTxHash(),
+		factory,
+		&portal.OptimismPortal2Caller,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to validate account: %w", err)
+		return withdrawals.ProvenWithdrawalParameters{}, err
 	}
-	for i, storageProof := range proof.StorageProof {
-		proofHex := []string{}
-		for _, p := range storageProof.Proof {
-			proofHex = append(proofHex, hex.EncodeToString(p))
-		}
-		convertedProof := gethclient.StorageResult{
-			Key:   storageProof.Key.String(),
-			Value: storageProof.Value.ToInt(),
-			Proof: proofHex,
-		}
-		err = withdrawals.VerifyStorageProof(proof.StorageHash, convertedProof)
-		if err != nil {
-			return fmt.Errorf("failed to validate storage proof %d: %w", i, err)
-		}
-	}
-	return nil
+	return params, nil
 }
 
-func (w *Withdrawal) Finalize(user *EOA) {
-	wd := crossdomain.Withdrawal{
+func (b *StandardBridge) ProveWithFaultProofParams(user *EOA, params withdrawals.ProvenWithdrawalParameters) *optypes.Receipt {
+	gameInfo, err := contractio.Read(b.disputeGameFactory.GameAtIndex(params.L2OutputIndex), b.ctx)
+	b.require.NoErrorf(err, "failed to read dispute game %v", params.L2OutputIndex)
+	b.require.Eventuallyf(func() bool {
+		head, err := b.l1Client.EthClient().InfoByLabel(b.ctx, eth.Unsafe)
+		return err == nil && head.Time() > gameInfo.Timestamp
+	}, 60*time.Second, 500*time.Millisecond, "L1 head did not advance past dispute game createdAt %d", gameInfo.Timestamp)
+
+	tx := bindings.WithdrawalTransaction{
+		Nonce:    params.Nonce,
+		Sender:   params.Sender,
+		Target:   params.Target,
+		Value:    params.Value,
+		GasLimit: params.GasLimit,
+		Data:     params.Data,
+	}
+	proof := bindings.OutputRootProof{
+		Version:                  params.OutputRootProof.Version,
+		StateRoot:                params.OutputRootProof.StateRoot,
+		MessagePasserStorageRoot: params.OutputRootProof.MessagePasserStorageRoot,
+		LatestBlockhash:          params.OutputRootProof.LatestBlockhash,
+	}
+	call := b.l1Portal.ProveWithdrawalTransaction(tx, params.L2OutputIndex, proof, params.WithdrawalProof)
+	var receipt *optypes.Receipt
+	b.require.Eventually(func() bool {
+		receipt, err = contractio.Write(call, b.ctx, user.Plan())
+		if err != nil {
+			b.log.Error("Failed to send prove transaction", "err", err)
+			return false
+		}
+		return true
+	}, 30*time.Second, time.Second, "Sending prove transaction with fault proof params")
+	b.require.Equal(types.ReceiptStatusSuccessful, receipt.Status, "prove withdrawal was not successful")
+	return receipt
+}
+
+// proveWithdrawalParameters waits for a covering dispute game and builds the proof with the same
+// helpers as the op-chain-ops withdrawal tool, so the acceptance tests exercise that path for every
+// respected game type.
+func (w *Withdrawal) proveWithdrawalParameters() ProvenWithdrawalParameters {
+	b := w.bridge
+	l1Client, err := ethclient.DialContext(w.ctx, b.l1Client.Escape().UserRPC())
+	w.require.NoError(err, "failed to dial L1 RPC")
+	defer l1Client.Close()
+
+	factoryAddr, err := contractio.Read(b.l1Portal.DisputeGameFactoryAddr(), w.ctx)
+	w.require.NoError(err, "failed to read dispute game factory address")
+	l2BlockNum := w.initReceipt.BlockNumber
+	l2BlockTimestamp := b.rollupCfg.TimestampForBlock(bigs.Uint64Strict(l2BlockNum))
+	_, err = wait.ForGamePublished(w.ctx, l1Client, b.l1PortalAddr, factoryAddr, l2BlockNum, l2BlockTimestamp)
+	w.require.NoErrorf(err, "no dispute game covering l2 block %v was published", l2BlockNum)
+
+	params := w.FaultProofProveParams()
+	game, err := contractio.Read(b.disputeGameFactory.GameAtIndex(params.L2OutputIndex), w.ctx)
+	w.require.NoErrorf(err, "failed to read dispute game %v", params.L2OutputIndex)
+	return ProvenWithdrawalParameters{
+		Nonce:              params.Nonce,
+		Sender:             params.Sender,
+		Target:             params.Target,
+		Value:              params.Value,
+		GasLimit:           params.GasLimit,
+		DisputeGameAddress: game.Proxy,
+		DisputeGameIndex:   params.L2OutputIndex,
+		Data:               params.Data,
+		OutputRootProof: bindings.OutputRootProof{
+			Version:                  params.OutputRootProof.Version,
+			StateRoot:                params.OutputRootProof.StateRoot,
+			MessagePasserStorageRoot: params.OutputRootProof.MessagePasserStorageRoot,
+			LatestBlockhash:          params.OutputRootProof.LatestBlockhash,
+		},
+		WithdrawalProof: params.WithdrawalProof,
+	}
+}
+
+func (w *Withdrawal) crossDomainWithdrawal() crossdomain.Withdrawal {
+	return crossdomain.Withdrawal{
 		Nonce:    w.proveParams.Nonce,
 		Sender:   &w.proveParams.Sender,
 		Target:   &w.proveParams.Target,
@@ -503,10 +525,24 @@ func (w *Withdrawal) Finalize(user *EOA) {
 		GasLimit: w.proveParams.GasLimit,
 		Data:     w.proveParams.Data,
 	}
+}
+
+// CheckFinalizable returns nil if the withdrawal proven by prover can be finalized at the latest
+// L1 block, or the portal's checkWithdrawal revert otherwise.
+func (w *Withdrawal) CheckFinalizable(prover *EOA) error {
+	wd := w.crossDomainWithdrawal()
+	hash, err := wd.Hash()
+	w.require.NoError(err, "failed to hash the withdrawal")
+	_, err = contractio.Read(w.bridge.l1Portal.CheckWithdrawal(hash, prover.Address()), w.ctx)
+	return err
+}
+
+func (w *Withdrawal) Finalize(user *EOA) {
+	wd := w.crossDomainWithdrawal()
 
 	// Finalize withdrawal
 	w.log.Info("FinalizeWithdrawal: finalizing withdrawal...")
-	var finalizeReceipt *types.Receipt
+	var finalizeReceipt *optypes.Receipt
 	var err error
 	// Retry as the air gap delay needs to have expired at the head block timestamp for estimateGas to work
 	w.require.Eventually(func() bool {
@@ -519,7 +555,33 @@ func (w *Withdrawal) Finalize(user *EOA) {
 	}, 60*time.Second, 100*time.Millisecond, "finalize withdrawal failed")
 }
 
-func (w *Withdrawal) WaitForDisputeGameResolved() {
+// FinalizeReceipt returns the receipt of the transaction that finalized the withdrawal.
+func (w *Withdrawal) FinalizeReceipt() *optypes.Receipt {
+	w.require.NotNil(w.finalizeReceipt, "Must have finalized withdrawal first")
+	return w.finalizeReceipt
+}
+
+// DisputeGameMaxClockDuration returns the max clock duration of the dispute game the withdrawal
+// was proven against, as deployed.
+func (w *Withdrawal) DisputeGameMaxClockDuration() time.Duration {
+	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal first")
+	return w.bridge.maxClockDuration(w.proveParams.DisputeGameAddress)
+}
+
+// WaitForDisputeGameResolvedOpts configures WaitForDisputeGameResolved.
+type WaitForDisputeGameResolvedOpts struct {
+	// Timeout bounds the wait. Tests that wait a game's chess clock out in wall-clock time, rather
+	// than skipping it with time travel, need more than the game's max clock duration.
+	Timeout time.Duration
+}
+
+// WaitForDisputeGameResolved waits for the dispute game the withdrawal was proven against to
+// resolve in the defender's favour, retrying transient RPC errors.
+func (w *Withdrawal) WaitForDisputeGameResolved(opts ...func(*WaitForDisputeGameResolvedOpts)) {
+	o := WaitForDisputeGameResolvedOpts{Timeout: 60 * time.Second}
+	for _, opt := range opts {
+		opt(&o)
+	}
 	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal first")
 
 	gameContract := bindings.NewBindings[bindings.FaultDisputeGame](
@@ -528,34 +590,61 @@ func (w *Withdrawal) WaitForDisputeGameResolved() {
 		bindings.WithTest(w.t))
 	w.require.Eventually(func() bool {
 		status, err := contractio.Read(gameContract.Status(), w.ctx)
-		w.require.NoError(err, "failed to get game status")
+		if err != nil {
+			w.log.Warn("Failed to get dispute game status, retrying", "err", err)
+			return false
+		}
 		w.log.Info("Waiting for dispute game to resolve", "currentStatus", status)
 		return gameTypes.GameStatus(status) == gameTypes.GameStatusDefenderWon
-	}, 60*time.Second, 100*time.Millisecond, "wait for dispute game resolved")
+	}, o.Timeout, 100*time.Millisecond, fmt.Sprintf("expected dispute game %s to resolve with the defender winning",
+		w.proveParams.DisputeGameAddress))
 }
 
-func (b *StandardBridge) gasCost(rcpt *types.Receipt, client apis.EthClient) eth.ETH {
+// ProveAndFinalize proves the withdrawal as `user`, waits for the dispute game it was proven
+// against to resolve, and finalizes it. An unchallenged game resolves once the defender's chess
+// clock runs out, so this waits that clock out in wall-clock time: it requires the game to have a
+// max clock duration of at most `maxGameClock` and allows twice the clock plus a minute. Finalize
+// retries only briefly, so the proof maturity and game finality delays must be short too.
+func (w *Withdrawal) ProveAndFinalize(user *EOA, maxGameClock time.Duration) {
+	w.Prove(user)
+	clock := w.DisputeGameMaxClockDuration()
+	w.require.LessOrEqualf(clock, maxGameClock,
+		"dispute game %s has a %s clock, longer than the %s this test can wait out; shorten the game clocks",
+		w.proveParams.DisputeGameAddress, clock, maxGameClock)
+	w.WaitForDisputeGameResolved(func(o *WaitForDisputeGameResolvedOpts) {
+		o.Timeout = 2*clock + time.Minute
+	})
+	w.Finalize(user)
+}
+
+// l1GasCost returns the fee paid for an L1 transaction, whose receipt carries no OP fee fields.
+func (b *StandardBridge) l1GasCost(rcpt *optypes.Receipt) eth.ETH {
+	return gasCost(rcpt, b.rollupCfg, nil)
+}
+
+// l2GasCost returns the fee paid for an L2 transaction, including the L1 and operator fees that
+// its receipt carries.
+func (b *StandardBridge) l2GasCost(rcpt *optypes.Receipt) eth.ETH {
 	var blockTimestamp *uint64
 	if hasOperatorFee(rcpt) {
-		b.require.NotNil(client, "client is required to resolve operator fee timestamp")
-		blockTimestamp = b.receiptTimestamp(rcpt, client)
+		blockTimestamp = b.receiptTimestamp(rcpt)
 	}
 	return gasCost(rcpt, b.rollupCfg, blockTimestamp)
 }
 
-func hasOperatorFee(rcpt *types.Receipt) bool {
+func hasOperatorFee(rcpt *optypes.Receipt) bool {
 	return rcpt.OperatorFeeConstant != nil && rcpt.OperatorFeeScalar != nil
 }
 
-func (b *StandardBridge) receiptTimestamp(rcpt *types.Receipt, client apis.EthClient) *uint64 {
+func (b *StandardBridge) receiptTimestamp(rcpt *optypes.Receipt) *uint64 {
 	b.require.NotNil(rcpt.BlockNumber, "receipt missing block number")
-	blockInfo, err := client.InfoByNumber(b.ctx, bigs.Uint64Strict(rcpt.BlockNumber))
+	blockInfo, err := b.l2Client.InfoByNumber(b.ctx, bigs.Uint64Strict(rcpt.BlockNumber))
 	b.require.NoError(err, "failed to fetch block info for receipt")
 	ts := blockInfo.Time()
 	return &ts
 }
 
-func gasCost(rcpt *types.Receipt, rollupCfg *rollup.Config, blockTimestamp *uint64) eth.ETH {
+func gasCost(rcpt *optypes.Receipt, rollupCfg *rollup.Config, blockTimestamp *uint64) eth.ETH {
 	cost := eth.WeiBig(new(big.Int).Mul(new(big.Int).SetUint64(rcpt.GasUsed), rcpt.EffectiveGasPrice))
 	if rcpt.L1Fee != nil {
 		cost = cost.Add(eth.WeiBig(rcpt.L1Fee))

@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type KVStore interface {
@@ -109,7 +109,7 @@ func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
 
 	input, err := d.store.Get(r.Context(), comm)
 	if err != nil && errors.Is(err, ErrNotFound) {
-		d.log.Error("Commitment not found", "key", key, "error", err)
+		d.log.Warn("Commitment not found", "key", key, "error", err)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}

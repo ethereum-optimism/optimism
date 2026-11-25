@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 

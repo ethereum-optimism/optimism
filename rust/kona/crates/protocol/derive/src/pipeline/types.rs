@@ -2,7 +2,7 @@
 
 use crate::{
     AttributesQueue, BatchProvider, BatchStream, ChannelProvider, ChannelReader, FrameQueue,
-    IndexedTraversal, L1Retrieval, PollingTraversal,
+    L1Retrieval, PollingTraversal,
 };
 
 /// Type alias for the [`L1Retrieval`] stage.
@@ -29,7 +29,3 @@ pub type AttributesQueueStage<DAP, T, F, B> = AttributesQueue<BatchProviderStage
 /// Type alias for the [`AttributesQueue`] stage that uses a [`PollingTraversal`] stage.
 pub type PolledAttributesQueueStage<DAP, P, F, B> =
     AttributesQueueStage<DAP, PollingTraversal<P>, F, B>;
-
-/// Type alias for the [`AttributesQueue`] stage that uses a [`IndexedTraversal`] stage.
-pub type IndexedAttributesQueueStage<DAP, P, F, B> =
-    AttributesQueueStage<DAP, IndexedTraversal<P>, F, B>;

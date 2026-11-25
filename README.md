@@ -82,18 +82,24 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-interop-mon">op-interop-mon</a>: Interoperability monitoring service
 ├── <a href="./op-node">op-node</a>: Rollup consensus-layer client
 ├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
-├── <a href="./op-program">op-program</a>: Fault proof program
 ├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
 ├── <a href="./op-service">op-service</a>: Common codebase utilities
-├── <a href="./op-supervisor">op-supervisor</a>: Service to monitor chains and determine cross-chain message safety
 ├── <a href="./op-sync-tester">op-sync-tester</a>: Sync testing utilities
 ├── <a href="./op-test-sequencer">op-test-sequencer</a>: Test sequencer for development
 ├── <a href="./op-up">op-up</a>: Deployment and management utilities
-├── <a href="./op-validator">op-validator</a>: Tool for validating Optimism chain configurations and deployments
 ├── <a href="./op-wheel">op-wheel</a>: Database utilities
 ├── <a href="./ops">ops</a>: Various operational packages
 ├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
+│   └── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
+└── <a href="./rust">rust</a>: Rust components — a unified Cargo workspace
+    ├── <a href="./rust/kona">kona</a>: OP Stack state-transition (fault proof) program and rollup node in Rust
+    ├── <a href="./rust/op-reth">op-reth</a>: OP Stack execution client built on reth
+    ├── <a href="./rust/op-reth-test-engine">op-reth-test-engine</a>: Minimal execution-layer engine the Go action tests run against
+    ├── <a href="./rust/op-revm">op-revm</a>: OP Stack EVM implementation (revm fork)
+    ├── <a href="./rust/op-alloy">op-alloy</a>: OP Stack types and providers for the alloy ecosystem
+    ├── <a href="./rust/alloy-op-evm">alloy-op-evm</a>: OP Stack EVM support for the alloy ecosystem
+    ├── <a href="./rust/alloy-op-hardforks">alloy-op-hardforks</a>: OP Stack hardfork definitions for the alloy ecosystem
+    └── <a href="./rust/lokahi">lokahi</a>: Rust rewrite of op-supernode, the multi-chain consensus-layer host (WIP)
 </pre>
 
 ## Development and Release Process
@@ -115,13 +121,7 @@ Tags of the form `v<semver>`, such as `v1.1.4`, indicate releases of all Go code
 This naming scheme is required by Golang.
 In the above list, this means these `v<semver>` releases contain all `op-*` components and exclude all `contracts-*` components.
 
-`op-geth` embeds upstream geth’s version inside its own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
-Basically, geth’s version is our minor version.
-For example if geth is at `v1.12.0`, the corresponding op-geth version would be `v1.101200.0`.
-Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
-Since we cannot left-pad with zeroes, the geth major version is not padded.
-
-See the [Node Software Releases](https://docs.optimism.io/builders/node-operators/releases) page of the documentation for more information about releases for the latest node components.
+See the [GitHub releases](https://github.com/ethereum-optimism/optimism/releases) page for more information about releases for the latest node components.
 
 The full set of components that have releases are:
 

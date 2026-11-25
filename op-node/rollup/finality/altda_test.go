@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -16,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -108,7 +108,7 @@ func TestAltDAFinalityData(t *testing.T) {
 
 	emitter := &testutils.MockEmitter{}
 	ec := new(fakeEngineController)
-	fi := NewAltDAFinalizer(context.Background(), logger, cfg, nil, false, l1F, altDABackend, ec)
+	fi := NewAltDAFinalizer(context.Background(), logger, cfg, nil, l1F, altDABackend, ec)
 	fi.AttachEmitter(emitter)
 	require.NotNil(t, altDABackend.forwardTo, "altda backend must have access to underlying standard finalizer")
 

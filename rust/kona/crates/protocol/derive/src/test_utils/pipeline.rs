@@ -39,10 +39,6 @@ impl Stage for TestNextAttributes {
     async fn flush_channel(&mut self) -> PipelineResult<()> {
         Ok(())
     }
-
-    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]

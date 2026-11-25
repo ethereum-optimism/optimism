@@ -1,0 +1,185 @@
+//! Per-chain state served by the [`L1WatcherActor`](super::L1WatcherActor).
+
+use super::{L1WatcherActorError, L1WatcherDerivationClient};
+use alloy_primitives::Address;
+use kona_genesis::RollupConfig;
+use kona_protocol::BlockInfo;
+use kona_providers_alloy::{AlloyChainProvider, BlockLabel};
+use kona_rpc::L1WatcherQueries;
+use std::sync::Arc;
+use tokio::sync::{mpsc, watch};
+
+/// A single L2 chain served by the [`L1WatcherActor`](super::L1WatcherActor).
+///
+/// The watcher holds one of these per chain and fans the shared L1 updates out to all of them. A
+/// standalone kona-node builds exactly one.
+#[derive(Debug)]
+pub struct L1WatcherChain<L1WatcherDerivationClient_> {
+    /// The configuration and `SystemConfig` address of this chain.
+    pub(super) rollup_config: Arc<RollupConfig>,
+    /// Client used to interact with this chain's [`crate::DerivationActor`].
+    pub(super) derivation_client: L1WatcherDerivationClient_,
+    /// The source of truth for this chain's unsafe block signer, read from `SystemConfig`. Gossip
+    /// validation and block signing subscribe to it.
+    pub(super) block_signer_sender: watch::Sender<Address>,
+    /// The L1 block that this chain's derivation has reached, served as `current_l1`.
+    pub(super) derivation_origin: watch::Receiver<Option<BlockInfo>>,
+    /// The inbound queries for this chain.
+    pub(super) inbound_queries: mpsc::Receiver<L1WatcherQueries>,
+}
+
+impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_> {
+    /// Instantiate a new [`L1WatcherChain`].
+    pub const fn new(
+        rollup_config: Arc<RollupConfig>,
+        derivation_client: L1WatcherDerivationClient_,
+        block_signer_sender: watch::Sender<Address>,
+        derivation_origin: watch::Receiver<Option<BlockInfo>>,
+        inbound_queries: mpsc::Receiver<L1WatcherQueries>,
+    ) -> Self {
+        Self {
+            rollup_config,
+            derivation_client,
+            block_signer_sender,
+            derivation_origin,
+            inbound_queries,
+        }
+    }
+
+    /// The id of the L2 chain this instance serves.
+    pub(super) fn chain_id(&self) -> u64 {
+        self.rollup_config.l2_chain_id.id()
+    }
+}
+
+impl<L1WatcherDerivationClient_> L1WatcherChain<L1WatcherDerivationClient_>
+where
+    L1WatcherDerivationClient_: L1WatcherDerivationClient,
+{
+    /// Runs independent forwarding, configuration, and query loops for this chain. A closed
+    /// channel tears down only this worker; slow RPCs cannot hold up shared L1 observation.
+    pub(super) async fn run(
+        self,
+        provider: AlloyChainProvider,
+        head: tokio::sync::watch::Receiver<Option<BlockInfo>>,
+        finalized: tokio::sync::watch::Receiver<Option<BlockInfo>>,
+    ) -> Result<(), L1WatcherActorError<BlockInfo>> {
+        let chain_id = self.chain_id();
+        let Self {
+            rollup_config,
+            derivation_client,
+            block_signer_sender,
+            derivation_origin,
+            mut inbound_queries,
+        } = self;
+        let mut heads = head.clone();
+        let mut finalized = finalized;
+        let forward = async {
+            loop {
+                tokio::select! {
+                    result = heads.changed() => {
+                        result.map_err(|_| L1WatcherActorError::StreamEnded)?;
+                        let block = *heads.borrow_and_update();
+                        if let Some(block) = block {
+                            derivation_client.send_new_l1_head(block).await.map_err(|source| L1WatcherActorError::DerivationClientError {chain_id, source})?;
+                        }
+                    }
+                    result = finalized.changed() => {
+                        result.map_err(|_| L1WatcherActorError::StreamEnded)?;
+                        let block = *finalized.borrow_and_update();
+                        if let Some(block) = block {
+                            derivation_client.send_finalized_l1_block(block).await.map_err(|source| L1WatcherActorError::DerivationClientError {chain_id, source})?;
+                        }
+                    }
+                }
+            }
+            #[allow(unreachable_code)]
+            Ok::<(), L1WatcherActorError<BlockInfo>>(())
+        };
+        let signer = Self::refresh_signer(&provider, &rollup_config, &block_signer_sender, head);
+        let queries =
+            Self::serve_queries(&provider, &rollup_config, derivation_origin, &mut inbound_queries);
+        tokio::try_join!(forward, signer, queries)?;
+        Ok(())
+    }
+
+    async fn refresh_signer(
+        provider: &AlloyChainProvider,
+        config: &RollupConfig,
+        signer_tx: &watch::Sender<Address>,
+        mut head: tokio::sync::watch::Receiver<Option<BlockInfo>>,
+    ) -> Result<(), L1WatcherActorError<BlockInfo>> {
+        use tokio::time::{self, Duration};
+        let mut retry = time::interval(Duration::from_secs(10));
+        retry.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+        loop {
+            tokio::select! {
+                result = head.changed() => result.map_err(|_| L1WatcherActorError::StreamEnded)?,
+                _ = retry.tick() => {},
+                _ = signer_tx.closed() => return Err(L1WatcherActorError::StreamEnded),
+            }
+            let Some(target) = *head.borrow_and_update() else { continue };
+            let read = provider.unsafe_block_signer(config.l1_system_config_address, target.hash);
+            match read.await {
+                // Head changes while a read is outstanding supersede that read, including
+                // same-height reorgs. Never install a snapshot for an obsolete branch.
+                Ok(signer) if *head.borrow() == Some(target) => {
+                    // Subscribers are only notified when the signer actually changes.
+                    signer_tx
+                        .send_if_modified(|current| std::mem::replace(current, signer) != signer);
+                }
+                Ok(_) => {}
+                result => {
+                    warn!(target: "l1_watcher", chain_id = config.l2_chain_id.id(), ?result, "Failed to refresh unsafe block signer; retaining previous value")
+                }
+            }
+        }
+    }
+
+    async fn serve_queries(
+        provider: &AlloyChainProvider,
+        config: &RollupConfig,
+        derivation_origin: watch::Receiver<Option<BlockInfo>>,
+        queries: &mut mpsc::Receiver<L1WatcherQueries>,
+    ) -> Result<(), L1WatcherActorError<BlockInfo>> {
+        while let Some(query) = queries.recv().await {
+            match query {
+                L1WatcherQueries::Config(sender) => {
+                    let _ = sender.send(config.clone());
+                }
+                L1WatcherQueries::L1State(sender) => {
+                    let current = *derivation_origin.borrow();
+                    let _ = sender.send(Self::l1_state(provider, current).await);
+                }
+            }
+        }
+        Err(L1WatcherActorError::StreamEnded)
+    }
+
+    async fn l1_state(
+        provider: &AlloyChainProvider,
+        current_l1: Option<BlockInfo>,
+    ) -> kona_rpc::L1State {
+        let read = |label| async move {
+            provider
+                .block_info_by_label(label)
+                .await
+                .inspect_err(|error| {
+                    warn!(target: "l1_watcher", ?label, %error, "L1 state query failed");
+                })
+                .ok()
+        };
+        let (head_l1, finalized_l1, safe_l1) = tokio::join!(
+            read(BlockLabel::Latest),
+            read(BlockLabel::Finalized),
+            read(BlockLabel::Safe)
+        );
+        kona_rpc::L1State {
+            current_l1,
+            current_l1_finalized: finalized_l1,
+            head_l1,
+            finalized_l1,
+            safe_l1,
+        }
+    }
+}

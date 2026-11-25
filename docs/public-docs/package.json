@@ -2,22 +2,29 @@
   "name": "optimism-docs",
   "version": "1.0.0",
   "description": "Optimism Documentation",
-  "main": "index.js",
   "scripts": {
-    "prebuild": "tsx scripts/generate-actions-components.ts",
-    "prebuild:local": "tsx scripts/generate-actions-components.ts --local",
-    "dev": "mint dev"
-  },
-  "dependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "dev": "bun --bun mint dev",
+    "prebuild": "bun scripts/generate-actions-components.ts && bun scripts/generate-releases.ts",
+    "prebuild:local": "bun scripts/generate-actions-components.ts --local && bun scripts/generate-releases.ts",
+    "lint:nav": "bun scripts/lint/validate-nav.ts",
+    "lint:redirects": "bun scripts/lint/validate-redirects.ts",
+    "lint:reference": "bun scripts/lint/validate-reference.ts",
+    "gen:hardforks": "bun scripts/generate-hardforks.ts",
+    "gen:hardforks:check": "bun scripts/generate-hardforks.ts --check"
   },
   "devDependencies": {
-    "@eth-optimism/actions-sdk": "^0.4.0",
-    "@types/react": "^18.0.0",
-    "@types/react-dom": "^18.0.0",
+    "@eth-optimism/actions-sdk": "^0.8.1",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.0.0",
+    "mint": "4.2.1203",
     "ts-morph": "^21.0.0",
-    "tsx": "^4.7.0",
     "typescript": "^5.0.0"
+  },
+  "trustedDependencies": [],
+  "overrides": {
+    "axios": "^1.20.0",
+    "minimatch": ">=9.0.7",
+    "sharp": "0.35.5",
+    "ws": ">=8.21.0"
   }
 }

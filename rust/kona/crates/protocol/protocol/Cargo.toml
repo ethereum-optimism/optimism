@@ -17,6 +17,8 @@ workspace = true
 [dependencies]
 # Workspace
 kona-genesis.workspace = true
+kona-hardforks.workspace = true
+alloy-op-hardforks.workspace = true
 
 # OP Alloy
 op-alloy-consensus.workspace = true
@@ -40,7 +42,7 @@ unsigned-varint.workspace = true
 derive_more = { workspace = true, features = ["display"] }
 
 # Compression
-brotli.workspace = true
+brotli-decompressor.workspace = true
 miniz_oxide.workspace = true
 alloc-no-stdlib.workspace = true
 
@@ -57,6 +59,7 @@ tracing-subscriber = { workspace = true, features = ["fmt"], optional = true }
 ambassador.workspace = true
 
 [dev-dependencies]
+kona-protocol = { path = ".", features = ["std"] }
 brotli = { workspace = true, features = ["std"] }
 spin.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
@@ -84,9 +87,10 @@ std = [
 	"alloy-rpc-types-engine/std",
 	"alloy-rpc-types-eth/std",
 	"alloy-serde?/std",
-	"brotli/std",
+	"brotli-decompressor/std",
 	"derive_more/std",
 	"kona-genesis/std",
+	"kona-hardforks/std",
 	"miniz_oxide/std",
 	"op-alloy-consensus/std",
 	"op-alloy-rpc-types-engine/std",
@@ -118,6 +122,7 @@ serde = [
 	"alloy-consensus/serde",
 	"alloy-eips/serde",
 	"alloy-hardforks/serde",
+	"alloy-op-hardforks/serde",
 	"alloy-primitives/serde",
 	"alloy-rpc-types-engine/serde",
 	"alloy-rpc-types-eth/serde",

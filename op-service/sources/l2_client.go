@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -15,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
@@ -200,7 +200,11 @@ func (s *L2Client) outputV0(ctx context.Context, block eth.BlockInfo) (*eth.Outp
 		s.log.Debug("Retrieving withdrawal root from block header")
 		// If Isthmus hard fork has activated, we can get the withdrawal root directly from the header
 		// instead of having to compute it from the contract storage trie.
-		messagePasserStorageRoot = eth.Bytes32(*block.WithdrawalsRoot())
+		withdrawalsRoot := block.WithdrawalsRoot()
+		if withdrawalsRoot == nil {
+			return nil, fmt.Errorf("isthmus block %s is missing withdrawals root", eth.ToBlockID(block))
+		}
+		messagePasserStorageRoot = eth.Bytes32(*withdrawalsRoot)
 
 	} else {
 		s.log.Debug("Bypassing block header, retrieving withdrawal root from state")

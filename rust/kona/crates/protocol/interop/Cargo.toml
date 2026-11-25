@@ -15,7 +15,6 @@ workspace = true
 # Workspace
 kona-genesis.workspace = true
 kona-registry.workspace = true
-kona-protocol.workspace = true
 
 # General
 thiserror.workspace = true
@@ -38,7 +37,14 @@ arbitrary = { workspace = true, features = ["derive"], optional = true }
 # Serde
 serde = { workspace = true, optional = true }
 
+# The self dev-dependency below enables this crate's own non-default features for
+# its standalone test build (`cargo test -p kona-interop`). cargo-udeps reports it
+# unused because it activates features rather than importing symbols, so ignore it.
+[package.metadata.cargo-udeps.ignore]
+development = ["kona-interop"]
+
 [dev-dependencies]
+kona-interop = { path = ".", features = ["std", "arbitrary"] }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
 alloy-primitives = { workspace = true, features = ["rlp", "arbitrary"] }
@@ -54,10 +60,8 @@ std = [
 	"alloy-rlp/std",
 	"alloy-serde?/std",
 	"alloy-sol-types/std",
-	"derive_more/display",
 	"derive_more/std",
 	"kona-genesis/std",
-	"kona-protocol/std",
 	"kona-registry/std",
 	"op-alloy-consensus/std",
 	"serde?/std",
@@ -72,7 +76,6 @@ arbitrary = [
 	"alloy-sol-types/arbitrary",
 	"dep:arbitrary",
 	"kona-genesis/arbitrary",
-	"kona-protocol/arbitrary",
 	"op-alloy-consensus/arbitrary",
 	"std",
 ]
@@ -83,8 +86,7 @@ serde = [
 	"dep:alloy-serde",
 	"dep:serde",
 	"kona-genesis/serde",
-	"kona-protocol/serde",
 	"op-alloy-consensus/serde",
 ]
-test-utils = [ "kona-protocol/test-utils", "std" ]
+test-utils = [ "std" ]
 

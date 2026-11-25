@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // SourceContent represents the content of a source file
@@ -44,6 +44,8 @@ var contractNameExceptions = map[string]string{
 	"OpcmUtils":                   "OPContractsManagerUtils.sol/OPContractsManagerUtils.json",
 	"Mips":                        "MIPS64.sol/MIPS64.json",
 	"EthLockbox":                  "ETHLockbox.sol/ETHLockbox.json",
+	"Sp1PlonkAdapter":             "SP1PlonkAdapter.sol/SP1PlonkAdapter.json",
+	"ZkDisputeGame":               "ZKDisputeGame.sol/ZKDisputeGame.json",
 }
 
 func getArtifactPath(name string) string {

@@ -6,10 +6,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 )
 
 // Returns a DepositEvent customized on the basis of the id parameter.
-func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *types.DepositTx {
+func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *optypes.DepositTx {
 	dataLen := rng.Int63n(10_000)
 	data := make([]byte, dataLen)
 	rng.Read(data)
@@ -24,7 +26,7 @@ func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *types.DepositTx {
 		mint = RandomETH(rng, 200)
 	}
 
-	dep := &types.DepositTx{
+	dep := &optypes.DepositTx{
 		SourceHash:          sourceHash,
 		From:                RandomAddress(rng),
 		To:                  to,

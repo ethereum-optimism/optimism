@@ -9,11 +9,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -31,7 +31,7 @@ const (
 	L2AllocsIsthmus  L2AllocsMode = "isthmus"
 	L2AllocsJovian   L2AllocsMode = "jovian"
 	L2AllocsKarst    L2AllocsMode = "karst"
-	L2AllocsInterop  L2AllocsMode = "interop"
+	L2AllocsLagoon   L2AllocsMode = "lagoon"
 )
 
 var (
@@ -44,7 +44,7 @@ var (
 type AllocsLoader func(mode L2AllocsMode) *foundry.ForgeAllocs
 
 // BuildL2Genesis will build the L2 genesis block.
-func BuildL2Genesis(config *DeployConfig, dump *foundry.ForgeAllocs, l1StartBlock *eth.BlockRef) (*core.Genesis, error) {
+func BuildL2Genesis(config *DeployConfig, dump *foundry.ForgeAllocs, l1StartBlock *eth.BlockRef) (*opgenesis.Genesis, error) {
 	genspec, err := NewL2Genesis(config, l1StartBlock)
 	if err != nil {
 		return nil, err

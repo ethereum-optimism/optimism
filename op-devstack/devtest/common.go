@@ -3,11 +3,11 @@ package devtest
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/ethereum/go-ethereum/log"
-
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
@@ -25,6 +25,7 @@ type CommonT interface {
 	SkipNow()
 
 	TempDir() string
+	TempDirWithPrefix(prefix string) string
 	Cleanup(fn func())
 	Log(args ...any)
 	Logf(format string, args ...any)
@@ -35,6 +36,15 @@ type CommonT interface {
 	Tracer() trace.Tracer
 	Ctx() context.Context
 	Require() *testreq.Assertions
+}
+
+func tempDirPattern(prefix string) string {
+	prefix = strings.NewReplacer("/", "-", "\\", "-", " ", "-", "_", "-").Replace(strings.TrimSpace(prefix))
+	prefix = strings.Trim(prefix, "-")
+	if prefix == "" {
+		prefix = "op-dev"
+	}
+	return prefix + "-*"
 }
 
 type testScopeCtxKeyType struct{}

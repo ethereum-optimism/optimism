@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -18,11 +19,12 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/ptr"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 )
@@ -111,6 +113,23 @@ var msgBufPool = sync.Pool{New: func() any {
 	return &x
 }}
 
+// minimalSnappyPreamble returns frame with its snappy length preamble encoded in the fewest bytes.
+// Nodes on the network accept a length preamble of up to ten bytes, any uvarint that
+// encoding/binary.Uvarint reads with a value of at most 0xffffffff, while the snappy decoder
+// accepts at most five; a frame must get the same verdict and message ID from every node.
+// frame is returned unchanged when its preamble takes at most five bytes, is not such a uvarint
+// or encodes a larger value, which leaves the verdict to the decoder. frame itself is never
+// modified, because gossipsub forwards its bytes.
+func minimalSnappyPreamble(frame []byte) []byte {
+	v, n := binary.Uvarint(frame)
+	if n <= binary.MaxVarintLen32 || v > math.MaxUint32 {
+		return frame
+	}
+	out := make([]byte, 0, binary.MaxVarintLen32+len(frame)-n)
+	out = binary.AppendUvarint(out, v)
+	return append(out, frame[n:]...)
+}
+
 // BuildMsgIdFn builds a generic message ID function for gossipsub that can handle compressed payloads,
 // mirroring the eth2 p2p gossip spec.
 func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
@@ -120,11 +139,12 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 		// If it's a valid compressed snappy data, then hash the uncompressed contents.
 		// The validator can throw away the message later when recognized as invalid,
 		// and the unique hash helps detect duplicates.
-		dLen, err := snappy.DecodedLen(pmsg.Data)
+		frame := minimalSnappyPreamble(pmsg.Data)
+		dLen, err := snappy.DecodedLen(frame)
 		if err == nil && dLen <= maxGossipSize {
 			res := msgBufPool.Get().(*[]byte)
 			defer msgBufPool.Put(res)
-			if data, err = snappy.Decode((*res)[:cap(*res)], pmsg.Data); err == nil {
+			if data, err = snappy.Decode((*res)[:cap(*res)], frame); err == nil {
 				if cap(data) > cap(*res) {
 					// if we ended up growing the slice capacity, fine, keep the larger one.
 					*res = data[:cap(data)]
@@ -156,11 +176,21 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 func (p *Config) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
 	params := BuildGlobalGossipParams(rollupCfg)
 
-	// override with CLI changes
-	params.D = p.MeshD
-	params.Dlo = p.MeshDLo
-	params.Dhi = p.MeshDHi
-	params.Dlazy = p.MeshDLazy
+	// Override the mesh defaults only where explicitly configured. A zero value means
+	// unset, so keep the BuildGlobalGossipParams default — gossipsub now rejects params
+	// like Dhi=0 (must satisfy Dscore <= Dhi), and 0 is invalid per Config.Check anyway.
+	if p.MeshD > 0 {
+		params.D = p.MeshD
+	}
+	if p.MeshDLo > 0 {
+		params.Dlo = p.MeshDLo
+	}
+	if p.MeshDHi > 0 {
+		params.Dhi = p.MeshDHi
+	}
+	if p.MeshDLazy > 0 {
+		params.Dlazy = p.MeshDLazy
+	}
 
 	// in the future we may add more advanced options like scoring and PX / direct-mesh / episub
 	return []pubsub.Option{
@@ -281,7 +311,8 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 	return func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
 		// [REJECT] if the compression is not valid
-		outLen, err := snappy.DecodedLen(message.Data)
+		frame := minimalSnappyPreamble(message.Data)
+		outLen, err := snappy.DecodedLen(frame)
 		if err != nil {
 			log.Warn("invalid snappy compression length data", "err", err, "peer", id)
 			return pubsub.ValidationReject
@@ -297,7 +328,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 		res := msgBufPool.Get().(*[]byte)
 		defer msgBufPool.Put(res)
-		data, err := snappy.Decode((*res)[:cap(*res)], message.Data)
+		data, err := snappy.Decode((*res)[:cap(*res)], frame)
 		if err != nil {
 			log.Warn("invalid snappy compression", "err", err, "peer", id)
 			return pubsub.ValidationReject
@@ -617,11 +648,13 @@ func (p *publisher) SignAndPublishL2Payload(ctx context.Context, envelope *eth.E
 
 	if envelope.ParentBeaconBlockRoot != nil {
 		if _, err := envelope.MarshalSSZ(buf); err != nil {
-			return fmt.Errorf("failed to encoded execution payload envelope to publish: %w", err)
+			return fmt.Errorf("%w: failed to encoded execution payload envelope to publish: %w",
+				async.ErrPermanentPublish, err)
 		}
 	} else {
 		if _, err := envelope.ExecutionPayload.MarshalSSZ(buf); err != nil {
-			return fmt.Errorf("failed to encoded execution payload to publish: %w", err)
+			return fmt.Errorf("%w: failed to encoded execution payload to publish: %w",
+				async.ErrPermanentPublish, err)
 		}
 	}
 	data := buf.Bytes()
@@ -641,15 +674,24 @@ func (p *publisher) publishRawSignedPayload(ctx context.Context, timestamp uint6
 	// This also copies the data, freeing up the original buffer to go back into the pool
 	out := snappy.Encode(nil, data)
 
-	if p.cfg.IsIsthmus(timestamp) {
-		return p.blocksV4.topic.Publish(ctx, out)
-	} else if p.cfg.IsEcotone(timestamp) {
-		return p.blocksV3.topic.Publish(ctx, out)
-	} else if p.cfg.IsCanyon(timestamp) {
-		return p.blocksV2.topic.Publish(ctx, out)
-	} else {
-		return p.blocksV1.topic.Publish(ctx, out)
+	var err error
+	switch {
+	case p.cfg.IsIsthmus(timestamp):
+		err = p.blocksV4.topic.Publish(ctx, out)
+	case p.cfg.IsEcotone(timestamp):
+		err = p.blocksV3.topic.Publish(ctx, out)
+	case p.cfg.IsCanyon(timestamp):
+		err = p.blocksV2.topic.Publish(ctx, out)
+	default:
+		err = p.blocksV1.topic.Publish(ctx, out)
 	}
+	// A closed topic never reopens, so a retry cannot help. Deliberately narrow:
+	// Topic.Publish also surfaces the caller's context error, and a publish that
+	// merely timed out must stay retryable.
+	if errors.Is(err, pubsub.ErrTopicClosed) {
+		return fmt.Errorf("%w: %w", async.ErrPermanentPublish, err)
+	}
+	return err
 }
 
 func (p *publisher) Close() error {

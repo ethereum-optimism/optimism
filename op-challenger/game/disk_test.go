@@ -55,3 +55,18 @@ func TestDiskManager_RemoveAllExcept(t *testing.T) {
 	require.DirExists(t, unexpectedDir, "should not delete unexpected dir")
 	require.DirExists(t, invalidHexDir, "should not delete dir with invalid address")
 }
+
+func TestDiskManager_RemoveAllExcept_MissingDatadir(t *testing.T) {
+	missingDir := filepath.Join(t.TempDir(), "challenger")
+	disk := newDiskManager(missingDir)
+
+	require.NoError(t, disk.RemoveAllExcept(nil))
+	require.NoDirExists(t, missingDir, "should not create the datadir")
+}
+
+func TestDiskManager_RemoveAllExcept_DatadirIsFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "challenger")
+	require.NoError(t, os.WriteFile(path, []byte("not a dir"), 0644))
+
+	require.Error(t, newDiskManager(path).RemoveAllExcept(nil), "should surface a datadir that is not a directory")
+}

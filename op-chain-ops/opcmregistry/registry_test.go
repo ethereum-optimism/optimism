@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -370,127 +370,26 @@ func TestFilterOPCMsByReleaseVersion(t *testing.T) {
 	})
 }
 
-func TestFilterByLastUsedOPCMVersion(t *testing.T) {
-	sv6, _ := ParseSemver("6.0.0")
-	sv61, _ := ParseSemver("6.1.0")
-	sv7, _ := ParseSemver("7.0.0")
-
-	opcms := []ResolvedOPCM{
-		{Address: common.HexToAddress("0x1"), OPCMVersion: sv6},
-		{Address: common.HexToAddress("0x2"), OPCMVersion: sv61},
-		{Address: common.HexToAddress("0x3"), OPCMVersion: sv7},
+func TestOPCMsFromVersionsSkipsPrereleaseReleaseTags(t *testing.T) {
+	versions := Versions{
+		"op-contracts/v7.0.0-rc.2": {
+			OPContractsManager: &ContractData{
+				Version: "7.1.17",
+				Address: addrPtr("0x9999999999999999999999999999999999999999"),
+			},
+		},
+		"op-contracts/v6.0.0": {
+			OPContractsManager: &ContractData{
+				Version: "6.0.0",
+				Address: addrPtr("0x6666666666666666666666666666666666666666"),
+			},
+		},
 	}
 
-	t.Run("empty lastVersion returns all", func(t *testing.T) {
-		result, err := FilterByLastUsedOPCMVersion(opcms, "")
-		require.NoError(t, err)
-		require.Len(t, result, 3)
-	})
-
-	t.Run("filter from 6.0.0", func(t *testing.T) {
-		result, err := FilterByLastUsedOPCMVersion(opcms, "6.0.0")
-		require.NoError(t, err)
-		require.Len(t, result, 2)
-		require.Equal(t, "6.1.0", result[0].OPCMVersion.Raw)
-		require.Equal(t, "7.0.0", result[1].OPCMVersion.Raw)
-	})
-
-	t.Run("filter from 6.1.0", func(t *testing.T) {
-		result, err := FilterByLastUsedOPCMVersion(opcms, "6.1.0")
-		require.NoError(t, err)
-		require.Len(t, result, 1)
-		require.Equal(t, "7.0.0", result[0].OPCMVersion.Raw)
-	})
-
-	t.Run("filter from 7.0.0 returns empty", func(t *testing.T) {
-		result, err := FilterByLastUsedOPCMVersion(opcms, "7.0.0")
-		require.NoError(t, err)
-		require.Empty(t, result)
-	})
-
-	t.Run("invalid lastVersion returns error", func(t *testing.T) {
-		_, err := FilterByLastUsedOPCMVersion(opcms, "invalid")
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid lastVersion")
-	})
-}
-
-func TestGetResolvedOPCMs(t *testing.T) {
-	// This test uses a mock version querier to avoid network calls
-	t.Run("filters out versions below 6.x.x", func(t *testing.T) {
-		// Create a mock registry with in-memory data
-		mockVersions := Versions{
-			"old-release": {
-				OPContractsManager: &ContractData{
-					Version: "1.0.0",
-					Address: addrPtr("0x1111111111111111111111111111111111111111"),
-				},
-			},
-			"v6-release": {
-				OPContractsManager: &ContractData{
-					Version: "1.6.0",
-					Address: addrPtr("0x2222222222222222222222222222222222222222"),
-				},
-			},
-		}
-
-		// Mock version querier that returns different OPCM versions
-		mockQuerier := func(addr common.Address) (string, error) {
-			switch addr.Hex() {
-			case "0x1111111111111111111111111111111111111111":
-				return "5.0.0", nil // Should be filtered out (< 6.x.x)
-			case "0x2222222222222222222222222222222222222222":
-				return "6.0.0", nil // Should be included
-			default:
-				return "", nil
-			}
-		}
-
-		// Process the mock data similar to GetResolvedOPCMs
-		var opcms []OPCMInfo
-		for _, vc := range mockVersions {
-			if vc.OPContractsManager != nil && vc.OPContractsManager.Address != nil {
-				sv, err := ParseSemver(vc.OPContractsManager.Version)
-				if err != nil || sv.IsPrerelease() {
-					continue
-				}
-				opcms = append(opcms, OPCMInfo{
-					ReleaseVersion: vc.OPContractsManager.Version,
-					Address:        common.Address(*vc.OPContractsManager.Address),
-				})
-			}
-		}
-
-		var resolved []ResolvedOPCM
-		for _, opcm := range opcms {
-			opcmVersion, err := mockQuerier(opcm.Address)
-			if err != nil {
-				continue
-			}
-			sv, err := ParseSemver(opcmVersion)
-			if err != nil || sv.IsPrerelease() || sv.Major < 6 {
-				continue
-			}
-			resolved = append(resolved, ResolvedOPCM{
-				Address:     opcm.Address,
-				OPCMVersion: sv,
-			})
-		}
-
-		require.Len(t, resolved, 1)
-		require.Equal(t, common.HexToAddress("0x2222222222222222222222222222222222222222"), resolved[0].Address)
-	})
-
-	t.Run("filters out prerelease versions", func(t *testing.T) {
-		mockQuerier := func(addr common.Address) (string, error) {
-			return "6.0.0-rc.1", nil
-		}
-
-		opcmVersion, _ := mockQuerier(common.Address{})
-		sv, err := ParseSemver(opcmVersion)
-		require.NoError(t, err)
-		require.True(t, sv.IsPrerelease())
-	})
+	opcms := opcmsFromVersions(MainnetChainID, versions)
+	require.Len(t, opcms, 1)
+	require.Equal(t, common.HexToAddress("0x6666666666666666666666666666666666666666"), opcms[0].Address)
+	require.Equal(t, "6.0.0", opcms[0].ReleaseVersion)
 }
 
 func TestNewRegistry(t *testing.T) {

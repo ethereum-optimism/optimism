@@ -9,7 +9,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 // Hub maintains the set of active clients and broadcasts messages to them

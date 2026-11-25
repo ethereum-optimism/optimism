@@ -1,0 +1,30 @@
+# Multicannon multiplexer only (monorepo op-challenger-target cannon COPY).
+# Historical embeds: melange/pipelines/cannon/build-multicannon.yaml
+package:
+  name: multicannon
+  version: "0.0.0"
+  epoch: 0
+  description: cannon multicannon multiplexer (embedded VMs, no loose embed files)
+  copyright:
+    - license: MIT
+  options:
+    no-depends: true
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+      - build-base
+      - ca-certificates-bundle
+      - git
+      - go-1.26
+  environment:
+    CGO_ENABLED: "0"
+
+pipeline:
+  - uses: cannon/build-multicannon
+  - uses: strip

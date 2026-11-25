@@ -3,6 +3,7 @@ package fault
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"slices"
 	"sync"
@@ -19,13 +20,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -206,6 +207,39 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	require.EqualValues(t, 2, claimLoader.callCount, "should load claims for unresolvable game")
 	require.EqualValues(t, responder.callResolveClaimCount, 1, "should check if claim is resolvable")
 	require.Zero(t, responder.resolveClaimCount, "should not send resolveClaim")
+}
+
+func TestActLogsWarningWhenTraceProviderNotInSync(t *testing.T) {
+	logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
+	claimLoader := &stubClaimLoader{}
+	depth := types.Depth(4)
+	provider := &notInSyncTraceProvider{TraceProvider: alphabet.NewTraceProvider(big.NewInt(0), depth)}
+	responder := &stubResponder{}
+	responder.callResolveErr = errors.New("game is not resolvable")
+	responder.callResolveClaimErr = errors.New("claim is not resolvable")
+	claimBuilder := faulttest.NewClaimBuilder(t, depth, alphabet.NewTraceProvider(big.NewInt(0), depth))
+	claimLoader.claims = []types.Claim{claimBuilder.CreateRootClaim()}
+	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
+	l1Clock := clock.NewDeterministicClock(l1Time)
+	agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, 24*time.Hour, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, 0, 0)
+
+	require.NoError(t, agent.Act(context.Background()))
+
+	require.Nil(t, logs.FindLog(testlog.NewLevelFilter(log.LevelError)), "waiting for the node to sync is not an error")
+	warning := logs.FindLog(testlog.NewLevelFilter(log.LevelWarn), testlog.NewMessageFilter("Local node not sufficiently up to date"))
+	require.NotNil(t, warning, "should warn that the node is behind")
+	attrErr, ok := warning.AttrValue("err").(error)
+	require.True(t, ok, "err attribute should be an error")
+	require.ErrorIs(t, attrErr, gameTypes.ErrNotInSync)
+}
+
+// notInSyncTraceProvider reports the backing node as behind the game's L1 head for every claim.
+type notInSyncTraceProvider struct {
+	types.TraceProvider
+}
+
+func (p *notInSyncTraceProvider) Get(_ context.Context, _ types.Position) (common.Hash, error) {
+	return common.Hash{}, fmt.Errorf("%w: stub node at L1 block 99 must be above game L1 head 100", gameTypes.ErrNotInSync)
 }
 
 func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {

@@ -27,14 +27,7 @@ contract LegacyMintableERC20 is ERC20 {
     /// @param _l1Token Address of the corresponding L1 token.
     /// @param _name ERC20 name.
     /// @param _symbol ERC20 symbol.
-    constructor(
-        address _l2Bridge,
-        address _l1Token,
-        string memory _name,
-        string memory _symbol
-    )
-        ERC20(_name, _symbol)
-    {
+    constructor(address _l2Bridge, address _l1Token, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
         l1Token = _l1Token;
         l2Bridge = _l2Bridge;
     }

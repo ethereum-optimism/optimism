@@ -1,0 +1,303 @@
+---
+title: OP Mainnet의 트랜잭션 수수료
+description: OP Mainnet에서 트랜잭션 수수료가 작동하는 방식에 대해 알아봅니다.
+diataxis: explanation
+---
+
+<Info>
+  OP Stack은 Ethereum mainnet과 다른 gas 한도를 유지합니다.
+  두 체인은 동일한 기본 트랜잭션 형식을 사용하지만, Optimism의 gas 한도는 최적의 Layer 2 성능과 확장성에 맞게 조정되어 있습니다.
+  따라서 Optimism의 트랜잭션은 gas 사용량과 수수료 추정 측면에서 mainnet과 다르게 동작할 수 있습니다.
+  Optimism과 Ethereum의 gas 한도에 대한 자세한 비교는 [Ethereum과 OP Stack 체인의 차이점](/ko/op-stack/protocol/differences)을 참조하십시오.
+</Info>
+
+<Info>
+  **OP Stack 알아보기 — 14단계 중 8단계.**
+  지금까지 트랜잭션이 스택을 통해 어떻게 이동하는지 알아보았습니다. 이 페이지에서는
+  그 과정에 드는 비용, 즉 OP Stack 트랜잭션 수수료의 구성 요소와
+  각 구성 요소를 결정하는 요인을 설명합니다. 다 읽은 후에는
+  [입금 흐름](/ko/op-stack/bridging/deposit-flow)으로 계속 진행하십시오.
+</Info>
+
+OP Mainnet은 [EVM 동등성(EVM equivalence)](https://web.archive.org/web/20231127160757/https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306)을 갖도록 설계되었습니다. 즉, 이미 익숙한 Ethereum 코드를 그대로 재사용하며 가능한 한 Ethereum과 동일하게 동작합니다.
+그러나 모든 Layer 2 시스템의 트랜잭션 수수료는 여러 가지 이유로 어느 정도 Ethereum과 달라질 수밖에 없습니다.
+이 페이지에서는 애플리케이션에서 트랜잭션 수수료를 올바르게 고려할 수 있도록 OP Mainnet에서 트랜잭션 수수료가 정확히 어떻게 작동하는지 자세히 살펴봅니다.
+
+OP Mainnet 트랜잭션 수수료는 [실행 gas 수수료](#execution-gas-fee), [L1 데이터 수수료](#l1-data-fee), 그리고 [Isthmus 업그레이드](/ko/notices/archive/upgrade-14#operator-fee) 이후에는 [운영자 수수료](#operator-fee)로 구성됩니다.
+트랜잭션의 총비용은 이러한 수수료 구성 요소의 합입니다.
+
+**Isthmus 이전:**
+
+```
+totalFee = gasUsed * (baseFee + priorityFee) + l1Fee
+```
+
+**Isthmus 이후:**
+
+```
+totalFee = operatorFee + gasUsed * (baseFee + priorityFee) + l1Fee
+```
+
+각 수수료 구성 요소가 정확히 어떻게 부과되는지 알아보려면 계속 읽으십시오.
+
+## 실행 gas 수수료
+
+트랜잭션의 실행 gas 수수료는 Ethereum에서 동일한 트랜잭션에 대해 지불하는 수수료와 정확히 같습니다.
+이 수수료는 트랜잭션이 사용한 gas 양에 트랜잭션에 지정된 gas 가격을 곱한 값입니다.
+Ethereum과 마찬가지로 OP Mainnet은 [EIP-1559](https://eips.ethereum.org/EIPS/eip-1559) 메커니즘을 사용하여 트랜잭션의 [base fee](https://ethereum.org/en/developers/docs/gas/#base-fee)를 설정합니다.
+트랜잭션이 지불하는 gas 단위당 총가격은 [base fee](https://ethereum.org/en/developers/docs/gas/#base-fee)와 선택적인 추가 [priority fee](https://ethereum.org/en/developers/docs/gas/#priority-fee)의 합입니다.
+
+OP Mainnet은 EVM 동등성을 갖추고 있으므로, **OP Mainnet에서 트랜잭션이 사용하는 gas는 Ethereum에서 동일한 트랜잭션이 사용하는 gas와 정확히 같습니다**.
+Ethereum에서 100,000 gas가 드는 트랜잭션은 OP Mainnet에서도 100,000 gas가 듭니다.
+유일한 차이점은 OP Mainnet의 gas 가격이 Ethereum보다 훨씬 낮기 때문에 ETH로 지불하는 금액이 훨씬 적다는 것입니다.
+
+이 수수료 구성 요소의 경우, Ethereum에서 트랜잭션 비용을 추정할 때 사용하는 것과 동일한 도구로 트랜잭션의 총비용을 추정할 수 있습니다.
+Ethereum의 gas 수수료가 작동하는 방식에 대한 자세한 내용은 [Ethereum.org](https://ethereum.org/en/developers/docs/gas/)에서 확인할 수 있습니다.
+
+### Base fee
+
+[Base fee](https://ethereum.org/en/developers/docs/gas/#base-fee)는 트랜잭션이 블록에 포함되기 위해 지불해야 하는 gas 단위당 최소 가격입니다.
+트랜잭션이 포함되려면 블록 base fee보다 높은 최대 base fee를 지정해야 합니다.
+트랜잭션이 더 높은 최대 base fee를 지정하더라도 실제로 부과되는 수수료는 블록 base fee입니다.
+
+OP Mainnet의 base fee는 Ethereum의 base fee와 정확히 동일하게 동작하며, OP Mainnet의 훨씬 짧은 블록 시간을 반영하기 위해 일부 매개변수만 약간 변경되었습니다.
+이러한 매개변수는 애플리케이션에 큰 영향을 주지 않지만, 각 매개변수에 대한 자세한 내용은 [OP Mainnet 차이점](/ko/op-stack/protocol/differences#eip-1559-parameters) 페이지에서 확인할 수 있습니다.
+Base fee에 대한 자세한 내용은 [Ethereum.org 문서](https://ethereum.org/en/developers/docs/gas/#base-fee)를 참조하십시오.
+
+### Priority fee
+
+Ethereum과 마찬가지로 OP Mainnet 트랜잭션은 **priority fee**를 지정할 수 있습니다.
+priority fee는 base fee에 추가로 지불하는 gas 단위당 가격입니다.
+예를 들어 블록 base fee가 1 gwei이고 트랜잭션이 1 gwei의 priority fee를 지정하면, gas 단위당 총가격은 2 gwei입니다.
+priority fee(즉, 팁)는 실행 gas 수수료의 선택적 구성 요소이며, 기술적으로 0으로 설정할 수 있습니다.
+다만 EIP-1559는 최소 priority fee를 정의하지 않지만, 일부 지갑과 mempool 구현(예: Geth)은 최솟값을 강제할 수 있습니다. 예를 들어 Geth는 일반적으로 최소 priority fee를 기본 1 gwei로 설정하지만, 다른 값으로 구성할 수 있습니다.
+
+**OP Mainnet sequencer는 priority fee가 더 높은 트랜잭션을 우선 처리**하며, priority fee가 더 낮은 트랜잭션보다 먼저 실행합니다.
+트랜잭션 속도가 애플리케이션에 중요하다면, 트랜잭션이 더 빨리 포함되도록 priority fee를 높게 설정하는 것이 좋습니다.
+[`eth_maxPriorityFeePerGas`](https://docs.alchemy.com/reference/eth-maxpriorityfeepergas) RPC 메서드를 사용하면 트랜잭션을 빠르게 포함시킬 수 있는 priority fee를 추정할 수 있습니다.
+
+<Info>
+OP Mainnet은 **스테이크 기반 우선순위 정렬**(stake-based priority ordering)에 대한 기간 한정 실험을 진행했습니다. 이 실험에서는 priority fee만이 아니라 `PolicyEngineStaking` 컨트랙트에 보유된 스테이크가 트랜잭션 정렬에 영향을 주었습니다. 이 실험은 2026년 5월 26일에 시작하여 최대 4주 동안 진행될 예정이었으며, 이후 OP Mainnet은 위에서 설명한 priority fee 기반 정렬로 되돌아갑니다. 어느 정렬 방식이 적용되는지 단정하기 전에 [스테이크 기반 우선순위 정렬 공지](/ko/notices/archive/stake-based-priority-ordering)와 [거버넌스 제안](https://gov.optimism.io/t/upgrade-proposal-stake-based-priority-ordering-experiment/10655)을 확인하십시오.
+</Info>
+
+## L1 데이터 수수료
+
+L1 데이터 수수료(L1 Data Fee)는 OP Mainnet 트랜잭션 수수료 중 Ethereum 트랜잭션 수수료와 다른 유일한 부분입니다.
+이 수수료는 모든 OP Mainnet 트랜잭션의 트랜잭션 데이터가 Ethereum에 게시된다는 사실에서 비롯됩니다.
+이를 통해 node가 트랜잭션 데이터를 다운로드하고 실행할 수 있도록 데이터 가용성이 보장됩니다.
+L1 데이터 수수료는 OP Mainnet 트랜잭션을 Ethereum에 게시하는 비용을 반영하며, 주로 Ethereum의 현재 base fee에 의해 결정됩니다. Ecotone 업그레이드 이후 OP Stack 체인은
+[`blobs`](https://www.eip4844.com/)를 사용하여 트랜잭션을 게시할 수 있는 옵션을 갖게 됩니다. blob이 활성화된 체인의 경우, 현재 Ethereum blob 데이터
+gas 가격이 L1 데이터 수수료를 대부분 결정합니다.
+
+### 메커니즘
+
+L1 데이터 수수료는 OP Mainnet 블록에 포함된 모든 트랜잭션에 자동으로 부과됩니다.
+이 수수료는 트랜잭션을 보낸 주소에서 직접 차감됩니다.
+정확한 지불 금액은 압축 후 트랜잭션의 추정 크기(바이트), 현재 Ethereum gas 가격 및/또는 blob gas 가격,
+그리고 몇 가지 작은 매개변수에 따라 달라집니다.
+
+L1 데이터 수수료에 가장 큰 영향을 주는 요인은 Ethereum에서 OP Mainnet으로 지속적이고 무신뢰(trustless) 방식으로 릴레이되는 Ethereum base fee입니다.
+Ecotone 업그레이드와 함께 Ethereum blob base fee도 OP Mainnet으로 릴레이되며, base fee 대신 blob을 사용하도록 구성된 체인에서는 이것이 가장
+중요한 요인이 됩니다. base fee와 blob base fee는 Ethereum 블록마다 OP Mainnet에서
+업데이트되며, 업데이트 간 변동폭은 각각 최대 12.5%입니다. 따라서
+L1 데이터 수수료의 단기 변동은 일반적으로 매우 작으며 평균적인 트랜잭션에는 영향을 주지 않습니다.
+
+<Info>
+  L1 데이터 수수료는 자동으로 부과됩니다.
+  **현재 트랜잭션이 지불할 의사가 있는 최대 L1 데이터 수수료를 제한하는 것은 불가능합니다.**
+  이는 기존 Ethereum 트랜잭션 형식의 한계와, OP Stack이 더 나은 EVM 동등성을 유지하기 위해 선택한 트레이드오프 때문입니다.
+  새로운 표준화된 트랜잭션 유형을 도입하여 이 상황을 개선하기 위한 작업이 진행 중입니다.
+  당분간은 L1 데이터 수수료가 Ethereum gas 가격에 따라 변동할 수 있다는 점을 유의하십시오.
+</Info>
+
+### 공식
+
+#### Bedrock
+
+<Info>
+  L1 데이터 수수료 공식은 Ecotone 업그레이드와 함께 변경되었습니다.
+  OP Sepolia 및 OP Mainnet의 네트워크 업그레이드 활성화 타임스탬프는 [네트워크 업그레이드 개요](/ko/op-stack/protocol/network-upgrades)를 참조하십시오.
+</Info>
+
+Ecotone 업그레이드 이전에는 L1 데이터 수수료가 다음 매개변수를 기반으로 계산됩니다.
+
+*   [표준 Ethereum 트랜잭션 RLP 인코딩](https://github.com/ethereum-optimism/op-geth/blob/optimism/core/types/transaction.go#L141-L151)에 따라 직렬화된 **서명된** 트랜잭션.
+*   현재 Ethereum base fee(Ethereum에서 무신뢰 방식으로 릴레이됨).
+*   트랜잭션 게시에 대한 고정 오버헤드 비용(현재 188 gas로 설정됨).
+*   트랜잭션 크기에 비례하는 동적 오버헤드 비용(현재 0.684로 설정됨).
+
+L1 데이터 수수료 계산은 먼저 트랜잭션 데이터에서 0 바이트와 0이 아닌 바이트의 개수를 세는 것으로 시작합니다.
+0 바이트는 각각 4 gas, 0이 아닌 바이트는 각각 16 gas가 듭니다.
+이는 Ethereum이 트랜잭션 데이터의 gas 비용을 계산하는 방식과 동일합니다.
+
+```python
+tx_data_gas = count_zero_bytes(tx_data) * 4 + count_non_zero_bytes(tx_data) * 16
+```
+
+트랜잭션 데이터의 gas 비용을 계산한 후, 고정 및 동적 오버헤드 값을 적용합니다.
+
+```python
+tx_total_gas = (tx_data_gas + fixed_overhead) * dynamic_overhead
+```
+
+마지막으로, 총 gas 비용에 현재 Ethereum base fee를 곱하여 총 L1 데이터 수수료를 계산합니다.
+
+```python
+l1_data_fee = tx_total_gas * ethereum_base_fee
+```
+
+#### Ecotone
+
+<Info>
+  L1 데이터 수수료 공식은 Ecotone 업그레이드와 함께 변경되었습니다.
+  OP Sepolia 및 OP Mainnet의 네트워크 업그레이드 활성화 타임스탬프는 [네트워크 업그레이드 개요](/ko/op-stack/protocol/network-upgrades)를 참조하십시오.
+</Info>
+
+Ecotone 업그레이드에서는 L1 calldata 대신 blob을 사용하여 트랜잭션 배치를 L1에 게시하는 옵션이
+도입되면서 가격 책정 함수가 변경되었습니다. 업데이트된
+함수는 다음 매개변수를 사용합니다.
+
+*   [표준 Ethereum 트랜잭션 RLP 인코딩](https://github.com/ethereum-optimism/op-geth/blob/optimism/core/types/transaction.go#L141-L151)에 따라 직렬화된 **서명된** 트랜잭션.
+*   현재 Ethereum base fee 및/또는 blob base fee(Ethereum에서 무신뢰 방식으로 릴레이됨).
+*   **base fee**와 **blob base fee**를 각각 독립적으로 조정하는 두 개의 새로운 scalar 매개변수.
+
+Ecotone 업그레이드 시점에 동적 오버헤드 매개변수 값이 Ecotone base fee scalar를
+초기화하는 데 사용되며, blob base fee는 0으로 설정됩니다. 이전 함수의 오버헤드 매개변수는
+무시됩니다.
+
+Ecotone L1 데이터 수수료 계산은 트랜잭션 데이터에서 0 바이트와 0이 아닌
+바이트의 개수를 세는 것으로 시작합니다. 0 바이트는 각각 4 gas, 0이 아닌 바이트는 각각 16
+gas가 듭니다. 이 값을 16으로 나누면 압축 후 트랜잭션 데이터 크기의
+대략적인 추정치로 볼 수 있습니다.
+
+```python
+tx_compressed_size = [(count_zero_bytes(tx_data)*4 + count_non_zero_bytes(tx_data)*16)] / 16
+```
+
+다음으로, 두 scalar를 base fee와 blob base fee 매개변수에 적용하여 가중
+gas 가격 승수를 계산합니다.
+
+```python
+weighted_gas_price = 16*base_fee_scalar*base_fee + blob_base_fee_scalar*blob_base_fee
+```
+
+그러면 L1 데이터 수수료는 다음과 같습니다.
+
+```python
+l1_data_fee = tx_compressed_size * weighted_gas_price
+```
+
+업그레이드 직후 base\_fee\_scalar는 dynamic\_overhead로 설정되고 blob\_base\_fee\_scalar는 0이라는 점을
+기억하십시오. 이전의 오버헤드 매개변수가 무시되므로, 새로운 L1 데이터 가격은 포크 이전보다
+(오버헤드가 일반적으로 매우 작기 때문에 약간) 낮아집니다. 체인
+운영자는 포크 이후, 특히 [blob 활성화](/ko/chain-operators/guides/features/blobs)를 계획하고 있다면
+매개변수를 적절히 다시 조정하는 것이 좋습니다.
+scalar 값 선택에 대한 지침은 Batcher 비용 조정 가이드의 [수수료 scalar로 지출 회수하기](/ko/use-cases/tune-batcher-costs#step-5-recover-the-spend-with-fee-scalars)를 참조하십시오.
+
+#### Fjord
+
+<Info>
+  L1 데이터 수수료 공식은 Fjord 업그레이드와 함께 변경되었습니다. OP Sepolia 및 OP Mainnet의 네트워크 업그레이드 활성화 타임스탬프는 [네트워크 업그레이드 개요](/ko/op-stack/protocol/network-upgrades)를 참조하십시오.
+</Info>
+
+Fjord 업그레이드에서는 트랜잭션 단위로 L1 데이터 사용량을 더 정확하게 부과하는 FastLZ 압축 추정기로 인해 가격 책정 함수가 변경되었습니다.
+업데이트된 함수는 다음 매개변수를 사용합니다.
+
+*   서명된 트랜잭션의 FastLZ 압축 크기.
+*   현재 Ethereum base fee 및/또는 blob base fee(Ethereum에서 무신뢰 방식으로 릴레이됨).
+
+Fjord L1 데이터 수수료 계산은 FastLZ로 압축된 트랜잭션 크기에 대한 선형 모델을 사용하여 트랜잭션 크기를 추정하는 것으로 시작합니다.
+
+```
+estimatedSizeScaled = max(minTransactionSize * 1e6, intercept + fastlzCoef*fastlzSize)
+```
+
+모델 매개변수 `intercept`와 `fastlzCoef`는 과거 L2 트랜잭션 데이터 세트에 대해 선형 회귀 분석을 수행하여 결정되었으며, 과거 OP mainnet 데이터를 Brotli로 압축했을 때의 배치 크기 변화에 대한 평균 제곱근 오차를 최소화하도록 산출되었습니다. 이 매개변수는 Fjord에서 고정되어 있습니다. `minTransactionSize`, `intercept`, `fastlzCoef` 값은 1e6으로 스케일링됩니다.
+
+다음으로, 두 체인 매개변수인 **base fee scalar**와 **blob base fee scalar**를 사용하여 가중 gas 가격 승수를 계산합니다.
+
+```
+l1FeeScaled = baseFeeScalar*l1BaseFee*16 + blobFeeScalar*l1BlobBaseFee
+```
+
+두 scalar 모두 1e6으로 스케일링됩니다. 최종 L1 데이터 수수료는 다음과 같습니다.
+
+```
+l1Cost = estimatedSizeScaled * l1FeeScaled / 1e12
+```
+
+새로운 비용 함수는 압축률을 고려하므로, 체인 운영자는 이전에 자신의 체인에서 나타났던 압축률을 반영하도록 `baseFeeScalar`와 `blobFeeScalar`를 조정해야 합니다. scalar 값 선택에 대한 지침은 Batcher 비용 조정 가이드의 [수수료 scalar로 지출 회수하기](/ko/use-cases/tune-batcher-costs#step-5-recover-the-spend-with-fee-scalars)를 참조하십시오.
+
+## 운영자 수수료
+
+<Info>
+  운영자 수수료(Operator fee)는 [Isthmus 업그레이드](/ko/notices/archive/upgrade-14#operator-fee)와 함께 도입되었으며 [Jovian 업그레이드](/ko/notices/archive/upgrade-17#breaking-changes)에서 수정되었습니다.
+  이를 통해 OP Stack 체인은 더 유연한 가격 책정 모델을 사용할 수 있습니다.
+  네트워크 업그레이드 활성화 타임스탬프는 [네트워크 업그레이드 개요](/ko/op-stack/protocol/network-upgrades)를 참조하십시오.
+</Info>
+
+운영자 수수료는 OP Stack 체인이 더 맞춤화된 수수료 구조를 사용할 수 있게 해 주는 새로운 수수료 구성 요소입니다. 이 수수료는 표준 gas 수수료 및 L1 데이터 수수료와 함께 EVM에 직접 통합되어 있어, 체인 운영자가 추가 수익 모델을 구현하거나 특정 운영 비용을 충당할 수 있습니다.
+
+### 메커니즘
+
+운영자 수수료는 Isthmus 활성화 이후 블록에 포함된 모든 트랜잭션에 자동으로 부과됩니다. 이 수수료는 트랜잭션을 보낸 주소에서 직접 차감되며, EVM에서 부과되는 기존 수수료와 동일한 방식을 따릅니다. 수집된 운영자 수수료는 기존 [fee vault](/ko/op-stack/transactions/fee-vaults)와 유사한 새로운 vault인 **Operator Fee Vault**로 전송됩니다.
+
+<Info>
+  **입금 트랜잭션에는 운영자 수수료가 부과되지 않습니다.** 모든 입금 트랜잭션의 경우, 운영자 수수료 매개변수 구성과 관계없이 운영자 수수료는 항상 0입니다.
+</Info>
+
+### 공식
+운영자 수수료는 활성화된 포크에 따라 다음 공식으로 계산됩니다.
+
+**Isthmus 이후:**
+
+```
+operatorFee = operatorFeeConstant + (gasUsed × operatorFeeScalar ÷ 10^6)
+```
+
+**Jovian 이후:**
+
+```
+operatorFee = operatorFeeConstant + (gasUsed × operatorFeeScalar × 100)
+```
+
+
+각 항목의 의미는 다음과 같습니다.
+
+*   `gasUsed`는 트랜잭션이 사용한 gas 양입니다
+*   `operatorFeeScalar`는 체인 운영자가 설정하는 `uint32` scalar로, 1e6으로 스케일링됩니다
+*   `operatorFeeConstant`는 체인 운영자가 설정하는 `uint64` scalar입니다
+
+### 구성
+
+`operatorFeeScalar` 및 `operatorFeeConstant` 매개변수는 두 가지 방법으로 조회할 수 있습니다.
+
+1.  현재 L2 블록의 **입금된 L1 속성(deposited L1 attributes)에서**
+2.  **L1 Block Info 컨트랙트에서**(`0x4200000000000000000000000000000000000015`):
+    *   Solidity getter 함수(`operatorFeeScalar`, `operatorFeeConstant`) 사용
+    *   스토리지 직접 읽기 사용:
+    *   운영자 수수료 scalar: 슬롯 `8`, 오프셋 `0`의 빅엔디언 `uint32`
+    *   운영자 수수료 상수: 슬롯 `8`, 오프셋 `4`의 빅엔디언 `uint64`
+
+### EVM 통합
+
+운영자 수수료는 표준 EVM 수수료 방식을 따릅니다.
+
+1.  **실행 전 검증**: 계정은 최악의 경우의 gas + L1 데이터 수수료 + 최악의 경우의 운영자 수수료를 충당할 수 있는 ETH를 보유해야 합니다
+2.  **Gas 구매**: 실행 전에 계정에 최악의 경우의 운영자 수수료가 부과됩니다
+3.  **환불**: 실행 후 사용되지 않은 운영자 수수료 gas는 계정으로 환불됩니다
+4.  **수수료 분배**: 사용된 운영자 수수료는 Operator Fee Vault로 전송됩니다
+
+### 트랜잭션 풀에 미치는 영향
+
+트랜잭션 풀은 트랜잭션을 검증할 때 추가 운영자 수수료를 고려해야 합니다. (운영자 수수료를 포함한) 최악의 경우의 총비용을 충당할 만큼 잔액이 충분하지 않은 트랜잭션은 거부됩니다.
+
+## Fee vault
+
+각 수수료 구성 요소는 L2의 전용 [fee vault](/ko/op-stack/transactions/fee-vaults) 컨트랙트로 전달됩니다. base fee가 소각되는 Ethereum과 달리, OP Stack 체인은 모든 수수료를 이 vault에 수집하므로 체인 운영자가 수집된 수익을 출금하고 관리할 수 있습니다. vault의 작동 방식에 대한 자세한 내용은 [fee vault](/ko/op-stack/transactions/fee-vaults) 페이지를, vault 관리 방법은 [fee vault 운영 가이드](/ko/chain-operators/guides/management/fee-vaults)를 참조하십시오.
+
+## 다음 단계
+
+*   [fee vault](/ko/op-stack/transactions/fee-vaults)가 트랜잭션 수수료를 수집하고 분배하는 방법을 알아보십시오.
+*   [Ethereum과 OP Stack 체인의 차이점](/ko/op-stack/protocol/differences) 가이드를 읽어 보십시오.
+*   [L2에서 L1으로의 트랜잭션](/ko/app-developers/guides/bridging/messaging#for-l1-to-l2-transactions) 가이드를 읽어 보십시오.

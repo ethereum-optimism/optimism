@@ -1,39 +1,83 @@
 //! Post-exec execution extensions.
 
 mod inspector;
+mod null;
+mod refund;
+
+pub use null::NullRefundPolicy;
+pub use refund::{PostExecRefundInspector, PostExecRefundPolicyFactory, RevertToCheckpointError};
 
 use alloc::vec::Vec;
-use alloy_evm::{Database, Evm, EvmEnv, EvmFactory};
+use alloy_evm::{Database, Evm, EvmEnv, EvmFactory, block::BlockExecutionError};
+use alloy_primitives::Bytes;
 use core::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 use op_alloy::consensus::post_exec::SDMGasEntry;
-use revm::{Inspector, inspector::NoOpInspector};
+use revm::{
+    Inspector,
+    context::{
+        DBErrorMarker,
+        result::{ExecutionResult, Output, ResultAndState, ResultGas, SuccessReason},
+    },
+    inspector::NoOpInspector,
+    state::EvmState,
+};
 
 pub use inspector::{
-    PostExecCompositeInspector, PostExecExecutedTx, PostExecTxContext, PostExecTxKind,
-    SDMWarmingInspector,
+    PostExecCompositeInspector, PostExecExecutedTx, PostExecRefundEvent, PostExecRefundKind,
+    PostExecTxContext, PostExecTxKind,
 };
 
 use crate::block::{OpBlockExecutor, receipt_builder::OpReceiptBuilder};
 
+/// The execution result consensus assigns to a post-exec transaction.
+///
+/// Post-exec transactions are structural no-ops: they consume no gas, emit no logs, and touch no
+/// state. They never run through the EVM — the block executor short-circuits them — so every path
+/// that would otherwise transact one must synthesize this result instead.
+pub fn noop_post_exec_result<HaltReason>() -> ResultAndState<HaltReason> {
+    ResultAndState::new(
+        ExecutionResult::Success {
+            reason: SuccessReason::Stop,
+            gas: ResultGas::default(),
+            logs: Vec::new(),
+            output: Output::Call(Bytes::default()),
+        },
+        EvmState::default(),
+    )
+}
+
 /// Extension trait for EVMs that can track post-exec per-transaction warming results.
 pub trait PostExecEvm: alloy_evm::Evm {
+    /// Opaque marker of the refund policy's block-scoped state.
+    type Checkpoint;
+
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext);
 
     /// Take the extracted post-exec result for the most recently executed transaction.
     fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx;
+
+    /// Mark the refund policy's block-scoped state before a candidate transaction.
+    fn refund_checkpoint(&mut self) -> Self::Checkpoint;
+
+    /// Roll the refund policy's block-scoped state back to `checkpoint`.
+    fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError>;
 }
 
 /// Extension trait for EVM factories whose produced EVMs support post-exec tracking.
 ///
-/// This bridges generic custom [`EvmFactory`] implementations into the concrete [`PostExecEvm`]
-/// bound used by the OP block executor. The adapter keeps post-exec capability explicit on the EVM
-/// itself without requiring the compiler to prove that every `EvmFactory::Evm<DB, I>` associated
-/// type directly implements [`PostExecEvm`].
+/// This exposes factory hooks through [`PostExecEvm`] without constraining every generic EVM
+/// associated type directly.
 pub trait PostExecEvmFactoryHooks: EvmFactory {
+    /// Opaque marker of the block-scoped refund state of EVMs produced by this factory.
+    type Checkpoint;
+
     /// Begin post-exec tracking for the next transaction.
     fn begin_post_exec_tx<DB, I>(evm: &mut Self::Evm<DB, I>, ctx: PostExecTxContext)
     where
@@ -42,6 +86,21 @@ pub trait PostExecEvmFactoryHooks: EvmFactory {
 
     /// Take the extracted post-exec result for the most recently executed transaction.
     fn take_last_post_exec_tx_result<DB, I>(evm: &mut Self::Evm<DB, I>) -> PostExecExecutedTx
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>;
+
+    /// Mark the refund policy's block-scoped state before a candidate transaction.
+    fn refund_checkpoint<DB, I>(evm: &mut Self::Evm<DB, I>) -> Self::Checkpoint
+    where
+        DB: Database,
+        I: Inspector<Self::Context<DB>>;
+
+    /// Roll the refund policy's block-scoped state back to `checkpoint`.
+    fn revert_refund_checkpoint<DB, I>(
+        evm: &mut Self::Evm<DB, I>,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError>
     where
         DB: Database,
         I: Inspector<Self::Context<DB>>;
@@ -146,12 +205,25 @@ where
     DB: Database,
     I: Inspector<F::Context<DB>>,
 {
+    type Checkpoint = F::Checkpoint;
+
     fn begin_post_exec_tx(&mut self, ctx: PostExecTxContext) {
         F::begin_post_exec_tx(&mut self.inner, ctx);
     }
 
     fn take_last_post_exec_tx_result(&mut self) -> PostExecExecutedTx {
         F::take_last_post_exec_tx_result(&mut self.inner)
+    }
+
+    fn refund_checkpoint(&mut self) -> Self::Checkpoint {
+        F::refund_checkpoint(&mut self.inner)
+    }
+
+    fn revert_refund_checkpoint(
+        &mut self,
+        checkpoint: Self::Checkpoint,
+    ) -> Result<(), RevertToCheckpointError> {
+        F::revert_refund_checkpoint(&mut self.inner, checkpoint)
     }
 }
 
@@ -192,7 +264,7 @@ where
         PostExecEvmAdapter<F::Evm<DB, I>, F, DB, I>;
     type Context<DB: Database> = F::Context<DB>;
     type Tx = F::Tx;
-    type Error<DBError: core::error::Error + Send + Sync + 'static> = F::Error<DBError>;
+    type Error<DBError: DBErrorMarker> = F::Error<DBError>;
     type HaltReason = F::HaltReason;
     type Spec = F::Spec;
     type BlockEnv = F::BlockEnv;
@@ -218,17 +290,43 @@ where
 
 /// Extension trait for block executors that collect post-exec payload entries.
 pub trait PostExecExecutorExt {
+    /// Returns the accumulated post-exec entries for the current block without clearing them.
+    fn post_exec_entries(&self) -> &[SDMGasEntry];
+
     /// Take the accumulated post-exec entries for the current block.
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry>;
+
+    /// Take the exact per-transaction policy-provided refund events aligned with receipts.
+    fn take_refund_events_by_tx(&mut self) -> Vec<Vec<PostExecRefundEvent>>;
+
+    /// Resumes the block at transaction index `first_tx_index`, after a prefix that another
+    /// executor ran. See [`OpBlockExecutor::resume_at_tx_index`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the payload-level errors that pre-execution would have raised.
+    fn resume_at_tx_index(&mut self, first_tx_index: u64) -> Result<(), BlockExecutionError>;
 }
 
 impl<E, R, Spec> PostExecExecutorExt for OpBlockExecutor<E, R, Spec>
 where
-    E: alloy_evm::Evm,
+    E: PostExecEvm,
     R: OpReceiptBuilder,
     Spec: alloy_op_hardforks::OpHardforks + Clone,
 {
+    fn post_exec_entries(&self) -> &[SDMGasEntry] {
+        Self::post_exec_entries(self)
+    }
+
     fn take_post_exec_entries(&mut self) -> Vec<SDMGasEntry> {
         Self::take_post_exec_entries(self)
+    }
+
+    fn take_refund_events_by_tx(&mut self) -> Vec<Vec<PostExecRefundEvent>> {
+        Self::take_refund_events_by_tx(self)
+    }
+
+    fn resume_at_tx_index(&mut self, first_tx_index: u64) -> Result<(), BlockExecutionError> {
+        Self::resume_at_tx_index(self, first_tx_index)
     }
 }

@@ -4,7 +4,7 @@ This directory houses the Optimism Docs located at [docs.optimism.io](https://do
 
 ## Local Development
 
-Follow these [mintlify docs](https://www.mintlify.com/docs/installation) to preview and edit the documentation page locally.
+From the monorepo root, run `just public-docs` and visit [localhost:3000](http://localhost:3000). It needs only [mise](https://mise.jdx.dev) and `mise install bun just`. See [DOCS_CONTRIBUTING.md](DOCS_CONTRIBUTING.md#development-setup) for details.
 
 ## License
 

@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -33,17 +34,20 @@ var (
 )
 
 type SuperchainProofParams struct {
-	WithdrawalDelaySeconds          uint64      `json:"faultGameWithdrawalDelay" toml:"faultGameWithdrawalDelay"`
-	MinProposalSizeBytes            uint64      `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
-	ChallengePeriodSeconds          uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
-	ProofMaturityDelaySeconds       uint64      `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
-	DisputeGameFinalityDelaySeconds uint64      `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
-	DisputeMaxGameDepth             uint64      `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
-	DisputeSplitDepth               uint64      `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
-	DisputeClockExtension           uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
-	DisputeMaxClockDuration         uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
-	MIPSVersion                     uint64      `json:"mipsVersion" toml:"mipsVersion"`
-	DevFeatureBitmap                common.Hash `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
+	MinProposalSizeBytes               uint64      `json:"preimageOracleMinProposalSize" toml:"preimageOracleMinProposalSize"`
+	ChallengePeriodSeconds             uint64      `json:"preimageOracleChallengePeriod" toml:"preimageOracleChallengePeriod"`
+	MinProofMaturityDelaySeconds       uint64      `json:"minProofMaturityDelaySeconds" toml:"minProofMaturityDelaySeconds"`
+	MaxProofMaturityDelaySeconds       uint64      `json:"maxProofMaturityDelaySeconds" toml:"maxProofMaturityDelaySeconds"`
+	MinDisputeGameFinalityDelaySeconds uint64      `json:"minDisputeGameFinalityDelaySeconds" toml:"minDisputeGameFinalityDelaySeconds"`
+	MaxDisputeGameFinalityDelaySeconds uint64      `json:"maxDisputeGameFinalityDelaySeconds" toml:"maxDisputeGameFinalityDelaySeconds"`
+	MinWithdrawalDelaySeconds          uint64      `json:"minWithdrawalDelaySeconds" toml:"minWithdrawalDelaySeconds"`
+	MaxWithdrawalDelaySeconds          uint64      `json:"maxWithdrawalDelaySeconds" toml:"maxWithdrawalDelaySeconds"`
+	DisputeMaxGameDepth                uint64      `json:"faultGameMaxDepth" toml:"faultGameMaxDepth"`
+	DisputeSplitDepth                  uint64      `json:"faultGameSplitDepth" toml:"faultGameSplitDepth"`
+	DisputeClockExtension              uint64      `json:"faultGameClockExtension" toml:"faultGameClockExtension"`
+	DisputeMaxClockDuration            uint64      `json:"faultGameMaxClockDuration" toml:"faultGameMaxClockDuration"`
+	MIPSVersion                        uint64      `json:"mipsVersion" toml:"mipsVersion"`
+	DevFeatureBitmap                   common.Hash `json:"devFeatureBitmap" toml:"devFeatureBitmap"`
 }
 
 type L1DevGenesisBlockParams struct {
@@ -74,6 +78,22 @@ type L1DevGenesisParams struct {
 	// BPO2TimeOffset configures the BPO2 fork to be activated at the given time after L1 dev
 	// genesis time.
 	BPO2TimeOffset *uint64 `json:"bpo2TimeOffset" toml:"bpo2TimeOffset"`
+
+	// BPO3TimeOffset configures the BPO3 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO3TimeOffset *uint64 `json:"bpo3TimeOffset" toml:"bpo3TimeOffset"`
+
+	// BPO4TimeOffset configures the BPO4 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO4TimeOffset *uint64 `json:"bpo4TimeOffset" toml:"bpo4TimeOffset"`
+
+	// BPO5TimeOffset configures the BPO5 fork to be activated at the given time after L1 dev
+	// genesis time.
+	BPO5TimeOffset *uint64 `json:"bpo5TimeOffset" toml:"bpo5TimeOffset"`
+
+	// AmsterdamTimeOffset configures Amsterdam (the EL changes in the Glamsterdam Ethereum
+	// fork) to be activated at the given time after L1 dev genesis time.
+	AmsterdamTimeOffset *uint64 `json:"amsterdamTimeOffset" toml:"amsterdamTimeOffset"`
 
 	BlobSchedule *params.BlobScheduleConfig `json:"blobSchedule"`
 
@@ -141,6 +161,10 @@ func (c *Intent) validateCustomConfig() error {
 		if err := chain.Check(); err != nil {
 			return err
 		}
+		// The OPCM migrator rejects hooked chains.
+		if c.UseInterop && chain.GetBridgeHook() != emptyAddress {
+			return fmt.Errorf("%w: bridgeHook is not supported with useInterop, chainId=%s", ErrIncompatibleValue, chain.ID)
+		}
 	}
 
 	return nil
@@ -190,6 +214,9 @@ func (c *Intent) validateStandardValues() error {
 		}
 		if chain.IsCustomGasTokenEnabled() {
 			return fmt.Errorf("%w: chainId=%s custom gas token must be disabled for standard chains", ErrNonStandardValue, chain.ID)
+		}
+		if chain.GetBridgeHook() != emptyAddress {
+			return fmt.Errorf("%w: chainId=%s bridgeHook must be unset for standard chains", ErrNonStandardValue, chain.ID)
 		}
 	}
 
@@ -276,6 +303,19 @@ func (c *Intent) Chain(id common.Hash) (*ChainIntent, error) {
 
 func (c *Intent) WriteToFile(path string) error {
 	return jsonutil.WriteTOML(c, ioutil.ToAtomicFile(path, 0o755))
+}
+
+// Clone returns a deep copy of the intent, detached from the receiver's pointers.
+func (c *Intent) Clone() (*Intent, error) {
+	data, err := json.Marshal(c)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode intent: %w", err)
+	}
+	var clone Intent
+	if err := json.Unmarshal(data, &clone); err != nil {
+		return nil, fmt.Errorf("failed to decode intent: %w", err)
+	}
+	return &clone, nil
 }
 
 func (c *Intent) checkL1Prod() error {

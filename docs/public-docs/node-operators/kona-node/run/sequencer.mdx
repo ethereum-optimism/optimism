@@ -1,0 +1,141 @@
+---
+title: "Run a Sequencer Node"
+description: "Run kona-node in sequencer mode from the command line, including required arguments, sequencer-specific flags, and example configurations."
+diataxis: how-to
+---
+
+This guide shows how to run `kona-node` in **sequencer mode** from the command line. For how sequencer mode works internally and how to configure it programmatically through the Node SDK, see the [sequencer mode design](/node-operators/kona-node/design/sequencer) page.
+
+<Info>
+Sequencer mode is an advanced configuration primarily used by rollup operators. Most users will run nodes in the default validator mode.
+</Info>
+
+## Basic Sequencer Setup
+
+To run a Kona node in sequencer mode:
+
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --l1-eth-rpc=http://l1-node:8545 \
+  --l1-beacon=http://l1-beacon:5052 \
+  --l2-engine-rpc=http://l2-execution:8551 \
+  --l2.jwt-secret=./jwt.hex \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --chain=123456
+```
+
+A chain that isn't in the superchain registry has no built-in bootnodes, so its network may be too small for the other nodes to tell the sequencer its address. Set `--p2p.advertise.ip` to the address they reach it at, see [advertised address](/node-operators/kona-node/configuration#advertised-address).
+
+## Required Arguments
+
+<Warning>
+**Required Configuration**
+
+Sequencer mode requires all standard node arguments plus the `--mode=Sequencer` flag and a block signer. Missing any required argument will prevent the node from starting.
+</Warning>
+
+| Argument | Flag | Environment Variable | Description |
+|----------|------|---------------------|-------------|
+| **Mode** | `--mode` | `KONA_NODE_MODE` | Must be set to `Sequencer` |
+| **L1 RPC** | `--l1-eth-rpc` | `KONA_NODE_L1_ETH_RPC` | L1 execution client RPC URL |
+| **L1 Beacon** | `--l1-beacon` | `KONA_NODE_L1_BEACON` | L1 beacon API URL |
+| **L2 Engine** | `--l2-engine-rpc` | `KONA_NODE_L2_ENGINE_RPC` | L2 engine API endpoint |
+| **JWT Secret** | `--l2.jwt-secret` | `KONA_NODE_L2_ENGINE_AUTH` | Path to JWT secret file |
+| **Chain ID** | `--chain` | `KONA_NODE_L2_CHAIN_ID` | L2 chain identifier |
+| **Block Signer** | `--p2p.sequencer.key.path`, `--p2p.sequencer.key`, or `--p2p.signer.endpoint` with `--p2p.signer.address` | `KONA_NODE_P2P_SEQUENCER_KEY_PATH`, `KONA_NODE_P2P_SEQUENCER_KEY`, `KONA_NODE_P2P_SIGNER_ENDPOINT`, `KONA_NODE_P2P_SIGNER_ADDRESS` | Signs the blocks the sequencer gossips: a local key, or a remote op-signer |
+
+## Sequencer-Specific Flags
+
+| Flag | Environment Variable | Default | Description |
+|------|---------------------|---------|-------------|
+| `--sequencer.start` | `KONA_NODE_SEQUENCER_START` | `false` | Boot the sequencer active. Only for a single sequencer with no standby. See [starting the sequencer](#starting-the-sequencer) |
+| `--sequencer.l1-confs` | `KONA_NODE_SEQUENCER_L1_CONFS` | `4` | L1 confirmations for origin selection |
+| `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | `false` | Force recovery mode operation |
+| `--conductor.rpc` | `KONA_NODE_CONDUCTOR_RPC` | - | Conductor service RPC endpoint |
+| `--conductor.rpc.timeout` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | `1` | Conductor RPC timeout (seconds) |
+
+The full flag catalogue, including the standard node arguments shared with validator mode, lives in the [Kona node CLI reference](/node-operators/kona-node/configuration).
+
+## Starting the Sequencer
+
+Unless `--sequencer.start` is set, the sequencer boots stopped, including after a restart, and builds no blocks until it is started through the [admin API](/node-operators/kona-node/rpc/admin), which is always served on the RPC port:
+
+- **With op-conductor**, the conductor starts the sequencer on the leader. Nothing else is needed. `--sequencer.start` can't be combined with `--conductor.rpc`: the node fails at startup.
+- **A single sequencer with no standby** can set `--sequencer.start` (`KONA_NODE_SEQUENCER_START=true`). The sequencer then boots active after every start of the node, and builds on its unsafe head once that is known.
+- **A manual standby**, or any other sequencer that must stay stopped across restarts, sets neither. Start it by calling `admin_startSequencer` with the current unsafe head:
+
+  ```bash
+  HEAD=$(curl -s -X POST -H 'Content-Type: application/json' \
+    --data '{"jsonrpc":"2.0","id":1,"method":"optimism_syncStatus","params":[]}' \
+    http://127.0.0.1:9545 | jq -r .result.unsafe_l2.hash)
+  curl -s -X POST -H 'Content-Type: application/json' \
+    --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"admin_startSequencer\",\"params\":[\"$HEAD\"]}" \
+    http://127.0.0.1:9545
+  ```
+
+  Retry if the call fails because the unsafe head moved, or because the node has not yet published its unsafe head after starting.
+
+<Warning>
+`--sequencer.start` is for a single sequencer only. A stop made through `admin_stopSequencer` doesn't survive a restart: with the flag set, the node boots active again. If you stopped it to start a standby, both sequencers are then active.
+</Warning>
+
+<Warning>
+The admin API has no authentication. The RPC binds `127.0.0.1` by default; if you bind another address with `--rpc.addr`, firewall the port so that only trusted callers reach it.
+</Warning>
+
+## Example Configurations
+
+### Basic Sequencer
+A single sequencer with no standby, which boots active:
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --sequencer.start \
+  --l1-eth-rpc=http://localhost:8545 \
+  --l1-beacon=http://localhost:5052 \
+  --l2-engine-rpc=http://localhost:8551 \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --chain=42161
+```
+
+### Sequencer with Conductor
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --conductor.rpc=http://conductor:8080 \
+  --conductor.rpc.timeout=5 \
+  --rpc.addr=0.0.0.0 \
+  --sequencer.l1-confs=6 \
+  --l1-eth-rpc=http://l1-node:8545 \
+  --l1-beacon=http://l1-beacon:5052 \
+  --l2-engine-rpc=http://l2-execution:8551 \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --chain=123456
+```
+
+op-conductor calls the node's RPC, including the admin API, so bind `--rpc.addr` to an address the conductor can reach, and firewall the port so that only trusted callers reach it.
+
+### Recovery Mode Sequencer
+```bash
+kona-node node \
+  --mode=Sequencer \
+  --sequencer.recover=true \
+  --l1-eth-rpc=http://localhost:8545 \
+  --l1-beacon=http://localhost:5052 \
+  --l2-engine-rpc=http://localhost:8551 \
+  --p2p.sequencer.key.path=./p2p-sequencer.key \
+  --chain=42161
+```
+
+## Key Considerations
+
+<Tip>
+**Sequencer Operation**
+
+- **L1 Confirmations**: The `--sequencer.l1-confs` setting determines how many L1 blocks the sequencer waits before using an L1 block as an origin. Higher values provide more safety but increase latency.
+- **Recovery Mode**: Use `--sequencer.recover=true` when the sequencer needs to catch up after being offline.
+- **Conductor Integration**: For multi-sequencer deployments, configure the conductor service for proper leader election.
+</Tip>
+
+Running a sequencer in production requires careful consideration of infrastructure, monitoring, and failover procedures. Ensure proper JWT secret management and secure network configuration.

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -24,7 +25,7 @@ const DevstackL1ELKindEnvVar = "DEVSTACK_L1EL_KIND"
 const GethExecPathEnvVar = "SYSGO_GETH_EXEC_PATH"
 
 func writeJWTSecret(t devtest.T) (string, [32]byte) {
-	jwtPath := filepath.Join(t.TempDir(), "jwt_secret")
+	jwtPath := filepath.Join(t.TempDirWithPrefix("jwt-secret"), "jwt_secret")
 	jwtSecret := [32]byte{123}
 	err := os.WriteFile(jwtPath, []byte(hexutil.Encode(jwtSecret[:])), 0o600)
 	t.Require().NoError(err, "failed to write jwt secret")
@@ -47,7 +48,7 @@ func startInProcessL1WithClockConfig(t devtest.T, l1Net *L1Network, jwtPath stri
 	require := t.Require()
 	l1ChainID := l1Net.ChainID()
 
-	blobPath := t.TempDir()
+	blobPath := t.TempDirWithPrefix("l1-el")
 	bcn := fakebeacon.NewBeacon(t.Logger().New("component", "l1cl"), blobstore.New(), l1Net.genesis.Timestamp, l1Net.blockTime)
 	t.Cleanup(func() {
 		_ = bcn.Close()
@@ -103,7 +104,7 @@ func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l
 	_, err := os.Stat(execPath)
 	require.NotErrorIs(err, os.ErrNotExist, "geth executable must exist")
 
-	tempDir := t.TempDir()
+	tempDir := t.TempDirWithPrefix("l1-el")
 	data, err := json.Marshal(l1Net.genesis)
 	require.NoError(err, "must json-encode genesis")
 	chainConfigPath := filepath.Join(tempDir, "genesis.json")
@@ -168,11 +169,13 @@ func startSubprocessL1WithClock(t devtest.T, l1Net *L1Network, jwtPath string, l
 		"--ws", "--ws.addr", "127.0.0.1", "--ws.port", "0", "--ws.origins", "*", "--ws.api", "admin,debug,eth,net,txpool",
 		"--authrpc.addr", "127.0.0.1", "--authrpc.port", "0", "--authrpc.jwtsecret", jwtPath,
 		"--ipcdisable",
+		"--rpc.gascap", strconv.FormatUint(l1Net.genesis.GasLimit, 10),
 		"--port", "0",
 		"--nodiscover",
 		"--verbosity", "5",
 		"--miner.recommit", "2s",
 		"--gcmode", "archive",
+		"--syncmode", "full",
 	}
 	require.NoError(sub.Start(execPath, args, nil), "must start geth subprocess")
 

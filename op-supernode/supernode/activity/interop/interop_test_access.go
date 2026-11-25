@@ -6,11 +6,10 @@ package interop
 // in this file so the boundary is easy to audit.
 
 import (
-	"context"
 	"fmt"
 
+	messages "github.com/ethereum-optimism/optimism/op-core/interop/messages"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // ---------------------------------------------------------------------------
@@ -37,17 +36,16 @@ func (i *Interop) Resume() {
 // Backfill observability
 // ---------------------------------------------------------------------------
 
-// BackfillAttempts returns the number of times runLogBackfill has been
+// BackfillAttempts returns the number of times advanceColdStartInit has been
 // invoked since the most recent Start. Integration tests use it to confirm
-// the retry loop has engaged.
+// the cold-start retry loop has engaged.
 func (i *Interop) BackfillAttempts() int32 {
 	return i.backfillAttempts.Load()
 }
 
-// BackfillCompleted reports whether the log backfill phase has finished
-// (either ran and returned nil, or was skipped because logBackfillDepth
-// was 0). Integration tests use it to gate assertions on downstream state
-// until backfill is done.
+// BackfillCompleted reports whether cold-start init has finished (backfill
+// ran, or resume skipped it). Integration tests gate downstream assertions
+// on this.
 func (i *Interop) BackfillCompleted() bool {
 	return i.backfillCompleted.Load()
 }
@@ -55,26 +53,25 @@ func (i *Interop) BackfillCompleted() bool {
 // ---------------------------------------------------------------------------
 // Activation-timestamp inspection
 // ---------------------------------------------------------------------------
+//
+// Note: ActivationTimestamp is part of the production VerificationActivity
+// interface and lives in interop.go alongside IsActiveAt.
 
-// ActivationTimestamp returns the immutable protocol-defined interop
-// activation timestamp. This is the value that fronts protocol-facing RPC
-// responses and never advances at runtime.
-func (i *Interop) ActivationTimestamp() uint64 {
-	return i.activationTimestamp
+// VerificationStartTimestamp returns the L2 timestamp at which the main loop
+// begins verification on the most recent Start. Returns 0 before
+// initialization completes.
+func (i *Interop) VerificationStartTimestamp() uint64 {
+	if !i.initialized.Load() {
+		return 0
+	}
+	return i.verificationStartTimestamp
 }
 
-// BackfillEndTimestamp returns the inclusive last timestamp whose logs were
-// sealed by runLogBackfill, or 0 if backfill has not run. The main loop
-// starts verification at BackfillEndTimestamp()+1 (or ActivationTimestamp()
-// when backfill was skipped).
-func (i *Interop) BackfillEndTimestamp() uint64 {
-	return i.backfillEndTimestamp
-}
-
-// FirstVerifiableTimestamp returns the timestamp at which the main loop begins
-// verification. It is intended for tests after startup has completed.
+// FirstVerifiableTimestamp returns the lowest timestamp the verifier covers
+// (verifiedDB.FirstTimestamp when commits exist, else
+// VerificationStartTimestamp). Returns 0 before initialization completes.
 func (i *Interop) FirstVerifiableTimestamp() uint64 {
-	ts, err := i.firstVerifiableTimestamp(context.Background())
+	ts, err := i.firstVerifiableTimestamp()
 	if err != nil {
 		return 0
 	}
@@ -88,14 +85,14 @@ func (i *Interop) FirstVerifiableTimestamp() uint64 {
 // FirstSealedBlock returns the earliest block sealed in the logs DB for the
 // given chain, along with its timestamp. Returns an error if the chain is
 // unknown or the logs DB is empty.
-func (i *Interop) FirstSealedBlock(chainID eth.ChainID) (suptypes.BlockSeal, error) {
+func (i *Interop) FirstSealedBlock(chainID eth.ChainID) (messages.BlockSeal, error) {
 	db, ok := i.logsDBs[chainID]
 	if !ok {
-		return suptypes.BlockSeal{}, fmt.Errorf("interop: no logs DB for chain %s", chainID)
+		return messages.BlockSeal{}, fmt.Errorf("interop: no logs DB for chain %s", chainID)
 	}
 	seal, err := db.FirstSealedBlock()
 	if err != nil {
-		return suptypes.BlockSeal{}, fmt.Errorf("interop: first sealed block for chain %s: %w", chainID, err)
+		return messages.BlockSeal{}, fmt.Errorf("interop: first sealed block for chain %s: %w", chainID, err)
 	}
 	return seal, nil
 }
@@ -103,18 +100,18 @@ func (i *Interop) FirstSealedBlock(chainID eth.ChainID) (suptypes.BlockSeal, err
 // LatestSealedBlock returns the most recent block sealed in the logs DB for
 // the given chain along with its timestamp. Returns an error if the chain is
 // unknown and (zero, false) if the DB is empty.
-func (i *Interop) LatestSealedBlock(chainID eth.ChainID) (suptypes.BlockSeal, bool, error) {
+func (i *Interop) LatestSealedBlock(chainID eth.ChainID) (messages.BlockSeal, bool, error) {
 	db, ok := i.logsDBs[chainID]
 	if !ok {
-		return suptypes.BlockSeal{}, false, fmt.Errorf("interop: no logs DB for chain %s", chainID)
+		return messages.BlockSeal{}, false, fmt.Errorf("interop: no logs DB for chain %s", chainID)
 	}
 	id, has := db.LatestSealedBlock()
 	if !has {
-		return suptypes.BlockSeal{}, false, nil
+		return messages.BlockSeal{}, false, nil
 	}
 	seal, err := db.FindSealedBlock(id.Number)
 	if err != nil {
-		return suptypes.BlockSeal{}, false, fmt.Errorf("interop: latest sealed block for chain %s: find %d: %w", chainID, id.Number, err)
+		return messages.BlockSeal{}, false, fmt.Errorf("interop: latest sealed block for chain %s: find %d: %w", chainID, id.Number, err)
 	}
 	return seal, true, nil
 }

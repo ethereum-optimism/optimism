@@ -335,7 +335,7 @@ impl Decodable2718 for OpTransactionSigned {
                 TxDeposit::signature(),
             )),
             op_alloy_consensus::OpTxType::PostExec => Ok(Self::new_unhashed(
-                OpTypedTransaction::PostExec(TxPostExec::decode_2718(buf)?),
+                OpTypedTransaction::PostExec(TxPostExec::rlp_decode(buf)?),
                 TxPostExec::signature(),
             )),
         }
@@ -581,7 +581,33 @@ mod tests {
         }
     }
 
+    /// `typed_decode` is handed the body after the `0x7D` type byte was consumed, so the post-exec
+    /// arm must decode the RLP body, not re-dispatch through `decode_2718`.
+    #[test]
+    fn test_roundtrip_post_exec_transaction_2718() {
+        let tx = OpTransactionSigned::new_unhashed(
+            OpTypedTransaction::PostExec(op_alloy_consensus::build_post_exec_tx(
+                7,
+                vec![op_alloy_consensus::SDMGasEntry { index: 1, gas_refund: 21_000 }],
+            )),
+            TxPostExec::signature(),
+        );
+        let encoded = tx.encoded_2718();
+        assert_eq!(encoded[0], op_alloy_consensus::POST_EXEC_TX_TYPE_ID);
+        let decoded =
+            OpTransactionSigned::decode_2718_exact(&encoded).expect("post-exec tx decodes");
+        assert_eq!(decoded, tx);
+    }
+
     proptest! {
+        #[test]
+        fn test_roundtrip_2718_encode_decode(reth_tx in arb::<OpTransactionSigned>()) {
+            let encoded = reth_tx.encoded_2718();
+            let decoded = OpTransactionSigned::decode_2718_exact(&encoded).unwrap();
+            assert_eq!(decoded, reth_tx);
+            assert_eq!(decoded.encoded_2718(), encoded);
+        }
+
         #[test]
         fn test_roundtrip_compact_encode_envelope(reth_tx in arb::<OpTransactionSigned>()) {
             let mut expected_buf = Vec::<u8>::new();

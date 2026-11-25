@@ -14,7 +14,7 @@ development branch and see how it behaves on a network.
 Assuming you are on Ubuntu and your user is member of the group `docker`, first time run
 
     git clone 'https://github.com/ethereum-optimism/optimism.git'
-    cd kona/docker/recipes/kona-node-dev/
+    cd optimism/rust/kona/docker/recipes/kona-node-dev/
     just init
 
 If the last step fails due to missing packages, you can run `just setup-ubuntu`
@@ -30,7 +30,7 @@ For future invocation it suffices to spin the system up and down with:
     just down
 
 You can also run `just upd` if you want to detach from the docker logs.
-If you want to update the `kona` submodule, you can run `just update`.
+If you want to update the checkout to the latest commits, you can run `just update`.
 
 A typical workflow after init could look like this:
 

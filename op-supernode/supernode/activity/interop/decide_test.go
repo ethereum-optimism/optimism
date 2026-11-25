@@ -33,12 +33,33 @@ func TestCheckPreconditions(t *testing.T) {
 			want: ptrDecision(DecisionWait),
 		},
 		{
-			name: "rewind when L1 inconsistent",
+			name: "rewind when accepted L1 needs rewind",
+			obs: RoundObservation{
+				ChainsReady:   true,
+				L1Consistent:  false,
+				L1NeedsRewind: true,
+			},
+			want: ptrDecision(DecisionRewind),
+		},
+		{
+			// An L1 reorg pulls local-safe back below the next frontier
+			// timestamp. The stale accepted state must be rewound, not held
+			// while the round waits (ethereum-optimism/optimism#22845).
+			name: "rewind beats wait when chains are not ready",
+			obs: RoundObservation{
+				ChainsReady:   false,
+				L1Consistent:  false,
+				L1NeedsRewind: true,
+			},
+			want: ptrDecision(DecisionRewind),
+		},
+		{
+			name: "wait when frontier L1 inconsistent",
 			obs: RoundObservation{
 				ChainsReady:  true,
 				L1Consistent: false,
 			},
-			want: ptrDecision(DecisionRewind),
+			want: ptrDecision(DecisionWait),
 		},
 		{
 			name: "proceed when preconditions are satisfied",

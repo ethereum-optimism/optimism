@@ -1,7 +1,10 @@
 ---
 title: Fee vaults
 description: Learn how fee vaults work on OP Stack chains, where transaction fees are collected, and how the withdrawal mechanism operates.
+diataxis: reference
 ---
+
+import FeeVaultAddresses from "/snippets/fee-vault-addresses.mdx"
 
 Fee vaults are predeploy contracts on OP Stack L2 chains that collect and hold the different components of transaction fees. Unlike Ethereum where the base fee is burned, OP Stack chains route all fees into dedicated vault contracts, allowing chain operators to withdraw and manage collected revenue.
 
@@ -9,12 +12,7 @@ Fee vaults are predeploy contracts on OP Stack L2 chains that collect and hold t
 
 Every OP Stack chain has four fee vaults, each collecting a specific fee component:
 
-| Vault | Address | Collects | Introduced |
-|-------|---------|----------|------------|
-| `SequencerFeeVault` | `0x4200000000000000000000000000000000000011` | Priority fees (tips) | Legacy |
-| `BaseFeeVault` | `0x4200000000000000000000000000000000000019` | Base fees (not burned on L2) | Bedrock |
-| `L1FeeVault` | `0x420000000000000000000000000000000000001A` | L1 data fees | Bedrock |
-| `OperatorFeeVault` | `0x420000000000000000000000000000000000001B` | Operator fees | Isthmus |
+<FeeVaultAddresses />
 
 ### How fees flow into vaults
 

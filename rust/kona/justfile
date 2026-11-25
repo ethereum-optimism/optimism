@@ -37,10 +37,11 @@ test-online:
 
 # Test custom embedded chain configuration functionality
 test-custom-embeds:
-  cargo test --release --package kona-registry custom_chain_is_loaded_when_enabled \
+  cargo test --release --locked --package kona-registry \
       --config 'env.KONA_CUSTOM_CONFIGS="true"' \
       --config "env.KONA_CUSTOM_CONFIGS_DIR=\"{{justfile_directory()}}/crates/protocol/registry/tests/fixtures/custom\"" \
-      --config 'env.KONA_CUSTOM_CONFIGS_TEST="true"'
+      --config 'env.KONA_CUSTOM_CONFIGS_TEST="true"' \
+      -- custom_chain_is_loaded_when_enabled test_every_registry_chain_has_a_depset
 
 # Runs the tests with llvm-cov
 llvm-cov-tests:
@@ -55,7 +56,7 @@ llvm-cov-tests:
     --all-features \
     --ignore-run-fail \
     --package kona-registry \
-    -E 'test(custom_chain_is_loaded_when_enabled)' \
+    -E 'test(custom_chain_is_loaded_when_enabled) | test(test_every_registry_chain_has_a_depset)' \
     --config 'env.KONA_CUSTOM_CONFIGS="true"' \
     --config "env.KONA_CUSTOM_CONFIGS_DIR=\"{{justfile_directory()}}/crates/protocol/registry/tests/fixtures/custom\"" \
     --config 'env.KONA_CUSTOM_CONFIGS_TEST="true"'
@@ -132,9 +133,10 @@ build-native *args='':
   #!/usr/bin/env bash
   cargo build --workspace $@
 
-# Build `kona-client` for the `cannon` target using the reproducible build environment.
-# The bind mount of {{KONA_ROOT}}/../.. exposes the monorepo at /workdir, so the
-# kona-hardforks build script's ancestor walk for op-core/nuts/bundles succeeds.
+# Build the `kona-client` ELFs for the `cannon` target using the reproducible
+# build environment. The bind mount of {{KONA_ROOT}}/../.. exposes the monorepo
+# at /workdir, so the kona-hardforks build script's ancestor walk for
+# op-core/nuts/bundles succeeds.
 build-cannon-client: build-kona-env
   #!/usr/bin/env bash
   set -euo pipefail
@@ -142,7 +144,7 @@ build-cannon-client: build-kona-env
     -v {{KONA_ROOT}}/../..:/workdir \
     -w /workdir/rust \
     kona-cannon-env:local \
-    just build-kona-client-elf kona-client
+    just build-kona-client-elfs
 
 
 # Check for unused dependencies in the crate graph.

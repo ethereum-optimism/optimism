@@ -1,0 +1,27 @@
+name: Renovate
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: "Renovate log level (debug|info|warn)."
+        type: string
+        default: "info"
+      dryRun:
+        description: "Dry run (no PRs)."
+        type: boolean
+        default: false
+
+jobs:
+  renovate:
+    uses: ethereum-optimism/factory/.github/workflows/renovate.yaml@b335b58374858d6582440ce8cdea4c7be458eba7
+    permissions:
+      contents: read
+      id-token: write
+    secrets:
+      NOVE_RENOVATE_URL: ${{ secrets.NOVE_RENOVATE_URL }}
+    with:
+      logLevel: ${{ inputs.logLevel || 'info' }}
+      dryRun: ${{ inputs.dryRun || false }}

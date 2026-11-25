@@ -9,13 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -85,7 +84,7 @@ func createBlock(blockNum uint64, baseFee *big.Int, txs []*types.Transaction) *t
 		BaseFee: baseFee,
 		Time:    uint64(time.Now().Unix()),
 	}
-	return types.NewBlock(header, &types.Body{Transactions: txs}, nil, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+	return types.NewBlockWithHeader(header).WithBody(types.Body{Transactions: txs})
 }
 
 func TestNewBlobGasPriceOracle(t *testing.T) {
@@ -294,6 +293,30 @@ func TestSuggestBlobTipCap(t *testing.T) {
 	})
 
 	mbackend.AssertExpectations(t)
+}
+
+func TestSuggestBlobTipCapUsesExactlyMaxBlocks(t *testing.T) {
+	oracle := NewBlobTipOracle(
+		new(mockBTOBackend),
+		params.MainnetChainConfig,
+		testlog.Logger(t, log.LevelError),
+		&BlobTipOracleConfig{
+			PricesCacheSize: 10,
+			BlockCacheSize:  10,
+			MaxBlocks:       5,
+			Percentile:      100,
+		},
+	)
+
+	oracle.priorityFees.Add(399, []*big.Int{big.NewInt(1000)})
+	for blockNum := uint64(400); blockNum <= 404; blockNum++ {
+		oracle.priorityFees.Add(blockNum, []*big.Int{big.NewInt(int64(blockNum - 399))})
+	}
+	oracle.latestBlock = 404
+
+	suggested, err := oracle.SuggestBlobTipCap(context.Background(), 5, 100)
+	require.NoError(t, err)
+	require.Equal(t, big.NewInt(5), suggested)
 }
 
 func TestPrePopulateCache(t *testing.T) {

@@ -9,12 +9,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var ErrReorg = errors.New("block does not extend existing chain")
@@ -59,11 +58,13 @@ type channelManager struct {
 }
 
 func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
+	// Amsterdam activation is unknown until the driver fetches the first L1 head. The config
+	// selected here is reassessed with the current activation status before its first submission.
 	return &channelManager{
 		log:         log,
 		metr:        metr,
 		cfgProvider: cfgProvider,
-		defaultCfg:  cfgProvider.ChannelConfig(false),
+		defaultCfg:  cfgProvider.ChannelConfig(false, false),
 		rollupCfg:   rollupCfg,
 		outFactory:  NewChannelOut,
 		txChannels:  make(map[string]*channel),
@@ -130,7 +131,7 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 // Panics if the block is not in state.
 func (s *channelManager) rewindToBlock(block eth.BlockID) {
 	initialCursor := s.blockCursor
-	idx := block.Number - bigs.Uint64Strict(s.blocks[0].Number())
+	idx := block.Number - s.blocks[0].NumberU64()
 	if s.blocks[idx].Hash() == block.Hash && idx < uint64(s.blockCursor) {
 		s.blockCursor = int(idx)
 	} else {
@@ -222,11 +223,12 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
 //
-// It will decide whether to switch DA type automatically.
-// When switching DA type, the channelManager state will be rebuilt
-// with a new ChannelConfig.
-func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInfo) (txData, error) {
-	channel, err := s.getReadyChannel(l1Head, pi)
+// It will decide whether to switch DA type automatically, pricing DA under the L1 fork rules
+// active at l1Head. When switching DA type, the channelManager state will be rebuilt with a new
+// ChannelConfig.
+func (s *channelManager) TxData(l1Head *types.Header, isThrottling bool, pi pubInfo) (txData, error) {
+	l1HeadID := eth.HeaderBlockID(l1Head)
+	channel, err := s.getReadyChannel(l1HeadID, pi)
 	if err != nil {
 		return emptyTxData, err
 	}
@@ -237,7 +239,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInf
 	}
 
 	// Call provider method to reassess optimal DA type
-	newCfg := s.cfgProvider.ChannelConfig(isThrottling)
+	newCfg := s.cfgProvider.ChannelConfig(isThrottling, isAmsterdamHeader(l1Head))
 
 	// No change:
 	if newCfg.UseBlobs == s.defaultCfg.UseBlobs {
@@ -260,7 +262,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isThrottling bool, pi pubInf
 	s.defaultCfg = newCfg
 
 	// Try again to get data to send on chain.
-	channel, err = s.getReadyChannel(l1Head, pi)
+	channel, err = s.getReadyChannel(l1HeadID, pi)
 	if err != nil {
 		return emptyTxData, err
 	}
@@ -310,18 +312,28 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID, pi pubInfo) (*chann
 		return firstWithTxData, nil
 	}
 
-	// No pending tx data, so we have to add new blocks to the channel
-	// If we have no saved blocks, we will not be able to create valid frames
-	if s.pendingBlocks() == 0 {
+	// If there are pending blocks, add them to a channel.
+	havePendingBlocks := s.pendingBlocks() > 0
+	if havePendingBlocks {
+		if err := s.ensureChannelWithSpace(l1Head); err != nil {
+			return nil, err
+		}
+		if err := s.processBlocks(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Nothing to flush if there's no open channel.
+	if s.currentChannel == nil {
 		return nil, io.EOF
 	}
 
-	if err := s.ensureChannelWithSpace(l1Head); err != nil {
-		return nil, err
-	}
-
-	if err := s.processBlocks(); err != nil {
-		return nil, err
+	// If no blocks were added this call and the channel is already full, its
+	// frames were already produced by a prior call (and drained by the earlier
+	// HasTxData check above). Skip re-running outputFrames on an already-closed
+	// channel-out, which would error.
+	if !havePendingBlocks && s.currentChannel.IsFull() {
+		return nil, io.EOF
 	}
 
 	if !pi.ignoreMaxChannelDuration {
@@ -437,7 +449,7 @@ func (s *channelManager) processBlocks() error {
 		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
 
 		blocksAdded += 1
-		latestL2ref = l2BlockRefFromBlockAndL1Info(block.Block, l1info)
+		latestL2ref = l2BlockRefFromPayloadAndL1Info(block.ExecutionPayload, l1info)
 		s.metr.RecordL2BlockInChannel(block.RawSize(), block.EstimatedDABytes())
 		// current block got added but channel is now full
 		if s.currentChannel.IsFull() {
@@ -495,25 +507,25 @@ func (s *channelManager) outputFrames() error {
 // AddL2Block adds an L2 block to the internal blocks queue. It returns ErrReorg
 // if the block does not extend the last block loaded into the state. If no
 // blocks were added yet, the parent hash check is skipped.
-func (s *channelManager) AddL2Block(block *types.Block) error {
-	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
+func (s *channelManager) AddL2Block(payload *eth.ExecutionPayload) error {
+	if s.tip != (common.Hash{}) && s.tip != payload.ParentHash {
 		return ErrReorg
 	}
 
-	b := ToSizedBlock(block)
+	b := ToSizedBlock(payload)
 	s.metr.RecordL2BlockInPendingQueue(b.RawSize(), b.EstimatedDABytes())
 	s.blocks.Enqueue(b)
-	s.tip = block.Hash()
+	s.tip = payload.BlockHash
 
 	return nil
 }
 
-func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info *derive.L1BlockInfo) eth.L2BlockRef {
+func l2BlockRefFromPayloadAndL1Info(payload *eth.ExecutionPayload, l1info *derive.L1BlockInfo) eth.L2BlockRef {
 	return eth.L2BlockRef{
-		Hash:           block.Hash(),
-		Number:         block.NumberU64(),
-		ParentHash:     block.ParentHash(),
-		Time:           block.Time(),
+		Hash:           payload.BlockHash,
+		Number:         uint64(payload.BlockNumber),
+		ParentHash:     payload.ParentHash,
+		Time:           uint64(payload.Timestamp),
 		L1Origin:       eth.BlockID{Hash: l1info.BlockHash, Number: l1info.Number},
 		SequenceNumber: l1info.SequenceNumber,
 	}

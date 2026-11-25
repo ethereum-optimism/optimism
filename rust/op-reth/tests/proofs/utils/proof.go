@@ -3,9 +3,11 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -129,17 +131,27 @@ func VerifyProof(res *eth.AccountResult, stateRoot common.Hash) error {
 	return nil
 }
 
+func fetchProofWithRetry(t devtest.T, source string, block uint64, fetch func() (*eth.AccountResult, error)) *eth.AccountResult {
+	// Each op-reth node persists proof state asynchronously. Readiness on one node does not imply
+	// that its peer can serve the same historical block yet, so retry the exact RPC on each node.
+	proof, err := retry.Do(t.Ctx(), 50, &retry.FixedStrategy{Dur: 200 * time.Millisecond}, fetch)
+	require.NoError(t, err, "failed to get proof from %s at block %d", source, block)
+	return proof
+}
+
 // FetchAndVerifyProofs fetches account proofs from both L2EL and L2ELB for the given address
 func FetchAndVerifyProofs(t devtest.T, sys *MixedOpProofPreset, address common.Address, slots []common.Hash, block uint64) {
 	ctx := t.Ctx()
 	blockInfo, err := sys.L2ELSequencerNode().Escape().L2EthClient().InfoByNumber(ctx, block)
 	require.NoError(t, err, "failed to get block info for block %d", block)
 
-	seqProofRes, err := sys.L2ELSequencerNode().Escape().L2EthClient().GetProof(ctx, address, slots, hexutil.Uint64(block).String())
-	require.NoError(t, err, "failed to get proof from L2EL at block %d", block)
-
-	valProofRes, err := sys.L2ELValidatorNode().Escape().L2EthClient().GetProof(ctx, address, slots, hexutil.Uint64(block).String())
-	require.NoError(t, err, "failed to get proof from L2ELB at block %d", block)
+	blockTag := hexutil.Uint64(block).String()
+	seqProofRes := fetchProofWithRetry(t, "L2EL", block, func() (*eth.AccountResult, error) {
+		return sys.L2ELSequencerNode().Escape().L2EthClient().GetProof(ctx, address, slots, blockTag)
+	})
+	valProofRes := fetchProofWithRetry(t, "L2ELB", block, func() (*eth.AccountResult, error) {
+		return sys.L2ELValidatorNode().Escape().L2EthClient().GetProof(ctx, address, slots, blockTag)
+	})
 
 	NormalizeProofResponse(seqProofRes)
 	NormalizeProofResponse(valProofRes)

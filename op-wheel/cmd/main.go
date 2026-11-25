@@ -7,9 +7,8 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum/go-ethereum/log"
-
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	wheel "github.com/ethereum-optimism/optimism/op-wheel"
 )
 
@@ -24,20 +23,19 @@ func main() {
 	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
 	app.Name = "op-wheel"
 	app.Usage = "Optimism Wheel is a CLI tool for the execution engine"
-	app.Description = "Optimism Wheel is a CLI tool to direct the engine one way or the other with DB cheats and Engine API routines."
+	app.Description = "Optimism Wheel is a CLI tool to direct the engine one way or the other with Engine API routines."
 	app.Flags = []cli.Flag{wheel.GlobalGethLogLvlFlag}
 	app.Before = func(c *cli.Context) error {
-		lvl := c.Generic(wheel.GlobalGethLogLvlFlag.Name).(*oplog.LevelFlagValue).Level()
-		oplog.SetGlobalLogHandler(log.NewTerminalHandlerWithLevel(os.Stdout, lvl, true))
+		lvl := c.Generic(wheel.GlobalGethLogLvlFlag.Name).(*logcli.LevelFlagValue).Level()
+		logcli.SetGlobalLogHandler(log.NewTerminalHandlerWithLevel(os.Stdout, lvl, true))
 		return nil
 	}
 	app.Action = func(c *cli.Context) error {
-		return errors.New("see 'cheat' and 'engine' subcommands and --help")
+		return errors.New("see 'engine' subcommand and --help")
 	}
 	app.Writer = os.Stdout
 	app.ErrWriter = os.Stderr
 	app.Commands = []*cli.Command{
-		wheel.CheatCmd,
 		wheel.EngineCmd,
 	}
 

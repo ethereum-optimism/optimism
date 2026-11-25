@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/params/forks"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opforks "github.com/ethereum-optimism/optimism/op-core/forks"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -185,6 +186,12 @@ func TestBuilder(t *testing.T) {
 					"l2GenesisGraniteTimeOffset":  hexutil.Uint64(0),
 					"l2GenesisHoloceneTimeOffset": hexutil.Uint64(0),
 					"l2GenesisIsthmusTimeOffset":  hexutil.Uint64(isthmusOffset),
+					// Forks after the genesis fork are explicitly deactivated
+					// with a null override so they don't fall back to the
+					// deployer's default hardfork schedule.
+					"l2GenesisJovianTimeOffset": (*hexutil.Uint64)(nil),
+					"l2GenesisKarstTimeOffset":  (*hexutil.Uint64)(nil),
+					"l2GenesisLagoonTimeOffset": (*hexutil.Uint64)(nil),
 				},
 				L2DevGenesisParams: &state.L2DevGenesisParams{
 					Prefund: map[common.Address]*hexutil.U256{
@@ -202,4 +209,81 @@ func TestBuilder(t *testing.T) {
 	require.NoError(t, err)
 
 	require.JSONEq(t, string(expectedJSON), string(actualJSON))
+}
+
+// TestWithForkAtGenesisBedrock is a regression guard: WithForkAtGenesis(Bedrock)
+// is the genesis baseline used by sysgo.WithHardforkSequentialActivation. Bedrock
+// has no schedulable time offset, so it must not panic, and must deactivate every
+// scheduleable fork with an explicit nil override.
+func TestWithForkAtGenesisBedrock(t *testing.T) {
+	b, l2 := New().WithL2(eth.ChainIDFromUInt64(420))
+	require.NotPanics(t, func() { l2.WithForkAtGenesis(opforks.Bedrock) })
+
+	overrides := b.(*intentBuilder).intent.Chains[0].DeployOverrides
+	require.Contains(t, overrides, "l2GenesisRegolithTimeOffset")
+	require.Contains(t, overrides, "l2GenesisLagoonTimeOffset")
+	for k, v := range overrides {
+		require.Nil(t, v, "fork override %s should be deactivated at Bedrock genesis", k)
+	}
+}
+
+// TestWithForkAtOffsetDeactivatesLaterForks checks that every later fork gets an explicit nil
+// override rather than an omitted key. An omitted key inherits op-deployer's default schedule,
+// which can activate a later fork before this one.
+func TestWithForkAtOffsetDeactivatesLaterForks(t *testing.T) {
+	b, l2 := New().WithL2(eth.ChainIDFromUInt64(420))
+	offset := uint64(10)
+	l2.WithForkAtOffset(opforks.Karst, &offset)
+
+	overrides := b.(*intentBuilder).intent.Chains[0].DeployOverrides
+	require.Equal(t, (*hexutil.Uint64)(&offset), overrides["l2GenesisKarstTimeOffset"])
+	later := opforks.From(opforks.Next(opforks.Karst))
+	require.NotEmpty(t, later)
+	for _, fork := range later {
+		key, ok := genesis.ForkOffsetKey(fork)
+		require.True(t, ok)
+		v, ok := overrides[key]
+		require.True(t, ok, "%s must be explicitly deactivated, not omitted", fork)
+		require.Nil(t, v, "%s must be deactivated", fork)
+	}
+}
+
+func TestL1ForkAtGenesis(t *testing.T) {
+	tests := []struct {
+		name string
+		fork forks.Fork
+	}{
+		{name: "Dencun", fork: forks.Cancun},
+		{name: "Pectra", fork: forks.Prague},
+		{name: "Fusaka", fork: forks.Osaka},
+		{name: "BPO5", fork: forks.BPO5},
+		{name: "Glamsterdam", fork: forks.Amsterdam},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			builder := New()
+			builder, l1 := builder.WithL1(eth.ChainIDFromUInt64(1))
+			l1.WithL1ForkAtGenesis(test.fork)
+
+			params := builder.(*intentBuilder).intent.L1DevGenesisParams
+			offsets := map[forks.Fork]*uint64{
+				forks.Prague:    params.PragueTimeOffset,
+				forks.Osaka:     params.OsakaTimeOffset,
+				forks.BPO1:      params.BPO1TimeOffset,
+				forks.BPO2:      params.BPO2TimeOffset,
+				forks.BPO3:      params.BPO3TimeOffset,
+				forks.BPO4:      params.BPO4TimeOffset,
+				forks.BPO5:      params.BPO5TimeOffset,
+				forks.Amsterdam: params.AmsterdamTimeOffset,
+			}
+			for fork, offset := range offsets {
+				if fork <= test.fork {
+					require.NotNilf(t, offset, "%s should be active", fork)
+					require.Zero(t, *offset)
+				} else {
+					require.Nilf(t, offset, "%s should be inactive", fork)
+				}
+			}
+		})
+	}
 }

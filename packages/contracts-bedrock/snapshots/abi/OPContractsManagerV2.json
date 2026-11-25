@@ -217,6 +217,26 @@
             "internalType": "bool",
             "name": "useCustomGasToken",
             "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "proofMaturityDelaySeconds",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "disputeGameFinalityDelaySeconds",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "withdrawalDelaySeconds",
+            "type": "uint256"
+          },
+          {
+            "internalType": "contract IBridgeHook",
+            "name": "bridgeHook",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManagerV2.FullConfig",
@@ -405,6 +425,11 @@
             "internalType": "address",
             "name": "storageSetterImpl",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "sp1PlonkAdapterImpl",
+            "type": "address"
           }
         ],
         "internalType": "struct IOPContractsManagerContainer.Implementations",
@@ -424,6 +449,25 @@
       }
     ],
     "name": "isDevFeatureEnabled",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      }
+    ],
+    "name": "isPermittedMigrateSequence",
     "outputs": [
       {
         "internalType": "bool",
@@ -796,6 +840,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerV2_BridgeHookNotSupported",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerV2_CannotUpgradeToCustomGasToken",
     "type": "error"
   },
@@ -808,6 +857,16 @@
       }
     ],
     "name": "OPContractsManagerV2_DuplicateUpgradeInstruction",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_InvalidBridgeHook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerV2_InvalidDelayConfig",
     "type": "error"
   },
   {
@@ -860,6 +919,17 @@
   {
     "inputs": [],
     "name": "OPContractsManagerV2_SuperchainConfigNeedsUpgrade",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "GameType",
+        "name": "_gameType",
+        "type": "uint32"
+      }
+    ],
+    "name": "OPContractsManagerV2_ZeroGameImplementation",
     "type": "error"
   },
   {

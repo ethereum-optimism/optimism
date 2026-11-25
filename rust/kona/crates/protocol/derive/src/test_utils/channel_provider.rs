@@ -72,9 +72,4 @@ impl Stage for TestNextFrameProvider {
         self.reset = true;
         Ok(())
     }
-
-    async fn provide_block(&mut self, _: BlockInfo) -> PipelineResult<()> {
-        self.reset = true;
-        Ok(())
-    }
 }

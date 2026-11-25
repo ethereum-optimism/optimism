@@ -1,7 +1,7 @@
 //! Contains the concrete implementation of the [`L2ChainProvider`] trait for the client program.
 
 use crate::{HintType, eip2935::eip_2935_history_lookup, errors::OracleProviderError};
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
 use alloy_consensus::{BlockBody, Header};
 use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::{Address, B256, Bytes};
@@ -30,12 +30,29 @@ pub struct OracleL2ChainProvider<T: CommsClient> {
     cursor: Option<Arc<RwLock<PipelineCursor>>>,
     /// The L2 chain ID to use for the provider's hints.
     chain_id: Option<u64>,
+    /// Cache of canonical headers and their hashes, keyed by block number, for ancestors of the
+    /// L2 safe head.
+    ///
+    /// Entries are discovered by walking parent hashes (or EIP-2935 lookups) back from the safe
+    /// head, so they are canonical by construction, and the safe head only advances along the
+    /// same lineage within a program run, so entries never need invalidation. This turns the
+    /// by-number lookups of span batch overlap validation (one per overlapped block, walked in
+    /// ascending order) from a quadratic number of header preimage reads into a linear one, and
+    /// mirrors [`OracleL1ChainProvider`](crate::l1::OracleL1ChainProvider)'s by-number cache.
+    header_by_number: BTreeMap<u64, (B256, Header)>,
 }
 
 impl<T: CommsClient> OracleL2ChainProvider<T> {
     /// Creates a new [`OracleL2ChainProvider`] with the given boot information and oracle client.
     pub const fn new(l2_head: B256, rollup_config: Arc<RollupConfig>, oracle: Arc<T>) -> Self {
-        Self { l2_head, rollup_config, oracle, cursor: None, chain_id: None }
+        Self {
+            l2_head,
+            rollup_config,
+            oracle,
+            cursor: None,
+            chain_id: None,
+            header_by_number: BTreeMap::new(),
+        }
     }
 
     /// Sets the L2 chain ID to use for the provider's hints.
@@ -59,16 +76,36 @@ impl<T: CommsClient> OracleL2ChainProvider<T> {
 
 impl<T: CommsClient> OracleL2ChainProvider<T> {
     /// Returns a [Header] corresponding to the given L2 block number, by walking back from the
-    /// L2 safe head.
-    async fn header_by_number(&self, block_number: u64) -> Result<Header, OracleProviderError> {
-        // Fetch the starting block header.
-        let mut current_hash = self.l2_safe_head().await?;
-        let mut header = self.header_by_hash(current_hash)?;
-
-        // Check if the block number is in range. If not, we can fail early.
-        if block_number > header.number {
-            return Err(OracleProviderError::BlockNumberPastHead(block_number, header.number));
+    /// closest cached ancestor, or from the L2 safe head when nothing closer is cached.
+    async fn header_by_number(&mut self, block_number: u64) -> Result<Header, OracleProviderError> {
+        if let Some((_, header)) = self.header_by_number.get(&block_number) {
+            return Ok(header.clone());
         }
+
+        // Start from the closest cached ancestor whose number is greater than the target,
+        // falling back to the L2 safe head when no usable cache entry exists.
+        let cached_ancestor = block_number
+            .checked_add(1)
+            .and_then(|n| self.header_by_number.range(n..).next())
+            .map(|(_, (hash, header))| (*hash, header.clone()));
+        let (mut current_hash, mut header) = match cached_ancestor {
+            Some(entry) => entry,
+            None => {
+                // Fetch the starting block header.
+                let safe_hash = self.l2_safe_head().await?;
+                let safe_header = self.header_by_hash(safe_hash)?;
+
+                // Check if the block number is in range. If not, we can fail early.
+                if block_number > safe_header.number {
+                    return Err(OracleProviderError::BlockNumberPastHead(
+                        block_number,
+                        safe_header.number,
+                    ));
+                }
+                self.header_by_number.insert(safe_header.number, (safe_hash, safe_header.clone()));
+                (safe_hash, safe_header)
+            }
+        };
 
         let mut linear_fallback = false;
         while header.number > block_number {
@@ -96,6 +133,9 @@ impl<T: CommsClient> OracleL2ChainProvider<T> {
                 current_hash = header.parent_hash;
                 header = self.header_by_hash(header.parent_hash)?;
             }
+            // Cache every header discovered on the walk, so later lookups at or below this
+            // height resume from here instead of re-reading the chain above it.
+            self.header_by_number.insert(header.number, (current_hash, header.clone()));
         }
 
         Ok(header)
@@ -115,11 +155,34 @@ impl<T: CommsClient + Send + Sync> BatchValidationProvider for OracleL2ChainProv
             .map_err(OracleProviderError::BlockInfo)
     }
 
-    async fn block_by_number(&mut self, number: u64) -> Result<OpBlock, Self::Error> {
+    async fn l2_block_info_by_hash(&mut self, hash: B256) -> Result<L2BlockInfo, Self::Error> {
+        // A hash addresses the header directly, sparing the walk back from the safe head that a
+        // lookup by number requires.
+        let block = self.block_from_header(self.header_by_hash(hash)?, hash).await?;
+
+        L2BlockInfo::from_block_and_genesis(&block, &self.rollup_config.genesis)
+            .map_err(OracleProviderError::BlockInfo)
+    }
+
+    async fn block_by_number(&mut self, number: u64) -> Result<Arc<OpBlock>, Self::Error> {
         // Fetch the header for the given block number.
-        let header @ Header { transactions_root, timestamp, .. } =
-            self.header_by_number(number).await?;
+        let header = self.header_by_number(number).await?;
         let header_hash = header.hash_slow();
+        self.block_from_header(header, header_hash).await.map(Arc::new)
+    }
+}
+
+impl<T: CommsClient + Send + Sync> OracleL2ChainProvider<T> {
+    /// Hydrates a [`Header`] into a full [`OpBlock`] by walking its transactions trie.
+    ///
+    /// `header_hash` must be the hash of `header`; it is taken as an argument because callers that
+    /// looked the header up by hash already have it.
+    async fn block_from_header(
+        &self,
+        header: Header,
+        header_hash: B256,
+    ) -> Result<OpBlock, OracleProviderError> {
+        let Header { transactions_root, timestamp, .. } = header;
 
         // Fetch the transactions in the block.
         HintType::L2Transactions
@@ -159,13 +222,14 @@ impl<T: CommsClient + Send + Sync> BatchValidationProvider for OracleL2ChainProv
 impl<T: CommsClient + Send + Sync> L2ChainProvider for OracleL2ChainProvider<T> {
     type Error = OracleProviderError;
 
-    async fn system_config_by_number(
+    async fn system_config_by_l2_hash(
         &mut self,
-        number: u64,
+        hash: B256,
         rollup_config: Arc<RollupConfig>,
     ) -> Result<SystemConfig, <Self as L2ChainProvider>::Error> {
-        // Get the block at the given number.
-        let block = self.block_by_number(number).await?;
+        // A hash addresses the header directly, sparing the walk back from the safe head that a
+        // lookup by number requires.
+        let block = self.block_from_header(self.header_by_hash(hash)?, hash).await?;
 
         // Construct the system config from the payload.
         to_system_config(&block, rollup_config.as_ref())
@@ -282,5 +346,140 @@ impl<T: CommsClient> TrieHinter for OracleL2ChainProvider<T> {
                 .send(self.oracle.as_ref())
                 .await
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_rlp::Encodable;
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use kona_preimage::{HintWriterClient, PreimageOracleClient, errors::PreimageOracleResult};
+
+    /// A minimal in-memory [`CommsClient`] used to drive [`OracleL2ChainProvider`] in tests.
+    #[derive(Clone, Default)]
+    struct MockOracle {
+        preimages: Arc<BTreeMap<PreimageKey, Vec<u8>>>,
+        get_calls: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl PreimageOracleClient for MockOracle {
+        async fn get(&self, key: PreimageKey) -> PreimageOracleResult<Vec<u8>> {
+            self.get_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(self.preimages.get(&key).expect("missing preimage in mock").clone())
+        }
+
+        async fn get_exact(&self, key: PreimageKey, buf: &mut [u8]) -> PreimageOracleResult<()> {
+            let v = self.get(key).await?;
+            buf.copy_from_slice(&v);
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl HintWriterClient for MockOracle {
+        async fn write(&self, _hint: &str) -> PreimageOracleResult<()> {
+            Ok(())
+        }
+    }
+
+    /// Build a linear chain of `n` headers and return the headers (oldest first) plus a
+    /// preimage map keyed by `Keccak256(header_hash)`.
+    fn build_chain(n: u64) -> (Vec<Header>, BTreeMap<PreimageKey, Vec<u8>>) {
+        let mut headers = Vec::with_capacity(n as usize);
+        let mut parent_hash = B256::ZERO;
+        for i in 0..n {
+            let header =
+                Header { number: i, parent_hash, timestamp: 1_000 + i, ..Default::default() };
+            parent_hash = header.hash_slow();
+            headers.push(header);
+        }
+        let mut preimages = BTreeMap::new();
+        for h in &headers {
+            let mut rlp = Vec::new();
+            h.encode(&mut rlp);
+            preimages.insert(PreimageKey::new(*h.hash_slow(), PreimageKeyType::Keccak256), rlp);
+        }
+        (headers, preimages)
+    }
+
+    /// Provider anchored at the last header of `headers`, with a pre-Isthmus rollup config so
+    /// the linear parent-hash walk is exercised.
+    fn provider(
+        headers: &[Header],
+        preimages: BTreeMap<PreimageKey, Vec<u8>>,
+    ) -> (OracleL2ChainProvider<MockOracle>, Arc<AtomicUsize>) {
+        let oracle =
+            MockOracle { preimages: Arc::new(preimages), get_calls: Arc::new(AtomicUsize::new(0)) };
+        let calls = oracle.get_calls.clone();
+        let head = headers.last().unwrap().hash_slow();
+        (
+            OracleL2ChainProvider::new(head, Arc::new(RollupConfig::default()), Arc::new(oracle)),
+            calls,
+        )
+    }
+
+    // Note: tests run on a multi-threaded runtime because `header_by_hash` goes through
+    // `crate::block_on`, whose std implementation uses `tokio::task::block_in_place`.
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn header_by_number_returns_correct_header() {
+        let (headers, preimages) = build_chain(10);
+        let (mut p, _) = provider(&headers, preimages);
+
+        for target in 0..10 {
+            let header = p.header_by_number(target).await.unwrap();
+            assert_eq!(header.number, target);
+            assert_eq!(header.hash_slow(), headers[target as usize].hash_slow());
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn header_by_number_ascending_overlap_walk_is_linear() {
+        // Pins the fault proof cost of span batch overlap validation, which looks up each
+        // overlapped block in ascending order: without the by-number cache, each lookup
+        // re-walks from the safe head, so five lookups against a five-deep overlap cost
+        // 5 + 4 + 3 + 2 + 1 = 15 header preimage reads. With the cache, the first (lowest)
+        // lookup walks the range once and the rest are hits: 5 reads total.
+        let (headers, preimages) = build_chain(6);
+        let (mut p, calls) = provider(&headers, preimages);
+
+        for target in 1..=5 {
+            let header = p.header_by_number(target).await.unwrap();
+            assert_eq!(header.number, target);
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 5);
+
+        // Repeating the sweep is free.
+        for target in 1..=5 {
+            p.header_by_number(target).await.unwrap();
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 5);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn header_by_number_resumes_from_closest_cached_ancestor() {
+        let (headers, preimages) = build_chain(20);
+        let (mut p, calls) = provider(&headers, preimages);
+
+        // Walk head (19) down to 15: 5 reads.
+        p.header_by_number(15).await.unwrap();
+        let after_first = calls.load(Ordering::SeqCst);
+        assert_eq!(after_first, 5);
+
+        // Walk further back to 10: resumes from cached 15, not from the head, so only 5
+        // additional reads (14, 13, 12, 11, 10).
+        p.header_by_number(10).await.unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), after_first + 5);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn header_by_number_rejects_numbers_past_head() {
+        let (headers, preimages) = build_chain(5);
+        let (mut p, _) = provider(&headers, preimages);
+
+        let err = p.header_by_number(99).await.unwrap_err();
+        assert!(matches!(err, OracleProviderError::BlockNumberPastHead(99, 4)));
     }
 }

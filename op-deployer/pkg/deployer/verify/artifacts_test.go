@@ -7,10 +7,12 @@ import (
 func TestGetArtifactPath(t *testing.T) {
 	// Test the actual state file contract names that were causing issues
 	testCases := map[string]string{
-		"superchain_superchain_config_proxy": "Proxy.sol/Proxy.json",
-		"superchain_protocol_versions_proxy": "Proxy.sol/Proxy.json",
-		"superchain_superchain_config_impl":  "SuperchainConfig.sol/SuperchainConfig.json",
-		"implementations_opcm_impl":          "OPContractsManagerV2.sol/OPContractsManagerV2.json",
+		"superchain_superchain_config_proxy":      "Proxy.sol/Proxy.json",
+		"superchain_protocol_versions_proxy":      "Proxy.sol/Proxy.json",
+		"superchain_superchain_config_impl":       "SuperchainConfig.sol/SuperchainConfig.json",
+		"implementations_opcm_impl":               "OPContractsManagerV2.sol/OPContractsManagerV2.json",
+		"implementations_s_p1_plonk_adapter_impl": "SP1PlonkAdapter.sol/SP1PlonkAdapter.json",
+		"sp1PlonkAdapterSingletonAddress":         "SP1PlonkAdapter.sol/SP1PlonkAdapter.json",
 	}
 
 	for contractName, expectedPath := range testCases {

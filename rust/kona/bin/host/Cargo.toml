@@ -19,7 +19,7 @@ kona-executor.workspace = true
 kona-std-fpvm.workspace = true
 kona-proof-interop.workspace = true
 kona-proof = { workspace = true, features = ["std"] }
-kona-preimage = { workspace = true, features = ["std"] }
+kona-preimage = { workspace = true, features = ["std", "verify"] }
 
 # Protocol
 kona-driver.workspace = true
@@ -38,13 +38,12 @@ alloy-rlp.workspace = true
 alloy-transport.workspace = true
 alloy-eips = { workspace = true, features = ["kzg"] }
 alloy-serde.workspace = true
-alloy-provider = { workspace = true, features = ["reqwest"] }
+alloy-provider = { workspace = true, features = ["reqwest", "ipc", "ws"] }
 alloy-consensus = { workspace = true, features = ["std"] }
 alloy-rpc-client.workspace = true
 alloy-transport-http.workspace = true
 alloy-rpc-types = { workspace = true, features = ["eth", "debug"] }
 alloy-primitives = { workspace = true, features = ["serde"] }
-alloy-rpc-types-beacon.workspace = true
 
 # Op Alloy
 op-alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
@@ -73,7 +72,10 @@ ark-ff.workspace = true
 
 [dev-dependencies]
 alloy-json-rpc.workspace = true
+jsonrpsee = { workspace = true, features = ["server"] }
 proptest.workspace = true
+rstest.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 [features]
 default = [ "interop", "single" ]

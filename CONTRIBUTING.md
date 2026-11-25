@@ -144,16 +144,18 @@ go test ./...
 
 See [this document](./op-e2e/README.md)
 
+#### Rust (kona, op-reth, op-alloy, …)
+
+All Rust code lives in the unified [`rust/`](./rust) Cargo workspace and is built and tested with [`just`](https://github.com/casey/just) from that directory (e.g. `cd rust && just build && just test`). See [`docs/ai/rust-dev.md`](./docs/ai/rust-dev.md) for the full build, test, lint, and workflow guide.
+
 #### Running contract static analysis
 
 We perform static analysis with [`slither`](https://github.com/crytic/slither).
-You must have Python 3.x installed to run `slither`.
-To run `slither` locally, do:
+Slither is pinned in `mise.toml`. To run it locally, do:
 
 ```bash
 cd packages/contracts-bedrock
-pip3 install slither-analyzer
-just slither
+mise exec -- slither . --config-file test/slither/slither.config.json
 ```
 
 ## Labels
@@ -209,13 +211,44 @@ Follow the [Development Quick Start](#development-quick-start) to set up your lo
 
 Read any README files in the packages you are contributing to. Some packages have additional instructions that are not covered in this guide.
 
-We recommend using the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format on commit messages.
+We require the [Scoped Commits](https://scopedcommits.com) format for commit messages and PR titles — see [Commit messages](#commit-messages) below.
 
 Unless your PR is ready for immediate review and merging, please mark it as 'draft' (or simply do not open a PR yet).
 
 Once ready for review, make sure to include a thorough PR description to help reviewers. You can read more about the guidelines for opening PRs in the [PR Guidelines](docs/handbook/pr-guidelines.md) file.
 
 **Bonus:** Add comments to the diff under the "Files Changed" tab on the PR page to clarify any sections where you think we might have questions about the approach taken.
+
+### Commit messages
+
+We require the [Scoped Commits](https://scopedcommits.com) format for commit messages and PR titles:
+
+```
+<scope>: <description>
+
+[optional body]
+
+[optional trailers]
+```
+
+The scope names the component, subsystem, or area the change touches — for example `op-node`, `contracts-bedrock`, `docs`, or `ci`. For a change spanning a few components, comma-separate the scopes without spaces (`op-node,op-batcher: share event loop metrics`); for tree-wide changes, use `all`.
+
+#### Breaking changes
+
+Scoped Commits leaves project-specific metadata up to each project. In this repository, append `!` to the complete scope list when a change breaks compatibility for downstream users or operators and needs a prominent release-note callout:
+
+```
+op-node!: remove the legacy sync mode
+op-node,op-batcher!: require authenticated control-plane RPC
+```
+
+This includes changes that require downstream action, such as removing or renaming a public API, CLI flag, configuration field, RPC behavior, or wire/data format. Do not mark an internal refactor that requires no downstream action.
+
+The `!` makes the change discoverable in the commit log and generated release notes. In the PR description and commit body, also add a paragraph beginning with `BREAKING CHANGE:` that identifies the affected users, explains what breaks, and provides the migration path. The marker is the signal; this paragraph supplies the release-note content.
+
+Do not use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) type prefixes (`feat:`, `fix:`, `chore(scope):`, ...). The part of the codebase a commit touches is what readers of the log — contributors, debuggers, incident responders — actually scan for, and a well-written description already conveys whether a change is a fix or a feature. See [Stop Using Conventional Commits](https://sumnerevans.com/posts/software-engineering/stop-using-conventional-commits/) for the full rationale.
+
+PRs are squash-merged with the PR title as the commit subject, so CI validates the PR title against this format. The exact rules live in [`.github/scripts/check-pr-title.sh`](.github/scripts/check-pr-title.sh).
 
 ### Response time
 

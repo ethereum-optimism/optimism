@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"testing"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity"
 	cc "github.com/ethereum-optimism/optimism/op-supernode/supernode/chain_container"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	gethlog "github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 type mockCC struct {
-	status      *eth.SyncStatus
-	verifierL1s []eth.BlockID
+	status     *eth.SyncStatus
+	verifierL1 *eth.BlockID
 
 	verifiedErr   error
 	outputErr     error
@@ -29,10 +29,16 @@ func (m *mockCC) Stop(ctx context.Context) error           { return nil }
 func (m *mockCC) Pause(ctx context.Context) error          { return nil }
 func (m *mockCC) Resume(ctx context.Context) error         { return nil }
 func (m *mockCC) PauseAndStopVN(ctx context.Context) error { return nil }
+func (m *mockCC) ELFinalizedHead(ctx context.Context) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{}, nil
+}
 
 func (m *mockCC) RegisterVerifier(v activity.VerificationActivity) {}
-func (m *mockCC) VerifierCurrentL1s() []eth.BlockID {
-	return m.verifierL1s
+func (m *mockCC) VerifierCurrentL1() (eth.BlockID, bool) {
+	if m.verifierL1 == nil {
+		return eth.BlockID{}, false
+	}
+	return *m.verifierL1, true
 }
 
 func (m *mockCC) LocalSafeBlockAtTimestamp(ctx context.Context, ts uint64) (eth.L2BlockRef, error) {
@@ -57,18 +63,11 @@ func (m *mockCC) L1AtSafeHead(ctx context.Context, l2 eth.BlockID) (eth.BlockID,
 	return eth.BlockID{}, nil
 }
 
-func (m *mockCC) VerifiedAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
-	if m.verifiedErr != nil {
-		return eth.BlockID{}, eth.BlockID{}, m.verifiedErr
-	}
-	return eth.BlockID{}, eth.BlockID{}, nil
-}
-
 func (m *mockCC) OptimisticAt(ctx context.Context, ts uint64) (eth.BlockID, eth.BlockID, error) {
 	return eth.BlockID{}, eth.BlockID{}, nil
 }
 
-func (m *mockCC) OutputRootAtL2BlockNumber(ctx context.Context, l2BlockNum uint64) (eth.Bytes32, error) {
+func (m *mockCC) OutputRootAtL2BlockHash(ctx context.Context, blockHash common.Hash) (eth.Bytes32, error) {
 	if m.outputErr != nil {
 		return eth.Bytes32{}, m.outputErr
 	}
@@ -83,8 +82,16 @@ func (m *mockCC) L1ForL2(ctx context.Context, l2Block eth.BlockID) (eth.BlockID,
 	return eth.BlockID{}, nil
 }
 
-func (m *mockCC) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, types.Receipts, error) {
+func (m *mockCC) FetchReceipts(ctx context.Context, blockID eth.BlockID) (eth.BlockInfo, optypes.Receipts, error) {
 	return nil, nil, nil
+}
+
+func (m *mockCC) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
+}
+
+func (m *mockCC) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, nil
 }
 
 func (m *mockCC) ID() eth.ChainID {
@@ -118,6 +125,10 @@ func (m *mockCC) BlockNumberToTimestamp(ctx context.Context, blocknum uint64) (u
 	return 0, nil
 }
 
+func (m *mockCC) FirstSafeHeadTimestamp(ctx context.Context) (uint64, error) {
+	return 0, cc.ErrSafeDBNotReady
+}
+
 var _ cc.ChainContainer = (*mockCC)(nil)
 
 func TestSupernode_SyncStatus_Succeeds(t *testing.T) {
@@ -128,27 +139,25 @@ func TestSupernode_SyncStatus_Succeeds(t *testing.T) {
 	chains := map[eth.ChainID]cc.ChainContainer{
 		chainA: &mockCC{
 			status: &eth.SyncStatus{
-				CurrentL1:     eth.L1BlockRef{Number: 2000},
-				UnsafeL2:      eth.L2BlockRef{Number: 120, Time: 220},
-				CrossUnsafeL2: eth.L2BlockRef{Number: 118, Time: 205},
-				SafeL2:        eth.L2BlockRef{Number: 110, Time: 170},
-				LocalSafeL2:   eth.L2BlockRef{Number: 111, Time: 180},
-				FinalizedL2:   eth.L2BlockRef{Number: 100, Time: 140},
+				CurrentL1:   eth.L1BlockRef{Number: 2000},
+				UnsafeL2:    eth.L2BlockRef{Number: 120, Time: 220},
+				SafeL2:      eth.L2BlockRef{Number: 110, Time: 170},
+				LocalSafeL2: eth.L2BlockRef{Number: 111, Time: 180},
+				FinalizedL2: eth.L2BlockRef{Number: 100, Time: 140},
 			},
 		},
 		chainB: &mockCC{
 			status: &eth.SyncStatus{
-				CurrentL1:     eth.L1BlockRef{Number: 2000},
-				UnsafeL2:      eth.L2BlockRef{Number: 130, Time: 230},
-				CrossUnsafeL2: eth.L2BlockRef{Number: 128, Time: 215},
-				SafeL2:        eth.L2BlockRef{Number: 112, Time: 175},
-				LocalSafeL2:   eth.L2BlockRef{Number: 113, Time: 190},
-				FinalizedL2:   eth.L2BlockRef{Number: 101, Time: 150},
+				CurrentL1:   eth.L1BlockRef{Number: 2000},
+				UnsafeL2:    eth.L2BlockRef{Number: 130, Time: 230},
+				SafeL2:      eth.L2BlockRef{Number: 112, Time: 175},
+				LocalSafeL2: eth.L2BlockRef{Number: 113, Time: 190},
+				FinalizedL2: eth.L2BlockRef{Number: 101, Time: 150},
 			},
 		},
 	}
 
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 	out, err := api.SyncStatus(context.Background())
 	require.NoError(t, err)
@@ -183,7 +192,7 @@ func TestSupernode_SyncStatus_UsesMinimumCurrentL1(t *testing.T) {
 			},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 	out, err := api.SyncStatus(context.Background())
 	require.NoError(t, err)
@@ -197,21 +206,16 @@ func TestSupernode_SyncStatus_UsesMinimumVerifierCurrentL1(t *testing.T) {
 			status: &eth.SyncStatus{
 				CurrentL1: eth.L1BlockRef{Number: 200, Hash: common.Hash{0x11}},
 			},
-			verifierL1s: []eth.BlockID{
-				{Number: 150, Hash: common.Hash{0x33}},
-				{Number: 175, Hash: common.Hash{0x44}},
-			},
+			verifierL1: &eth.BlockID{Number: 150, Hash: common.Hash{0x33}},
 		},
 		eth.ChainIDFromUInt64(11): &mockCC{
 			status: &eth.SyncStatus{
 				CurrentL1: eth.L1BlockRef{Number: 180, Hash: common.Hash{0x22}},
 			},
-			verifierL1s: []eth.BlockID{
-				{Number: 190, Hash: common.Hash{0x55}},
-			},
+			verifierL1: &eth.BlockID{Number: 190, Hash: common.Hash{0x55}},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 	out, err := api.SyncStatus(context.Background())
 	require.NoError(t, err)
@@ -225,7 +229,7 @@ func TestSupernode_SyncStatus_ErrorOnCurrentL1(t *testing.T) {
 			syncStatusErr: assertErr(),
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 	_, err := api.SyncStatus(context.Background())
 	require.Error(t, err)
@@ -245,7 +249,7 @@ func TestSupernode_SyncStatus_IgnoresUnsafeOutputRootErrors(t *testing.T) {
 			},
 		},
 	}
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 	out, err := api.SyncStatus(context.Background())
 	require.NoError(t, err)
@@ -259,7 +263,7 @@ func TestSupernode_SyncStatus_IgnoresUnsafeOutputRootErrors(t *testing.T) {
 func TestSupernode_SyncStatus_EmptyChains(t *testing.T) {
 	t.Parallel()
 	chains := map[eth.ChainID]cc.ChainContainer{}
-	s := New(gethlog.New(), chains)
+	s := New(oplog.New(), chains)
 	api := &api{a: s}
 
 	out, err := api.SyncStatus(context.Background())

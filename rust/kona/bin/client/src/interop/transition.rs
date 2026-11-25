@@ -146,6 +146,7 @@ where
         l2_provider.clone(),
         l2_provider,
         evm_factory,
+        OpAlloyReceiptBuilder::default(),
         None,
     );
     let mut driver = Driver::new(cursor, executor, pipeline);

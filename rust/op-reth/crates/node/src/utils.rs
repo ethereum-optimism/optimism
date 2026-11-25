@@ -3,7 +3,7 @@ use alloy_genesis::Genesis;
 use alloy_primitives::{Address, B256};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use reth_e2e_test_utils::{
-    NodeHelperType, TmpDB, transaction::TransactionTestContext, wallet::Wallet,
+    E2ETestSetupBuilder, NodeHelperType, TmpDB, transaction::TransactionTestContext, wallet::Wallet,
 };
 use reth_node_api::NodeTypesWithDBAdapter;
 use reth_optimism_chainspec::OpChainSpecBuilder;
@@ -20,13 +20,14 @@ pub(crate) type OpNode =
 pub async fn setup(num_nodes: usize) -> eyre::Result<(Vec<OpNode>, Wallet)> {
     let genesis: Genesis =
         serde_json::from_str(include_str!("../tests/assets/genesis.json")).unwrap();
-    reth_e2e_test_utils::setup_engine(
+    E2ETestSetupBuilder::new(
         num_nodes,
-        Arc::new(OpChainSpecBuilder::base_mainnet().genesis(genesis).ecotone_activated().build()),
-        false,
-        Default::default(),
-        optimism_payload_attributes,
+        Arc::new(
+            OpChainSpecBuilder::optimism_sepolia().genesis(genesis).ecotone_activated().build(),
+        ),
     )
+    .with_attributes_generator(optimism_payload_attributes)
+    .build()
     .await
 }
 
@@ -62,6 +63,7 @@ pub const fn optimism_payload_attributes(timestamp: u64) -> OpPayloadAttrs {
             withdrawals: Some(vec![]),
             parent_beacon_block_root: Some(B256::ZERO),
             slot_number: None,
+            target_gas_limit: None,
         },
         transactions: None,
         no_tx_pool: None,

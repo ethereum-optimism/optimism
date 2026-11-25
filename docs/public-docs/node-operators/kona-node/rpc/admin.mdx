@@ -1,0 +1,141 @@
+---
+title: "Admin RPC Methods"
+diataxis: reference
+---
+
+The `admin` api provides methods for controlling and monitoring Kona's consensus node operations.
+
+<Warning>
+The `admin` API is always served on the RPC port, without authentication. The RPC binds `127.0.0.1` by default; if you bind another address with `--rpc.addr`, firewall the port so that only trusted callers reach it. `admin_postUnsafePayload` checks only the block hash, not a signature.
+</Warning>
+
+## `admin_postUnsafePayload`
+
+Posts an unsafe payload to the network.
+
+| Client | Method invocation                                           |
+| ------ | ----------------------------------------------------------- |
+| RPC    | `{"method": "admin_postUnsafePayload", "params": [payload]}` |
+
+### Parameters
+
+- `payload` (`OpExecutionPayloadEnvelope`): The execution payload envelope to post
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_postUnsafePayload","params":[{...payload...}]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+## `admin_sequencerActive`
+
+Returns whether the sequencer is currently active.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_sequencerActive"}`               |
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_sequencerActive","params":[]}
+{"jsonrpc":"2.0","id":1,"result":true}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+
+## `admin_startSequencer`
+
+Starts the sequencer at the expected local unsafe head. When a conductor is configured, it must report leadership. The request fails if the sequencer is already active, the unsafe head is unavailable, or the supplied hash does not match.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_startSequencer", "params": [head]}`                |
+
+### Parameters
+
+- `head` (`bytes32`): Expected unsafe block hash, obtained from `admin_stopSequencer` or the current local unsafe head.
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_startSequencer","params":["0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234"]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+
+## `admin_stopSequencer`
+
+Stops the sequencer and returns the hash of the last processed block.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_stopSequencer"}`                 |
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_stopSequencer","params":[]}
+{"jsonrpc":"2.0","id":1,"result":"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+
+## `admin_conductorEnabled`
+
+Returns whether the conductor is enabled.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_conductorEnabled"}`              |
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_conductorEnabled","params":[]}
+{"jsonrpc":"2.0","id":1,"result":false}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+
+## `admin_setRecoverMode`
+
+Sets the recovery mode for the sequencer.
+
+| Client | Method invocation                                         |
+| ------ | --------------------------------------------------------- |
+| RPC    | `{"method": "admin_setRecoverMode", "params": [mode]}`    |
+
+### Parameters
+
+- `mode` (`bool`): Whether to enable recovery mode (true) or disable it (false)
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_setRecoverMode","params":[true]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).
+
+## `admin_overrideLeader`
+
+Locally bypasses conductor leadership checks and unsafe-payload commits to the conductor for disaster recovery. The override remains active until the node restarts.
+
+This does not override the conductor's own leadership state. To serve downstream traffic through the conductor's leader-gated RPC proxy, also set its `conductor_overrideLeader` RPC to `true`.
+
+| Client | Method invocation                                   |
+| ------ | --------------------------------------------------- |
+| RPC    | `{"method": "admin_overrideLeader"}`                |
+
+### Example
+
+```js
+// > {"jsonrpc":"2.0","id":1,"method":"admin_overrideLeader","params":[]}
+{"jsonrpc":"2.0","id":1,"result":null}
+```
+
+**Note**: This method will return a "Method not found" error if the node is running in validator mode (sequencer not enabled).

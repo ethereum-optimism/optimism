@@ -28,16 +28,38 @@ impl SequencerMetrics {
 #[metrics(scope = "optimism_rpc.eth_api_ext")]
 pub struct EthApiExtMetrics {
     /// How long it takes to handle a `eth_getProof` request successfully
-    pub(crate) get_proof_latency: Histogram,
+    get_proof_latency: Histogram,
 
     /// Total number of `eth_getProof` requests
-    pub(crate) get_proof_requests: Counter,
+    get_proof_requests: Counter,
 
     /// Total number of successful `eth_getProof` responses
-    pub(crate) get_proof_successful_responses: Counter,
+    get_proof_successful_responses: Counter,
 
     /// Total number of failures handling `eth_getProof` requests
-    pub(crate) get_proof_failures: Counter,
+    get_proof_failures: Counter,
+}
+
+impl EthApiExtMetrics {
+    /// Records an `eth_getProof` request while preserving the existing metric semantics.
+    pub(crate) async fn record_get_proof<F, T, E>(&self, f: F) -> Result<T, E>
+    where
+        F: Future<Output = Result<T, E>>,
+    {
+        let start = Instant::now();
+        self.get_proof_requests.increment(1);
+        let result = f.await;
+
+        match &result {
+            Ok(_) => {
+                self.get_proof_latency.record(start.elapsed().as_secs_f64());
+                self.get_proof_successful_responses.increment(1);
+            }
+            Err(_) => self.get_proof_failures.increment(1),
+        }
+
+        result
+    }
 }
 
 /// Types of debug apis

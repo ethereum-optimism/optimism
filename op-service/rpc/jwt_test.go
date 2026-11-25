@@ -7,15 +7,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestObtainJWTSecret(t *testing.T) {
 	testPath := t.TempDir()
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	t.Run("no-generate", func(t *testing.T) {
 		secret, err := ObtainJWTSecret(logger, filepath.Join(testPath, "non_existent.txt"), false)

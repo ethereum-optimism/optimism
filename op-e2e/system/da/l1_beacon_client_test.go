@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
@@ -13,29 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
-
-func TestGetVersion(t *testing.T) {
-	op_e2e.InitParallel(t)
-
-	l := testlog.Logger(t, log.LevelInfo)
-
-	blobStore := blobstore.New()
-	beaconApi := fakebeacon.NewBeacon(l, blobStore, uint64(0), uint64(0))
-	t.Cleanup(func() {
-		_ = beaconApi.Close()
-	})
-	require.NoError(t, beaconApi.Start("127.0.0.1:0"))
-
-	beaconCfg := sources.L1BeaconClientConfig{FetchAllSidecars: false}
-	cl := sources.NewL1BeaconClient(sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(beaconApi.BeaconAddr(), l)), beaconCfg)
-
-	version, err := cl.GetVersion(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, "fakebeacon 1.2.3", version)
-}
 
 func Test404NotFound(t *testing.T) {
 	op_e2e.InitParallel(t)

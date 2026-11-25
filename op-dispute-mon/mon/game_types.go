@@ -17,7 +17,7 @@ func NewGameTypeMonitor(metrics GameTypeMetrics) *GameTypeMonitor {
 	return &GameTypeMonitor{metrics: metrics}
 }
 
-func (m *GameTypeMonitor) CheckGameTypes(games []*types.EnrichedGameData) {
+func (m *GameTypeMonitor) CheckGameTypes(games []*types.CommonGameData) {
 	counts := make(map[string]int)
 	for _, game := range games {
 		gt := gameTypes.GameType(game.GameType).String()

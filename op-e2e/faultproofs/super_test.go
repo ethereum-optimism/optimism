@@ -18,10 +18,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/interop"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
@@ -84,9 +84,14 @@ func TestSuperCannonPublishCannonRootClaim(t *testing.T) {
 		ctx := context.Background()
 
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		b, err := sys.L1GethClient().BlockByNumber(ctx, nil)
+		b, err := sys.L1GethClient().HeaderByNumber(ctx, nil)
 		require.NoError(t, err)
-		disputeL2SequenceNumber := b.Time() + test.disputeL2SequenceNumberOffset
+		// The VM status of each case depends only on how far the disputed timestamp is past the game's
+		// anchor (L1 genesis here). With a base on a multiple of 4s past it, offset 2 always gives an
+		// invalid status and offset 3 a valid one, whatever the L1 block time or startup drift.
+		genesisTime := sys.L1Genesis().Timestamp
+		base := genesisTime + (b.Time-genesisTime)/4*4
+		disputeL2SequenceNumber := base + test.disputeL2SequenceNumberOffset
 
 		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, disputeL2SequenceNumber, disputegame.WithInvalidSuperRoot())
 		game.DisputeLastBlock(ctx)
@@ -195,7 +200,7 @@ func TestSuperCannonStepWithLargePreimage(t *testing.T) {
 			require.NoError(t, sys.Batcher(id).Stop(ctx))
 		}
 		// Manually send a tx from the correct batcher key to the batcher input with very large (invalid) data
-		// This forces op-program to load a large preimage.
+		// This forces the fault-proof program to load a large preimage.
 		for _, id := range sys.L2IDs() {
 			batcherKey := sys.L2OperatorKey(id, devkeys.BatcherRole)
 			batcherHelper := batcher.NewHelper(t, &batcherKey, sys.RollupConfig(id), sys.L1GethClient())
@@ -206,10 +211,10 @@ func TestSuperCannonStepWithLargePreimage(t *testing.T) {
 			require.NoError(t, sys.Batcher(id).Start(ctx))
 		}
 
-		L1Head, err := sys.L1GethClient().BlockByNumber(ctx, nil)
+		L1Head, err := sys.L1GethClient().HeaderByNumber(ctx, nil)
 		require.NoError(t, err)
-		t.Logf("L1 head %d (%x) timestamp: %v", L1Head.NumberU64(), L1Head.Hash(), L1Head.Time())
-		l2Timestamp := L1Head.Time()
+		t.Logf("L1 head %d (%x) timestamp: %v", L1Head.Number, L1Head.Hash(), L1Head.Time)
+		l2Timestamp := L1Head.Time
 		disputeGameFactory.WaitForSuperTimestamp(l2Timestamp, &disputegame.GameCfg{})
 
 		// Dispute any block - it will have to read the L1 batches to see if the block is reached
@@ -253,7 +258,7 @@ func testSuperPreimageStep(t *testing.T, preimageType utils.PreimageOpt, preload
 	ctx := context.Background()
 	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithBlobBatches(), WithAllocType(allocType))
 
-	status, err := sys.SupervisorClient().SyncStatus(ctx)
+	status, err := sys.SupernodeClient().SyncStatus(ctx)
 	require.NoError(t, err)
 	l2Timestamp := status.SafeTimestamp + 40
 
@@ -365,7 +370,7 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 	RunTestsAcrossVmTypes(t, tests, func(t *testing.T, allocType config.AllocType, test TestCase) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 
-		client := sys.SupervisorClient()
+		client := sys.SupernodeClient()
 		status, err := client.SyncStatus(ctx)
 		require.NoError(t, err, "Failed to get sync status")
 		// Ensure that the superchain has progressed a bit past the genesis timestamp
@@ -379,11 +384,11 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 		require.NoError(t, err, "Failed to get sync status")
 
 		// Wait for any client to advance its unsafe head past the safe chain. We know this head will remain unsafe since the batcher is stopped.
-		l2Client := sys.L2GethClient(sys.L2IDs()[0], "sequencer")
+		l2Client := sys.L2ELClient(sys.L2IDs()[0], "sequencer")
 		require.NoError(t, wait.ForNextBlock(ctx, l2Client))
-		head, err := l2Client.BlockByNumber(ctx, nil)
+		head, err := l2Client.HeaderByNumber(ctx, nil)
 		require.NoError(t, err, "Failed to get head block")
-		unsafeTimestamp := head.Time()
+		unsafeTimestamp := head.Time
 
 		// Root claim is _dishonest_ because the required data is not available on L1
 		unsafeSuper := createSuperRoot(t, ctx, sys, unsafeTimestamp)
@@ -421,7 +426,7 @@ func TestSuperInalidateUnsafeProposal_SecondChainIsUnsafe(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 
-		client := sys.SupervisorClient()
+		client := sys.SupernodeClient()
 		status, err := client.SyncStatus(ctx)
 		require.NoError(t, err, "Failed to get sync status")
 		// Ensure that the superchain has progressed a bit past the genesis timestamp
@@ -432,16 +437,16 @@ func TestSuperInalidateUnsafeProposal_SecondChainIsUnsafe(t *testing.T) {
 		require.NoError(t, sys.Batcher(bChain).Stop(ctx))
 
 		// Wait for client B to advance its unsafe head past the safe chain B. We know this head will remain unsafe since batcher B is stopped.
-		bL2Client := sys.L2GethClient(bChain, "sequencer")
-		targetBlock, err := bL2Client.BlockByNumber(ctx, nil)
+		bL2Client := sys.L2ELClient(bChain, "sequencer")
+		targetBlock, err := bL2Client.HeaderByNumber(ctx, nil)
 		require.NoError(t, err, "Failed to get latest block")
-		targetTimestamp := targetBlock.Time()
+		targetTimestamp := targetBlock.Time
 
 		// Ensure the target timestamp is behind the game timestamp to inhibit trace extension.
-		require.NoError(t, wait.ForBlock(ctx, bL2Client, targetBlock.NumberU64()+15))
-		head, err := bL2Client.BlockByNumber(ctx, nil)
+		require.NoError(t, wait.ForBlock(ctx, bL2Client, bigs.Uint64Strict(targetBlock.Number)+15))
+		head, err := bL2Client.HeaderByNumber(ctx, nil)
 		require.NoError(t, err, "Failed to get latest block")
-		gameTimestamp := head.Time()
+		gameTimestamp := head.Time
 
 		// Root claim is _dishonest_ because the required data to construct the chain B output root is not available on L1
 		unsafeSuper := createSuperRoot(t, ctx, sys, gameTimestamp)
@@ -561,14 +566,16 @@ func TestSuperInvalidateCorrectProposalFutureBlock(t *testing.T) {
 
 	RunTestsAcrossVmTypes(t, tests, func(t *testing.T, allocType config.AllocType, test TestCase) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		client := sys.SupervisorClient()
+		client := sys.SupernodeClient()
 
 		status, err := client.SyncStatus(ctx)
 		require.NoError(t, err, "Failed to get sync status")
-		superRoot, err := client.SuperRootAtTimestamp(ctx, hexutil.Uint64(status.SafeTimestamp))
+		superRoot, err := client.SuperRootAtTimestamp(ctx, status.SafeTimestamp)
 		require.NoError(t, err, "Failed to get super root at safe timestamp")
-		super, err := superRoot.ToSuper()
-		require.NoError(t, err, "Failed to parse super root")
+		require.NotNil(t, superRoot.Data, "supernode returned no super root data at timestamp %v", status.SafeTimestamp)
+		super := superRoot.Data.Super
+		superV1, ok := super.(*eth.SuperV1)
+		require.Truef(t, ok, "Unsupported super type %T", super)
 
 		// Stop the batcher so the safe head doesn't advance
 		for _, id := range sys.L2IDs() {
@@ -577,7 +584,7 @@ func TestSuperInvalidateCorrectProposalFutureBlock(t *testing.T) {
 
 		// Create a dispute game with a proposal that is valid at `superRoot.Timestamp`, but that claims to correspond to timestamp
 		// `superRoot.Timestamp + 100000`. This is dishonest, because the superchain hasn't reached this timestamp yet.
-		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, superRoot.Timestamp+100_000, disputegame.WithSuper(super), disputegame.WithFutureProposal())
+		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, superV1.Timestamp+100_000, disputegame.WithSuper(super), disputegame.WithFutureProposal())
 
 		game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(aliceKey(t)), challenger.WithDepset(t, sys.DependencySet()))
 
@@ -613,7 +620,7 @@ func TestSuperCannonHonestSafeTraceExtensionValidRoot(t *testing.T) {
 		ctx := context.Background()
 
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		client := sys.SupervisorClient()
+		client := sys.SupernodeClient()
 		// Wait for there to be there are safe L2 blocks past the claimed safe timestamp that have data available on L1 within
 		// the commitment stored in the dispute game.
 		status, err := client.SyncStatus(ctx)
@@ -666,7 +673,7 @@ func TestSuperCannonHonestSafeTraceExtensionInvalidRoot(t *testing.T) {
 		ctx := context.Background()
 
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
-		client := sys.SupervisorClient()
+		client := sys.SupernodeClient()
 		// Wait for there to be there are safe L2 blocks past the claimed safe timestamp that have data available on L1 within
 		// the commitment stored in the dispute game.
 		status, err := client.SyncStatus(ctx)
@@ -765,7 +772,7 @@ func createSuperRoot(t *testing.T, ctx context.Context, sys interop.SuperSystem,
 		require.NoError(t, err)
 
 		client := sys.L2RollupClient(id, "sequencer")
-		output, err := client.OutputAtBlock(ctx, blockNum)
+		output, err := wait.ForOutputAtBlock(ctx, client, blockNum)
 		require.NoError(t, err)
 		chains[eth.ChainIDFromBig(rollupCfg.L2ChainID)] = output.OutputRoot
 	}

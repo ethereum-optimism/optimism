@@ -14,26 +14,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/prestate"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/registry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-prestate/types"
-	"github.com/ethereum-optimism/optimism/op-program/prestates"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-core/superchain"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/superchain"
-	"github.com/mattn/go-isatty"
+	"golang.org/x/term"
 )
 
-type FPProgramType interface {
-	FindVersions(log log.Logger, prestateVersion string) (
-		elCommitInfo types.CommitInfo,
-		fppCommitInfo types.CommitInfo,
-		superChainRegistryCommit string,
-		prestateConfigs *superchain.ChainConfigLoader)
-}
-
 func main() {
-	color := isatty.IsTerminal(os.Stderr.Fd())
+	color := term.IsTerminal(int(os.Stderr.Fd()))
 	handler := log.NewTerminalHandler(os.Stderr, color)
-	oplog.SetGlobalLogHandler(handler)
+	logcli.SetGlobalLogHandler(handler)
 	log := log.NewLogger(handler)
 
 	// Define the flag variables
@@ -73,18 +64,18 @@ func main() {
 		log.Crit("--prestate-hash is invalid")
 	}
 
-	prestateReleases, err := prestates.LoadReleases(versionsOverrideFile)
+	prestateReleases, err := prestate.LoadReleases(versionsOverrideFile)
 	if err != nil {
 		log.Crit("Failed to load prestate releases list", "err", err)
 	}
 
 	var prestateVersion string
 	var prestateType string
-	for version, prestates := range prestateReleases.Prestates {
-		for _, prestate := range prestates {
-			if common.HexToHash(prestate.Hash) == prestateHash {
+	for version, releases := range prestateReleases.Prestates {
+		for _, release := range releases {
+			if common.HexToHash(release.Hash) == prestateHash {
 				prestateVersion = version
-				prestateType = prestate.Type
+				prestateType = release.Type
 				break
 			}
 		}
@@ -94,18 +85,13 @@ func main() {
 	}
 	log.Info("Found prestate", "version", prestateVersion, "type", prestateType)
 
-	var prestateImpl FPProgramType
-	switch prestateType {
-	case "cannon32", "cannon64", "interop":
-		prestateImpl = prestate.NewOPProgramPrestate()
-	case "cannon64-kona":
-		prestateImpl = prestate.NewKonaPrestate()
-	default:
-		log.Crit("Invalid prestate type", "type", prestateType)
+	konaPrestate, ok := prestate.NewKonaPrestate(prestateType)
+	if !ok {
+		log.Crit("Unsupported prestate type; only kona prestates are supported", "type", prestateType)
 	}
-	elCommitInfo, fppCommitInfo, commit, prestateConfigs := prestateImpl.FindVersions(log, prestateVersion)
+	elCommitInfo, fppCommitInfo, commit, prestateConfigs, err := konaPrestate.FindVersions(log, prestateVersion)
 	if err != nil {
-		log.Crit("Failed to load configuration for prestate info", "err", err)
+		log.Crit("Failed to find prestate versions", "err", err)
 	}
 
 	prestateNames := prestateConfigs.ChainNames()
@@ -116,8 +102,8 @@ func main() {
 	}
 
 	knownChains := make(map[string]bool)
-	supportedChains := make([]string, 0) // Not null for json serialization
-	outdatedChains := make(map[string]types.OutdatedChain)
+	supportedChains := make([]string, 0)             // Not null for json serialization
+	outdatedChains := make([]types.OutdatedChain, 0) // Not null for json serialization
 	for _, name := range prestateNames {
 		if !chainFilter(name) {
 			continue
@@ -128,10 +114,10 @@ func main() {
 			log.Crit("Failed to check config", "chain", name, "err", err)
 		}
 		if diff != nil {
-			outdatedChains[name] = types.OutdatedChain{
+			outdatedChains = append(outdatedChains, types.OutdatedChain{
 				Name: name,
 				Diff: diff,
-			}
+			})
 		} else {
 			supportedChains = append(supportedChains, name)
 		}
@@ -159,7 +145,7 @@ func main() {
 		ExecutionClient:    elCommitInfo,
 		SuperchainRegistry: commitInfo("superchain-registry", commit, "main", "superchain"),
 		UpToDateChains:     supportedChains,
-		OutdatedChains:     slices.Collect(maps.Values(outdatedChains)),
+		OutdatedChains:     outdatedChains,
 		MissingChains:      missingChains,
 	}
 	encoder := json.NewEncoder(os.Stdout)

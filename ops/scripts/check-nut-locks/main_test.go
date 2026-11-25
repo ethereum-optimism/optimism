@@ -3,6 +3,8 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-core/nuts"
@@ -57,4 +59,33 @@ func TestValidateEntry_ModifiedBundle(t *testing.T) {
 	}
 	err := validateEntry("test", entry, modified)
 	require.ErrorContains(t, err, "bundle hash mismatch")
+}
+
+func TestCheckPreForkState(t *testing.T) {
+	writeStates := func(t *testing.T, names ...string) string {
+		root := t.TempDir()
+		dir := filepath.Join(root, "op-core", "nuts", "state")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		for _, name := range names {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("{}"), 0o644))
+		}
+		return root
+	}
+
+	t.Run("single-chain fork needs only its state", func(t *testing.T) {
+		root := writeStates(t, "karst_state.json")
+		require.NoError(t, checkPreForkState(root, "karst"))
+	})
+	t.Run("multi-chain fork with both states", func(t *testing.T) {
+		root := writeStates(t, "lagoon_state.json", "lagoon_multichain_state.json")
+		require.NoError(t, checkPreForkState(root, "lagoon"))
+	})
+	t.Run("multi-chain fork without its multi-chain state", func(t *testing.T) {
+		root := writeStates(t, "lagoon_state.json")
+		require.ErrorContains(t, checkPreForkState(root, "lagoon"), "lagoon_multichain_state.json")
+	})
+	t.Run("fork without its state", func(t *testing.T) {
+		root := writeStates(t, "lagoon_multichain_state.json")
+		require.ErrorContains(t, checkPreForkState(root, "lagoon"), "lagoon_state.json")
+	})
 }

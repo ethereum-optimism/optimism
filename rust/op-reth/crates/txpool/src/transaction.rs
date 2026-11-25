@@ -2,7 +2,10 @@ use crate::{
     conditional::MaybeConditionalTransaction, estimated_da_size::DataAvailabilitySized,
     interop::MaybeInteropTransaction,
 };
-use alloy_consensus::{BlobTransactionValidationError, Typed2718, transaction::Recovered};
+use alloy_consensus::{
+    BlobTransactionValidationError, Typed2718,
+    transaction::{Recovered, TxHashRef},
+};
 use alloy_eips::{
     eip2718::{Encodable2718, WithEncoded},
     eip2930::AccessList,
@@ -14,7 +17,7 @@ use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use c_kzg::KzgSettings;
 use core::fmt::Debug;
 use reth_optimism_primitives::OpTransactionSigned;
-use reth_primitives_traits::{InMemorySize, SignedTransaction};
+use reth_primitives_traits::InMemorySize;
 use reth_transaction_pool::{
     EthBlobTransactionSidecar, EthPoolTransaction, EthPooledTransaction, PoolTransaction,
 };
@@ -35,16 +38,11 @@ pub(crate) const NO_INTEROP_TX: u64 = 0;
 /// For payload building this lazily tracks values that are required during payload building:
 ///  - Estimated compressed size of this transaction
 #[derive(Debug, Clone, derive_more::Deref)]
-pub struct OpPooledTransaction<
-    Cons = OpTransactionSigned,
-    Pooled = op_alloy_consensus::OpPooledTransaction,
-> {
+pub struct OpPooledTransaction {
     #[deref]
-    inner: EthPooledTransaction<Cons>,
+    inner: EthPooledTransaction<OpTransactionSigned>,
     /// The estimated size of this transaction, lazily computed.
     estimated_tx_compressed_size: OnceLock<u64>,
-    /// The pooled transaction type.
-    _pd: core::marker::PhantomData<Pooled>,
 
     /// Optional conditional attached to this transaction.
     conditional: Option<Box<TransactionConditional>>,
@@ -54,17 +52,23 @@ pub struct OpPooledTransaction<
 
     /// Cached EIP-2718 encoded bytes of the transaction, lazily computed.
     encoded_2718: OnceLock<Bytes>,
+
+    /// Worst-case cost including the OP fees reserved at validation, see
+    /// [`OpPooledTx::set_op_fee_reservation`].
+    op_cost: U256,
 }
 
-impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
+impl OpPooledTransaction {
     /// Create new instance of [Self].
-    pub fn new(transaction: Recovered<Cons>, encoded_length: usize) -> Self {
+    pub fn new(transaction: Recovered<OpTransactionSigned>, encoded_length: usize) -> Self {
+        let inner = EthPooledTransaction::new(transaction, encoded_length);
+        let op_cost = inner.cost;
         Self {
-            inner: EthPooledTransaction::new(transaction, encoded_length),
+            inner,
+            op_cost,
             estimated_tx_compressed_size: Default::default(),
             conditional: None,
             interop: Arc::new(AtomicU64::new(NO_INTEROP_TX)),
-            _pd: core::marker::PhantomData,
             encoded_2718: Default::default(),
         }
     }
@@ -91,7 +95,7 @@ impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
     }
 }
 
-impl<Cons, Pooled> MaybeConditionalTransaction for OpPooledTransaction<Cons, Pooled> {
+impl MaybeConditionalTransaction for OpPooledTransaction {
     fn set_conditional(&mut self, conditional: TransactionConditional) {
         self.conditional = Some(Box::new(conditional))
     }
@@ -101,7 +105,7 @@ impl<Cons, Pooled> MaybeConditionalTransaction for OpPooledTransaction<Cons, Poo
     }
 }
 
-impl<Cons, Pooled> MaybeInteropTransaction for OpPooledTransaction<Cons, Pooled> {
+impl MaybeInteropTransaction for OpPooledTransaction {
     fn set_interop_deadline(&self, deadline: u64) {
         self.interop.store(deadline, Ordering::Relaxed);
     }
@@ -115,20 +119,17 @@ impl<Cons, Pooled> MaybeInteropTransaction for OpPooledTransaction<Cons, Pooled>
     }
 }
 
-impl<Cons: SignedTransaction, Pooled> DataAvailabilitySized for OpPooledTransaction<Cons, Pooled> {
+impl DataAvailabilitySized for OpPooledTransaction {
     fn estimated_da_size(&self) -> u64 {
         self.estimated_compressed_size()
     }
 }
 
-impl<Cons, Pooled> PoolTransaction for OpPooledTransaction<Cons, Pooled>
-where
-    Cons: SignedTransaction + From<Pooled>,
-    Pooled: SignedTransaction + TryFrom<Cons, Error: core::error::Error>,
-{
-    type TryFromConsensusError = <Pooled as TryFrom<Cons>>::Error;
-    type Consensus = Cons;
-    type Pooled = Pooled;
+impl PoolTransaction for OpPooledTransaction {
+    type TryFromConsensusError =
+        <op_alloy_consensus::OpPooledTransaction as TryFrom<OpTransactionSigned>>::Error;
+    type Consensus = OpTransactionSigned;
+    type Pooled = op_alloy_consensus::OpPooledTransaction;
 
     fn clone_into_consensus(&self) -> Recovered<Self::Consensus> {
         self.inner.transaction().clone()
@@ -153,7 +154,7 @@ where
     }
 
     fn hash(&self) -> &TxHash {
-        self.inner.transaction.tx_hash()
+        TxHashRef::tx_hash(self.inner.transaction.inner())
     }
 
     fn sender(&self) -> Address {
@@ -165,7 +166,7 @@ where
     }
 
     fn cost(&self) -> &U256 {
-        &self.inner.cost
+        &self.op_cost
     }
 
     fn encoded_length(&self) -> usize {
@@ -173,23 +174,19 @@ where
     }
 }
 
-impl<Cons: Typed2718, Pooled> Typed2718 for OpPooledTransaction<Cons, Pooled> {
+impl Typed2718 for OpPooledTransaction {
     fn ty(&self) -> u8 {
         self.inner.ty()
     }
 }
 
-impl<Cons: InMemorySize, Pooled> InMemorySize for OpPooledTransaction<Cons, Pooled> {
+impl InMemorySize for OpPooledTransaction {
     fn size(&self) -> usize {
         self.inner.size()
     }
 }
 
-impl<Cons, Pooled> alloy_consensus::Transaction for OpPooledTransaction<Cons, Pooled>
-where
-    Cons: alloy_consensus::Transaction,
-    Pooled: Debug + Send + Sync + 'static,
-{
+impl alloy_consensus::Transaction for OpPooledTransaction {
     fn chain_id(&self) -> Option<u64> {
         self.inner.chain_id()
     }
@@ -259,12 +256,7 @@ where
     }
 }
 
-impl<Cons, Pooled> EthPoolTransaction for OpPooledTransaction<Cons, Pooled>
-where
-    Cons: SignedTransaction + From<Pooled>,
-    Pooled: SignedTransaction + TryFrom<Cons>,
-    <Pooled as TryFrom<Cons>>::Error: core::error::Error,
-{
+impl EthPoolTransaction for OpPooledTransaction {
     fn take_blob(&mut self) -> EthBlobTransactionSidecar {
         EthBlobTransactionSidecar::None
     }
@@ -292,23 +284,29 @@ where
     }
 }
 
-/// Helper trait to provide payload builder with access to conditionals and encoded bytes of
-/// transaction.
+/// OP-specific pool transaction behaviour: gives the payload builder access to conditionals and
+/// encoded bytes, and lets the validator reserve the OP fees in [`PoolTransaction::cost`].
 pub trait OpPooledTx:
     MaybeConditionalTransaction + MaybeInteropTransaction + PoolTransaction + DataAvailabilitySized
 {
     /// Returns the EIP-2718 encoded bytes of the transaction.
     fn encoded_2718(&self) -> Cow<'_, Bytes>;
+
+    /// Adds the OP fees the sender must also cover (L1 data fee and operator fee) to
+    /// [`PoolTransaction::cost`], replacing any previous reservation.
+    ///
+    /// The pool sums `cost()` over a sender's consecutive nonces to decide which are executable, so
+    /// without the reservation it marks transactions pending that cannot pay their L1 data fee.
+    fn set_op_fee_reservation(&mut self, fee: U256);
 }
 
-impl<Cons, Pooled> OpPooledTx for OpPooledTransaction<Cons, Pooled>
-where
-    Cons: SignedTransaction + From<Pooled>,
-    Pooled: SignedTransaction + TryFrom<Cons>,
-    <Pooled as TryFrom<Cons>>::Error: core::error::Error,
-{
+impl OpPooledTx for OpPooledTransaction {
     fn encoded_2718(&self) -> Cow<'_, Bytes> {
         Cow::Borrowed(self.encoded_2718())
+    }
+
+    fn set_op_fee_reservation(&mut self, fee: U256) {
+        self.op_cost = self.inner.cost.saturating_add(fee);
     }
 }
 
@@ -325,7 +323,7 @@ mod tests {
     use reth_provider::test_utils::MockEthProvider;
     use reth_transaction_pool::{
         TransactionOrigin, TransactionValidationOutcome, blobstore::InMemoryBlobStore,
-        validate::EthTransactionValidatorBuilder,
+        error::InvalidPoolTransactionError, validate::EthTransactionValidatorBuilder,
     };
     #[tokio::test]
     async fn validate_optimism_transaction() {
@@ -345,7 +343,7 @@ mod tests {
             source_hash: Default::default(),
             from: signer,
             to: TxKind::Create,
-            mint: 0,
+            mint: U256::ZERO,
             value: U256::ZERO,
             gas_limit: 0,
             is_system_transaction: false,
@@ -362,5 +360,67 @@ mod tests {
             _ => panic!("Expected invalid transaction"),
         };
         assert_eq!(err.to_string(), "transaction type not supported");
+    }
+
+    /// A non-deposit transaction may use at most `block_gas_limit - L1_INFO_GAS_OVERHEAD` gas:
+    /// the L1-info deposit is present in every block and always consumes gas, so a tx asking for
+    /// the full block gas limit can never be included. Mirrors op-geth's `EffectiveGasLimit`
+    /// (`core/txpool/validation.go`); such a tx must be rejected at admission, not silently stuck.
+    #[tokio::test]
+    async fn rejects_tx_exceeding_l1_info_reserved_gas_limit() {
+        use crate::validator::L1_INFO_GAS_OVERHEAD;
+        use alloy_consensus::{SignableTransaction, TxEip1559};
+        use alloy_primitives::{Address, Signature};
+        use reth_provider::test_utils::ExtendedAccount;
+
+        let client = MockEthProvider::<OpPrimitives>::new()
+            .with_chain_spec(OP_MAINNET.clone())
+            .with_genesis_block();
+        let signer = Address::with_last_byte(1);
+        client.add_account(signer, ExtendedAccount::new(0, U256::MAX));
+
+        let evm_config = OpEvmConfig::optimism(OP_MAINNET.clone());
+        let validator = EthTransactionValidatorBuilder::new(client, evm_config)
+            .build(InMemoryBlobStore::default());
+        let validator = OpTransactionValidator::new(validator);
+
+        let block_gas_limit = validator.block_gas_limit();
+        let effective_limit = block_gas_limit - L1_INFO_GAS_OVERHEAD;
+
+        let make_tx = |gas_limit: u64| -> OpPooledTransaction {
+            let tx: OpTransactionSigned = TxEip1559 {
+                chain_id: 10,
+                nonce: 0,
+                gas_limit,
+                max_fee_per_gas: 1_000_000_000,
+                to: TxKind::Call(Address::with_last_byte(0x42)),
+                ..Default::default()
+            }
+            .into_signed(Signature::test_signature())
+            .into();
+            let recovered = Recovered::new_unchecked(tx, signer);
+            let len = recovered.encode_2718_len();
+            OpPooledTransaction::new(recovered, len)
+        };
+
+        // At the full block gas limit: <= the inner full-limit check (so it alone wouldn't
+        // reject), but above the L1-info-reserved limit => rejected by the reservation.
+        let outcome =
+            validator.validate_one(TransactionOrigin::External, make_tx(block_gas_limit)).await;
+        assert!(
+            matches!(
+                outcome,
+                TransactionValidationOutcome::Invalid(
+                    _,
+                    InvalidPoolTransactionError::ExceedsGasLimit(..)
+                )
+            ),
+            "tx at the full block gas limit must be rejected by the L1-info reservation, got: {outcome:?}"
+        );
+
+        // At the effective limit => accepted.
+        let outcome =
+            validator.validate_one(TransactionOrigin::External, make_tx(effective_limit)).await;
+        assert!(outcome.is_valid(), "tx at the effective limit must be accepted, got: {outcome:?}");
     }
 }

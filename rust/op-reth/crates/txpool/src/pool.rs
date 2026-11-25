@@ -12,16 +12,18 @@ use std::{
 };
 
 use alloy_consensus::Transaction;
-use alloy_eips::eip7594::BlobTransactionSidecarVariant;
+use alloy_eips::eip7594::{BlobCellMask, BlobTransactionSidecarVariant};
 use alloy_primitives::{Address, B256, TxHash};
 use metrics::Counter;
+use reth_eth_wire_types::HandleMempoolData;
 use reth_metrics::Metrics;
 use reth_transaction_pool::{
     AllPoolTransactions, AllTransactionsEvents, BestTransactions, BestTransactionsAttributes,
-    BlobStoreError, BlockInfo, GetPooledTransactionLimit, NewTransactionEvent, PoolResult,
-    PoolSize, PoolTransaction, PoolUpdateKind, PropagatedTransactions, TransactionEvents,
-    TransactionListenerKind, TransactionOrigin, TransactionPool, TransactionPoolExt,
-    ValidPoolTransaction,
+    BlobStore, BlobStoreError, BlockInfo, EthPoolTransaction, GetPooledTransactionLimit,
+    NewTransactionEvent, Pool, PoolConfig, PoolResult, PoolSize, PoolTransaction, PoolUpdateKind,
+    PropagatedTransactions, TransactionEvents, TransactionListenerKind, TransactionOrdering,
+    TransactionOrigin, TransactionPool, TransactionPoolExt, TransactionValidationOutcome,
+    TransactionValidator, ValidPoolTransaction, ValidatingPool,
 };
 use tokio::sync::mpsc::Receiver;
 use tracing::debug;
@@ -139,6 +141,16 @@ where
         Self { inner, reorg_state, metrics: OpPoolMetrics::default() }
     }
 
+    /// Number of transactions in the entire pool.
+    pub fn len(&self) -> usize {
+        self.inner.pool_size().total
+    }
+
+    /// Whether the pool is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns true if interop filtering should fire on this
     /// `add_external_transactions` call.
     ///
@@ -190,6 +202,47 @@ where
             self.metrics.reorg_interop_txs_filtered.increment(removed as u64);
         }
         filtered
+    }
+
+    const fn inner(&self) -> &P {
+        &self.inner
+    }
+}
+
+impl<V, T, S> OpPool<Pool<V, T, S>>
+where
+    V: TransactionValidator,
+    V::Transaction: EthPoolTransaction,
+    T: TransactionOrdering<Transaction = V::Transaction>,
+    S: BlobStore + Clone,
+{
+    /// Get the config the pool was configured with.
+    pub fn config(&self) -> &PoolConfig {
+        self.inner.config()
+    }
+
+    /// Get the validator reference.
+    pub fn validator(&self) -> &V {
+        self.inner.validator()
+    }
+
+    /// Validates the given transaction.
+    pub async fn validate(
+        &self,
+        origin: TransactionOrigin,
+        transaction: V::Transaction,
+    ) -> TransactionValidationOutcome<V::Transaction> {
+        self.validator().validate_transaction(origin, transaction).await
+    }
+
+    /// Returns whether or not the pool is over its configured size and transaction count limits.
+    pub fn is_exceeded(&self) -> bool {
+        self.inner.is_exceeded()
+    }
+
+    /// Returns the configured blob store.
+    pub fn blob_store(&self) -> &S {
+        self.inner.blob_store()
     }
 }
 
@@ -287,6 +340,15 @@ where
     delegate!(fn pending_transactions_listener_for(&self, kind: TransactionListenerKind) -> Receiver<TxHash>);
     delegate!(fn blob_transaction_sidecars_listener(&self) -> Receiver<reth_transaction_pool::NewBlobSidecar>);
     delegate!(fn new_transactions_listener_for(&self, kind: TransactionListenerKind) -> Receiver<NewTransactionEvent<Self::Transaction>>);
+    delegate!(fn blob_store(&self) -> Box<dyn BlobStore>);
+
+    fn retain_contains<A>(&self, announcement: &mut A)
+    where
+        A: HandleMempoolData,
+    {
+        self.inner.retain_contains(announcement)
+    }
+
     delegate!(fn pooled_transaction_hashes(&self) -> Vec<TxHash>);
     delegate!(fn pooled_transaction_hashes_max(&self, max: usize) -> Vec<TxHash>);
     delegate!(fn pooled_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
@@ -300,6 +362,7 @@ where
     delegate!(fn queued_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
     delegate!(fn pending_and_queued_txn_count(&self) -> (usize, usize));
     delegate!(fn all_transactions(&self) -> AllPoolTransactions<Self::Transaction>);
+    delegate!(fn all_transactions_by_sender(&self, sender: Address) -> AllPoolTransactions<Self::Transaction>);
     delegate!(fn all_transaction_hashes(&self) -> Vec<TxHash>);
     delegate!(fn remove_transactions(&self, hashes: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
     delegate!(fn remove_transactions_and_descendants(&self, hashes: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>>);
@@ -341,7 +404,8 @@ where
     delegate!(fn get_blobs_for_versioned_hashes_v1(&self, versioned_hashes: &[B256]) -> Result<Vec<Option<alloy_eips::eip4844::BlobAndProofV1>>, BlobStoreError>);
     delegate!(fn get_blobs_for_versioned_hashes_v2(&self, versioned_hashes: &[B256]) -> Result<Option<Vec<alloy_eips::eip4844::BlobAndProofV2>>, BlobStoreError>);
     delegate!(fn get_blobs_for_versioned_hashes_v3(&self, versioned_hashes: &[B256]) -> Result<Vec<Option<alloy_eips::eip4844::BlobAndProofV2>>, BlobStoreError>);
-    delegate!(fn get_blobs_for_versioned_hashes_v4(&self, versioned_hashes: &[B256], indices_bitarray: alloy_primitives::B128) -> Result<Vec<Option<alloy_eips::eip4844::BlobCellsAndProofsV1>>, BlobStoreError>);
+    delegate!(fn get_blobs_for_versioned_hashes_v4(&self, versioned_hashes: &[B256], cell_mask: BlobCellMask) -> Result<Vec<Option<alloy_eips::eip4844::BlobCellsAndProofsV1>>, BlobStoreError>);
+    delegate!(fn has_blobs_for_versioned_hashes(&self, versioned_hashes: &[B256]) -> Result<Vec<bool>, BlobStoreError>);
 }
 
 impl<P> TransactionPoolExt for OpPool<P>
@@ -377,10 +441,22 @@ where
     delegate!(fn cleanup_blobs(&self));
 }
 
+impl<P> ValidatingPool for OpPool<P>
+where
+    P: ValidatingPool,
+    P::Transaction: Transaction,
+{
+    type Validator = P::Validator;
+
+    fn validator(&self) -> &Self::Validator {
+        self.inner().validator()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::supervisor::CROSS_L2_INBOX_ADDRESS;
+    use crate::interop_filter::CROSS_L2_INBOX_ADDRESS;
     use alloy_eips::eip2930::{AccessList, AccessListItem};
     use alloy_primitives::address;
     use reth_transaction_pool::test_utils::MockTransaction;

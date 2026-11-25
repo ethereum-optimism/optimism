@@ -23,7 +23,7 @@ pub trait OpTxTr: Transaction {
     fn source_hash(&self) -> Option<B256>;
 
     /// Mint of the deposit transaction
-    fn mint(&self) -> Option<u128>;
+    fn mint(&self) -> Option<U256>;
 
     /// Whether the transaction is a system transaction
     fn is_system_transaction(&self) -> bool;
@@ -95,6 +95,15 @@ impl<TX: Transaction + SystemCallTx> SystemCallTx for OpTransaction<TX> {
     }
 }
 
+/// UPSTREAM-MIRROR(delegate): revm-context-interface@43.0.2 `revm_context_interface::Transaction`
+///
+/// Forwards the primitive getters to `self.base` and overrides `tx_type` and
+/// `effective_gas_price` for deposits. Everything not listed here inherits the upstream
+/// default — currently `total_blob_gas`, `calc_max_data_fee`, `max_balance_spending`,
+/// `ensure_enough_balance`, `effective_balance_spending` and `gas_balance_spending`, all of
+/// which are built from the getters above and so stay consistent. On each bump check for
+/// newly defaulted methods. If the inner `T` overrides one, this wrapper must forward it;
+/// inheriting the generic default can silently diverge from `self.base`.
 impl<T: Transaction> Transaction for OpTransaction<T> {
     type AccessListItem<'a>
         = T::AccessListItem<'a>
@@ -195,7 +204,7 @@ impl<T: Transaction> OpTxTr for OpTransaction<T> {
         Some(self.deposit.source_hash)
     }
 
-    fn mint(&self) -> Option<u128> {
+    fn mint(&self) -> Option<U256> {
         self.deposit.mint
     }
 
@@ -241,7 +250,7 @@ impl OpTransactionBuilder {
     }
 
     /// Set the mint of the deposit transaction.
-    pub const fn mint(mut self, mint: u128) -> Self {
+    pub const fn mint(mut self, mint: U256) -> Self {
         self.deposit.mint = Some(mint);
         self
     }
@@ -364,7 +373,7 @@ mod tests {
             .base(base_tx)
             .enveloped_tx(None)
             .not_system_transaction()
-            .mint(0u128)
+            .mint(U256::ZERO)
             .source_hash(B256::from([1u8; 32]))
             .build()
             .unwrap();

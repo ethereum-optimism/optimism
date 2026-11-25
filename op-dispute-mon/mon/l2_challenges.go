@@ -2,7 +2,7 @@ package mon
 
 import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type L2ChallengesMetrics interface {
@@ -21,7 +21,7 @@ func NewL2ChallengesMonitor(logger log.Logger, metrics L2ChallengesMetrics) *L2C
 	}
 }
 
-func (m *L2ChallengesMonitor) CheckL2Challenges(games []*types.EnrichedGameData) {
+func (m *L2ChallengesMonitor) CheckL2Challenges(games []*types.FaultGameData) {
 	agreeChallengeCount := 0
 	disagreeChallengeCount := 0
 	for _, game := range games {

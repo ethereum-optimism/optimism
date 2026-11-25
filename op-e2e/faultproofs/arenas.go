@@ -7,10 +7,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/interop"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +38,7 @@ func (o *outputGameArena) L1Client() *ethclient.Client {
 }
 
 func (o *outputGameArena) GetProposalRoot(ctx context.Context, l2SequenceNumber uint64) common.Hash {
-	output, err := o.sys.RollupClient("sequencer").OutputAtBlock(ctx, l2SequenceNumber)
+	output, err := wait.ForOutputAtBlock(ctx, o.sys.RollupClient("sequencer"), l2SequenceNumber)
 	require.NoError(o.t, err)
 	return common.Hash(output.OutputRoot)
 }
@@ -74,9 +74,10 @@ func (s *superGameArena) L1Client() *ethclient.Client {
 }
 
 func (s *superGameArena) GetProposalRoot(ctx context.Context, l2SequenceNumber uint64) common.Hash {
-	output, err := s.sys.SupervisorClient().SuperRootAtTimestamp(ctx, hexutil.Uint64(l2SequenceNumber))
+	output, err := s.sys.SupernodeClient().SuperRootAtTimestamp(ctx, l2SequenceNumber)
 	require.NoError(s.t, err)
-	return common.Hash(output.SuperRoot)
+	require.NotNil(s.t, output.Data, "supernode returned no super root data at timestamp %v", l2SequenceNumber)
+	return common.Hash(output.Data.SuperRoot)
 }
 
 func (s *superGameArena) CreateChallenger(ctx context.Context) {

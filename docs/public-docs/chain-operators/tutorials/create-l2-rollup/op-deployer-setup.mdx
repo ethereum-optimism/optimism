@@ -1,6 +1,7 @@
 ---
 title: Deploy L1 contracts with op-deployer
 description: Install op-deployer, prepare your environment, and deploy the L1 smart contracts for your rollup.
+diataxis: tutorial
 ---
 
 Welcome to the first step of creating your own L2 rollup testnet! In this section, you'll install the op-deployer tool and deploy the necessary L1 smart contracts for your rollup.
@@ -43,7 +44,6 @@ There are a couple of ways to install `op-deployer`:
       *   For macOS:
           *   Apple Silicon (M1/M2): `op-deployer-darwin-arm64`
           *   Intel processors: `op-deployer-darwin-amd64`
-      *   For Windows: `op-deployer-windows-amd64.exe`
 
       <Info>
         **Always download the latest version** to ensure you have the most recent features and bug fixes.
@@ -220,7 +220,7 @@ The intent file defines your chain's configuration.
   ```
 
 
-  <Expandable title="Understanding intent types">
+  <Accordion title="Understanding intent types">
 
     `op-deployer` supports three intent types:
 
@@ -229,7 +229,7 @@ The intent file defines your chain's configuration.
     *   `custom`: Full customization, requires manual configuration of all values
 
     For most users, `standard-overrides` provides the best balance of simplicity and flexibility.
-  </Expandable>
+  </Accordion>
 
       </Step>
 
@@ -245,15 +245,16 @@ The intent file defines your chain's configuration.
   opcmAddress = "0x3bb6437aba031afbf9cb3538fa064161e2bf2d78"  # OPCM contract address on Sepolia
 
   # Contract locators - REQUIRED fields, automatically populated by op-deployer init
-  # Keep these default values unless you need specific contract versions (advanced use case)
-  l1ContractsLocator = "tag://op-contracts/v2.0.0"
-  l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
+  # Keep these default values: op-deployer runs only the contracts release that it embeds
+  l1ContractsLocator = "embedded"
+  l2ContractsLocator = "embedded"
 
   # Shared contract roles - only define if creating a standalone chain not part of the OP Stack ecosystem
   # For standard OP Stack deployments, these are predefined and should not be set
   # [superchainRoles]
-  #   proxyAdminOwner = "0x..."     # admin address
-  #   guardian = "0x..."            # admin address
+  #   SuperchainProxyAdminOwner = "0x..."  # admin address
+  #   SuperchainGuardian = "0x..."         # admin address
+  #   Challenger = "0x..."                 # admin address
 
   [[chains]]
     id = "0x000000000000000000000000000000000000000000000000000000000016de8d"
@@ -274,7 +275,7 @@ The intent file defines your chain's configuration.
       challenger = "0xfd1d2e729ae8eee2e146c033bf4400fe75284301"
   ```
 
-  <Expandable title="Understanding the configuration values">
+  <Accordion title="Understanding the configuration values">
 
     **Global Settings:**
 
@@ -319,7 +320,7 @@ The intent file defines your chain's configuration.
     *   `batcher`: Submits L2 transaction batches to L1
     *   `proposer`: Submits L2 state roots to L1 for verification
     *   `challenger`: Monitors dispute games and defends valid states
-  </Expandable>
+  </Accordion>
 
       </Step>
     </Steps>
@@ -423,13 +424,15 @@ rollup/
 
 Now you can move on to setting up your sequencer node.
 
-<Card title="Spin up sequencer →" href="./op-geth-setup">
-  **Next**: Set up op-geth and op-node, essential building blocks of the execution and consensus layers in your rollup.
+<Card title="Spin up sequencer →" href="./op-reth-setup">
+  **Next**: Set up op-reth and op-node, essential building blocks of the execution and consensus layers in your rollup.
 </Card>
 
 ***
 
 ## Need Help?
 
-*   **op-deployer Repository**: [GitHub](https://github.com/ethereum-optimism/optimism/tree/develop/op-deployer/cmd/op-deployer)
+*   **op-deployer Documentation**: [op-deployer overview](/chain-operators/tools/op-deployer/overview)
+*   **op-deployer Repository**: [GitHub](https://github.com/ethereum-optimism/optimism/tree/develop/op-deployer)
 *   **OPCM Documentation**: [OP Contracts Manager](/chain-operators/reference/opcm)
+*   **Support**: Open an issue in the [Optimism monorepo](https://github.com/ethereum-optimism/optimism/issues)

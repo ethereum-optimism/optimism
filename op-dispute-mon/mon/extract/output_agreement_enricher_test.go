@@ -12,10 +12,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +26,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 	t.Run("ErrorWhenNoRollupClient", func(t *testing.T) {
 		validator, _, _ := setupOutputValidatorTest(t)
 		validator.clients = nil
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
 			},
@@ -46,7 +46,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {
 				validator, _, metrics := setupOutputValidatorTest(t)
 				validator.clients = nil // Should not error even though there's no rollup client
-				game := &types.EnrichedGameData{
+				game := &types.CommonGameData{
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
 					},
@@ -67,7 +67,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			gameType := gameType
 			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {
 				validator, _, metrics := setupOutputValidatorTest(t)
-				game := &types.EnrichedGameData{
+				game := &types.CommonGameData{
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
 					},
@@ -82,12 +82,12 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		}
 	})
 
-	t.Run("AllNodesReturnError", func(t *testing.T) {
+	t.Run("RecoversAfterAllNodesReturnError", func(t *testing.T) {
 		validator, clients, metrics := setupMultiNodeTest(t, 3)
 		for _, client := range clients {
 			client.outputErr = errors.New("boom")
 		}
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   0,
 			RootClaim:          mockRootClaim,
@@ -99,6 +99,21 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
 		require.False(t, game.AgreeWithClaim)
 		require.Zero(t, metrics.fetchTime)
+
+		for _, client := range clients {
+			client.outputErr = nil
+		}
+		game = &types.CommonGameData{
+			L1HeadNum:          100,
+			L2SequenceNumber:   0,
+			RootClaim:          mockRootClaim,
+			NodeEndpointErrors: make(map[string]bool),
+		}
+		err = validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
+		require.True(t, game.AgreeWithClaim)
+		require.NotZero(t, metrics.fetchTime)
 	})
 
 	t.Run("AllNodesReturnNotFound", func(t *testing.T) {
@@ -106,7 +121,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		for _, client := range clients {
 			client.outputErr = mockNotFoundRPCError()
 		}
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   0,
 			RootClaim:          mockRootClaim,
@@ -124,7 +139,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[0].currentL1 = 99
 		clients[1].currentL1 = 100 // Out of sync because it is only equal to the game L1 head
 		clients[2].currentL1 = 0
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:        100,
 			L2SequenceNumber: 0,
 			RootClaim:        mockRootClaim,
@@ -141,7 +156,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[0].currentL1 = 99
 		// Would disagree but will be ignored because node is not in sync
 		clients[0].outputRoot = common.Hash{0xaa, 0xbb, 0xcc, 0xdd}
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:        100,
 			L2SequenceNumber: 0,
 			RootClaim:        mockRootClaim,
@@ -158,7 +173,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[0].outputErr = mockNotFoundRPCError()
 		clients[1].outputErr = nil
 		clients[2].outputErr = nil
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   0,
 			RootClaim:          mockRootClaim,
@@ -179,7 +194,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[2].safeHeadNum = 100
 		clients[3].outputRoot = mockRootClaim
 		clients[3].safeHeadNum = 100
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   50,
 			RootClaim:          mockRootClaim,
@@ -198,7 +213,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[0].outputErr = mockNotFoundRPCError()
 		clients[1].outputRoot = differentRoot
 		clients[2].outputRoot = differentRoot
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   50,
 			RootClaim:          mockRootClaim,
@@ -217,7 +232,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[0].outputRoot = mockRootClaim
 		clients[1].outputRoot = divergedRoot
 		clients[2].outputRoot = divergedRoot
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   0,
 			RootClaim:          mockRootClaim,
@@ -235,7 +250,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[0].safeHeadNum = 100
 		clients[1].safeHeadNum = 99
 		clients[2].safeHeadNum = 101
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   0,
 			RootClaim:          mockRootClaim,
@@ -253,7 +268,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[0].safeHeadErr = errors.New("boom")
 		clients[1].safeHeadErr = nil
 		clients[2].safeHeadErr = nil
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   0,
 			RootClaim:          mockRootClaim,
@@ -271,7 +286,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		clients[0].safeHeadNum = 50
 		clients[1].safeHeadNum = 60
 		clients[2].safeHeadNum = 70
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   80,
 			RootClaim:          mockRootClaim,
@@ -292,7 +307,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			client.safeHeadNum = 40
 		}
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   50, // Higher than all safe heads
 			RootClaim:          mockRootClaim,
@@ -315,7 +330,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			// Safe head numbers don't matter here since the output doesn't match the claim
 		}
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   50,
 			RootClaim:          mockRootClaim,
@@ -334,7 +349,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		// RPC block numbers must be a int64 to be valid. Anything bigger than that should be treated as invalid
 		// without even making a request to the node.
 		rollup.outputErr = errors.New("should not have even requested the output root")
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			L1HeadNum:          100,
 			L2SequenceNumber:   uint64(math.MaxInt64) + 1,
 			RootClaim:          mockRootClaim,
@@ -351,7 +366,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		t.Run("SingleNodeError", func(t *testing.T) {
 			validator, client, _ := setupOutputValidatorTest(t)
 			client.outputErr = errors.New("connection failed")
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -372,7 +387,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			clients[2].outputErr = errors.New("server error")
 			// clients[1] will succeed
 
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -393,7 +408,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		t.Run("NotFoundErrorsNotRecorded", func(t *testing.T) {
 			validator, client, _ := setupOutputValidatorTest(t)
 			client.outputErr = mockNotFoundRPCError()
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -414,7 +429,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		t.Run("SingleNodeErrorCount", func(t *testing.T) {
 			validator, client, _ := setupOutputValidatorTest(t)
 			client.outputErr = errors.New("connection failed")
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -436,7 +451,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			clients[2].outputErr = errors.New("another error")
 			// clients[3] will succeed
 
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -457,7 +472,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			clients[1].outputErr = mockNotFoundRPCError()
 			// clients[2] will succeed
 
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -479,7 +494,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			clients[2].outputErr = errors.New("server error")     // Should be counted
 			// clients[3] will succeed
 
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -503,7 +518,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			clients[1].currentL1 = 400
 			clients[2].currentL1 = 500
 
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -524,7 +539,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			clients[1].currentL1 = 300
 			clients[2].currentL1 = 400
 
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -546,7 +561,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			clients[2].currentL1 = 50  // Out of sync
 			clients[3].currentL1 = 300 // In sync
 
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -567,7 +582,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			clients[1].currentL1 = 100 // Equal to game L1 head, considered out of sync
 			clients[2].currentL1 = 0
 
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -590,7 +605,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			clients[3].outputErr = mockNotFoundRPCError() // Not found (not counted as error)
 			clients[4].currentL1 = 300                    // In sync and succeeds
 
-			game := &types.EnrichedGameData{
+			game := &types.CommonGameData{
 				GameMetadata: challengerTypes.GameMetadata{
 					GameType: 0,
 				},
@@ -622,7 +637,7 @@ func (e testRPCError) Error() string  { return e.msg }
 func (e testRPCError) ErrorCode() int { return e.code }
 
 func setupOutputValidatorTest(t *testing.T) (*OutputAgreementEnricher, *stubRollupClient, *stubOutputMetrics) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	client := &stubRollupClient{
 		currentL1:   math.MaxUint64,
 		safeHeadNum: 99999999999,
@@ -633,7 +648,7 @@ func setupOutputValidatorTest(t *testing.T) (*OutputAgreementEnricher, *stubRoll
 }
 
 func setupMultiNodeTest(t *testing.T, numNodes int) (*OutputAgreementEnricher, []*stubRollupClient, *stubOutputMetrics) {
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 	clients := make([]*stubRollupClient, numNodes)
 	rollupClients := make([]OutputRollupClient, numNodes)
 	for i := range clients {
@@ -712,7 +727,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 		clients[2].outputRoot = rootClaim
 		clients[2].safeHeadNum = 150
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
 			},
@@ -743,7 +758,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 			client.safeHeadNum = 100 // All would be safe if checked
 		}
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
 			},
@@ -778,7 +793,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 		clients[2].outputRoot = rootClaim
 		clients[2].safeHeadNum = 50
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
 			},
@@ -808,7 +823,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 			client.safeHeadNum = 100
 		}
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
 			},
@@ -837,7 +852,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 		clients[1].outputRoot = divergedRoot
 		clients[2].outputRoot = divergedRoot
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
 			},
@@ -861,7 +876,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 			client.outputRoot = mockRootClaim
 		}
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
 			},
@@ -885,7 +900,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 		clients[1].outputRoot = mockRootClaim
 		clients[2].outputErr = mockNotFoundRPCError() // This client returns "not found"
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
 			},
@@ -911,7 +926,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 		clients[1].outputRoot = mockRootClaim
 		clients[2].outputRoot = divergedRoot
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
 			},
@@ -935,7 +950,7 @@ func TestOutputAgreementEnricher_SafetyCounting(t *testing.T) {
 			client.outputErr = errors.New("rpc error")
 		}
 
-		game := &types.EnrichedGameData{
+		game := &types.CommonGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
 			},

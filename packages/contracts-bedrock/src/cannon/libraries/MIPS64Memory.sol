@@ -13,7 +13,7 @@ library MIPS64Memory {
     /// @param _memRoot The current memory root
     /// @param _addr The address to read from.
     /// @param _proofOffset The offset of the memory proof in calldata.
-    /// @return out_ The hashed MIPS state.
+    /// @return out_ The 64-bit word read from memory.
     function readMem(bytes32 _memRoot, uint64 _addr, uint256 _proofOffset) internal pure returns (uint64 out_) {
         bool valid;
         (out_, valid) = readMemUnchecked(_memRoot, _addr, _proofOffset);
@@ -26,7 +26,7 @@ library MIPS64Memory {
     /// @param _memRoot The current memory root
     /// @param _addr The address to read from.
     /// @param _proofOffset The offset of the memory proof in calldata.
-    /// @return out_ The hashed MIPS state.
+    /// @return out_ The 64-bit word read from memory.
     ///         valid_ Whether the proof is valid.
     function readMemUnchecked(
         bytes32 _memRoot,

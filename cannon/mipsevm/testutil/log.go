@@ -3,7 +3,7 @@ package testutil
 import (
 	"os"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 func CreateLogger() log.Logger {

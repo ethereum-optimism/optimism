@@ -8,6 +8,7 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DeployState } from "scripts/libraries/DeployState.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
 // For all broadcasts in this script we explicitly specify the deployer as `msg.sender` because for
@@ -34,8 +35,10 @@ contract DeploySuperchain is Script {
     // -------- Core Deployment Methods --------
 
     function runWithBytes(bytes memory _input) public returns (bytes memory) {
+        DeployState.load();
         Input memory input = abi.decode(_input, (Input));
         Output memory output = run(input);
+        DeployState.dump(msg.sender);
         return abi.encode(output);
     }
 
@@ -152,7 +155,7 @@ contract DeploySuperchain is Script {
         vm.stopPrank();
 
         require(actualSuperchainConfigImpl == address(_output.superchainConfigImpl), "100"); // nosemgrep:
-            // sol-style-malformed-require
+        // sol-style-malformed-require
     }
 
     function assertValidSuperchainProxyAdmin(Input memory _input, Output memory _output) internal view {
@@ -163,10 +166,7 @@ contract DeploySuperchain is Script {
         // Proxy checks.
         ISuperchainConfig superchainConfig = _output.superchainConfigProxy;
         DeployUtils.assertInitialized({
-            _contractAddress: address(superchainConfig),
-            _isProxy: true,
-            _slot: 0,
-            _offset: 0
+            _contractAddress: address(superchainConfig), _isProxy: true, _slot: 0, _offset: 0
         });
         require(superchainConfig.guardian() == _input.guardian, "SUPCON-10");
 

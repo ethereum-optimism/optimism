@@ -7,7 +7,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 User docs:
 - [Proposer Configuration docs]
 
-[Proposer Configuration docs]: https://docs.optimism.io/builders/chain-operators/configuration/proposer
+[Proposer Configuration docs]: https://docs.optimism.io/chain-operators/guides/configuration/proposer
 
 Specs:
 - [`proposals.md`](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/proposals.md)
@@ -31,7 +31,7 @@ with an inclusion-proof of a withdrawn message (as registered in the L2 withdraw
 ```bash
 go run ./op-proposer/cmd \
         --l1-eth-rpc http://l1:8545 \
-      --rollup-rpc: http://op-node:8545 \
+      --rollup-rpc http://op-node:8545 \
       --game-factory-address=changeme \
       --game-type=changeme
 ```
@@ -81,7 +81,7 @@ participant claim as Fault Dispute Game<br/> contract
 participant dgf as Dispute Game Factory<br/> contract on L1
 participant proposer as op-proposer
 participant opnode as op-node
-participant el as Execution Engine<br/> (e.g. op-geth)
+participant el as Execution Engine<br/> (e.g. op-reth)
 
 proposer ->>opnode: query output-root
 opnode ->>el: query block and withdrawals-root

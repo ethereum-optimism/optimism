@@ -1,10 +1,8 @@
 //! Optimism execution payload envelope V3.
 
 use alloc::vec::Vec;
-use alloy_consensus::Block;
-use alloy_eips::Decodable2718;
 use alloy_primitives::{B256, Bytes, U256};
-use alloy_rpc_types_engine::{BlobsBundleV1, ExecutionPayloadV3, PayloadError};
+use alloy_rpc_types_engine::{BlobsBundleV1, ExecutionPayloadV3};
 
 /// The Opstack execution payload for `newPayloadV4` of the engine API introduced with isthmus.
 /// See also <https://specs.optimism.io/protocol/isthmus/exec-engine.html#engine_newpayloadv4-api>
@@ -31,49 +29,6 @@ impl OpExecutionPayloadV4 {
         withdrawals_root: B256,
     ) -> Self {
         Self { withdrawals_root, payload_inner: payload }
-    }
-
-    /// Converts [`OpExecutionPayloadV4`] to [`Block`] with raw transactions.
-    ///
-    /// This performs the same conversion as the underlying V3 payload, but inserts the L2
-    /// withdrawals root and returns raw transaction bytes instead of decoded transactions.
-    pub fn into_block_raw(self) -> Result<Block<Bytes>, PayloadError> {
-        let mut base_block = self.payload_inner.into_block_raw()?;
-
-        // overwrite l1 withdrawals root with l2 withdrawals root
-        base_block.header.withdrawals_root = Some(self.withdrawals_root);
-
-        Ok(base_block)
-    }
-
-    /// Converts [`OpExecutionPayloadV4`] to [`Block`].
-    ///
-    /// This performs the same conversion as the underlying V3 payload, but inserts the L2
-    /// withdrawals root.
-    ///
-    /// See also [`ExecutionPayloadV3::try_into_block`].
-    pub fn try_into_block<T: Decodable2718>(self) -> Result<Block<T>, PayloadError> {
-        let block = self.into_block_raw()?;
-        block.try_map_transactions(|tx| {
-            T::decode_2718_exact(tx.as_ref())
-                .map_err(alloy_rlp::Error::from)
-                .map_err(PayloadError::from)
-        })
-    }
-
-    /// Converts [`OpExecutionPayloadV4`] to [`Block`] with a custom transaction mapper.
-    ///
-    /// This performs the same conversion as the underlying V3 payload, but inserts the L2
-    /// withdrawals root.
-    ///
-    /// See also [`ExecutionPayloadV3::try_into_block_with`].
-    pub fn try_into_block_with<T, F, E>(self, f: F) -> Result<Block<T>, PayloadError>
-    where
-        F: FnMut(Bytes) -> Result<T, E>,
-        E: Into<PayloadError>,
-    {
-        let block = self.into_block_raw()?;
-        block.try_map_transactions(f).map_err(|e| e.into())
     }
 }
 

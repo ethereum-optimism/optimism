@@ -8,7 +8,7 @@ import (
 
 	opnodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -68,6 +68,12 @@ var (
 		Value:    false,
 		Required: false,
 	}
+	DependencySet = &cli.PathFlag{
+		Name:      "dependency-set",
+		Usage:     "Dependency-set configuration shared by all chains, point at JSON file. Overrides the registry fallback and any per-VN interop.dependency-set flag.",
+		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
+		TakesFile: true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -78,6 +84,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	L1HTTPPollInterval,
 	DisableP2P,
+	DependencySet,
 }
 
 // activityFlags holds flags registered by activity packages via RegisterActivityFlags.
@@ -95,7 +102,7 @@ func init() {
 	optionalFlags = append(optionalFlags, L1BeaconFallbackAddrs)
 	optionalFlags = append(optionalFlags, DataDirFlag)
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, logcli.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 
@@ -111,7 +118,8 @@ var Flags []cli.Flag
 //
 // Extend this list when new shared resources are added to the supernode.
 var SupernodeOwnedFlags = []string{
-	opnodeflags.L1HTTPPollInterval.Name, // "l1.http-poll-interval"
+	opnodeflags.L1HTTPPollInterval.Name,   // "l1.http-poll-interval"
+	opnodeflags.InteropDependencySet.Name, // "interop.dependency-set"
 }
 
 func CheckRequired(ctx *cli.Context) error {

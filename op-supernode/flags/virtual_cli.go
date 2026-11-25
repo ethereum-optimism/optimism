@@ -31,6 +31,18 @@ func (v *VirtualCLI) globalName(name string) string {
 	return VNFlagGlobalPrefix + name
 }
 
+func (v *VirtualCLI) IsChainSet(name string) bool {
+	return v.inner.IsSet(v.chainName(name))
+}
+
+func (v *VirtualCLI) IsGlobalSet(name string) bool {
+	return v.inner.IsSet(v.globalName(name))
+}
+
+func (v *VirtualCLI) GlobalUint(name string) uint {
+	return v.inner.Uint(v.globalName(name))
+}
+
 // IsSet satisfies the cliiface.Context interface
 // if an override is set, or if any namespaced version is set, return true
 // otherwise defer to the inner context
@@ -44,10 +56,10 @@ func (v *VirtualCLI) IsSet(name string) bool {
 	if _, ok := v.uintOverrides[name]; ok {
 		return true
 	}
-	if v.inner.IsSet(v.chainName(name)) {
+	if v.IsChainSet(name) {
 		return true
 	}
-	return v.inner.IsSet(v.globalName(name))
+	return v.IsGlobalSet(name)
 }
 
 func (v *VirtualCLI) String(name string) string {

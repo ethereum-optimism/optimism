@@ -6,23 +6,25 @@ use crate::{
     util::{encode_holocene_eip_1559_params, encode_jovian_eip_1559_params},
 };
 use alloc::vec::Vec;
-use alloy_consensus::{EMPTY_OMMER_ROOT_HASH, Header, Sealed};
+use alloy_consensus::{EMPTY_OMMER_ROOT_HASH, Header, Sealed, TxReceipt};
 use alloy_eips::{Encodable2718, eip7685::EMPTY_REQUESTS_HASH};
 use alloy_evm::{EvmFactory, block::BlockExecutionResult};
+use alloy_op_evm::block::receipt_builder::OpReceiptBuilder;
 use alloy_primitives::{B256, Sealable, U256, logs_bloom};
 use alloy_trie::EMPTY_ROOT_HASH;
 use kona_genesis::RollupConfig;
 use kona_mpt::{TrieHinter, ordered_trie_with_encoder};
 use kona_protocol::{OutputRoot, Predeploys};
-use op_alloy_consensus::OpReceiptEnvelope;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use revm::{context::BlockEnv, database::BundleState};
 
-impl<P, H, Evm> StatelessL2Builder<'_, P, H, Evm>
+impl<P, H, Evm, R> StatelessL2Builder<'_, P, H, Evm, R>
 where
     P: TrieDBProvider,
     H: TrieHinter,
     Evm: EvmFactory,
+    R: OpReceiptBuilder,
+    R::Receipt: Encodable2718,
 {
     /// Seals the block executed from the given [`OpPayloadAttributes`] and [`BlockEnv`], returning
     /// the computed [Header].
@@ -31,7 +33,7 @@ where
         attrs: &OpPayloadAttributes,
         parent_hash: B256,
         block_env: &BlockEnv,
-        ex_result: &BlockExecutionResult<OpReceiptEnvelope>,
+        ex_result: &BlockExecutionResult<R::Receipt>,
         bundle: BundleState,
     ) -> ExecutorResult<Sealed<Header>> {
         let timestamp = block_env.timestamp.saturating_to::<u64>();
@@ -46,7 +48,12 @@ where
             |tx, buf| buf.put_slice(tx.as_ref()),
         )
         .root();
-        let receipts_root = compute_receipts_root(&ex_result.receipts, self.config, timestamp);
+        let receipts_root = compute_receipts_root(
+            self.factory.receipt_builder(),
+            &ex_result.receipts,
+            self.config,
+            timestamp,
+        );
         let withdrawals_root = if self.config.is_isthmus_active(timestamp) {
             Some(self.message_passer_account()?)
         } else if self.config.is_canyon_active(timestamp) {
@@ -168,25 +175,30 @@ where
 }
 
 /// Computes the receipts root from the given set of receipts.
-pub fn compute_receipts_root(
-    receipts: &[OpReceiptEnvelope],
+///
+/// Generic over the receipt builder so non-OP receipt shapes (e.g. Celo's CIP-64 receipt) can
+/// plug in their own [`OpReceiptBuilder`]. From Regolith activation up to (but not including)
+/// Canyon activation, op-geth/op-erigon compute the receipts-trie root from a deposit-receipt
+/// encoding that omits the deposit nonce; this function reproduces that encoding by delegating
+/// nonce-stripping to [`OpReceiptBuilder::strip_deposit_nonce`], which OP Stack implementations
+/// override and other chains inherit as a no-op.
+pub fn compute_receipts_root<R>(
+    receipt_builder: &R,
+    receipts: &[R::Receipt],
     config: &RollupConfig,
     timestamp: u64,
-) -> B256 {
-    // There is a minor bug in op-geth and op-erigon where in the Regolith hardfork,
-    // the receipt root calculation does not include the deposit nonce in the
-    // receipt encoding. In the Regolith hardfork, we must strip the deposit nonce
-    // from the receipt encoding to match the receipt root calculation.
+) -> B256
+where
+    R: OpReceiptBuilder,
+    R::Receipt: Encodable2718,
+{
     if config.is_regolith_active(timestamp) && !config.is_canyon_active(timestamp) {
         let receipts = receipts
             .iter()
             .cloned()
-            .map(|receipt| match receipt {
-                OpReceiptEnvelope::Deposit(mut deposit_receipt) => {
-                    deposit_receipt.receipt.deposit_nonce = None;
-                    OpReceiptEnvelope::Deposit(deposit_receipt)
-                }
-                _ => receipt,
+            .map(|mut receipt| {
+                receipt_builder.strip_deposit_nonce(&mut receipt);
+                receipt
             })
             .collect::<Vec<_>>();
 

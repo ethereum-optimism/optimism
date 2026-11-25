@@ -1,14 +1,13 @@
 package batcher
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,9 +34,9 @@ func (tcs testChannelStatuser) isTimedOut() bool {
 
 func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 
-	block101 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(101)})}
-	block102 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(102)})}
-	block103 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(103)})}
+	block101 := ToSizedBlock(newMiniL2Payload(0, 101, common.Hash{}, 100, 0))
+	block102 := ToSizedBlock(newMiniL2Payload(0, 102, common.Hash{}, 100, 0))
+	block103 := ToSizedBlock(newMiniL2Payload(0, 103, common.Hash{}, 100, 0))
 
 	channel103 := testChannelStatuser{
 		latestL2:       eth.ToBlockID(block103),
@@ -46,7 +45,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 		timedOut:       false,
 	}
 
-	block104 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(104)})}
+	block104 := ToSizedBlock(newMiniL2Payload(0, 104, common.Hash{}, 100, 0))
 
 	channel104 := testChannelStatuser{
 		latestL2:       eth.ToBlockID(block104),
@@ -75,6 +74,17 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 		{name: "empty sync status",
 			// This can happen when the sequencer recovers from a reorg
 			newSyncStatus:        eth.SyncStatus{},
+			expected:             syncActions{},
+			expectedSeqOutOfSync: true,
+			expectedLogs:         []string{"empty BlockRef in sync status"},
+		},
+		{name: "empty currentL1",
+			newSyncStatus: eth.SyncStatus{
+				HeadL1:      eth.BlockRef{Number: 2},
+				CurrentL1:   eth.BlockRef{},
+				LocalSafeL2: eth.L2BlockRef{Number: 100},
+				UnsafeL2:    eth.L2BlockRef{Number: 101},
+			},
 			expected:             syncActions{},
 			expectedSeqOutOfSync: true,
 			expectedLogs:         []string{"empty BlockRef in sync status"},
@@ -325,7 +335,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 			require.Equal(t, tc.expected, result, "unexpected actions")
 			require.Equal(t, tc.expectedSeqOutOfSync, outOfSync)
 			if tc.expectedLogs == nil {
-				require.Empty(t, h.Logs, "expected no logs but found some", "logs", h.Logs)
+				require.Empty(t, h.FindLogs(), "expected no logs but found some")
 			} else {
 				for _, e := range tc.expectedLogs {
 					r := h.FindLog(testlog.NewMessageContainsFilter(e))
