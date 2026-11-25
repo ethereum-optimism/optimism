@@ -173,20 +173,27 @@ async fn another_epoch_derives_again_before_anything_else() {
     assert!(matches!(requests.try_recv().unwrap(), EngineActorRequest::ProcessDeniedBlocks(_)));
 }
 
-/// An undo the engine did not confirm records no epoch: the next poll undoes again.
+/// Until the engine confirmed the undo, the node follows nothing of the authority's answers and
+/// records no epoch: every poll undoes again, and no head reaches the engine, so the labels hold.
 #[tokio::test]
-async fn an_unconfirmed_undo_records_no_epoch() {
+async fn heads_wait_until_the_epoch_is_applied() {
     let (client, _server, _) = serve(status(true)).await;
     let (mut actor, mut requests) = actor(client, None);
     let engine = tokio::spawn(async move {
-        let request = requests.recv().await.unwrap();
-        drop(request);
+        for _ in 0..2 {
+            match requests.recv().await.unwrap() {
+                EngineActorRequest::UndoVerifications(request) => drop(request),
+                other => panic!("expected only undos, got {other:?}"),
+            }
+        }
         requests
     });
 
     actor.step().await.unwrap();
-    engine.await.unwrap();
+    actor.step().await.unwrap();
+    let mut requests = engine.await.unwrap();
 
+    assert!(requests.try_recv().is_err(), "no head while the epoch is not applied");
     assert_eq!(actor.applied.get(), None);
 }
 
