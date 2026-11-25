@@ -941,6 +941,11 @@ jobs:
             AGG_VKEY=$(toml_string super-aggregation | tr '[:upper:]' '[:lower:]')
             echo "export SP1_AGG_VKEY=${AGG_VKEY}" >> "${BASH_ENV}"
       - run:
+          # op-zk-proposer rejects a set whose ELFs do not pin each other's vkeys.
+          name: Verify SP1 guest vkey pins
+          working_directory: rust/kona/sp1
+          command: just verify-elfs
+      - run:
           name: Upload SP1 prestates to GCS
           working_directory: rust/kona/sp1
           command: |
