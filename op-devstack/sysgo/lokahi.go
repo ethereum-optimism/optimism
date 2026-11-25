@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -25,8 +24,8 @@ const lokahiRPCBoundMessage = "RPC server bound to address"
 
 // lokahi's test control: pause verification before a timestamp, and resume it.
 const (
-	lokahiPauseAtMethod = "lokahi_pauseAt"
-	lokahiResumeMethod  = "lokahi_resume"
+	lokahiPauseAtMethod = "lokahitest_pauseAt"
+	lokahiResumeMethod  = "lokahitest_resume"
 )
 
 // LokahiChain is one chain lokahi verifies: the chain's rollup config and the node it reads the
@@ -159,7 +158,9 @@ func (l *Lokahi) Start() {
 	})
 	l.sub = NewSubProcess(l.p, stdOut, stdErr)
 	l.p.Logger().Info("Starting lokahi", "exec", l.execPath, "args", l.args)
-	l.p.Require().NoError(l.sub.Start(l.execPath, l.args, nil), "start lokahi")
+	// The test control is enabled through the environment: a lokahi without it ignores the
+	// variable, where it would refuse the --test-control flag.
+	l.p.Require().NoError(l.sub.Start(l.execPath, l.args, []string{"LOKAHI_TEST_CONTROL=true"}), "start lokahi")
 
 	var addr string
 	select {
@@ -211,7 +212,7 @@ func (l *Lokahi) RestartWithFreshDataDir() error {
 
 // PauseInteropAt makes lokahi stop before it verifies timestamp ts, until ResumeInterop.
 func (l *Lokahi) PauseInteropAt(ctx context.Context, ts uint64) error {
-	return l.callTestControl(ctx, nil, lokahiPauseAtMethod, hexutil.Uint64(ts))
+	return l.callTestControl(ctx, nil, lokahiPauseAtMethod, ts)
 }
 
 // ResumeInterop clears a pause set by PauseInteropAt.
