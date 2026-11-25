@@ -108,30 +108,42 @@ func (s *Supernode) SuperRootAt(timestamp uint64, expectedChainIDs ...eth.ChainI
 	return resp
 }
 
-// interopActivity returns the currently running interop activity, failing
-// the test if test control is not wired up or the activity is not present.
-// All methods below that exercise the interop activity route through this
-// helper so that the nil-guard is written in exactly one place.
+// interopActivity returns the currently running interop activity of an in-process op-supernode,
+// failing the test if test control is not wired up or the activity is not present. All methods
+// below that read op-supernode's internals route through this helper, so the guard is written in
+// exactly one place. Another verifier has no such internals, so a test that reaches them tests
+// op-supernode's own mechanics and skips.
 func (s *Supernode) interopActivity() *interop.Interop {
 	s.require.NotNil(s.testControl, "operation requires test control; use NewSupernodeWithTestControl")
-	ia := s.testControl.InteropActivity()
+	internals, ok := s.testControl.(stack.SupernodeInternals)
+	if !ok {
+		s.t.Skipf("skipping: the test reads op-supernode's in-process interop activity, which %s (%T) does not have",
+			s.Name(), s.testControl)
+	}
+	ia := internals.InteropActivity()
 	s.require.NotNil(ia, "interop activity not present (supernode stopped or interop disabled)")
 	return ia
 }
 
-// PauseInterop pauses the interop activity at the given timestamp.
-// When the interop activity attempts to process this timestamp, it returns early.
+// PauseInterop pauses interop verification at the given timestamp: the verifier stops before it
+// verifies this timestamp.
 // This function is for integration test control only.
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) PauseInterop(ts uint64) {
-	s.interopActivity().PauseAt(ts)
+	s.require.NotNil(s.testControl, "PauseInterop requires test control; use NewSupernodeWithTestControl")
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	s.require.NoError(s.testControl.PauseInteropAt(ctx, ts), "failed to pause interop at %d", ts)
 }
 
-// ResumeInterop clears any pause on the interop activity, allowing normal processing.
+// ResumeInterop clears any pause on interop verification, allowing normal processing.
 // This function is for integration test control only.
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) ResumeInterop() {
-	s.interopActivity().Resume()
+	s.require.NotNil(s.testControl, "ResumeInterop requires test control; use NewSupernodeWithTestControl")
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	s.require.NoError(s.testControl.ResumeInterop(ctx), "failed to resume interop")
 }
 
 // RestartWithFreshDataDir stops the supernode, deletes its on-disk data
@@ -298,7 +310,6 @@ func (s *Supernode) AssertBackfillCovers(depth time.Duration, blockTime uint64, 
 // Requires the Supernode to be created with NewSupernodeWithTestControl.
 func (s *Supernode) EnsureInteropPaused(pauseOffset uint64, clNodes ...*L2CLNode) uint64 {
 	s.require.NotEmpty(clNodes, "EnsureInteropPaused requires at least one CL node")
-	ia := s.interopActivity()
 
 	var localSafeTimestamp uint64
 	for _, cl := range clNodes {
@@ -312,7 +323,7 @@ func (s *Supernode) EnsureInteropPaused(pauseOffset uint64, clNodes ...*L2CLNode
 
 	pauseTimestamp := localSafeTimestamp + pauseOffset
 	awaitTimestamp := pauseTimestamp - 1
-	ia.PauseAt(pauseTimestamp)
+	s.PauseInterop(pauseTimestamp)
 	s.AwaitValidatedTimestamp(awaitTimestamp)
 	s.log.Info("EnsureInteropPaused: validation confirmed before pause", "timestamp", awaitTimestamp)
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -18,7 +19,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supernode/supernode/activity/interop"
 )
 
-var errSupernodeNotRunning = errors.New("sysgo: supernode is not running")
+var (
+	errSupernodeNotRunning = errors.New("sysgo: supernode is not running")
+	errNoInteropActivity   = errors.New("sysgo: interop activity not present (supernode stopped or interop disabled)")
+)
 
 type SuperNode struct {
 	mu           sync.Mutex
@@ -37,7 +41,11 @@ type SuperNode struct {
 	vnCfgs map[eth.ChainID]*config.Config
 }
 
-var _ L2CLNode = (*SuperNode)(nil)
+var (
+	_ L2CLNode                   = (*SuperNode)(nil)
+	_ stack.SupernodeTestControl = (*SuperNode)(nil)
+	_ stack.SupernodeInternals   = (*SuperNode)(nil)
+)
 
 func (n *SuperNode) UserRPC() string {
 	return n.userRPC
@@ -165,6 +173,26 @@ func (n *SuperNode) InteropActivity() *interop.Interop {
 		return nil
 	}
 	return n.sn.InteropActivity()
+}
+
+// PauseInteropAt pauses the interop activity before it processes timestamp ts. Test-only.
+func (n *SuperNode) PauseInteropAt(_ context.Context, ts uint64) error {
+	ia := n.InteropActivity()
+	if ia == nil {
+		return errNoInteropActivity
+	}
+	ia.PauseAt(ts)
+	return nil
+}
+
+// ResumeInterop clears any pause on the interop activity. Test-only.
+func (n *SuperNode) ResumeInterop(_ context.Context) error {
+	ia := n.InteropActivity()
+	if ia == nil {
+		return errNoInteropActivity
+	}
+	ia.Resume()
+	return nil
 }
 
 // RestartWithFreshDataDir stops the supernode, deletes its on-disk data

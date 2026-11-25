@@ -3,9 +3,14 @@ package sysgo
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
@@ -17,6 +22,12 @@ import (
 // lokahiRPCBoundMessage is the log line lokahi emits once its authority RPC listens, with the
 // bound address in its "addr" field.
 const lokahiRPCBoundMessage = "RPC server bound to address"
+
+// lokahi's test control: pause verification before a timestamp, and resume it.
+const (
+	lokahiPauseAtMethod = "lokahi_pauseAt"
+	lokahiResumeMethod  = "lokahi_resume"
+)
 
 // LokahiChain is one chain lokahi verifies: the chain's rollup config and the node it reads the
 // chain's local-safe blocks from.
@@ -178,6 +189,48 @@ func (l *Lokahi) Stop() {
 // StopControlled stops lokahi, for the generic lifecycle control.
 func (l *Lokahi) StopControlled(_ context.Context) error {
 	l.Stop()
+	return nil
+}
+
+// StartControlled starts lokahi, for the generic lifecycle control.
+func (l *Lokahi) StartControlled(ctx context.Context) error {
+	return runControlStart(ctx, l.Running, l.Start)
+}
+
+// RestartWithFreshDataDir stops lokahi, removes its store and starts it again, so that it
+// verifies again from activation behind the same RPC address.
+func (l *Lokahi) RestartWithFreshDataDir() error {
+	if !l.Running() {
+		return errors.New("sysgo: lokahi is not running")
+	}
+	l.Stop()
+	l.WipeData()
+	l.Start()
+	return nil
+}
+
+// PauseInteropAt makes lokahi stop before it verifies timestamp ts, until ResumeInterop.
+func (l *Lokahi) PauseInteropAt(ctx context.Context, ts uint64) error {
+	return l.callTestControl(ctx, nil, lokahiPauseAtMethod, hexutil.Uint64(ts))
+}
+
+// ResumeInterop clears a pause set by PauseInteropAt.
+func (l *Lokahi) ResumeInterop(ctx context.Context) error {
+	return l.callTestControl(ctx, nil, lokahiResumeMethod)
+}
+
+func (l *Lokahi) callTestControl(ctx context.Context, result any, method string, args ...any) error {
+	if !l.Running() {
+		return errors.New("sysgo: lokahi is not running")
+	}
+	cl, err := rpc.DialContext(ctx, l.userRPC)
+	if err != nil {
+		return fmt.Errorf("dial lokahi: %w", err)
+	}
+	defer cl.Close()
+	if err := cl.CallContext(ctx, result, method, args...); err != nil {
+		return fmt.Errorf("lokahi %s: %w", method, err)
+	}
 	return nil
 }
 
