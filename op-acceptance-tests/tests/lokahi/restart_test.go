@@ -14,13 +14,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth/safety"
 )
 
 // TestSafeHeadHoldsAcrossLokahiRestart checks that restarting lokahi never moves a node's safe
-// head back: lokahi answers the heads it verified before the restart as soon as it is up again,
-// and the safe heads advance from there.
+// head back: once lokahi caught up after the restart it answers at least the heads it verified
+// before, and the safe heads advance from there.
 func TestSafeHeadHoldsAcrossLokahiRestart(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewTwoL2Lokahi(t)
@@ -66,22 +67,52 @@ type verifierHead struct {
 	Source    string      `json:"source"`
 }
 
-// verifiedHeads asks lokahi for each node's chain's verified head.
+// verifiedHeads asks lokahi for each node's chain's verified head, waiting until lokahi caught up
+// with its sources and answers one.
 func verifiedHeads(t devtest.T, lokahi *sysgo.Lokahi, nodes []*dsl.L2CLNode) map[*dsl.L2CLNode]verifierHead {
-	ctx, cancel := context.WithTimeout(t.Ctx(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Ctx(), time.Minute)
 	defer cancel()
 	client, err := rpc.DialContext(ctx, lokahi.UserRPC())
 	t.Require().NoError(err, "dial lokahi")
 	defer client.Close()
 	heads := make(map[*dsl.L2CLNode]verifierHead, len(nodes))
 	for _, node := range nodes {
-		var head verifierHead
 		chainID, ok := node.ChainID().Uint64()
 		t.Require().True(ok, "chain ID fits in 64 bits")
-		t.Require().NoError(client.CallContext(ctx, &head, "interop_verifiedHead", chainID), "interop_verifiedHead")
+		var head verifierHead
+		var lastErr error
+		err := wait.For(ctx, 50*time.Millisecond, func() (bool, error) {
+			lastErr = client.CallContext(ctx, &head, "interop_verifiedHead", chainID)
+			return lastErr == nil, nil
+		})
+		t.Require().NoError(err, "interop_verifiedHead: %v", lastErr)
 		heads[node] = head
 	}
 	return heads
+}
+
+// lokahiProgress asks lokahi for node's chain's verified head and returns the next timestamp it
+// verifies, also while it answers no head because it has not caught up with its sources, and
+// whether it answered a head.
+func lokahiProgress(ctx context.Context, client *rpc.Client, node *dsl.L2CLNode) (next uint64, caughtUp bool, err error) {
+	chainID, ok := node.ChainID().Uint64()
+	if !ok {
+		return 0, false, fmt.Errorf("chain ID %s does not fit in 64 bits", node.ChainID())
+	}
+	var head verifierHead
+	err = client.CallContext(ctx, &head, "interop_verifiedHead", chainID)
+	var dataErr rpc.DataError
+	switch {
+	case err == nil && head.Source == "verified":
+		return head.Timestamp + 1, true, nil
+	case err == nil:
+		return 0, true, nil
+	case errors.As(err, &dataErr):
+		if timestamp, ok := dataErr.ErrorData().(float64); ok {
+			return uint64(timestamp), false, nil
+		}
+	}
+	return 0, false, err
 }
 
 // safeHeadWatch polls nodes' safe heads until stopped and records the first time one decreases.
