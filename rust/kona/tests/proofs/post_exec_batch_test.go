@@ -70,9 +70,13 @@ func runPostExecLagoonGate(gt *testing.T, testCfg *helpers.TestCfg[bool]) {
 			return appendPostExecTx(t, target.Number)(payload)
 		}))
 	}
-	submitBatch(t, env)
 
 	if preLagoon {
+		// BatchMineAndSync requires the safe head to reach the unsafe head, which it does not when
+		// the span is dropped.
+		env.BatchAndMine(t)
+		env.Sequencer.ActL1HeadSignal(t)
+		env.Sequencer.ActL2PipelineFull(t)
 		require.Len(t, env.Logs.FindLogs(testlog.NewMessageFilter("sequencers may not embed any PostExec transactions before SDM")), 1)
 		require.Equal(t, env.Sd.RollupCfg.Genesis.L2.Number, env.Sequencer.L2Safe().Number, "derivation must drop the span")
 
@@ -85,7 +89,7 @@ func runPostExecLagoonGate(gt *testing.T, testCfg *helpers.TestCfg[bool]) {
 		return
 	}
 
-	safe := env.Sequencer.L2Safe()
+	safe := env.BatchMineAndSync(t)
 	require.Equal(t, last.Number, safe.Number, "derivation must accept every block of the span")
 	require.Equal(t, sequenced.GasUsed-1, txReceipt(t, env, creation, safe.Hash).GasUsed, "the derived block must refund 1 gas to the creation")
 	envelope, err := env.Engine.SourceClient().PayloadByHash(t.Ctx(), safe.Hash)
@@ -133,15 +137,4 @@ func appendPostExecTx(t actionsHelpers.Testing, number uint64) func(*eth.Executi
 		payload.Transactions = append(payload.Transactions, tx)
 		return payload
 	}
-}
-
-// submitBatch submits the buffered channel, includes it in an L1 block and derives from it.
-func submitBatch(t actionsHelpers.Testing, env *helpers.L2FaultProofEnv) {
-	env.Batcher.ActL2ChannelClose(t)
-	env.Batcher.ActL2BatchSubmit(t)
-	env.Miner.ActL1StartBlock(helpers.L1BlockTime)(t)
-	env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
-	env.Miner.ActL1EndBlock(t)
-	env.Sequencer.ActL1HeadSignal(t)
-	env.Sequencer.ActL2PipelineFull(t)
 }
