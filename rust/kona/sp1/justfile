@@ -80,21 +80,6 @@ verify-elfs DIR="elf" PRESTATE="":
     [ "$failed" -eq 0 ] || exit 1
     echo "OK: ${dir} is a consistent guest set for prestate ${agg_vkey}"
 
-# Run verify-elfs on the published guest ELFs for PRESTATE.
-verify-published-elfs PRESTATE URL="https://storage.googleapis.com/oplabs-network-data/proofs/kona/sp1":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    prestate=$(echo "{{PRESTATE}}" | tr 'A-F' 'a-f')
-    [[ "$prestate" =~ ^0x[0-9a-f]{64}$ ]] || { echo "ERROR: PRESTATE must be a 0x-prefixed bytes32 hex value" >&2; exit 1; }
-    dir=$(mktemp -d)
-    trap 'rm -rf "$dir"' EXIT
-    for object in log:log-commitment range:super-range agg:super-aggregation; do
-      url="{{URL}}/${prestate}.${object%%:*}.bin.gz"
-      echo "Fetching ${url}"
-      curl -fsSL --retry 3 "$url" | gunzip > "${dir}/${object#*:}-elf"
-    done
-    just verify-elfs "$dir" "$prestate"
-
 # Build ELF file for the per-block log-commitment program.
 # Does not update elf/vkeys.toml; prefer build-elfs.
 [private]
