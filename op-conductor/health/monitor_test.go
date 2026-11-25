@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
@@ -26,7 +25,6 @@ const (
 	unhealthyPeerCount      = 0
 	minPeerCount            = 1
 	healthyPeerCount        = 2
-	blockTime               = 2
 	interval                = 1
 	minElP2pPeerCount       = 2
 	healthyElP2pPeerCount   = 3
@@ -39,7 +37,6 @@ type HealthMonitorTestSuite struct {
 	log          log.Logger
 	interval     uint64
 	minPeerCount uint64
-	rollupCfg    *rollup.Config
 
 	minElP2pPeerCount uint64
 }
@@ -48,9 +45,6 @@ func (s *HealthMonitorTestSuite) SetupSuite() {
 	s.log = testlog.Logger(s.T(), log.LevelDebug)
 	s.interval = interval
 	s.minPeerCount = minPeerCount
-	s.rollupCfg = &rollup.Config{
-		BlockTime: blockTime,
-	}
 	s.minElP2pPeerCount = minElP2pPeerCount
 }
 
@@ -73,7 +67,6 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 		interval:       s.interval,
 		metrics:        &metrics.NoopMetricsImpl{},
 		healthUpdateCh: make(chan error),
-		rollupCfg:      s.rollupCfg,
 		unsafeInterval: unsafeInterval,
 		safeInterval:   safeInterval,
 		safeEnabled:    true,
@@ -118,7 +111,6 @@ func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 		interval:       s.interval,
 		metrics:        &metrics.NoopMetricsImpl{},
 		healthUpdateCh: make(chan error),
-		rollupCfg:      s.rollupCfg,
 		unsafeInterval: unsafeInterval,
 		safeInterval:   safeInterval,
 		safeEnabled:    true,

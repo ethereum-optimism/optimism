@@ -38,9 +38,6 @@ var bundleAllowed = []string{
 	"github.com/ethereum-optimism/optimism/op-challenger/...",
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/...",
 
-	// Resolves --network via op-node's rollup-config loading.
-	"github.com/ethereum-optimism/optimism/op-conductor/...",
-
 	// Reads superchain and chain records for standard deployments.
 	"github.com/ethereum-optimism/optimism/op-deployer/...",
 

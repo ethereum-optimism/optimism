@@ -17,6 +17,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-conductor/client"
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
+	"github.com/ethereum-optimism/optimism/op-conductor/flags"
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	conductorrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
@@ -137,9 +138,13 @@ func (c *OpConductor) initSequencerControl(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create execution rpc client: %w", err)
 	}
-	execCfg := sources.L2ClientDefaultConfig(&c.cfg.RollupCfg, true)
+	execCfg := sources.DefaultEthClientConfig(flags.DefaultExecutionHeaderCacheSize)
+	execCfg.TrustRPC = true
+	if c.cfg.ExecutionHeaderCacheSize != 0 {
+		execCfg.HeadersCacheSize = c.cfg.ExecutionHeaderCacheSize
+	}
 	// TODO: Add metrics tracer here. tracked by https://github.com/ethereum-optimism/protocol-quest/issues/45
-	exec, err := sources.NewEthClient(ec, c.log, nil, &execCfg.EthClientConfig)
+	exec, err := sources.NewEthClient(ec, c.log, nil, execCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create execution client: %w", err)
 	}
@@ -186,7 +191,6 @@ func (c *OpConductor) initConsensus(ctx context.Context) error {
 		ListenPort:         c.cfg.ConsensusPort,
 		StorageDir:         c.cfg.RaftStorageDir,
 		Bootstrap:          c.cfg.RaftBootstrap,
-		RollupCfg:          &c.cfg.RollupCfg,
 		SnapshotInterval:   c.cfg.RaftSnapshotInterval,
 		SnapshotThreshold:  c.cfg.RaftSnapshotThreshold,
 		TrailingLogs:       c.cfg.RaftTrailingLogs,
@@ -258,7 +262,6 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		c.cfg.HealthCheck.SafeInterval,
 		c.cfg.HealthCheck.MinPeerCount,
 		c.cfg.HealthCheck.SafeEnabled,
-		&c.cfg.RollupCfg,
 		node,
 		p2p,
 		rollupBoostHealthChecker,

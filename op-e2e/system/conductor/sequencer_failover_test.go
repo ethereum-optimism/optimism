@@ -80,7 +80,6 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 			sys.NodeEndpoint(Sequencer3Name).RPC(),
 			false,
 			true,
-			*sys.RollupConfig,
 		)
 	})
 	require.NoError(t, err)
