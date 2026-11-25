@@ -77,3 +77,7 @@ test-utils = [
 	"kona-interop/test-utils",
 	"kona-protocol/test-utils",
 ]
+
+[[test]]
+name = "parity"
+required-features = ["serde", "test-utils"]
