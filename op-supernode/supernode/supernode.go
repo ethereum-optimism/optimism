@@ -58,6 +58,9 @@ type Supernode struct {
 
 func New(ctx context.Context, log oplog.Logger, version string, commit string, requestStop context.CancelCauseFunc, cfg *config.CLIConfig, vnCfgs map[eth.ChainID]*opnodecfg.Config) (*Supernode, error) {
 	s := &Supernode{log: log, version: version, requestStop: requestStop, cfg: cfg, chains: make(map[eth.ChainID]cc.InteropChain)}
+	// Created before the shared clients so the L1 client can report its cache metrics.
+	s.supernodeMetrics = resources.NewSupernodeMetrics()
+	s.supernodeMetrics.Info.WithLabelValues(version, commit).Set(1)
 
 	// Initialize L1 client
 	if err := s.initL1Client(ctx, cfg); err != nil {
@@ -78,8 +81,6 @@ func New(ctx context.Context, log oplog.Logger, version string, commit string, r
 	s.rpcRouter.SetRootHandler(s.rootRPC)
 	// Build metrics router; attach per-chain registries later
 	s.metricsFanIn = resources.NewMetricsFanIn(len(cfg.Chains))
-	s.supernodeMetrics = resources.NewSupernodeMetrics()
-	s.supernodeMetrics.Info.WithLabelValues(version, commit).Set(1)
 	s.metricsFanIn.AddGatherer(s.supernodeMetrics.Registry())
 	for _, id := range cfg.Chains {
 		chainID := eth.ChainIDFromUInt64(id)
@@ -447,7 +448,7 @@ func (s *Supernode) initL1Client(ctx context.Context, cfg *config.CLIConfig) err
 	nonCloseableRPC := resources.NewNonCloseableRPC(l1RPC)
 
 	l1ClientCfg := sources.L1ClientSimpleConfig(false, sources.RPCKindStandard, 100)
-	s.l1Client, err = sources.NewL1Client(nonCloseableRPC, s.log, nil, l1ClientCfg)
+	s.l1Client, err = sources.NewL1Client(nonCloseableRPC, s.log, s.supernodeMetrics.L1SourceCache, l1ClientCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create L1 client: %w", err)
 	}
