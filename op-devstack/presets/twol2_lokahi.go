@@ -16,6 +16,11 @@ type TwoL2Lokahi struct {
 	L2ELA *dsl.L2ELNode
 	L2ELB *dsl.L2ELNode
 
+	// Wallet and the funders create funded EOAs on each chain.
+	Wallet  *dsl.HDWallet
+	FunderA *dsl.FunderEOA
+	FunderB *dsl.FunderEOA
+
 	// Lokahi is the verifier process, which a test can stop and start.
 	Lokahi *sysgo.Lokahi
 }
@@ -42,12 +47,16 @@ func NewTwoL2Lokahi(t devtest.T) *TwoL2Lokahi {
 		"lokahi", runtime.Lokahi.ExecPath(), "lokahi_rpc", runtime.Lokahi.UserRPC())
 
 	twoL2, components := twoL2FromRuntime(t, runtime)
-	return &TwoL2Lokahi{
+	preset := &TwoL2Lokahi{
 		TwoL2:  *twoL2,
 		L2ELA:  dsl.NewL2ELNode(components.l2AEL),
 		L2ELB:  dsl.NewL2ELNode(components.l2BEL),
+		Wallet: dsl.NewRandomHDWallet(t, 30),
 		Lokahi: runtime.Lokahi,
 	}
+	preset.FunderA = newFunderEOA(t, runtime.Keys, preset.L2ELA, preset.Wallet)
+	preset.FunderB = newFunderEOA(t, runtime.Keys, preset.L2ELB, preset.Wallet)
+	return preset
 }
 
 // skipKonaOnlyPresetOnOpNode skips unless the selected CL runs kona. The lokahi presets call it
