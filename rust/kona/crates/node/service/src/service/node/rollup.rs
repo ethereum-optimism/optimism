@@ -25,7 +25,10 @@ use jsonrpsee::{
     },
 };
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::{Engine, EngineQueryClient, EngineState, EngineSyncState, SafeLabel};
+use kona_engine::{
+    Engine, EngineQueryClient, EngineState, EngineSyncState, SafeLabel,
+    verifier_activation_timestamp,
+};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -233,7 +236,9 @@ impl RollupNode {
     ) -> (ConfiguredEngineActor, EngineQueryClient, watch::Receiver<EngineState>) {
         // Share engine state with RPC without routing reads through the actor.
         let safe_label = if self.interop_authority_url.is_some() {
-            SafeLabel::Verified
+            SafeLabel::Verified {
+                activation_timestamp: verifier_activation_timestamp(&self.config),
+            }
         } else {
             SafeLabel::LocalSafe
         };
@@ -258,11 +263,8 @@ impl RollupNode {
             engine_request_rx,
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         );
-        let actor = if self.interop_authority_url.is_some() {
-            actor.with_verifier_denials()
-        } else {
-            actor
-        };
+        let actor =
+            if self.interop_authority_url.is_some() { actor.following_verifier() } else { actor };
 
         (actor, engine_client.query_client(), engine_state_rx)
     }
@@ -294,20 +296,16 @@ impl RollupNode {
                 .await
                 .map_err(|error| format!("Failed to initialize L1 blob provider: {error}"))?;
             let l1_block_zero = self.l1_block_zero().await?;
-            let actor = DerivationActor::<_, OnlinePipeline>::new(
-                QueuedDerivationEngineClient { engine_actor_request_tx },
-                derivation_actor_request_rx,
-                pipeline,
-                self.safe_db.clone(),
-                l1_block_zero,
-                derivation_origin_tx,
-            );
-            let actor = if self.interop_authority_url.is_some() {
-                actor.with_external_finality()
-            } else {
-                actor
-            };
-            Ok(ConfiguredDerivationActor::Normal(Box::new(actor)))
+            Ok(ConfiguredDerivationActor::Normal(Box::new(
+                DerivationActor::<_, OnlinePipeline>::new(
+                    QueuedDerivationEngineClient { engine_actor_request_tx },
+                    derivation_actor_request_rx,
+                    pipeline,
+                    self.safe_db.clone(),
+                    l1_block_zero,
+                    derivation_origin_tx,
+                ),
+            )))
         }
     }
 

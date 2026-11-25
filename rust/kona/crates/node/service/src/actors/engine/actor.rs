@@ -6,7 +6,8 @@ use kona_derive::{ResetSignal, Signal};
 use kona_engine::{
     BuildTask, CanonicalizeTask, ConsolidateTask, DeniedBlocks, DeniedBlocksSender, DenyTask,
     Engine, EngineActorRequest, EngineClient, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
-    EngineTaskErrors, FinalizeTask, ImportedBlockSink, InsertTask, PromoteTask, SealTask,
+    EngineTaskErrors, FinalizeBlockId, FinalizeTask, ImportedBlockSink, InsertTask, PromoteTask,
+    SealTask, VerifierFinality, VerifierHead, verifier_activation_timestamp,
 };
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
@@ -19,6 +20,15 @@ use tokio::{
 #[cfg(test)]
 #[path = "queue_tests.rs"]
 mod queue_tests;
+
+/// A finality input of the [`EngineActor`].
+#[derive(Debug)]
+enum FinalityUpdate {
+    /// The highest L2 block derived from finalized L1 data.
+    L1(FinalizeBlockId),
+    /// A cross-chain verifier's finalized head.
+    Verifier(VerifierHead),
+}
 
 /// Responsible for managing the operations sent to the execution layer's Engine API. To accomplish
 /// this, it uses the [`Engine`] task queue to order Engine API  interactions based off of
@@ -66,6 +76,9 @@ where
     denied: DeniedBlocks,
     /// Publishes the verifier's denied blocks to `denied`, when the node follows a verifier.
     denied_sender: Option<DeniedBlocksSender>,
+    /// The finality of a node following a verifier, which combines the verifier's finalized head
+    /// with the node's own L1 finality.
+    verifier_finality: Option<VerifierFinality>,
 }
 
 impl<DerivationClient> EngineActor<DerivationClient>
@@ -99,15 +112,56 @@ where
             retry_delay: Duration::from_millis(100),
             denied: DeniedBlocks::none(),
             denied_sender: None,
+            verifier_finality: None,
         }
     }
 
-    /// Makes derivation consult the denied blocks of a cross-chain verifier, which arrive as
-    /// [`EngineActorRequest::ProcessDeniedBlocks`]. Until the first arrive, no derived block is
-    /// imported.
-    pub fn with_verifier_denials(self) -> Self {
-        let (denied_sender, denied) = DeniedBlocks::from_verifier();
-        Self { denied, denied_sender: Some(denied_sender), ..self }
+    /// Makes the engine follow a cross-chain verifier. Derivation consults the verifier's denied
+    /// blocks, which arrive as [`EngineActorRequest::ProcessDeniedBlocks`]; until the first
+    /// arrive, no derived block is imported. Finality is the verifier's finalized head, from
+    /// [`EngineActorRequest::ProcessVerifiedFinalizedHead`], bounded by the node's own L1
+    /// finality, from [`EngineActorRequest::ProcessFinalizedL2Block`]; see [`VerifierFinality`].
+    pub fn following_verifier(self) -> Self {
+        let (denied_sender, denied) =
+            DeniedBlocks::from_verifier(verifier_activation_timestamp(&self.rollup));
+        Self {
+            denied,
+            denied_sender: Some(denied_sender),
+            verifier_finality: Some(VerifierFinality::default()),
+            ..self
+        }
+    }
+
+    /// Queues the finalization `update` asks for, see [`Self::finality_target`].
+    fn finalize(&mut self, update: FinalityUpdate) {
+        let Some(target) = self.finality_target(update) else { return };
+        self.engine.enqueue(EngineTask::Finalize(Box::new(FinalizeTask::new(
+            self.client.clone(),
+            self.rollup.clone(),
+            target,
+        ))));
+    }
+
+    /// The block to finalize on `update`: the L1-finalized block itself, or, following a
+    /// verifier, what the node's L1 finality and the verifier's finalized head finalize
+    /// together, if above the finalized head.
+    fn finality_target(&mut self, update: FinalityUpdate) -> Option<FinalizeBlockId> {
+        let Some(finality) = &mut self.verifier_finality else {
+            return match update {
+                FinalityUpdate::L1(block_id) => Some(block_id),
+                FinalityUpdate::Verifier(_) => {
+                    warn!(target: "engine", "Ignoring a verifier's finalized head: the node follows no verifier");
+                    None
+                }
+            };
+        };
+        match update {
+            FinalityUpdate::L1(l1_finalized) => finality.on_l1_finalized(l1_finalized.number()),
+            FinalityUpdate::Verifier(head) => finality.on_verifier_finalized(head),
+        }
+        let target = finality.target(&self.rollup)?;
+        let finalized = self.engine.state().sync_state.finalized_head().block_info.number;
+        (target.number() > finalized).then_some(target)
     }
 
     /// Logs a skipped task at `warn!` when its error differs from the last skip, and at `debug!`
@@ -370,13 +424,10 @@ where
                 self.engine.enqueue(EngineTask::Consolidate(Box::new(task)));
             }
             EngineActorRequest::ProcessFinalizedL2Block(finalized_l2_block_id) => {
-                // Finalize the L2 block identified by the provided [`FinalizeBlockId`].
-                let task = EngineTask::Finalize(Box::new(FinalizeTask::new(
-                    self.client.clone(),
-                    self.rollup.clone(),
-                    *finalized_l2_block_id,
-                )));
-                self.engine.enqueue(task);
+                self.finalize(FinalityUpdate::L1(*finalized_l2_block_id));
+            }
+            EngineActorRequest::ProcessVerifiedFinalizedHead(head) => {
+                self.finalize(FinalityUpdate::Verifier(*head));
             }
             EngineActorRequest::ProcessVerifiedSafeHead(head) => {
                 self.engine.enqueue(EngineTask::Promote(Box::new(PromoteTask::new(

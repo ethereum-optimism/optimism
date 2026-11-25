@@ -1,6 +1,6 @@
 use crate::NodeActor;
 use async_trait::async_trait;
-use kona_engine::{EngineActorRequest, EngineState, FinalizeBlockId, VerifierHead};
+use kona_engine::{EngineActorRequest, EngineState};
 use kona_genesis::RollupConfig;
 use kona_rpc::InteropAuthorityApiClient;
 use std::{sync::Arc, time::Duration};
@@ -17,9 +17,9 @@ pub const AUTHORITY_POLL_INTERVAL: Duration = Duration::from_secs(1);
 ///
 /// It polls the authority for this chain's verified and finalized heads and denied blocks, and
 /// hands them to the engine, which owns what the safe label becomes ([`kona_engine::PromoteTask`]),
-/// whether a finalization applies ([`kona_engine::FinalizeTask`]) and how a denied block is
-/// replaced ([`kona_engine::DenyTask`]). An unreachable authority moves nothing: the labels hold
-/// where they are.
+/// what is final ([`kona_engine::VerifierFinality`]) and how a denied block is replaced
+/// ([`kona_engine::DenyTask`]). An authority that is unreachable or answers no heads moves no
+/// label from the authority: the labels hold where they are.
 #[derive(Debug)]
 pub struct AuthorityActor<Authority> {
     /// The authority's client.
@@ -28,7 +28,7 @@ pub struct AuthorityActor<Authority> {
     rollup: Arc<RollupConfig>,
     /// Where the heads go.
     engine_request_tx: mpsc::Sender<EngineActorRequest>,
-    /// The engine's state, to skip finalization targets it has already passed.
+    /// The engine's state, to ask only for denials above its finalized head.
     engine_state_rx: watch::Receiver<EngineState>,
     /// Ticker driving the polls.
     ticker: time::Interval,
@@ -60,51 +60,40 @@ where
     /// Polls the authority once and forwards what it reports.
     ///
     /// The denied blocks go first, so the engine never promotes a block the same poll denies.
+    /// They are forwarded even while the authority answers no heads, as it does until it has
+    /// caught up after a start: a denial holds whatever the heads.
     async fn poll(&mut self) -> Result<(), AuthorityActorError> {
         let chain_id = self.chain_id();
         // A block at or below the finalized head is never replaced, so older denials are not
         // asked for.
         let denied_from =
             self.engine_state_rx.borrow().sync_state.finalized_head().block_info.number + 1;
-        let (verified, finalized, denied) = match (
+        let denied = match self.authority.denied_blocks(chain_id, denied_from).await {
+            Ok(denied) => denied,
+            Err(err) => {
+                self.log_failure(&err.to_string());
+                return Ok(());
+            }
+        };
+        self.send(EngineActorRequest::ProcessDeniedBlocks(denied.clone())).await?;
+        let (verified, finalized) = match (
             self.authority.verified_head(chain_id).await,
             self.authority.finalized_head(chain_id).await,
-            self.authority.denied_blocks(chain_id, denied_from).await,
         ) {
-            (Ok(verified), Ok(finalized), Ok(denied)) => (verified, finalized, denied),
-            (Err(err), _, _) | (_, Err(err), _) | (_, _, Err(err)) => {
+            (Ok(verified), Ok(finalized)) => (verified, finalized),
+            (Err(err), _) | (_, Err(err)) => {
                 self.log_failure(&err.to_string());
                 return Ok(());
             }
         };
         if self.last_failure.take().is_some() {
-            info!(target: "authority", "Interop authority reachable again");
+            info!(target: "authority", "Interop authority answers again");
         }
         debug!(target: "authority", ?verified, ?finalized, ?denied, "Polled the interop authority");
 
-        self.send(EngineActorRequest::ProcessDeniedBlocks(denied)).await?;
         self.send(EngineActorRequest::ProcessVerifiedSafeHead(Box::new(verified))).await?;
-        if let Some(target) = self.finality_target(finalized) {
-            self.send(EngineActorRequest::ProcessFinalizedL2Block(Box::new(target))).await?;
-        }
+        self.send(EngineActorRequest::ProcessVerifiedFinalizedHead(Box::new(finalized))).await?;
         Ok(())
-    }
-
-    /// The block to finalize for the authority's finalized head, if it is above the engine's.
-    ///
-    /// Before activation the authority finalizes nothing; the L1-driven finalizer is off while
-    /// an authority is followed, so finality holds until the authority is active.
-    fn finality_target(&self, finalized: VerifierHead) -> Option<FinalizeBlockId> {
-        let engine_finalized =
-            self.engine_state_rx.borrow().sync_state.finalized_head().block_info.number;
-        let target = match finalized {
-            VerifierHead::PreActivation => return None,
-            VerifierHead::Anchor { timestamp } => {
-                FinalizeBlockId::ByNumber(self.rollup.block_number_from_timestamp(timestamp))
-            }
-            VerifierHead::Verified { block, .. } => FinalizeBlockId::ByHash(block),
-        };
-        (target.number() > engine_finalized).then_some(target)
     }
 
     async fn send(&self, request: EngineActorRequest) -> Result<(), AuthorityActorError> {

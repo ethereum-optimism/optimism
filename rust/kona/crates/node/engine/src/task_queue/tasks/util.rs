@@ -40,7 +40,8 @@ pub(in crate::task_queue) async fn build_and_import(
     denied: &DeniedBlocks,
     block_sink: &dyn ImportedBlockSink,
 ) -> Result<(), BuildAndImportError> {
-    denied.ensure_known().map_err(ReplaceDeniedError::from)?;
+    let timestamp = attributes.attributes().payload_attributes.timestamp;
+    denied.ensure_known(timestamp).map_err(ReplaceDeniedError::from)?;
     let payload_id = match start_build(engine, cfg, state, attributes.clone()).await {
         Err(err) if err.is_invalid_attributes() => {
             warn!(target: "engine", %err, "Derived attributes rejected at forkchoiceUpdated");
@@ -51,11 +52,9 @@ pub(in crate::task_queue) async fn build_and_import(
         result => result?,
     };
 
-    let payload =
-        get_payload(engine, cfg, payload_id, attributes.attributes().payload_attributes.timestamp)
-            .await?;
+    let payload = get_payload(engine, cfg, payload_id, timestamp).await?;
     let built = BlockNumHash { number: payload.block_number(), hash: payload.block_hash() };
-    if denied.contains(built).map_err(ReplaceDeniedError::from)? {
+    if denied.contains(built, timestamp).map_err(ReplaceDeniedError::from)? {
         return Err(replace_denied(engine, cfg, state, &attributes, built, block_sink)
             .await
             .into());

@@ -51,7 +51,7 @@ impl Chain {
 
     fn engine_state(&self) -> EngineState {
         TestEngineStateBuilder::new()
-            .with_safe_label(SafeLabel::Verified)
+            .with_safe_label(SafeLabel::Verified { activation_timestamp: 0 })
             .with_unsafe_head(self.info(UNSAFE))
             .with_local_safe_head(self.info(LOCAL_SAFE))
             .with_safe_head(self.info(SAFE))

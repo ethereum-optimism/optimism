@@ -47,7 +47,7 @@ impl Chain {
     /// An engine whose safe label a verifier moves, with the labels at the constants above.
     fn verified_engine_state(&self) -> EngineState {
         TestEngineStateBuilder::new()
-            .with_safe_label(SafeLabel::Verified)
+            .with_safe_label(SafeLabel::Verified { activation_timestamp: 0 })
             .with_unsafe_head(self.info(UNSAFE))
             .with_local_safe_head(self.info(LOCAL_SAFE))
             .with_safe_head(self.info(SAFE))
@@ -165,7 +165,7 @@ async fn unverified_head_moves_the_safe_label_to_local_safe(#[case] head: Verifi
 /// With a verifier moving the safe label, derivation moving local-safe ahead leaves the safe label
 /// behind; without one, the safe label moves with local-safe.
 #[rstest::rstest]
-#[case::verified(SafeLabel::Verified, SAFE)]
+#[case::verified(SafeLabel::Verified { activation_timestamp: 0 }, SAFE)]
 #[case::local_safe(SafeLabel::LocalSafe, LOCAL_SAFE + 1)]
 fn local_safe_progress_moves_the_safe_label_only_without_a_verifier(
     #[case] safe_label: SafeLabel,
@@ -176,7 +176,7 @@ fn local_safe_progress_moves_the_safe_label_only_without_a_verifier(
         .with_safe_label(safe_label)
         .with_unsafe_head(chain.info(UNSAFE))
         .with_local_safe_head(chain.info(LOCAL_SAFE))
-        .with_safe_head(chain.info(if safe_label == SafeLabel::Verified {
+        .with_safe_head(chain.info(if matches!(safe_label, SafeLabel::Verified { .. }) {
             SAFE
         } else {
             LOCAL_SAFE
@@ -198,7 +198,7 @@ fn local_safe_progress_moves_the_safe_label_only_without_a_verifier(
 #[test]
 fn first_reset_starts_a_verified_safe_label_at_finality() {
     let chain = Chain::new();
-    let empty = crate::EngineSyncState::new(SafeLabel::Verified);
+    let empty = crate::EngineSyncState::new(SafeLabel::Verified { activation_timestamp: 0 });
 
     let reset = empty.apply_update(EngineSyncStateUpdate {
         unsafe_head: Some(chain.info(UNSAFE)),
@@ -208,4 +208,32 @@ fn first_reset_starts_a_verified_safe_label_at_finality() {
     });
 
     assert_eq!(reset.safe_head(), chain.info(0));
+}
+
+/// While local-safe is before the verifier's activation, the safe label is the local-safe head,
+/// also across a reset that moves local-safe back. From activation on, local-safe progress leaves
+/// it at the last block before activation, where the verifier's anchor is.
+#[test]
+fn verified_safe_label_follows_local_safe_before_activation() {
+    let chain = Chain::new();
+    let first_active = LOCAL_SAFE + 1;
+    let activation_timestamp = chain.info(first_active).block_info.timestamp;
+    let mut state = crate::EngineSyncState::new(SafeLabel::Verified { activation_timestamp });
+    let local_safe = |number| EngineSyncStateUpdate {
+        local_safe_head: Some(chain.info(number)),
+        ..Default::default()
+    };
+
+    for number in 1..first_active {
+        state = state.apply_update(local_safe(number));
+        assert_eq!(state.safe_head(), chain.info(number));
+    }
+    state = state.apply_update(local_safe(FINALIZED));
+    assert_eq!(state.safe_head(), chain.info(FINALIZED), "a reset before activation");
+    for number in FINALIZED + 1..=UNSAFE {
+        state = state.apply_update(local_safe(number));
+    }
+
+    assert_eq!(state.local_safe_head(), chain.info(UNSAFE));
+    assert_eq!(state.safe_head(), chain.info(LOCAL_SAFE));
 }

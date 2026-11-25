@@ -3,6 +3,9 @@
 mod head;
 pub use head::VerifierHead;
 
+mod finality;
+pub use finality::{VerifierFinality, verifier_activation_timestamp};
+
 mod task;
 pub use task::PromoteTask;
 

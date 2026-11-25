@@ -9,8 +9,9 @@ use jsonrpsee::{
     core::RpcResult,
     http_client::{HttpClient, HttpClientBuilder},
     server::{Server, ServerHandle},
+    types::ErrorObjectOwned,
 };
-use kona_engine::{EngineActorRequest, EngineState, FinalizeBlockId, VerifierHead};
+use kona_engine::{EngineActorRequest, EngineState, VerifierHead};
 use kona_genesis::RollupConfig;
 use kona_rpc::InteropAuthorityApiServer;
 use std::{
@@ -20,7 +21,7 @@ use std::{
 use tokio::sync::{mpsc, watch};
 
 /// An authority answering fixed heads and denied blocks, recording the height denied blocks were
-/// asked from.
+/// asked from. Without heads, it answers an error for them, as lokahi does before it caught up.
 #[derive(Default)]
 struct FixedAuthority {
     verified: Option<VerifierHead>,
@@ -29,14 +30,18 @@ struct FixedAuthority {
     denied_from: Arc<Mutex<Option<u64>>>,
 }
 
+fn not_caught_up() -> ErrorObjectOwned {
+    ErrorObjectOwned::owned(-32001, "not caught up", None::<()>)
+}
+
 #[async_trait]
 impl InteropAuthorityApiServer for FixedAuthority {
     async fn verified_head(&self, _chain_id: u64) -> RpcResult<VerifierHead> {
-        Ok(self.verified.unwrap_or(VerifierHead::PreActivation))
+        self.verified.ok_or_else(not_caught_up)
     }
 
     async fn finalized_head(&self, _chain_id: u64) -> RpcResult<VerifierHead> {
-        Ok(self.finalized.unwrap_or(VerifierHead::PreActivation))
+        self.finalized.ok_or_else(not_caught_up)
     }
 
     async fn denied_blocks(&self, _chain_id: u64, from: u64) -> RpcResult<Vec<BlockNumHash>> {
@@ -71,7 +76,7 @@ fn actor(
 }
 
 /// One poll hands the engine the denied blocks above its finalized head, then the verified head
-/// to promote and the finalized block, pinned by hash, to finalize.
+/// to promote and the finalized head, which the engine bounds by its own L1 finality.
 #[tokio::test]
 async fn poll_forwards_the_denied_blocks_and_the_verified_and_finalized_heads() {
     let safe = BlockNumHash { number: 9, hash: B256::repeat_byte(9) };
@@ -105,10 +110,28 @@ async fn poll_forwards_the_denied_blocks_and_the_verified_and_finalized_heads() 
         other => panic!("expected the verified head, got {other:?}"),
     }
     match requests.try_recv().unwrap() {
-        EngineActorRequest::ProcessFinalizedL2Block(target) => {
-            assert_eq!(*target, FinalizeBlockId::ByHash(finalized))
+        EngineActorRequest::ProcessVerifiedFinalizedHead(head) => {
+            assert_eq!(*head, VerifierHead::Verified { block: finalized, timestamp: 8 })
         }
-        other => panic!("expected the finalized block, got {other:?}"),
+        other => panic!("expected the finalized head, got {other:?}"),
+    }
+    assert!(requests.try_recv().is_err());
+}
+
+/// An authority that answers no heads yet still hands the engine its denied blocks, and moves no
+/// label.
+#[tokio::test]
+async fn authority_without_heads_forwards_only_the_denied_blocks() {
+    let denied = BlockNumHash { number: 11, hash: B256::repeat_byte(11) };
+    let (client, _server) =
+        serve(FixedAuthority { denied: vec![denied], ..Default::default() }).await;
+    let (mut actor, mut requests) = actor(client);
+
+    actor.step().await.unwrap();
+
+    match requests.try_recv().unwrap() {
+        EngineActorRequest::ProcessDeniedBlocks(blocks) => assert_eq!(blocks, vec![denied]),
+        other => panic!("expected the denied blocks, got {other:?}"),
     }
     assert!(requests.try_recv().is_err());
 }

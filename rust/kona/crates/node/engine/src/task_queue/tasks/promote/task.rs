@@ -20,7 +20,8 @@ use std::sync::Arc;
 ///   height and not ahead of the local-safe head. Otherwise the label holds where it is; it never
 ///   falls back to local-safe.
 ///
-/// The label then stays between the finalized and the local-safe head, see
+/// The label then stays between the finalized and the local-safe head, and is the local-safe head
+/// while that is before the verifier's activation, whatever the verifier answers, see
 /// [`crate::SafeLabel::Verified`].
 #[derive(Debug, Clone, Constructor)]
 pub struct PromoteTask {

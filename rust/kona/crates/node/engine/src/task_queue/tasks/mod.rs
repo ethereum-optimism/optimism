@@ -31,7 +31,9 @@ mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
 
 mod promote;
-pub use promote::{PromoteTask, PromoteTaskError, VerifierHead};
+pub use promote::{
+    PromoteTask, PromoteTaskError, VerifierFinality, VerifierHead, verifier_activation_timestamp,
+};
 
 mod replace;
 pub use replace::ReplaceDeniedError;

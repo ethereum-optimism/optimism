@@ -305,7 +305,11 @@ impl ConsolidateTask {
             // still has it or re-derives it.
             if let ConsolidateInput::Attributes(attributes) = &self.input {
                 let block_id = BlockNumHash { number: block_num, hash: block_hash };
-                if self.denied.contains(block_id).map_err(ReplaceDeniedError::from)? {
+                if self
+                    .denied
+                    .contains(block_id, block.header.timestamp)
+                    .map_err(ReplaceDeniedError::from)?
+                {
                     return Err(replace_denied(
                         self.client.as_ref(),
                         &self.cfg,
@@ -1219,7 +1223,7 @@ mod tests {
         }
 
         fn denied(blocks: Vec<BlockNumHash>) -> DeniedBlocks {
-            let (sender, denied) = DeniedBlocks::from_verifier();
+            let (sender, denied) = DeniedBlocks::from_verifier(0);
             sender.publish(blocks);
             denied
         }
@@ -1428,7 +1432,7 @@ mod tests {
             let state_before = state;
             let (client, l1, l2) = test_engine_client(cfg.clone());
             l2.expect_block_by_number(10, Some(denied_block(&attributes)));
-            let task = task(client, cfg, &attributes, DeniedBlocks::from_verifier().1);
+            let task = task(client, cfg, &attributes, DeniedBlocks::from_verifier(0).1);
 
             let err = task.execute(&mut state).await.unwrap_err();
 

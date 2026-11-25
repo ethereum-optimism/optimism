@@ -2,11 +2,13 @@
 
 use super::ExecutableEngineTask;
 use crate::{
-    EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, L2ForkchoiceState, Metrics, SyncStartError, SynchronizeTaskError,
-    find_starting_forkchoice,
+    EngineClient, EngineState, EngineSyncState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
+    EngineTaskErrorSeverity, L2ForkchoiceState, Metrics, SafeLabel, SyncStartError,
+    SynchronizeTaskError, find_starting_forkchoice,
     task_queue::{EngineTaskErrors, synchronize_unconditionally},
 };
+use alloy_eips::BlockId;
+use alloy_transport::{RpcError, TransportErrorKind};
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use std::{cmp::Ordering, collections::BinaryHeap, sync::Arc};
@@ -118,7 +120,8 @@ impl Engine {
         // One attempt. The actor retains the reset request and retries transient failures. The
         // execution layer may have lost or changed its forkchoice, so the reset sends one even when
         // the recovered labels equal the current ones.
-        synchronize_unconditionally(client.as_ref(), &mut self.state, reset_update(start)).await?;
+        let update = checked_reset_update(&self.state.sync_state, client.as_ref(), start).await?;
+        synchronize_unconditionally(client.as_ref(), &mut self.state, update).await?;
 
         self.state_sender.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
@@ -182,6 +185,39 @@ const fn reset_update(start: L2ForkchoiceState) -> EngineSyncStateUpdate {
     }
 }
 
+/// The labels a reset recovers from the sync `start`, with a verified safe label the reset would
+/// keep checked against the execution layer.
+///
+/// The reset keeps a verified safe label at or below the recovered local-safe head, see
+/// [`reset_update`]. It is the block at its height on the execution layer's chain only if the
+/// execution layer did not move its head to another chain since the label was set, such as by
+/// applying a forkchoice update whose safe block it then rejected. The recovered heads are on the
+/// execution layer's current chain, so the label is looked up there, and falls to the recovered
+/// finalized head if another block is at its height.
+async fn checked_reset_update(
+    sync_state: &EngineSyncState,
+    client: &EngineClient,
+    start: L2ForkchoiceState,
+) -> Result<EngineSyncStateUpdate, EngineResetError> {
+    let update = reset_update(start);
+    if !matches!(sync_state.safe_label(), SafeLabel::Verified { .. }) {
+        return Ok(update);
+    }
+    let kept = sync_state.apply_update(update).safe_head();
+    if kept == start.safe || kept == start.finalized {
+        return Ok(update);
+    }
+    let canonical = client
+        .get_l2_block(BlockId::number(kept.block_info.number))
+        .await
+        .map_err(EngineResetError::SafeLabelLookup)?;
+    if canonical.is_some_and(|block| block.header.hash == kept.block_info.hash) {
+        return Ok(update);
+    }
+    warn!(target: "engine", safe = %kept, finalized = %start.finalized, "The safe label is not on the execution layer's chain; dropping it to the finalized head");
+    Ok(EngineSyncStateUpdate { safe_head: Some(start.finalized), ..update })
+}
+
 /// An error occurred while attempting to reset the [`Engine`].
 #[derive(Debug, Error)]
 pub enum EngineResetError {
@@ -191,6 +227,9 @@ pub enum EngineResetError {
     /// An error occurred while traversing the L1 for the sync starting point.
     #[error(transparent)]
     SyncStart(#[from] SyncStartError),
+    /// The lookup checking that the safe label is on the execution layer's chain failed.
+    #[error("Failed to look up the safe label's block: {0}")]
+    SafeLabelLookup(RpcError<TransportErrorKind>),
 }
 
 impl EngineResetError {
@@ -203,7 +242,8 @@ impl EngineResetError {
                 SyncStartError::RpcError(_) |
                 SyncStartError::L1(_) |
                 SyncStartError::L1BlockMissing { .. },
-            ) => true,
+            ) |
+            Self::SafeLabelLookup(_) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
         }
@@ -399,8 +439,8 @@ mod recovery_tests {
     /// below falls to the recovered finalized head. A safe label following local-safe moves with
     /// it.
     #[rstest::rstest]
-    #[case::verified_below_start(crate::SafeLabel::Verified, 12, 10, 10)]
-    #[case::verified_above_start(crate::SafeLabel::Verified, 8, 10, 5)]
+    #[case::verified_below_start(crate::SafeLabel::Verified { activation_timestamp: 0 }, 12, 10, 10)]
+    #[case::verified_above_start(crate::SafeLabel::Verified { activation_timestamp: 0 }, 8, 10, 5)]
     #[case::local_safe(crate::SafeLabel::LocalSafe, 12, 10, 12)]
     fn reset_never_raises_a_verified_safe_label(
         #[case] safe_label: crate::SafeLabel,
@@ -426,6 +466,62 @@ mod recovery_tests {
 
         assert_eq!(reset.local_safe_head(), start.safe);
         assert_eq!(reset.safe_head(), blocks[expected_safe as usize]);
+    }
+
+    /// A verified safe label the reset keeps below the recovered local-safe head is kept only if
+    /// it is the execution layer's block at its height: an execution layer that moved its head
+    /// to another chain leaves it off the chain the reset follows, and it falls to finalized. A
+    /// label the reset sets to a recovered head is not looked up.
+    #[rstest::rstest]
+    #[case::canonical(10, Some(0), 10)]
+    #[case::reorged_out(10, Some(1), 5)]
+    #[case::missing(10, None, 5)]
+    #[case::at_the_recovered_local_safe_head(12, None, 12)]
+    #[tokio::test]
+    async fn reset_keeps_a_verified_safe_label_only_on_the_execution_layers_chain(
+        #[case] safe_before: u64,
+        #[case] served: Option<u8>,
+        #[case] expected_safe: u64,
+    ) {
+        use crate::test_utils::{test_l2_block, test_rpc_block};
+        let mut blocks: Vec<op_alloy_consensus::OpBlock> = Vec::new();
+        for number in 0..=20 {
+            let parent = blocks
+                .last()
+                .map_or(alloy_primitives::B256::ZERO, |block| block.header.hash_slow());
+            blocks.push(test_l2_block(number, parent, 0));
+        }
+        let genesis = kona_genesis::ChainGenesis {
+            l2: alloy_eips::BlockNumHash { number: 0, hash: blocks[0].header.hash_slow() },
+            ..Default::default()
+        };
+        let info = |number: u64| {
+            L2BlockInfo::from_block_and_genesis(&blocks[number as usize], &genesis).unwrap()
+        };
+        let state = TestEngineStateBuilder::new()
+            .with_safe_label(crate::SafeLabel::Verified { activation_timestamp: 0 })
+            .with_unsafe_head(info(20))
+            .with_local_safe_head(info(15))
+            .with_safe_head(info(safe_before))
+            .with_finalized_head(info(5))
+            .build();
+        let start = L2ForkchoiceState { un_safe: info(18), safe: info(12), finalized: info(5) };
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        if safe_before != 12 {
+            let block = served.map(|fork| {
+                let parent = blocks[safe_before as usize].header.parent_hash;
+                test_rpc_block(&test_l2_block(safe_before, parent, fork))
+            });
+            l2.expect_block_header_by_number(safe_before, block);
+        }
+
+        let update = checked_reset_update(&state.sync_state, &client, start).await.unwrap();
+
+        let reset = state.sync_state.apply_update(update);
+        assert_eq!(reset.local_safe_head(), info(12));
+        assert_eq!(reset.safe_head(), info(expected_safe));
+        l1.assert_finished();
+        l2.assert_finished();
     }
 
     // A skipped task is dropped instead of being kept for a retry, so it cannot hold the queue.

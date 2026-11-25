@@ -435,7 +435,7 @@ async fn denied_local_safe_block_restarts_derivation_from_its_parent() {
         request_rx,
         Arc::new(NoopBlockSink),
     )
-    .with_verifier_denials();
+    .following_verifier();
 
     requests
         .send(EngineActorRequest::ProcessDeniedBlocks(vec![info(12).block_info.id()]))
@@ -466,4 +466,52 @@ async fn denied_local_safe_block_restarts_derivation_from_its_parent() {
     assert!(actor.engine.is_empty());
     l1.assert_finished();
     l2.assert_finished();
+}
+
+/// Following a verifier, the verifier's finalized head is final only once the node's own L1
+/// finality covers it, and it bounds what L1 finality finalizes. Without a verifier, L1 finality
+/// finalizes alone.
+#[test]
+fn verifier_finality_is_bounded_by_the_nodes_l1_finality() {
+    let mut config = RollupConfig { block_time: 2, ..Default::default() };
+    config.hardforks.lagoon_time = Some(0);
+    let config = Arc::new(config);
+    let (client, _l1, _l2) = test_engine_client(config.clone());
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(test_block_info(30))
+        .with_safe_head(test_block_info(20))
+        .with_finalized_head(test_block_info(10))
+        .build();
+    let (state_tx, _state_rx) = watch::channel(state);
+    let (_requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    let verified = test_block_info(15).block_info.id();
+    let l1 = |number| FinalityUpdate::L1(FinalizeBlockId::ByNumber(number));
+
+    let mut without_verifier = actor;
+    assert_eq!(without_verifier.finality_target(l1(12)), Some(FinalizeBlockId::ByNumber(12)));
+
+    let mut actor = without_verifier.following_verifier();
+    let head = VerifierHead::Verified { block: verified, timestamp: 30 };
+    assert_eq!(actor.finality_target(FinalityUpdate::Verifier(head)), None, "no L1 finality yet");
+    assert_eq!(actor.finality_target(l1(12)), Some(FinalizeBlockId::ByNumber(12)));
+    assert_eq!(actor.finality_target(l1(18)), Some(FinalizeBlockId::ByHash(verified)));
+    assert_eq!(
+        actor.finality_target(l1(8)),
+        Some(FinalizeBlockId::ByHash(verified)),
+        "lower L1 finality does not lower the bound"
+    );
+    assert_eq!(actor.finality_target(l1(9)).map(|t| t.number()), Some(15));
+    let behind =
+        VerifierHead::Verified { block: test_block_info(9).block_info.id(), timestamp: 18 };
+    assert_eq!(actor.finality_target(FinalityUpdate::Verifier(behind)), None, "behind finality");
 }

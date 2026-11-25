@@ -53,9 +53,6 @@ where
     pub(super) attributes_awaiting_confirmation: Option<OpAttributesWithParent>,
     /// A pipeline reset that has not yet succeeded. Derivation must not resume before it does.
     pending_reset: Option<PendingReset>,
-    /// Whether L1 finality finalizes derived blocks. Off while a cross-chain verification
-    /// authority supplies finality, so it never finalizes past the authority.
-    finalizes_from_l1: bool,
 }
 
 /// A pipeline reset that has not yet succeeded.
@@ -125,14 +122,7 @@ where
             l1_block_zero,
             attributes_awaiting_confirmation: None,
             pending_reset: None,
-            finalizes_from_l1: true,
         }
-    }
-
-    /// Leaves finality to a cross-chain verification authority: L1 finality no longer finalizes
-    /// derived blocks.
-    pub fn with_external_finality(self) -> Self {
-        Self { finalizes_from_l1: false, ..self }
     }
 
     /// Forwards an activation or channel flush to the pipeline. Either failure leaves the
@@ -484,10 +474,6 @@ where
         &self,
         l2_block_number: u64,
     ) -> Result<(), DerivationError> {
-        if !self.finalizes_from_l1 {
-            debug!(target: "derivation", l2_block_number, "Finality follows the interop authority; not finalizing from L1");
-            return Ok(());
-        }
         debug!(target: "derivation", l2_block_number, "Sending L2 block to finalize to the engine");
         // Local L1-finality: the engine's own canonical chain is the authoritative source at this
         // height, so finalize by number.

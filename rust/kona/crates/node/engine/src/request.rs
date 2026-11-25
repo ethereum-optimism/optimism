@@ -18,10 +18,14 @@ pub enum EngineActorRequest {
     Build(Box<BuildRequest>),
     /// Request to process derived attributes or delegated safe block information.
     ProcessSafeL2Signal(ConsolidateInput),
-    /// Request to process the finalized L2 block.
+    /// Request to process the finalized L2 block. A node following a cross-chain verifier takes
+    /// it as its own L1 finality, which bounds the verifier's finalized head.
     ProcessFinalizedL2Block(Box<FinalizeBlockId>),
     /// Request to move the safe label to a cross-chain verifier's head.
     ProcessVerifiedSafeHead(Box<VerifierHead>),
+    /// Request to process a cross-chain verifier's finalized head, which the node's own L1
+    /// finality bounds.
+    ProcessVerifiedFinalizedHead(Box<VerifierHead>),
     /// Request to process a cross-chain verifier's denied blocks above the finalized head.
     ProcessDeniedBlocks(Vec<BlockNumHash>),
     /// Request to process a received unsafe L2 block.

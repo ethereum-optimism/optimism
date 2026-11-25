@@ -42,10 +42,17 @@ pub enum SafeLabel {
     /// The safe label is the local-safe head: every local-safe update moves it too.
     #[default]
     LocalSafe,
-    /// An external verifier moves the safe label, through [`crate::PromoteTask`]. Local-safe
-    /// updates leave it, except that it never stays ahead of local-safe or below finality: a
-    /// local-safe head moving under it, as a reset does, drops it to the finalized head.
-    Verified,
+    /// An external verifier moves the safe label, through [`crate::PromoteTask`], from the
+    /// verifier's activation on. Local-safe updates leave it, except that it never stays ahead of
+    /// local-safe or below finality: a local-safe head moving under it, as a reset does, drops it
+    /// to the finalized head.
+    ///
+    /// While the local-safe head is before activation, no block can have a cross-chain
+    /// dependency, so the safe label is the local-safe head, whatever the verifier says.
+    Verified {
+        /// The first L2 timestamp the verifier covers.
+        activation_timestamp: u64,
+    },
 }
 
 impl EngineSyncState {
@@ -105,7 +112,8 @@ impl EngineSyncState {
     ///
     /// The safe label follows [`Self::safe_label`]: with [`SafeLabel::LocalSafe`], a local-safe
     /// update without a safe head moves the safe label along; with [`SafeLabel::Verified`], only an
-    /// explicit safe head moves it, and it is held between the finalized and the local-safe head.
+    /// explicit safe head moves it, and it is held between the finalized and the local-safe head,
+    /// except that it is the local-safe head while that is before the verifier's activation.
     pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
         if let Some(unsafe_head) = sync_state_update.unsafe_head {
             Self::update_block_label_metric(
@@ -133,7 +141,12 @@ impl EngineSyncState {
                 .safe_head
                 .or(sync_state_update.local_safe_head)
                 .unwrap_or(self.safe_head),
-            SafeLabel::Verified => Self::bounded_verified_safe_head(
+            SafeLabel::Verified { activation_timestamp }
+                if local_safe_head.block_info.timestamp < activation_timestamp =>
+            {
+                local_safe_head
+            }
+            SafeLabel::Verified { .. } => Self::bounded_verified_safe_head(
                 sync_state_update.safe_head.unwrap_or(self.safe_head),
                 local_safe_head,
                 finalized_head,

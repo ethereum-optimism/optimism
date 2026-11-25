@@ -44,7 +44,7 @@ pub use task_queue::{
     EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors,
     ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask,
     InsertTaskError, PromoteTask, PromoteTaskError, ReplaceDeniedError, SealTask, SealTaskError,
-    SynchronizeTaskError, VerifierHead,
+    SynchronizeTaskError, VerifierFinality, VerifierHead, verifier_activation_timestamp,
 };
 
 mod denied;
