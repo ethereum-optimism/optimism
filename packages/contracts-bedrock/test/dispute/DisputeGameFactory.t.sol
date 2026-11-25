@@ -743,7 +743,7 @@ contract DisputeGameFactory_Create_ZkDisputeGame_Test is DisputeGameFactory_ZkDi
         // Super fault dispute game: same guarantee.
         vm.expectRevert(LibClone.DeploymentFailed.selector);
         disputeGameFactory.create{ value: DEFAULT_DISPUTE_GAME_INIT_BOND }(
-            GameTypes.SUPER_CANNON, rootClaim, oversizedExtraData
+            GameTypes.SUPER_CANNON_KONA, rootClaim, oversizedExtraData
         );
     }
 }

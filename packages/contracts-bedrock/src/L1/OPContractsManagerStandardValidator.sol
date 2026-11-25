@@ -46,8 +46,8 @@ import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 /// after an upgrade. It expects the chain to already run this release's contracts.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 6.0.0
-    string public constant version = "6.0.0";
+    /// @custom:semver 6.1.0
+    string public constant version = "6.1.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -472,8 +472,8 @@ contract OPContractsManagerStandardValidator is ISemver {
     }
 
     /// @notice Asserts that dispute games are correctly configured for super root mode.
-    ///         Checks that legacy game types and SUPER_CANNON are unregistered, SUPER_PERMISSIONED is
-    ///         registered, and SUPER_CANNON_KONA or ZK_DISPUTE_GAME is registered.
+    ///         Checks that legacy game types are unregistered, SUPER_PERMISSIONED is registered,
+    ///         and SUPER_CANNON_KONA or ZK_DISPUTE_GAME is registered.
     ///         This only validates system shape, not full game configuration. State transition
     ///         checks (e.g., "was this chain already migrated?") belong in Superchain Ops scripts.
     function assertValidSuperRootDisputeGames(
@@ -734,7 +734,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         uint32 raw = _gameType.raw();
         if (raw == GameTypes.PERMISSIONED_CANNON.raw()) return permissionedDisputeGameImpl;
         if (raw == GameTypes.SUPER_PERMISSIONED.raw()) return superPermissionedDisputeGameImpl;
-        if (raw == GameTypes.SUPER_CANNON.raw()) return superFaultDisputeGameImpl;
         if (raw == GameTypes.SUPER_CANNON_KONA.raw()) return superFaultDisputeGameImpl;
         if (raw == GameTypes.ZK_DISPUTE_GAME.raw()) return zkDisputeGameImpl;
         return faultDisputeGameImpl;

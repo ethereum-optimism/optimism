@@ -24,11 +24,21 @@ contract Types_IsSuperGame_Test is Test {
         assertFalse(GameTypes.isSuperGame(GameTypes.CANNON_KONA), "CANNON_KONA must not be a super game");
     }
 
+    /// @notice Tests that the unsupported super game types are not recognized as super games.
+    function test_isSuperGame_unsupportedSuperTypes_succeeds() public pure {
+        assertFalse(
+            GameTypes.isSuperGame(GameTypes.UNSUPPORTED_SUPER_CANNON),
+            "UNSUPPORTED_SUPER_CANNON must not be a super game"
+        );
+        assertFalse(
+            GameTypes.isSuperGame(GameTypes.UNSUPPORTED_SUPER_ASTERISC_KONA),
+            "UNSUPPORTED_SUPER_ASTERISC_KONA must not be a super game"
+        );
+    }
+
     /// @notice Tests that all expected super game types are recognized.
     function test_isSuperGame_allSuperTypes_succeeds() public pure {
-        assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_CANNON), "SUPER_CANNON must be a super game");
         assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_PERMISSIONED), "SUPER_PERMISSIONED must be a super game");
-        assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_ASTERISC_KONA), "SUPER_ASTERISC_KONA must be a super game");
         assertTrue(GameTypes.isSuperGame(GameTypes.SUPER_CANNON_KONA), "SUPER_CANNON_KONA must be a super game");
         assertTrue(GameTypes.isSuperGame(GameTypes.ZK_DISPUTE_GAME), "ZK_DISPUTE_GAME must be a super game");
     }

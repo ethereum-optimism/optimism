@@ -997,16 +997,6 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
         assertEq("PLDG-NOSHAPE", _validate(true));
     }
 
-    /// @notice Tests that SCDG-NOSHAPE fires when SUPER_CANNON has a registered impl in non-super mode.
-    function test_validate_nonSuperModeSuperCannonRegistered_succeeds() public {
-        vm.mockCall(
-            address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("SCDG-NOSHAPE", _validate(true));
-    }
-
     /// @notice Tests that SPDG-NOSHAPE fires when SUPER_PERMISSIONED has a registered impl in non-super mode.
     function test_validate_nonSuperModeSuperPermissionedRegistered_succeeds() public {
         vm.mockCall(
@@ -1027,13 +1017,9 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
         assertEq("SCKDG-NOSHAPE", _validate(true));
     }
 
-    /// @notice Tests that all three NOSHAPE errors fire when all super game types are registered in non-super mode.
+    /// @notice Tests that SPDG-NOSHAPE and SCKDG-NOSHAPE both fire when both games are registered in
+    ///         non-super mode.
     function test_validate_nonSuperModeAllSuperGamesRegistered_succeeds() public {
-        vm.mockCall(
-            address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
-            abi.encode(address(0xdead))
-        );
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_PERMISSIONED)),
@@ -1044,7 +1030,7 @@ contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContra
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON_KONA)),
             abi.encode(address(0xdead))
         );
-        assertEq("SCDG-NOSHAPE,SPDG-NOSHAPE,SCKDG-NOSHAPE", _validate(true));
+        assertEq("SPDG-NOSHAPE,SCKDG-NOSHAPE", _validate(true));
     }
 }
 
@@ -2010,16 +1996,6 @@ contract OPContractsManagerStandardValidator_SuperRootDisputeGames_Test is
         assertEq("CKDG-SHAPE", _validate(true));
     }
 
-    /// @notice Tests that enabling SUPER_CANNON in super mode triggers SCDG-SHAPE.
-    function test_validate_superCannonNotDisabled_succeeds() public {
-        vm.mockCall(
-            address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
-            abi.encode(address(0xdead))
-        );
-        assertEq("SCDG-SHAPE", _validate(true));
-    }
-
     /// @notice Tests that disabling SUPER_PERMISSIONED triggers SPDG-SHAPE.
     function test_validate_superPermissionedNotRegistered_succeeds() public {
         vm.mockCall(
@@ -2209,17 +2185,15 @@ contract OPContractsManagerStandardValidator_SuperPermissionlessDisputeGame_Test
         assertEq("SCKDG-160", _validate(true));
     }
 
-    /// @notice Tests ASR-RGT when the respected game type is a super game type outside the
-    ///         validated set. A super type keeps the validator on the super-mode branch, so only
-    ///         the respected-game-type assertion fires.
-    function test_validate_unexpectedRespectedGameType_succeeds() public {
+    /// @notice Tests that a respected UNSUPPORTED_SUPER_CANNON is not validated as a super game.
+    function test_validate_unsupportedSuperCannonRespected_succeeds() public {
         IOptimismPortal2 portal = IOptimismPortal2(payable(systemConfig.optimismPortal()));
         vm.mockCall(
             address(portal.anchorStateRegistry()),
             abi.encodeCall(IAnchorStateRegistry.respectedGameType, ()),
-            abi.encode(GameTypes.SUPER_CANNON)
+            abi.encode(GameTypes.UNSUPPORTED_SUPER_CANNON)
         );
-        assertEq("ASR-RGT", _validate(true));
+        assertEq("ASR-RGT,SPDG-NOSHAPE,SCKDG-NOSHAPE,PDDG-NOSHAPE,CKDG-NOSHAPE,PDDG-10,CKDG-10", _validate(true));
     }
 }
 

@@ -209,8 +209,8 @@ contract OPContractsManagerMigrationValidator {
 
     /// @notice Validates the shape of the shared DGF — correct game types registered/unregistered.
     ///         Post-migration interop requires SUPER_PERMISSIONED and SUPER_CANNON_KONA
-    ///         registered; all legacy game types (CANNON, PERMISSIONED_CANNON, CANNON_KONA,
-    ///         SUPER_CANNON) unregistered.
+    ///         registered; all legacy game types (CANNON, PERMISSIONED_CANNON, CANNON_KONA)
+    ///         unregistered.
     function assertValidSharedDGFShape(
         string memory _errors,
         IDisputeGameFactory _dgf
@@ -228,7 +228,6 @@ contract OPContractsManagerMigrationValidator {
             address(_dgf.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "MIG-DGF-40", _errors
         );
         _errors = internalRequire(address(_dgf.gameImpls(GameTypes.CANNON_KONA)) == address(0), "MIG-DGF-50", _errors);
-        _errors = internalRequire(address(_dgf.gameImpls(GameTypes.SUPER_CANNON)) == address(0), "MIG-DGF-60", _errors);
         return _errors;
     }
 
@@ -745,7 +744,6 @@ contract OPContractsManagerMigrationValidator {
         if (raw == GameTypes.CANNON.raw()) return "-20";
         if (raw == GameTypes.PERMISSIONED_CANNON.raw()) return "-30";
         if (raw == GameTypes.CANNON_KONA.raw()) return "-40";
-        if (raw == GameTypes.SUPER_CANNON.raw()) return "-50";
         if (raw == GameTypes.SUPER_PERMISSIONED.raw()) return "-60";
         if (raw == GameTypes.SUPER_CANNON_KONA.raw()) return "-70";
         if (raw == GameTypes.ZK_DISPUTE_GAME.raw()) return "-140";

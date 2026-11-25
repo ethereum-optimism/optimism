@@ -242,10 +242,7 @@ contract ZKDisputeGameSuperMigration_Test is DisputeGameFactory_TestInit {
             // `flipProposer` as the proposer so the old game can be created from that account.
             setupSuperPermissionedDisputeGame(flipProposer);
         } else {
-            // SuperFaultDisputeGame registered at the OPCM-valid SUPER_CANNON_KONA slot. The shared
-            // helper's default registers at the retired SUPER_CANNON slot, which is not one of the
-            // OPCMv2 valid game types, so the game-type overload is used here.
-            setupSuperFaultDisputeGame(Claim.wrap(bytes32(0)), GameTypes.SUPER_CANNON_KONA);
+            setupSuperFaultDisputeGame(Claim.wrap(bytes32(0)));
         }
     }
 
