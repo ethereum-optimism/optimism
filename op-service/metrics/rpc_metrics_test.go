@@ -44,7 +44,7 @@ func TestRPCMetricsDescriptors(t *testing.T) {
 	reg := new(describingRegisterer)
 	MakeRPCMetrics("ns", With(reg))
 	desc := func(name, help, labels string) string {
-		return fmt.Sprintf("Desc{fqName: %q, help: %q, constLabels: {}, variableLabels: {%s}}", name, help, labels)
+		return fmt.Sprintf("Desc{fqName: %q, help: %q, unit: \"\", constLabels: {}, variableLabels: {%s}}", name, help, labels)
 	}
 	require.ElementsMatch(t, []string{
 		desc("ns_rpc_client_requests_total", "Total RPC requests initiated", "rpc,method"),
