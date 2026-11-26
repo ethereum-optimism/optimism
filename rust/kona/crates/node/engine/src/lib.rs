@@ -40,10 +40,10 @@ extern crate tracing;
 mod task_queue;
 pub use task_queue::{
     BuildTask, BuildTaskError, CanonicalizeTask, CanonicalizeTaskError, ConsolidateInput,
-    ConsolidateTask, ConsolidateTaskError, DenyTask, DenyTaskError, Engine, EngineBuildError,
-    EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors,
-    ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask,
-    InsertTaskError, OpStackTask, OpenBlockError, PromoteTask, PromoteTaskError,
+    ConsolidateTask, ConsolidateTaskError, DelegatedHeads, DenyTask, DenyTaskError, Engine,
+    EngineBuildError, EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
+    EngineTaskErrors, ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
+    InsertTask, InsertTaskError, OpStackTask, OpenBlockError, PromoteTask, PromoteTaskError,
     ReplaceDeniedError, SealTask, SealTaskError, SynchronizeTaskError, UndoTask, UndoTaskError,
     VerifierFinality, VerifierHead, VerifierStatus, l1_block_is_canonical,
     verifier_activation_timestamp,

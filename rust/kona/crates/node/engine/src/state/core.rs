@@ -53,6 +53,10 @@ pub enum SafeLabel {
         /// The first L2 timestamp the verifier covers.
         activation_timestamp: u64,
     },
+    /// A derivation delegate's safe head moves the safe label, through a
+    /// [`crate::ConsolidateTask`] following its heads. As with [`Self::Verified`], local-safe
+    /// updates leave it, and it never stays ahead of local-safe or below finality.
+    Delegated,
 }
 
 impl EngineSyncState {
@@ -111,9 +115,10 @@ impl EngineSyncState {
     /// is not specified. Returns the new sync state.
     ///
     /// The safe label follows [`Self::safe_label`]: with [`SafeLabel::LocalSafe`], a local-safe
-    /// update without a safe head moves the safe label along; with [`SafeLabel::Verified`], only an
-    /// explicit safe head moves it, and it is held between the finalized and the local-safe head,
-    /// except that it is the local-safe head while that is before the verifier's activation.
+    /// update without a safe head moves the safe label along; with [`SafeLabel::Verified`] or
+    /// [`SafeLabel::Delegated`], only an explicit safe head moves it, and it is held between the
+    /// finalized and the local-safe head, except that a verified one is the local-safe head while
+    /// that is before the verifier's activation.
     pub fn apply_update(self, sync_state_update: EngineSyncStateUpdate) -> Self {
         if let Some(unsafe_head) = sync_state_update.unsafe_head {
             Self::update_block_label_metric(
@@ -146,7 +151,7 @@ impl EngineSyncState {
             {
                 local_safe_head
             }
-            SafeLabel::Verified { .. } => Self::bounded_verified_safe_head(
+            SafeLabel::Verified { .. } | SafeLabel::Delegated => Self::bounded_verified_safe_head(
                 sync_state_update.safe_head.unwrap_or(self.safe_head),
                 local_safe_head,
                 finalized_head,
@@ -165,11 +170,11 @@ impl EngineSyncState {
         }
     }
 
-    /// A verified safe head held between `finalized` and `local_safe`. A safe head ahead of
-    /// local-safe, or a different block at its height, is not on the derived chain any more, so
-    /// the label falls back to the finalized head rather than to anything local-safe. A safe head
-    /// below finality, or a different block at its height such as the empty label before the
-    /// first reset, is raised to the finalized head, which is safe by definition.
+    /// A verified or delegated safe head held between `finalized` and `local_safe`. A safe head
+    /// ahead of local-safe, or a different block at its height, is not on the derived chain any
+    /// more, so the label falls back to the finalized head rather than to anything local-safe. A
+    /// safe head below finality, or a different block at its height such as the empty label before
+    /// the first reset, is raised to the finalized head, which is safe by definition.
     fn bounded_verified_safe_head(
         safe: L2BlockInfo,
         local_safe: L2BlockInfo,
@@ -284,6 +289,45 @@ mod test {
                 ..Default::default()
             });
         }
+    }
+
+    fn block(number: u64) -> L2BlockInfo {
+        L2BlockInfo {
+            block_info: BlockInfo {
+                number,
+                hash: alloy_primitives::B256::with_last_byte(number as u8),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    /// A delegate's safe head is held between finality and local-safe: one above the local-safe
+    /// head or below finality falls to the finalized head, and a local-safe update alone, as a
+    /// reset makes, never raises it.
+    #[rstest]
+    #[case::between(7, 7)]
+    #[case::at_local_safe(10, 10)]
+    #[case::above_local_safe(12, 5)]
+    #[case::below_finalized(3, 5)]
+    fn delegated_safe_label_is_held_between_finality_and_local_safe(
+        #[case] safe: u64,
+        #[case] expected: u64,
+    ) {
+        let state =
+            EngineSyncState::new(SafeLabel::Delegated).apply_update(EngineSyncStateUpdate {
+                unsafe_head: Some(block(20)),
+                local_safe_head: Some(block(10)),
+                safe_head: Some(block(safe)),
+                finalized_head: Some(block(5)),
+            });
+        assert_eq!(state.safe_head(), block(expected));
+
+        let moved = state.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(block(15)),
+            ..Default::default()
+        });
+        assert_eq!(moved.safe_head(), block(expected));
     }
 
     #[rstest]

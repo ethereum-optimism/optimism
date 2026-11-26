@@ -239,6 +239,8 @@ impl RollupNode {
             SafeLabel::Verified {
                 activation_timestamp: verifier_activation_timestamp(&self.config),
             }
+        } else if self.derivation_delegate_url.is_some() {
+            SafeLabel::Delegated
         } else {
             SafeLabel::LocalSafe
         };

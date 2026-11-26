@@ -28,7 +28,7 @@ mod opstack;
 pub use opstack::{OpStackTask, OpenBlockError};
 
 mod consolidate;
-pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
+pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError, DelegatedHeads};
 
 mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};

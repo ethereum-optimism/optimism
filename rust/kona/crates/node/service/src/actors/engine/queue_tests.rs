@@ -118,7 +118,7 @@ async fn delegated_safe_head_is_sent_on_every_poll() {
     // accepts the next poll.
     for _ in 0..3 {
         requests
-            .send(EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::BlockInfo(
+            .send(EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::from(
                 delegated_safe_head,
             )))
             .await
@@ -175,9 +175,7 @@ async fn delegated_poll_during_el_sync_moves_safe_labels_and_skips_finalization(
     // One poll: the safe head, then the finalized block pinned by hash. Each step drains the
     // previous request's task and then accepts the next request.
     requests
-        .send(EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::BlockInfo(
-            delegated_safe_head,
-        )))
+        .send(EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::from(delegated_safe_head)))
         .await
         .unwrap();
     requests

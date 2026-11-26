@@ -161,8 +161,8 @@ impl EngineTask {
             (Self::Promote(_), Self::Promote(_)) |
             (Self::Finalize(_), Self::Finalize(_)) => true,
             (Self::Consolidate(task), Self::Consolidate(queued)) => {
-                matches!(task.input, ConsolidateInput::BlockInfo(_)) &&
-                    matches!(queued.input, ConsolidateInput::BlockInfo(_))
+                matches!(task.input, ConsolidateInput::Delegated(_)) &&
+                    matches!(queued.input, ConsolidateInput::Delegated(_))
             }
             _ => false,
         }

@@ -222,8 +222,8 @@ impl Engine {
 /// The labels a reset recovers from the sync `start`.
 ///
 /// Derivation resumes from local-safe, so only local-safe is reset. The safe label is left to the
-/// sync state: it follows local-safe, or, when a verifier moves it, it is held and never raised by
-/// a reset, see [`crate::SafeLabel::Verified`].
+/// sync state: it follows local-safe, or, when a verifier or a delegate moves it, it is held and
+/// never raised by a reset, see [`crate::SafeLabel::Verified`].
 const fn reset_update(start: L2ForkchoiceState) -> EngineSyncStateUpdate {
     EngineSyncStateUpdate {
         unsafe_head: Some(start.un_safe),
@@ -248,7 +248,7 @@ async fn checked_reset_update(
     start: L2ForkchoiceState,
 ) -> Result<EngineSyncStateUpdate, EngineResetError> {
     let update = reset_update(start);
-    if !matches!(sync_state.safe_label(), SafeLabel::Verified { .. }) {
+    if !matches!(sync_state.safe_label(), SafeLabel::Verified { .. } | SafeLabel::Delegated) {
         return Ok(update);
     }
     let kept = sync_state.apply_update(update).safe_head();
