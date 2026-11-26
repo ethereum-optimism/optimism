@@ -41,8 +41,9 @@ pub(crate) struct Config {
     pub rpc_addr: SocketAddr,
     pub dependency_set: DependencySet,
     pub chains: Vec<Chain>,
-    /// The first timestamp the verifier covers: interop is active on every chain from it.
-    pub activation_timestamp: u64,
+    /// The first timestamp the verifier covers: interop is active on every chain from it. `None`
+    /// when no chain schedules interop.
+    pub activation_timestamp: Option<u64>,
 }
 
 /// A loaded chain.
@@ -87,30 +88,31 @@ impl Config {
     }
 }
 
-/// The timestamp from which interop is active on every chain. Every chain must schedule interop
-/// (`lagoon_time`) at the same time, since verification moves over all of them in lockstep; a
-/// chain activating before its genesis, as at genesis, activates at its genesis.
-fn activation_timestamp(chains: &[Chain]) -> Result<u64> {
+/// The timestamp from which interop is active on every chain, or `None` when no chain schedules
+/// it. Every chain must schedule interop (`lagoon_time`) at the same time, or none, since
+/// verification moves over all of them in lockstep; a chain activating before its genesis, as at
+/// genesis, activates at its genesis.
+fn activation_timestamp(chains: &[Chain]) -> Result<Option<u64>> {
     let Some(first) = chains.first() else {
         return Err(eyre::eyre!("the configuration names no chains"));
     };
-    let lagoon_time = |config: &RollupConfig| {
-        config.hardforks.lagoon_time.ok_or_else(|| {
-            eyre::eyre!("chain {} schedules no interop (lagoon_time)", config.l2_chain_id.id())
-        })
-    };
-    let first_time = lagoon_time(&first.rollup_config)?;
-    let mut activation = 0;
+    let first_time = first.rollup_config.hardforks.lagoon_time;
+    let describe = |time: Option<u64>| time.map_or_else(|| "never".to_string(), |t| t.to_string());
+    let mut activation = None;
     for chain in chains {
         let config = &chain.rollup_config;
-        let time = lagoon_time(config)?;
+        let time = config.hardforks.lagoon_time;
         ensure!(
             time == first_time,
-            "chain {} activates interop at {time}, chain {} at {first_time}: all chains must activate it at the same time",
+            "chain {} activates interop (lagoon_time) {}, chain {} {}: all chains must activate it at the same time, or none",
             config.l2_chain_id.id(),
-            first.rollup_config.l2_chain_id.id()
+            describe(time),
+            first.rollup_config.l2_chain_id.id(),
+            describe(first_time)
         );
-        activation = activation.max(time.max(config.genesis.l2_time));
+        if let Some(time) = time {
+            activation = Some(activation.unwrap_or(0).max(time.max(config.genesis.l2_time)));
+        }
     }
     Ok(activation)
 }
@@ -141,8 +143,19 @@ mod tests {
 
     #[test]
     fn chains_activating_interop_together_activate_at_that_time_or_genesis() {
-        assert_eq!(activation_timestamp(&[chain(1, Some(150)), chain(2, Some(150))]).unwrap(), 150);
-        assert_eq!(activation_timestamp(&[chain(1, Some(0)), chain(2, Some(0))]).unwrap(), 100);
+        assert_eq!(
+            activation_timestamp(&[chain(1, Some(150)), chain(2, Some(150))]).unwrap(),
+            Some(150)
+        );
+        assert_eq!(
+            activation_timestamp(&[chain(1, Some(0)), chain(2, Some(0))]).unwrap(),
+            Some(100)
+        );
+    }
+
+    #[test]
+    fn chains_without_interop_never_activate() {
+        assert_eq!(activation_timestamp(&[chain(1, None), chain(2, None)]).unwrap(), None);
     }
 
     #[rstest::rstest]

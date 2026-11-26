@@ -326,7 +326,7 @@ impl SourceProvider<'_> {
     ) -> Result<Option<B256>, SourceError> {
         let timestamp = source.block_timestamp(number);
         let verified = self.verified.read().expect("state lock");
-        if timestamp < verified.activation_timestamp() {
+        if !verified.is_active_at(timestamp) {
             return Ok(None);
         }
         let block = verified

@@ -65,8 +65,9 @@ pub(crate) type AtTimestamp = (u64, VerifiedResult);
 /// The verifier's state, shared with the authority RPC.
 #[derive(Debug)]
 pub(crate) struct Verified {
-    /// The first timestamp the verifier covers.
-    activation_timestamp: u64,
+    /// The first timestamp the verifier covers, or `None` when no chain schedules interop: every
+    /// timestamp is then before activation, and nothing is verified.
+    activation_timestamp: Option<u64>,
     /// Each chain's L2 genesis time, by chain ID.
     genesis_times: BTreeMap<u64, u64>,
     /// The verified results, contiguous from activation, and the denied blocks.
@@ -95,29 +96,31 @@ impl Verified {
     /// other chains or another activation is refused.
     pub(crate) fn open(
         store: Store,
-        activation_timestamp: u64,
+        activation_timestamp: Option<u64>,
         genesis_times: BTreeMap<u64, u64>,
     ) -> Result<Self, StoreError> {
+        let activation = activation_or_never(activation_timestamp);
         let latest = store.last_result()?;
         if let Some((_, result)) = &latest {
-            let first = store.first_result()?.map_or(activation_timestamp, |(ts, _)| ts);
-            if first != activation_timestamp || !result.chains.keys().eq(genesis_times.keys()) {
+            let first = store.first_result()?.map_or(activation, |(ts, _)| ts);
+            if first != activation || !result.chains.keys().eq(genesis_times.keys()) {
                 return Err(StoreError::OtherConfig {
                     first,
                     chains: result.chains.keys().copied().collect(),
-                    activation: activation_timestamp,
+                    activation,
                     expected: genesis_times.keys().copied().collect(),
                 });
             }
         }
-        let start_timestamp = latest.as_ref().map_or(activation_timestamp, |(ts, _)| ts + 1);
+        let start_timestamp = latest.as_ref().map_or(activation, |(ts, _)| ts + 1);
         Ok(Self {
             activation_timestamp,
             genesis_times,
             store,
             latest,
             finalized: None,
-            caught_up: false,
+            // Without interop there is nothing to verify, so nothing to catch up with.
+            caught_up: activation_timestamp.is_none(),
             start_timestamp,
             current_l1: BlockNumHash::default(),
             pause_at: None,
@@ -153,17 +156,24 @@ impl Verified {
 
     /// Whether `timestamp` is verified: before activation every timestamp is.
     pub(crate) fn is_verified_at(&self, timestamp: u64) -> bool {
-        timestamp < self.activation_timestamp || timestamp < self.next_timestamp()
+        !self.is_active_at(timestamp) || timestamp < self.next_timestamp()
     }
 
-    /// The first timestamp the verifier covers.
-    pub(crate) const fn activation_timestamp(&self) -> u64 {
+    /// The first timestamp the verifier covers, or `None` when no chain schedules interop.
+    pub(crate) const fn activation_timestamp(&self) -> Option<u64> {
         self.activation_timestamp
+    }
+
+    /// Whether interop is active at `timestamp`.
+    pub(crate) fn is_active_at(&self, timestamp: u64) -> bool {
+        self.activation_timestamp.is_some_and(|activation| timestamp >= activation)
     }
 
     /// The next timestamp to verify.
     pub(crate) fn next_timestamp(&self) -> u64 {
-        self.latest.as_ref().map_or(self.activation_timestamp, |(ts, _)| ts + 1)
+        self.latest
+            .as_ref()
+            .map_or_else(|| activation_or_never(self.activation_timestamp), |(ts, _)| ts + 1)
     }
 
     /// The latest verified result.
@@ -178,7 +188,9 @@ impl Verified {
 
     /// The first timestamp a rewind may delete: the one after the finalized result.
     pub(crate) fn first_unfinalized_timestamp(&self) -> u64 {
-        self.finalized.as_ref().map_or(self.activation_timestamp, |(ts, _)| ts + 1)
+        self.finalized
+            .as_ref()
+            .map_or_else(|| activation_or_never(self.activation_timestamp), |(ts, _)| ts + 1)
     }
 
     /// Commits the result of the next timestamp, durably, before the authority answers it.
@@ -231,7 +243,7 @@ impl Verified {
             return Ok(self.latest.clone());
         }
         // Every result at `hi` or later is above `l1_number`.
-        let (mut lo, mut hi) = (self.activation_timestamp, *latest_ts);
+        let (mut lo, mut hi) = (activation_or_never(self.activation_timestamp), *latest_ts);
         let mut found = None;
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
@@ -351,20 +363,29 @@ impl Verified {
     /// Without a verified result it is the anchor, the last timestamp before activation. That
     /// also covers a node whose local-safe head is before activation: its safe label is then its
     /// local-safe head, which the node decides from its own head, not from lokahi's sources.
+    /// Without interop it is [`VerifierHead::PreActivation`], as op-supernode answers without a
+    /// verifier: the node's labels follow its own local view.
     fn head_in(&self, chain_id: u64, verified: Option<&AtTimestamp>) -> Option<VerifierHead> {
         let genesis_time = *self.genesis_times.get(&chain_id)?;
-        Some(match verified {
-            Some((timestamp, result)) => VerifierHead::Verified {
+        Some(match (verified, self.activation_timestamp) {
+            (Some((timestamp, result)), _) => VerifierHead::Verified {
                 block: result.chains[&chain_id].block,
                 timestamp: *timestamp,
                 l1: result.l1_inclusion,
             },
+            (None, None) => VerifierHead::PreActivation,
             // Clamped to genesis so the node can resolve it.
-            None => VerifierHead::Anchor {
-                timestamp: self.activation_timestamp.saturating_sub(1).max(genesis_time),
-            },
+            (None, Some(activation)) => {
+                VerifierHead::Anchor { timestamp: activation.saturating_sub(1).max(genesis_time) }
+            }
         })
     }
+}
+
+/// The timestamp verification starts at: `activation_timestamp`, or one no timestamp reaches when
+/// no chain schedules interop.
+fn activation_or_never(activation_timestamp: Option<u64>) -> u64 {
+    activation_timestamp.unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]
@@ -405,10 +426,10 @@ pub(crate) mod tests {
     /// The state in the store at `dir`.
     pub(crate) fn open_state(
         dir: &Path,
-        activation: u64,
+        activation: impl Into<Option<u64>>,
         genesis_times: BTreeMap<u64, u64>,
     ) -> Verified {
-        Verified::open(Store::open(dir).unwrap(), activation, genesis_times).unwrap()
+        Verified::open(Store::open(dir).unwrap(), activation.into(), genesis_times).unwrap()
     }
 
     fn state(dir: &Path) -> Verified {
@@ -572,10 +593,14 @@ pub(crate) mod tests {
     }
 
     #[rstest::rstest]
-    #[case::other_activation(ACTIVATION + 1, BTreeMap::from([(CHAIN, ACTIVATION)]))]
-    #[case::other_chains(ACTIVATION, BTreeMap::from([(CHAIN, ACTIVATION), (CHAIN + 1, ACTIVATION)]))]
+    #[case::other_activation(Some(ACTIVATION + 1), BTreeMap::from([(CHAIN, ACTIVATION)]))]
+    #[case::without_interop(None, BTreeMap::from([(CHAIN, ACTIVATION)]))]
+    #[case::other_chains(
+        Some(ACTIVATION),
+        BTreeMap::from([(CHAIN, ACTIVATION), (CHAIN + 1, ACTIVATION)])
+    )]
     fn a_store_of_another_config_is_refused(
-        #[case] activation: u64,
+        #[case] activation: Option<u64>,
         #[case] genesis_times: BTreeMap<u64, u64>,
     ) {
         let dir = tempfile::tempdir().unwrap();
@@ -584,6 +609,21 @@ pub(crate) mod tests {
         let opened = Verified::open(Store::open(dir.path()).unwrap(), activation, genesis_times);
 
         assert!(matches!(opened, Err(StoreError::OtherConfig { .. })), "got {opened:?}");
+    }
+
+    /// Without interop every timestamp is verified, the state is caught up from the start, and
+    /// both heads let the node follow its own local view.
+    #[test]
+    fn without_interop_the_heads_follow_the_nodes_own_view() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = open_state(dir.path(), None, BTreeMap::from([(CHAIN, ACTIVATION)]));
+
+        assert!(state.is_caught_up());
+        assert!(state.is_verified_at(u64::MAX - 1));
+        assert!(!state.is_active_at(u64::MAX - 1));
+        assert_eq!(state.verified_head(CHAIN), Some(VerifierHead::PreActivation));
+        assert_eq!(state.finalized_head(CHAIN), Some(VerifierHead::PreActivation));
+        assert_eq!(state.verified_head(CHAIN + 1), None, "a chain the verifier does not cover");
     }
 
     /// A denied block is told apart from another block at its height and on another chain, and a

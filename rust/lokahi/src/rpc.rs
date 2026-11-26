@@ -77,7 +77,8 @@ pub(crate) trait TestControlApi {
     #[method(name = "resume")]
     async fn resume(&self) -> RpcResult<()>;
 
-    /// The first timestamp interop is active on every chain.
+    /// The first timestamp interop is active on every chain. An error when no chain schedules
+    /// interop.
     #[method(name = "activationTimestamp")]
     async fn activation_timestamp(&self) -> RpcResult<u64>;
 
@@ -123,6 +124,16 @@ fn unknown_chain(chain_id: u64) -> ErrorObject<'static> {
     )
 }
 
+fn no_interop() -> ErrorObject<'static> {
+    ErrorObject::owned(ErrorCode::InvalidRequest.code(), "no chain schedules interop", None::<()>)
+}
+
+/// The L1 block verification is at, which holds the answered L1 block down, or none without
+/// interop, when nothing is verified.
+fn verifier_l1(state: &Verified) -> Option<BlockNumHash> {
+    state.activation_timestamp().map(|_| state.current_l1())
+}
+
 fn internal(err: impl std::fmt::Display) -> ErrorObject<'static> {
     ErrorObject::owned(ErrorCode::InternalError.code(), err.to_string(), None::<()>)
 }
@@ -156,7 +167,8 @@ impl Rpc {
 /// root, and each chain's optimistic output, which is the denied block where the verified block
 /// replaced one. A timestamp that is not verified yet has no super root, and each chain's
 /// optimistic output is its source's local-safe block, or the denied block the source replaced.
-/// Before activation the super root is made of the sources' outputs, once every chain has one.
+/// Before activation, which without interop is every timestamp, the super root is made of the
+/// sources' outputs, once every chain has one.
 fn super_root_at(
     state: &Verified,
     sources: &Sources,
@@ -167,7 +179,7 @@ fn super_root_at(
         |field: fn(&SourceProgress) -> u64| progress.values().map(field).min().unwrap_or_default();
     let mut response = SuperRootAtTimestampResponse {
         current_l1: lowest(
-            progress.values().map(|progress| progress.current_l1).chain([state.current_l1()]),
+            progress.values().map(|progress| progress.current_l1).chain(verifier_l1(state)),
         ),
         current_safe_timestamp: least(|progress| progress.safe_timestamp),
         current_local_safe_timestamp: least(|progress| progress.local_safe_timestamp),
@@ -176,7 +188,7 @@ fn super_root_at(
         chain_ids: progress.keys().copied().map(DecimalChainId).collect(),
         data: None,
     };
-    let active = timestamp >= state.activation_timestamp();
+    let active = state.is_active_at(timestamp);
     if active && let Some(result) = state.result_at(timestamp)? {
         for (&chain_id, chain) in &result.chains {
             response.optimistic_at_timestamp.insert(
@@ -302,14 +314,14 @@ impl SupernodeApiServer for Rpc {
             chains.insert(DecimalChainId(chain_id), raw);
             statuses.push(status);
         }
-        let verifier_l1 = self.state.read().expect("state lock").current_l1();
+        let verifier_l1 = verifier_l1(&self.state.read().expect("state lock"));
         let least = |field: fn(&kona_protocol::SyncStatus) -> u64| {
             statuses.iter().map(field).min().unwrap_or_default()
         };
         Ok(SyncStatusResponse {
             chain_ids: chains.keys().copied().collect(),
             current_l1: lowest(
-                statuses.iter().map(|status| status.current_l1.id()).chain([verifier_l1]),
+                statuses.iter().map(|status| status.current_l1.id()).chain(verifier_l1),
             ),
             safe_timestamp: least(|status| status.safe_l2.block_info.timestamp),
             local_safe_timestamp: least(|status| status.local_safe_l2.block_info.timestamp),
@@ -341,11 +353,11 @@ impl TestControlApiServer for Rpc {
     }
 
     async fn activation_timestamp(&self) -> RpcResult<u64> {
-        Ok(self.state.read().expect("state lock").activation_timestamp())
+        self.state.read().expect("state lock").activation_timestamp().ok_or_else(no_interop)
     }
 
     async fn first_verifiable_timestamp(&self) -> RpcResult<u64> {
-        Ok(self.state.read().expect("state lock").activation_timestamp())
+        self.state.read().expect("state lock").activation_timestamp().ok_or_else(no_interop)
     }
 
     async fn verification_start_timestamp(&self) -> RpcResult<u64> {
@@ -372,7 +384,7 @@ mod tests {
             tests::{
                 CHAIN_A, CHAIN_B, Fixture, GENESIS_TIME, at_genesis, chain_a_at_genesis, fixture,
                 fixture_activating_at, invalid_block, l1_inclusion, l2_genesis, output,
-                replacement_block, rollup_config, serve,
+                replacement_block, rollup_config, serve, source_l1,
             },
         },
     };
@@ -501,6 +513,32 @@ mod tests {
 
         fixture.answer(CHAIN_B, None);
         assert_eq!(at(&rpc, GENESIS_TIME).await.data, None);
+    }
+
+    /// Without interop the super root is made of the sources' outputs at every timestamp, the L1
+    /// block is the sources' alone, and the status answers the heads of a verifier that is not
+    /// active at once, as op-supernode answers without its interop activity.
+    #[tokio::test]
+    async fn without_interop_lokahi_answers_the_sources_outputs_and_no_verifier() {
+        let fixture = fixture_activating_at(valid_at_genesis(), None).await;
+        let rpc = rpc(&fixture);
+        let (a, b) = (l2_genesis(CHAIN_A).hash_slow(), l2_genesis(CHAIN_B).hash_slow());
+
+        let response = at(&rpc, GENESIS_TIME).await;
+        let data = response.data.expect("every chain has its block");
+        assert_eq!(data.super_root, super_root(GENESIS_TIME, [(CHAIN_A, a), (CHAIN_B, b)]));
+        assert_eq!(data.verified_required_l1, l1_inclusion());
+        assert_eq!(response.current_l1, source_l1(), "the sources' L1 block");
+
+        let status = rpc.chain_status(CHAIN_A, 0).await.unwrap();
+        assert_eq!(status.verified, Some(kona_engine::VerifierHead::PreActivation));
+        assert_eq!(status.finalized, Some(kona_engine::VerifierHead::PreActivation));
+        assert!(status.denied.is_empty());
+        assert_eq!(
+            rpc.activation_timestamp().await.unwrap_err().code(),
+            ErrorCode::InvalidRequest.code()
+        );
+        assert!(rpc.verified_at_timestamp(GENESIS_TIME).await.unwrap());
     }
 
     fn fixture_block(tag: u8, number: u64) -> BlockNumHash {

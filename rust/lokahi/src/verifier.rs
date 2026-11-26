@@ -986,7 +986,7 @@ pub(crate) mod tests {
     /// [`fixture`] with interop activating at `activation`.
     pub(crate) async fn fixture_activating_at(
         answers: [Vec<AtGenesis>; 2],
-        activation: u64,
+        activation: impl Into<Option<u64>>,
     ) -> Fixture {
         let invalid = invalid_block().hash_slow();
         let (execution, execution_handle) =
@@ -1037,7 +1037,10 @@ pub(crate) mod tests {
     }
 
     /// The state of the two chains in the store at `dir`.
-    pub(crate) fn open_state(dir: &std::path::Path, activation: u64) -> Verified {
+    pub(crate) fn open_state(
+        dir: &std::path::Path,
+        activation: impl Into<Option<u64>>,
+    ) -> Verified {
         crate::state::tests::open_state(
             dir,
             activation,

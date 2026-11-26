@@ -63,7 +63,12 @@ impl Cli {
             .collect();
         let store = Store::open(&self.datadir)?;
         let state = Verified::open(store, config.activation_timestamp, genesis_times)?;
-        info!(datadir = %self.datadir.display(), next_timestamp = state.next_timestamp(), "Opened the store");
+        match state.activation_timestamp() {
+            Some(_) => {
+                info!(datadir = %self.datadir.display(), next_timestamp = state.next_timestamp(), "Opened the store")
+            }
+            None => info!(datadir = %self.datadir.display(), "Opened the store"),
+        }
         let state = Arc::new(RwLock::new(state));
         let mut sources = Vec::with_capacity(config.chains.len());
         for chain in config.chains {
@@ -78,16 +83,26 @@ impl Cli {
         let addr = server.local_addr()?;
         let rpc = Rpc { state: state.clone(), sources: sources.clone() };
         let handle = server.start(rpc.into_module(self.test_control)?);
-        info!(addr = %addr, ?chain_ids, activation = config.activation_timestamp, test_control = self.test_control, "RPC server bound to address");
+        info!(addr = %addr, ?chain_ids, activation = ?config.activation_timestamp, test_control = self.test_control, "RPC server bound to address");
 
-        let verifier = Verifier::new(
-            sources,
-            config.dependency_set,
-            kona_sources::rpc::l1(config.l1_rpc),
-            state,
-        );
+        let verify = async {
+            if config.activation_timestamp.is_none() {
+                info!(
+                    "No chain schedules interop: verifying nothing, serving the sources' outputs"
+                );
+                return std::future::pending().await;
+            }
+            Verifier::new(
+                sources,
+                config.dependency_set,
+                kona_sources::rpc::l1(config.l1_rpc),
+                state,
+            )
+            .run()
+            .await
+        };
         tokio::select! {
-            result = verifier.run() => result?,
+            result = verify => result?,
             result = tokio::signal::ctrl_c() => {
                 result?;
                 info!("Received SIGINT, shutting down");
