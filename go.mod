@@ -1,6 +1,6 @@
 module github.com/ethereum-optimism/optimism
 
-go 1.26.0
+go 1.26.6
 
 toolchain go1.26.10
 
@@ -37,7 +37,7 @@ require (
 	github.com/klauspost/compress v1.20.5
 	github.com/libp2p/go-libp2p v0.52.0
 	github.com/libp2p/go-libp2p-mplex v0.11.0
-	github.com/libp2p/go-libp2p-pubsub v0.18.0
+	github.com/libp2p/go-libp2p-pubsub v0.19.0
 	github.com/lmittmann/w3 v0.20.7
 	github.com/minio/minio-go/v7 v7.0.85
 	github.com/multiformats/go-base32 v0.1.0
