@@ -2,8 +2,14 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
+	"reflect"
+	"slices"
+	"strings"
+
+	"github.com/BurntSushi/toml"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
@@ -13,12 +19,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type Env struct {
@@ -62,13 +70,97 @@ func NoopStateWriter() StateWriter {
 	})
 }
 
+// ReadIntent reads the workdir's intent.toml. It rejects a key that the intent type does not have,
+// except in the free-form override maps.
 func ReadIntent(workdir string) (*state.Intent, error) {
-	intentPath := path.Join(workdir, "intent.toml")
-	intent, err := jsonutil.LoadTOML[state.Intent](intentPath)
+	intent, undecoded, err := jsonutil.LoadTOMLWithUndecoded[state.Intent](path.Join(workdir, "intent.toml"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read intent file: %w", err)
 	}
+	if err := checkIntentKeys(undecoded); err != nil {
+		return nil, fmt.Errorf("failed to read intent file: %w", err)
+	}
 	return intent, nil
+}
+
+// staleKeyHints holds a hint for each unknown key that older intents and the old docs example carry,
+// by the lower-case key.
+var staleKeyHints = map[string]string{
+	"superchainroles.proxyadminowner":       "the key is SuperchainProxyAdminOwner",
+	"superchainroles.guardian":              "the key is SuperchainGuardian",
+	"superchainroles.protocolversionsowner": "removed, delete it",
+	"chains.chainfeesrecipient":             "removed, delete it",
+}
+
+// checkIntentKeys returns an error that names each undecoded key of an intent, if there are any
+// outside globalDeployOverrides and chains.deployOverrides.
+func checkIntentKeys(undecoded []toml.Key) error {
+	// Compare per key part with EqualFold, as the decoder matches key parts to fields.
+	isBelow := func(key toml.Key, prefix ...string) bool {
+		return len(key) > len(prefix) && slices.EqualFunc(key[:len(prefix)], prefix, strings.EqualFold)
+	}
+	var unknown []string
+	inBlobSchedule := false
+	for _, key := range undecoded {
+		// The decoder lists the keys of nested tables in a map[string]any as undecoded.
+		if isBelow(key, "globalDeployOverrides") || isBelow(key, "chains", "deployOverrides") {
+			continue
+		}
+		// An unknown table that has a header or is inline is listed together with every key below it.
+		if slices.ContainsFunc(undecoded, func(parent toml.Key) bool {
+			return len(parent) < len(key) && slices.Equal(key[:len(parent)], parent)
+		}) {
+			continue
+		}
+		name := key.String()
+		if isBelow(key, "l1DevGenesisParams", "blobSchedule") {
+			inBlobSchedule = true
+			name = blobScheduleKeyName(key)
+		} else if hint, ok := staleKeyHints[strings.ToLower(name)]; ok {
+			name += " (" + hint + ")"
+		}
+		if !slices.Contains(unknown, name) {
+			unknown = append(unknown, name)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	msg := "unknown keys: " + strings.Join(unknown, ", ")
+	if inBlobSchedule {
+		schedule := reflect.TypeFor[params.BlobScheduleConfig]()
+		entries := make([]string, schedule.NumField())
+		for i := range entries {
+			entries[i] = strings.ToLower(schedule.Field(i).Name)
+		}
+		msg += fmt.Sprintf("; valid blobSchedule entries are %s, each with target, max and updateFraction", strings.Join(entries, ", "))
+	}
+	return errors.New(msg)
+}
+
+// blobScheduleKeyName names the first part of an undecoded key under l1DevGenesisParams.blobSchedule
+// that is no field of the blob schedule, with a hint for the keys an intent is likely to hold.
+func blobScheduleKeyName(key toml.Key) string {
+	// A table that is only implied by a dotted key is not listed itself, only the keys below it.
+	t := reflect.TypeFor[params.BlobScheduleConfig]()
+	for i := 2; i < len(key) && t.Kind() == reflect.Struct; i++ {
+		field, ok := t.FieldByNameFunc(func(name string) bool { return strings.EqualFold(name, key[i]) })
+		if !ok {
+			key = key[:i+1]
+			break
+		}
+		t = field.Type
+		if t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
+	}
+	switch last := key[len(key)-1]; {
+	case len(key) == 3 && strings.EqualFold(last, "osaka"):
+		return key.String() + " (Osaka has no entry of its own and uses prague)"
+	case len(key) == 4 && strings.EqualFold(last, "baseFeeUpdateFraction"):
+		return key.String() + " (the TOML key is updateFraction)"
+	}
+	return key.String()
 }
 
 func ReadState(workdir string) (*state.State, error) {
@@ -117,6 +209,7 @@ func RenderGenesisAndRollup(globalState *state.State, chainID common.Hash, useGl
 		chainIntent,
 		globalState,
 		chainState,
+		registry.DefaultHardforkSchedule(),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to combine L2 init config: %w", err)

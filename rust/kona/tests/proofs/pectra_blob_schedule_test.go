@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/params/forks"
 )
 
 type pectraBlobScheduleTestCfg struct {
@@ -50,7 +51,7 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
 		// The blob fee schedule under test is Prague's. The action batcher sends cell proofs, which
 		// an L1 before Osaka rejects, so the batcher posts calldata.
-		dc.L1OsakaTimeOffset = nil
+		dc.DisableL1ForksAfter(forks.Prague)
 		dc.L2GenesisPectraBlobScheduleTimeOffset = (*hexutil.Uint64)(tcfg.offset)
 		// set genesis excess blob gas so there are >0 blob base fees for some blocks
 		dc.L1GenesisBlockExcessBlobGas = ptr(hexutil.Uint64(1e8))

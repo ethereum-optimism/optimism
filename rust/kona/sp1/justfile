@@ -27,6 +27,59 @@ build-elfs features="":
     just build-super-aggregation-elf
     just _append-vkey super-aggregation "$m"
 
+# Check that the guest ELFs in DIR pin each other's vkeys as op-zk-proposer requires, match
+# DIR/vkeys.toml if present, and that the super-aggregation vkey is PRESTATE if given.
+verify-elfs DIR="elf" PRESTATE="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dir="{{DIR}}"
+    for name in log-commitment super-range super-aggregation; do
+      [ -s "${dir}/${name}-elf" ] || { echo "ERROR: missing or empty ${dir}/${name}-elf" >&2; exit 1; }
+    done
+
+    failed=0
+    fail() { echo "FAIL: $*" >&2; failed=1; }
+
+    log_vkey=$(just _derive-vkey "${dir}/log-commitment-elf")
+    range_vkey=$(just _derive-vkey "${dir}/super-range-elf")
+    agg_vkey=$(just _derive-vkey "${dir}/super-aggregation-elf")
+
+    report() {
+      markers=$(grep -aoE 'KONA_SP1_BUILD\{git_sha=[0-9A-Za-z._-]*\}' "${dir}/$1-elf" | sort -u | paste -sd ' ' - || true)
+      echo "$1: vkey $2 marker ${markers:-<none>}"
+    }
+    report log-commitment "$log_vkey"
+    report super-range "$range_vkey"
+    report super-aggregation "$agg_vkey"
+
+    prestate=$(echo "{{PRESTATE}}" | tr 'A-F' 'a-f')
+    if [ -n "$prestate" ] && [ "$prestate" != "$agg_vkey" ]; then
+      fail "super-aggregation vkey ${agg_vkey} is not the prestate ${prestate}"
+    fi
+
+    manifest="${dir}/vkeys.toml"
+    check_manifest() {
+      listed=$(sed -nE 's/^'"$1"' = "([^"]*)"$/\1/p' "$manifest" | tr 'A-F' 'a-f')
+      [ "$listed" = "$2" ] || fail "${manifest} lists $1 = ${listed:-<none>}, but its ELF has vkey $2"
+    }
+    if [ -f "$manifest" ]; then
+      check_manifest log-commitment "$log_vkey"
+      check_manifest super-range "$range_vkey"
+      check_manifest super-aggregation "$agg_vkey"
+    else
+      echo "no ${manifest}; skipping the manifest check"
+    fi
+
+    check_pin() {
+      n=$(python3 scripts/count-pinned-vkey.py "${dir}/$1-elf" "$3")
+      [ "$n" = 1 ] || fail "$1-elf embeds the $2 vkey $3 $n times, expected exactly once"
+    }
+    check_pin super-aggregation super-range "$range_vkey"
+    check_pin super-range log-commitment "$log_vkey"
+
+    [ "$failed" -eq 0 ] || exit 1
+    echo "OK: ${dir} is a consistent guest set for prestate ${agg_vkey}"
+
 # Build ELF file for the per-block log-commitment program.
 # Does not update elf/vkeys.toml; prefer build-elfs.
 [private]
@@ -184,11 +237,21 @@ _vkeys-header:
     echo ''
 
 [private]
+_derive-vkey ELF:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    hash=$(SP1_PROVER=cpu cargo prove vkey --elf "{{ELF}}" | grep -oE '0x[0-9a-fA-F]{64}' || true)
+    [ "$(printf '%s\n' "$hash" | grep -c .)" -eq 1 ] || {
+      echo "ERROR: expected one bytes32 vkey for {{ELF}}, got: ${hash:-<none>}" >&2
+      exit 1
+    }
+    echo "$hash" | tr 'A-F' 'a-f'
+
+[private]
 _append-vkey NAME MANIFEST:
     #!/usr/bin/env bash
     set -euo pipefail
-    hash=$(SP1_PROVER=cpu cargo prove vkey --elf "elf/{{NAME}}-elf" | grep -oE '0x[0-9a-fA-F]{64}' || true)
-    [ -n "$hash" ] || { echo "ERROR: no bytes32 vkey parsed for {{NAME}}-elf" >&2; exit 1; }
+    hash=$(just _derive-vkey "elf/{{NAME}}-elf")
     echo "{{NAME}} = \"${hash}\"" >> "{{MANIFEST}}"
 
 # Build all ELFs natively for fast local iteration.

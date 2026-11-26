@@ -16,6 +16,7 @@ is_imported_content: 'false'
 [OP Stack interop](/op-stack/interop) is targeted to activate on **OP Sepolia** (chain ID `11155420`) and **Unichain Sepolia** (chain ID `1301`) on **December 10, 2026**, and on **OP Mainnet** (chain ID `10`) and **Unichain** (chain ID `130`) on **January 11, 2027**, pending governance approval.
 Each pair forms a two-chain interop dependency set; run this checklist on testnet before mainnet.
 Interop ships in the [Lagoon hardfork](/op-stack/protocol/hardforks/lagoon), which also carries post-execution transactions and [sequencer-defined metering](/op-stack/features/sdm).
+Lagoon is part of [Upgrade 22](/notices/upgrade-22), which also upgrades the L1 contracts; that notice covers the contract changes, withdrawal re-proving, and the steps for permissionless fault proof chains.
 Node operators on either chain must change their topology before the activation timestamp: each operator runs one or more [op-supernode](/op-stack/interop/supernode) instances that derive both chains and validate the cross-chain messages between them, and the rest of the fleet runs as [Light CLs](/notices/specialized-node-topology), consensus-layer clients that follow the supernode instead of deriving from L1 themselves.
 
 <Warning>
@@ -27,9 +28,13 @@ Node operators on either chain must change their topology before the activation 
 </Warning>
 
 <Info>
-  The activation timestamps are targeted for **December 10, 2026** on **OP Sepolia** and **Unichain Sepolia** and **January 11, 2027** on **OP Mainnet** and **Unichain**; the exact timestamps are not yet set.
-  They will be published in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry), and this page will be updated once they are pinned.
+  The activation timestamps are set in the [superchain-registry](https://github.com/ethereum-optimism/superchain-registry):
+
+  *   **OP Sepolia** and **Unichain Sepolia**: Thu Dec 10, 2026 16:00:01 UTC (`1796918401`)
+  *   **OP Mainnet** and **Unichain**: Mon Jan 11, 2027 16:00:01 UTC (`1799683201`)
+
   The mainnet activation is subject to governance approval.
+  See the [Upgrade 22 notice](/notices/upgrade-22#upgrade-timing) for the full schedule, including the L1 contract upgrades that come before activation.
 </Info>
 
 ## What's changing
@@ -56,7 +61,9 @@ Each operator stands up at least one op-supernode for the dependency set and rec
 </Warning>
 
 This rollout is scoped to OP Mainnet and Unichain, with OP Sepolia and Unichain Sepolia as the testnet pair.
-Other OP Stack chains activate the same Lagoon hardfork on their own schedule, set in their chain config in the superchain-registry, and still need the Lagoon-aware releases by their own timestamp.
+Ink and Soneium (and Ink Sepolia and Soneium Minato) activate Lagoon at the same timestamps but do not join an interop set.
+Other OP Stack chains activate Lagoon on their own schedule, set in their chain config in the superchain-registry.
+Every chain that activates Lagoon still needs the Lagoon-aware releases by its own timestamp.
 A chain with no dependencies gets a dependency set containing only itself, so there is nothing to cross-validate and those operators can keep running plain op-node.
 Other OP Stack chains move to the supernode topology only when they join an interop set.
 
@@ -110,15 +117,14 @@ The [specialized op-node topology notice](/notices/specialized-node-topology#why
 ## Required components
 
 Update or install the following components before the activation timestamp.
-The versions below are the current minimums for standing up the topology; the activation releases, which carry the Lagoon timestamps, will be pinned in this notice once they are cut.
-Expect two upgrades: migrate the topology on these versions now, then move every component to its activation release once it is pinned here, before your network's activation timestamp.
+The versions below are the Lagoon activation releases, which carry the Lagoon timestamps. They match the [Upgrade 22 notice](/notices/upgrade-22#node-operators).
 A binary that does not carry the timestamp diverges from the chain at activation and must be resynced; see [Network upgrades](/op-stack/protocol/network-upgrades#activations).
 
 | Component        | Version | Role |
 | ---------------- | ------- | ---- |
-| `op-supernode`   | [`v1.0.6`](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) or later | Runs OP Mainnet and Unichain (or OP Sepolia and Unichain Sepolia) as virtual nodes inside one binary and verifies cross-chain messages. Required component. See the [supernode explainer](/op-stack/interop/supernode) and [configuration guide](/node-operators/guides/configuration/supernode). |
-| `op-node`        | [`v1.19.11`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.11) or later | Runs as a [Light CL](/notices/specialized-node-topology) on every node in the fleet; safe and finalized views are inherited from the supernode. |
-| `op-reth`        | [`v2.6.1`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.6.1) or later | Required execution client. Run one per chain in the dependency set — an execution client cannot back two chains (op-node rejects a mismatched chain ID at startup), so a host serving both chains runs at least two execution-client processes. |
+| `op-supernode`   | [`v1.2.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.2.0) or later | Runs OP Mainnet and Unichain (or OP Sepolia and Unichain Sepolia) as virtual nodes inside one binary and verifies cross-chain messages. Required component. See the [supernode explainer](/op-stack/interop/supernode) and [configuration guide](/node-operators/guides/configuration/supernode). |
+| `op-node`        | [`v1.21.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.21.0) or later | Runs as a [Light CL](/notices/specialized-node-topology) on every node in the fleet; safe and finalized views are inherited from the supernode. |
+| `op-reth`        | [`v2.10.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.10.0) or later | Required execution client. Run one per chain in the dependency set — an execution client cannot back two chains (op-node rejects a mismatched chain ID at startup), so a host serving both chains runs at least two execution-client processes. |
 
 The Lagoon activation timestamp and the dependency set are read from the superchain-registry bundle embedded in each release.
 With `--network` on op-node and `--vn.<chainID>.network` on op-supernode no extra flag is needed, which is also why the activation releases matter: a binary built before the registry update does not know the timestamp.
@@ -126,9 +132,8 @@ The dependency set is looked up by chain ID, so it also applies when you pass a 
 To override the registry's dependency set, pass `--interop.dependency-set` to op-node or `--dependency-set` to op-supernode.
 
 <Info>
-  op-supernode has shipped stable releases since [v1.0.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.0) (August 2026); run [v1.0.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) or later today.
-  The activation releases for op-supernode, op-node, and op-reth will be pinned here once they are cut.
-  Until then, track the [op-supernode](https://github.com/ethereum-optimism/optimism/releases?q=op-supernode), [op-node](https://github.com/ethereum-optimism/optimism/releases?q=op-node), and [op-reth](https://github.com/ethereum-optimism/optimism/releases?q=op-reth) release pages.
+  The activation releases are op-supernode [v1.2.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.2.0), op-node [v1.21.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.21.0), and op-reth [v2.10.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.10.0).
+  Check each release's breaking changes before you upgrade.
 </Info>
 
 ## Action checklist
@@ -379,6 +384,7 @@ It keeps running, but it promotes blocks to safe without checking their cross-ch
 
 ## Resources
 
+* [Upgrade 22 notice](/notices/upgrade-22) — the L1 contract upgrade, withdrawal re-proving, and permissionless fault proof steps that come with Lagoon.
 * [Interop explainer](/op-stack/interop/explainer) — how cross-chain messages and block safety work under interop.
 * [op-supernode explainer](/op-stack/interop/supernode) — what op-supernode is, why it exists, and how it pairs with Light CL.
 * [Supernode configuration guide](/node-operators/guides/configuration/supernode) — recommended settings and starter configuration.

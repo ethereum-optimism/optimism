@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 )
@@ -23,8 +22,7 @@ var _ Consensus = (*RaftConsensus)(nil)
 
 // RaftConsensus implements Consensus using raft protocol.
 type RaftConsensus struct {
-	log       log.Logger
-	rollupCfg *rollup.Config
+	log log.Logger
 
 	serverID raft.ServerID
 	r        *raft.Raft
@@ -55,7 +53,6 @@ type RaftConsensusConfig struct {
 
 	StorageDir         string
 	Bootstrap          bool
-	RollupCfg          *rollup.Config
 	SnapshotInterval   time.Duration
 	SnapshotThreshold  uint64
 	TrailingLogs       uint64
@@ -186,7 +183,6 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 		r:             r,
 		serverID:      raft.ServerID(cfg.ServerID),
 		unsafeTracker: fsm,
-		rollupCfg:     cfg.RollupCfg,
 		transport:     transport,
 	}, err
 }
@@ -327,6 +323,11 @@ func (rc *RaftConsensus) LatestUnsafePayload() (*eth.ExecutionPayloadEnvelope, e
 	}
 
 	return rc.unsafeTracker.UnsafeHead(), nil
+}
+
+// LocalUnsafePayload implements Consensus, it returns the latest unsafe payload applied to the local FSM.
+func (rc *RaftConsensus) LocalUnsafePayload() *eth.ExecutionPayloadEnvelope {
+	return rc.unsafeTracker.UnsafeHead()
 }
 
 // ClusterMembership implements Consensus, it returns the current cluster membership configuration.

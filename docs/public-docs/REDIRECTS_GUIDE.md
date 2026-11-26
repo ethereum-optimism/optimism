@@ -68,7 +68,7 @@ Add a new object to the array:
 
 ```bash
 # Run the dev server
-mint dev
+just public-docs  # from the monorepo root
 
 # Test the redirect
 # Navigate to http://localhost:3000/old-page-path

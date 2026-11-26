@@ -41,9 +41,13 @@ func FindPinnedOverrideKey(overrides map[string]any) (string, bool) {
 	return "", false
 }
 
-func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
-	upgradeSchedule := standard.DefaultHardforkSchedule()
-
+// CombineDeployConfig builds a chain's deploy config from its intent and state. upgradeSchedule
+// is the default upgrade schedule, applied before the intent's overrides, and must be non-nil;
+// op-deployer passes registry.DefaultHardforkSchedule(). It is a parameter rather than read here
+// because the default comes from the embedded superchain registry, which would make this package
+// unimportable by downstream Go modules. Callers outside op-deployer can build one with
+// genesis.UpgradeScheduleDeployConfig.ActivateForkAtGenesis.
+func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState, upgradeSchedule *genesis.UpgradeScheduleDeployConfig) (genesis.DeployConfig, error) {
 	cfg := genesis.DeployConfig{
 		L1DependenciesConfig: genesis.L1DependenciesConfig{
 			L1StandardBridgeProxy:       chainState.L1StandardBridgeProxy,
@@ -99,7 +103,8 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				LiquidityControllerOwner:   chainIntent.GetLiquidityControllerOwner(),
 			},
 
-			// STOP! This struct sets the _default_ upgrade schedule for all chains.
+			// STOP! upgradeSchedule is the _default_ upgrade schedule for all chains,
+			// chosen by registry.DefaultHardforkSchedule in op-deployer.
 			// Any upgrades you enable here will be enabled for all new deployments.
 			// In-development hardforks should never be activated here. Instead, they
 			// should be specified as overrides.

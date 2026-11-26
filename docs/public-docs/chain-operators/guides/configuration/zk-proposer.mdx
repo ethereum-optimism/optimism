@@ -98,7 +98,16 @@ Keep the balance well above the cost of defending several games at once. A chall
 
 With `OP_ZK_PROPOSER_PROOF_PROVIDER=local-cuda`, the proposer generates proofs on local NVIDIA GPUs instead of buying them from the Succinct Prover Network. It needs no prover network account, so it can serve as a backup during a prover network outage. The prestate and verifier checks are the same as in `network` mode.
 
-This mode runs only in the `op-zk-proposer-cuda` image, which is built for amd64 and includes the GPU prover server. The image is published as `us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer-cuda:vX.Y.Z`, from the same commit as the `op-zk-proposer` release `vX.Y.Z`. Set `OP_ZK_PROPOSER_CUDA_DEVICES` to the comma-separated IDs of the GPUs to use (default `0`). See [Local CUDA proving](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#local-cuda-proving) in the SP1 integration README for the memory settings and how the proposer runs each request.
+This mode runs only in the `op-zk-proposer-cuda` image, which is built for amd64 and includes the GPU prover server. The image is published as `us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer-cuda:vX.Y.Z`, from the same commit as the `op-zk-proposer` release `vX.Y.Z`. Set `OP_ZK_PROPOSER_CUDA_DEVICES` to the comma-separated IDs of the GPUs to use (default `0`), and set `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS` to the number of GPUs. At its default of `1`, a game uses only one GPU.
+
+The prover keeps program memory in `/dev/shm`. The container default of 64 MiB fails every request, so give `/dev/shm` room for twice `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES` (24 GiB by default) per GPU, and count it in the container's memory. The CUDA image also runs as user `10001`, so set the owner of the `/data` volume before the first run, as in [Start the proposer](#start-the-proposer). For example, with one GPU:
+
+```bash
+docker run --gpus all --shm-size=48g --env-file proposer.env -v proposer-data:/data -p 7300:7300 \
+  us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer-cuda:vX.Y.Z
+```
+
+The `/dev/shm` must belong to this proposer alone, because it removes leftover prover segments there at startup. See [Local CUDA proving](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#local-cuda-proving) in the SP1 integration README for the memory settings and how the proposer runs each request.
 
 In this mode, the proposer does not export `prove_balance` or `spn_requester_info`.
 
@@ -126,20 +135,20 @@ Look for `op-zk-proposer started` in the logs. Before it proposes, the proposer 
 Within one proposal interval, check that it created a game:
 
 ```bash
-COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC)
-read -r GAME_TYPE CREATED_AT GAME_PROXY < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
+COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC | cut -d' ' -f1)
+{ read -r GAME_TYPE; read -r CREATED_AT; read -r GAME_PROXY; } < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
 echo "gameType=$GAME_TYPE gameProxy=$GAME_PROXY"
 # Expect: gameType=10
 
 cast call $GAME_PROXY 'rootClaim()(bytes32)' --rpc-url $L1_RPC
-cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
 cast call $GAME_PROXY 'parentIndex()(uint32)' --rpc-url $L1_RPC
+SEQ=$(cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC | cut -d' ' -f1)
 ```
 
 Confirm that the root claim matches your super root source at that timestamp:
 
 ```bash
-cast rpc superroot_atTimestamp "$(cast 2h <l2SequenceNumber>)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
+cast rpc superroot_atTimestamp "$(cast 2h $SEQ)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
 # Expect: equals rootClaim
 ```
 
@@ -175,7 +184,11 @@ The log line `Processed terminal proof retry` lists the games it reset.
 
 With `OP_ZK_PROPOSER_FAST_FINALITY_MODE=true`, the proposer proves every game its signer creates as soon as it is created, instead of only challenged ones. A proven game resolves as soon as its parent resolves, instead of waiting out its challenge window. See [Fast finality](/op-stack/zk-proofs/explainer#fast-finality).
 
-This buys a full set of proofs for every game: range, consolidation, and aggregation proofs, plus any log-commitment proofs. At a one-hour interval, that is about 24 games a day. `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` (default `1`) caps the proving tasks in flight; while the cap is reached, the proposer pauses creating games. Alert on `deadline_passed_total{window="fast_finality"}` to see games that were not proven in time. A missed fast-finality window does not lose the game.
+This buys a full set of proofs for every game: range, consolidation, and aggregation proofs, plus any log-commitment proofs. At a one-hour interval, that is about 24 games a day.
+
+`OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` (default `1`) limits when the proposer starts fast-finality proofs and creates games. It counts every proof in flight: fast-finality proofs and proofs that defend challenged games. While the count is at the limit, the proposer starts no new fast-finality proofs and creates no new games. At the default, one challenged game, or the fast-finality proof of the previous game, pauses new proposals until its proof finishes. To keep proposing while defending, set the limit above the number of games you expect to defend at once. Defense proofs still start up to `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` whatever the limit.
+
+Alert on `deadline_passed_total{window="fast_finality"}` to see games that were not proven in time. A missed fast-finality window does not lose the game.
 
 ## Keep old prestates available
 

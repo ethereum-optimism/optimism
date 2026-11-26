@@ -11,7 +11,7 @@ use reth_node_api::{
     validate_version_specific_fields,
 };
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_consensus::isthmus;
+use reth_optimism_consensus::{OpConsensusError, isthmus};
 use reth_optimism_forks::OpHardforks;
 pub use reth_optimism_payload_builder::OpEngineTypes;
 use reth_optimism_payload_builder::{OpExecData, OpExecutionPayloadValidator, OpPayloadAttrs};
@@ -40,6 +40,15 @@ impl OpEngineValidator {
     }
 }
 
+/// Maps a withdrawals root failure to the engine's error kind. A provider failure to compute the
+/// root is a processing error, so the engine does not report the payload as invalid.
+fn withdrawals_root_error(err: OpConsensusError) -> InsertBlockErrorKind {
+    match err {
+        OpConsensusError::L2WithdrawalsRootCalculationFail(err) => err.into(),
+        err => ConsensusError::msg(format!("failed to verify block post-execution: {err}")).into(),
+    }
+}
+
 impl PayloadValidator<OpEngineTypes> for OpEngineValidator {
     type Block = OpBlock;
 
@@ -62,9 +71,7 @@ impl PayloadValidator<OpEngineTypes> for OpEngineValidator {
                 state,
                 block.header(),
             )
-            .map_err(|err| {
-                ConsensusError::msg(format!("failed to verify block post-execution: {err}"))
-            })?
+            .map_err(withdrawals_root_error)?
         }
 
         Ok(())
@@ -251,6 +258,21 @@ mod test {
     use reth_optimism_chainspec::OP_SEPOLIA;
     use reth_optimism_primitives::OpTransactionSigned;
     use reth_provider::{StateProviderFactory, noop::NoopProvider};
+
+    #[test]
+    fn withdrawals_root_provider_failure_is_not_invalid() {
+        let err = withdrawals_root_error(OpConsensusError::L2WithdrawalsRootCalculationFail(
+            reth_provider::ProviderError::UnsupportedProvider,
+        ));
+        assert!(matches!(err, InsertBlockErrorKind::Provider(_)), "{err:?}");
+        assert!(!err.is_validation_error());
+
+        let err = withdrawals_root_error(OpConsensusError::L2WithdrawalsRootMismatch {
+            header: B256::ZERO,
+            exec_res: B256::repeat_byte(1),
+        });
+        assert!(err.is_validation_error(), "{err:?}");
+    }
 
     /// OP Sepolia's activation timestamp for `fork`, from its superchain-registry chain spec.
     fn op_sepolia_activation(fork: OpHardfork) -> u64 {

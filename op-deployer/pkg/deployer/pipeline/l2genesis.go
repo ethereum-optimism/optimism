@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -141,7 +142,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, st *state.State, chainID
 }
 
 func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIntent) (l2GenesisOverrides, *genesis.UpgradeScheduleDeployConfig, error) {
-	schedule := standard.DefaultHardforkSchedule()
+	schedule := registry.DefaultHardforkSchedule()
 
 	overrides := defaultOverrides()
 	// Special case for FundDevAccounts since it's both an intent value and an override.

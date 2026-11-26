@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	clientmocks "github.com/ethereum-optimism/optimism/op-conductor/client/mocks"
@@ -23,15 +23,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
 	healthmocks "github.com/ethereum-optimism/optimism/op-conductor/health/mocks"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-func mockConfig(t *testing.T) Config {
-	now := uint64(time.Now().Unix())
+func mockConfig() Config {
 	return Config{
 		ConsensusAddr:  "127.0.0.1",
 		ConsensusPort:  0,
@@ -46,36 +44,6 @@ func mockConfig(t *testing.T) Config {
 			UnsafeInterval: 3,
 			SafeInterval:   5,
 			MinPeerCount:   1,
-		},
-		RollupCfg: rollup.Config{
-			Genesis: rollup.Genesis{
-				L1: eth.BlockID{
-					Hash:   [32]byte{1, 2},
-					Number: 100,
-				},
-				L2: eth.BlockID{
-					Hash:   [32]byte{2, 3},
-					Number: 0,
-				},
-				L2Time: now,
-				SystemConfig: eth.SystemConfig{
-					BatcherAddr: [20]byte{1},
-					Overhead:    [32]byte{1},
-					Scalar:      [32]byte{1},
-					GasLimit:    30000000,
-				},
-			},
-			BlockTime:              2,
-			MaxSequencerDrift:      600,
-			SeqWindowSize:          3600,
-			ChannelTimeoutBedrock:  300,
-			L1ChainID:              big.NewInt(1),
-			L2ChainID:              big.NewInt(2),
-			RegolithTime:           &now,
-			CanyonTime:             &now,
-			BatchInboxAddress:      [20]byte{1, 2},
-			DepositContractAddress: [20]byte{2, 3},
-			L1SystemConfigAddress:  [20]byte{3, 4},
 		},
 		RPCEnableProxy: false,
 	}
@@ -107,7 +75,7 @@ func (s *OpConductorTestSuite) SetupSuite() {
 	s.ctx = context.Background()
 	s.log = testlog.Logger(s.T(), log.LevelDebug)
 	s.metrics = &metrics.NoopMetricsImpl{}
-	s.cfg = mockConfig(s.T())
+	s.cfg = mockConfig()
 	s.version = "v0.0.1"
 	s.next = make(chan struct{})
 }
@@ -118,6 +86,7 @@ func (s *OpConductorTestSuite) SetupTest() {
 	s.cons = &consensusmocks.Consensus{}
 	s.hmon = &healthmocks.HealthMonitor{}
 	s.cons.EXPECT().ServerID().Return("SequencerA")
+	s.cons.EXPECT().LocalUnsafePayload().Return(nil).Maybe()
 
 	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
 	s.NoError(err)
@@ -1186,4 +1155,36 @@ func (s *OpConductorTestSuite) TestRollupBoostPartialFailure() {
 	// Verify the expected actions were taken
 	s.ctrl.AssertNumberOfCalls(s.T(), "StopSequencer", 1)
 	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+}
+
+type unsafeHeadMetrics struct {
+	metrics.NoopMetricsImpl
+	raftUnsafeHead uint64
+}
+
+func (m *unsafeHeadMetrics) RecordRaftUnsafeHead(num uint64) { m.raftUnsafeHead = num }
+
+func TestHandleHealthUpdateRecordsRaftUnsafeHead(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		payload *eth.ExecutionPayloadEnvelope
+		want    uint64
+	}{
+		{"head", &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 42}}, 42},
+		{"no head yet", nil, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cons := &consensusmocks.Consensus{}
+			cons.EXPECT().ServerID().Return("SequencerA")
+			cons.EXPECT().LocalUnsafePayload().Return(tc.payload)
+			m := &unsafeHeadMetrics{}
+			oc := &OpConductor{log: testlog.Logger(t, log.LevelInfo), metrics: m, cons: cons}
+
+			oc.handleHealthUpdate(nil)
+
+			require.Equal(t, tc.want, m.raftUnsafeHead)
+		})
+	}
 }

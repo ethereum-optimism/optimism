@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opgenesis "github.com/ethereum-optimism/optimism/op-core/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
@@ -65,6 +66,7 @@ func GenesisAndRollup(globalState *state.State, chainID common.Hash) (*opgenesis
 		chainIntent,
 		globalState,
 		chainState,
+		registry.DefaultHardforkSchedule(),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to combine L2 init config: %w", err)

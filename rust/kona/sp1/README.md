@@ -105,6 +105,7 @@ native manifest with the generated ELFs. Native ELF hashes may differ across bui
 because paths and other environment details are embedded. The daily reproducibility job
 rebuilds each `kona-sp1` registry version from `kona-sp1-program/v<version>` using that tag's
 Docker `just build-elfs` recipe and compares only its `super-aggregation` vkey to the registry.
+For tags that have the `verify-elfs` recipe, it also runs it on the rebuilt set.
 
 Host-toolchain workspace builds need neither ELFs nor `vkeys.toml`. Host binaries load guest
 artifacts at runtime from `KONA_SP1_ELF_DIR`; a missing or empty artifact fails as an
@@ -299,14 +300,27 @@ The proposer service (ported from op-succinct's fault-proof proposer) plays the
 super-root `ZKDisputeGame` (game type 10) end to end:
 
 1. **Create**: proposes the supernode's canonical super root on a fixed interval
-   (`proposer.rs` creation scheduling).
-2. **Defend**: when a game in the owned set is challenged, fetches the span's super
+   (`proposer.rs` creation scheduling), extending only the anchor or its own
+   chain (see [Ownership](#ownership-which-games-it-defends)). A game built on
+   the head spans one interval while the proposer keeps up. When it falls two or
+   more intervals behind, after downtime or because each game takes longer than
+   an interval to create or, in fast finality mode, to prove, a game spans up to
+   `OP_ZK_PROPOSER_MAX_PROPOSAL_SPAN_INTERVALS` intervals, so the bond and prove
+   duration must cover that span. Three kinds of root game are not capped: every
+   game while the registered anchor is not a ZK game (each is a root from the
+   anchor); the fallback root when the registry rejects the head's chain (it keeps
+   the head's timestamp); and, with no anchor game registered, the next root after
+   the head drops (it spans from the registry's starting root). A collision walk
+   also moves a game off the interval grid by a second at a time.
+2. **Defend**: when an owned game is challenged, fetches the span's super
    roots, collects witnesses through the kona `InteropHost`
    (`super-range-executor` library), obtains SP1 proofs (`prover.rs` providers,
    `proving.rs` pipeline), and submits `prove()`. In fast finality mode the same
-   pipeline also proves owned games while they are still unchallenged.
-3. **Resolve and claim**: resolves finished games and claims bonds (including the
-   challenger bond earned by proving).
+   pipeline also proves the signer's owned games while they are still
+   unchallenged.
+3. **Resolve and claim**: resolves finished owned games and claims the signer's
+   bond credit on any cached game (including the challenger bond earned by
+   proving).
 
 ### Anchor validation
 
@@ -325,19 +339,76 @@ anchor validation is not repeated after startup.
 
 ### Ownership (which games it defends)
 
-Defense, resolution, and bond claims use prestate-based ownership. The proposer
-handles every game whose `absolutePrestate()` artifacts it can load, regardless
-of creator. Games whose prestate is unknown are skipped with the
-`op_zk_proposer_unknown_prestate_challenged` gauge as the alarm.
+A game is owned when its creator is owned or it is an adopted copy (see
+**Copies of our games** below). Owned creators are the signer, always, plus any
+addresses listed in `OP_ZK_PROPOSER_OWNED_CREATORS`. The proposer logs the
+resolved set at startup. Proving an owned game, for defense or fast finality,
+also needs its `absolutePrestate()` artifacts to load from
+`OP_ZK_PROPOSER_PRESTATES_URL`.
+
+- **Head and creation**: the proposer builds only on the registered anchor or on
+  a game whose every link down to the anchor (which may be foreign), a root, or
+  an owned game that won is owned, whatever its prestate. A parent missing from
+  the cache before any of those disqualifies the chain. With no such game, it
+  creates a root from the anchor.
+- **Validation**: only games from owned creators are checked against the
+  supernode. Other games are cached as records, without validation, so anchor
+  tracking keeps working when a foreign game becomes the anchor. Apart from
+  adopted copies, they are never a parent, a proof target, or a resolution
+  target. A resolved record in normal mode stays while it is ahead of the anchor;
+  behind it, it leaves once the signer holds no credit in it. A lost record, or
+  one in refund mode, leaves unless it has a cached child.
+- **Defense and resolution**: owned games only. The proposer resolves a listed
+  creator's game when it wins, and a signer game on any outcome. A challenged
+  owned game with an unknown or poisoned prestate is skipped, with the
+  `op_zk_proposer_unknown_prestate_challenged` gauge as the alarm. The defense
+  deadline checks cover owned games, whatever their prestate.
+- **Claims**: credit-driven for the signer on every cached game, including
+  foreign games the signer proved. The proposer closes a finalized game that owes
+  it nothing only when it is owned or it is the registered anchor. It does not
+  claim credit owed to another listed address.
+- **Foreign games' lifecycle**: op-challenger or the game's creator resolves and
+  closes foreign games. The proposer sends no close-only call for them, but
+  claiming the signer's credit on one closes it.
 
 Fast finality uses a narrower spend policy. It proves only unchallenged games
-created by the configured proposer signer and owned by prestate. After a signer
-rotation, old-signer games stay eligible for defense, resolution, and claims,
-but the restart scan does not fast-finalize them.
+created by the configured signer, and adopted copies, which include foreign
+parents of listed creators' games. Listed creators' games are defended and
+resolved when they win, but not fast-finalized.
+
+**Key rotation**: set `OP_ZK_PROPOSER_OWNED_CREATORS=<old signer>` in the same
+deploy that rotates the signer key, and keep the old prestate artifacts published
+under `OP_ZK_PROPOSER_PRESTATES_URL`. The proposer then keeps defending the old
+signer's games, resolving the ones that win, and extending its chain. Remove the
+variable only once the registered anchor has moved past the old signer's last
+game, about the max challenge duration plus the max prove duration plus the
+finality delay after it; removing it earlier makes the chain built on those games
+foreign, and the proposer starts a new root from the anchor. A listed address is
+trusted like the signer, so never list a compromised key. Leaving the variable
+unset is the steady state.
 
 **Operational requirement**: rotated-out prestate artifacts must remain published
-under `OP_ZK_PROPOSER_PRESTATES_URL` for as long as games created under them can be live, or the
-proposer loses the ability to defend, resolve, and claim those games.
+under `OP_ZK_PROPOSER_PRESTATES_URL` for as long as owned games created under
+them can be live, or the proposer loses the ability to defend and resolve those
+games.
+
+**Copies of our games**: a game's UUID does not include its creator, so a third
+party can create the proposer's exact next game first, from public data. When a
+create collides with such a copy, the proposer adopts it: the same UUID means the
+same parent, timestamp, and claim, so the copy is the game it planned. It builds
+on the copy, defends it, resolves and closes it, and in fast finality mode proves
+it. After a restart, the proposer adopts again the foreign parents of every owned
+game, a listed creator's included, since its own proposer chose them. The UUID
+does not fix everything that lets a copy carry the chain, so creation moves one
+second forward instead of adopting a copy that:
+
+- lost, or was created while ZK games were not respected;
+- is challenged with less than half its prove window left;
+- has an L1 head before the L1 data its claim needs (created from unsafe L2 data,
+  it can never be proven);
+- starts below the registered anchor (a root copy created before the anchor
+  moved spans more than the proposer's root would);
+- has a prestate the proposer cannot prove, or a verifier that rejects its proofs.
 
 ### Proof providers
 
@@ -515,7 +586,7 @@ Names below use the `op_zk_proposer_` prefix.
 | `signer_nonce` / `signer_pending_nonce` | Gauge | L1 signer's latest mined and pending nonces. Pending stays above latest while proposer transactions wait in the mempool; a gap that does not close means a stuck transaction. |
 | `prove_balance` | Gauge | Configured SP1 network account's spendable balance in PROVE, not the signer's ERC-20 wallet balance. Absent in mock and local-cuda modes. |
 | `deadline_passed_total` | Counter | Missed game windows observed by this process, with `window="defense"` or `window="fast_finality"`. Defense expiry and missed fast-finality acceleration have different consequences. |
-| `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
+| `defense_deadline_remaining_seconds` | Gauge | Minimum observed defense deadline minus L1 block time across challenged games from owned creators, including queued and active games. Zero is the deadline boundary; negative values indicate expiry. |
 | `proof_requests` | Gauge | Proof requests of games still being proven, by `kind` (`range`, `consolidation`, `aggregation`, `log`) and `state` (`submitting`, `submitted`, `fulfilled`, `terminal`). A game's requests drop out once its proof is submitted or its progress is discarded. `terminal` requests wait for a retry signal. |
 | `log_batches_submitted` | Gauge | Total log-commitment batch requests submitted. Unlike `proof_requests`, it keeps counting after a game's progress clears. |
 | `spn_requester_info` | Gauge | `1`, with the SPN requester address in the `address` label. Absent in mock and local-cuda modes. |
@@ -525,9 +596,10 @@ Balances and nonces refresh every 15 seconds. Failed reads return `NaN`
 without blocking other metrics. Deadline metrics update during game sync
 using the confirmed L1 timestamp.
 
-Deadline checks cover discovered games with eligible ancestry that the proposer
-owns or created. Positive infinity means no outstanding defense. `NaN` means
-the first sync or game validation is incomplete, or sync reads failed.
+Deadline checks cover discovered, in-progress games from owned creators with
+eligible ancestry, whatever their prestate. Positive infinity means no
+outstanding defense. `NaN` means the first sync or game validation is
+incomplete, or sync reads failed.
 
 Each expired window counts once while the game remains cached. Restarts or
 eviction can cause recounts; gaps between observations can miss events.
@@ -626,7 +698,8 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_ROLLUP_CONFIG_PATHS` | comma-separated rollup config files; absent = registry fallback |
 | `OP_ZK_PROPOSER_L1_CONFIG_PATH` | L1 chain config file; absent = registry fallback |
 | `OP_ZK_PROPOSER_DEPENDENCY_SET_PATH` | dependency-set config file; absent = registry fallback |
-| `OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS` | proposal interval (default `3600`) |
+| `OP_ZK_PROPOSER_PROPOSAL_INTERVAL_SECONDS` | proposal interval, in seconds; positive (default `3600`) |
+| `OP_ZK_PROPOSER_MAX_PROPOSAL_SPAN_INTERVALS` | longest span of a game built on the head, in proposal intervals, used when catching up from two or more intervals behind; positive, `1` keeps every span at one interval (default `4`) |
 | `OP_ZK_PROPOSER_PROPOSAL_SAFETY` | `safe` or `finalized` (default `finalized`) |
 | `OP_ZK_PROPOSER_FETCH_INTERVAL` | loop interval in seconds (default `30`) |
 | `OP_ZK_PROPOSER_METRICS_PORT` | `0` disables metrics; `auto` selects a free port (default `0`) |
@@ -641,6 +714,7 @@ Optional core and operational configuration:
 | `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS` | concurrent defended games (default `8`, minimum `1`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_MODE` | prove signer-created owned games while unchallenged (default `false`) |
 | `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT` | total in-flight proving tasks before creation pauses (default `1`) |
+| `OP_ZK_PROPOSER_OWNED_CREATORS` | comma-separated addresses whose games this proposer also owns, besides the signer (default unset: signer only). Duplicates and malformed addresses fail startup. See [Ownership](#ownership-which-games-it-defends) |
 | `OP_ZK_PROPOSER_LOG_PATH` | how a game proves executing messages that reference blocks below a local safe head: `table` (the default) or `receipts`. `receipts` turns the table path off and is meant only for chains with interop off; the proposer logs a warning at startup when it is set |
 | `OP_ZK_PROPOSER_CUDA_DEVICES` | `local-cuda` only: comma-separated CUDA device IDs, one `sp1-gpu-server` each (default `0`) |
 | `OP_ZK_PROPOSER_CUDA_SERVER_PATH` | `local-cuda` only: the `sp1-gpu-server` binary (default `/usr/local/bin/sp1-gpu-server`, where the image installs it) |
@@ -768,7 +842,9 @@ Spend framing: in network mode this proves every game created by this signer
 whose prestate artifacts are available; in local-cuda mode the cost is GPU time, not PROVE. At a one-hour proposal interval that is
 a baseline of 24 aggregation proofs per day; the default
 `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT=1` serializes them. An unchallenged game created by
-another proposer is not proven, even when it uses a known prestate. Enabling the
+another address is not proven, even when that address is listed in
+`OP_ZK_PROPOSER_OWNED_CREATORS` or the game uses a known prestate, unless it is an adopted
+copy. Enabling the
 mode on a chain with an existing unchallenged backlog proves the signer-created
 owned backlog.
 

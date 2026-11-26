@@ -116,7 +116,7 @@ func (env Env) L2UserEnv(t Testing) *BasicUserEnv[*L2Bindings] {
 func (env Env) ActBatchSubmitAllAndMine(t Testing) (l1InclusionBlock *types.Block) {
 	env.Batcher.ActSubmitAll(t)
 	batchTx := env.Batcher.LastSubmitted
-	env.Miner.ActL1StartBlock(12)(t)
+	env.Miner.ActL1StartBlock(L1BlockTime)(t)
 	env.Miner.ActL1IncludeTxByHash(batchTx.Hash())(t)
 	return env.Miner.ActL1EndBlock(t)
 }

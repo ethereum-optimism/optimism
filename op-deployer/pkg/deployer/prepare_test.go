@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -1330,7 +1331,7 @@ func TestGenerateGenesisForChains_UsesPredictedAddressesAndPinnedGenesisTime(t *
 	require.NoError(t, err)
 	require.NotNil(t, chainState.Allocs, "generateGenesisForChains must populate allocs")
 
-	config, err := state.CombineDeployConfig(intent, chain, st, chainState)
+	config, err := state.CombineDeployConfig(intent, chain, st, chainState, registry.DefaultHardforkSchedule())
 	require.NoError(t, err)
 	l2Genesis, err := genesis.BuildL2Genesis(&config, chainState.Allocs.Data, chainState.StartBlock.ToBlockRef())
 	require.NoError(t, err)

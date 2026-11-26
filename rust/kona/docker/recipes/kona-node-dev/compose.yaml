@@ -83,7 +83,8 @@ services:
       - "${KONA_NODE_DISCOVERY_PORT:-9223}:${KONA_NODE_DISCOVERY_PORT:-9223}/tcp"
       - "${KONA_NODE_DISCOVERY_PORT:-9223}:${KONA_NODE_DISCOVERY_PORT:-9223}/udp"
       - "${KONA_NODE_METRICS_PORT:-9002}:${KONA_NODE_METRICS_PORT:-9002}"
-      - "${KONA_NODE_RPC_PORT:-5060}:${KONA_NODE_RPC_PORT:-5090}"
+      # The rpc port serves the unauthenticated admin API, so publish it on the host's loopback only.
+      - "127.0.0.1:${KONA_NODE_RPC_PORT:-5060}:${KONA_NODE_RPC_PORT:-5060}"
 
     volumes:
       - "./datadirs/kona-node:/db"
@@ -99,6 +100,7 @@ services:
       --l1-beacon ${L1_BEACON_API:?}
       --l2 "http://op-rs-op-sepolia-reth:${OP_RETH_ENGINE_PORT:-8551}"
       --l2-engine-jwt-secret /jwt.hex
+      --rpc.addr 0.0.0.0
       --rpc.port ${KONA_NODE_RPC_PORT:-5060}
       --p2p.listen.tcp ${KONA_NODE_DISCOVERY_PORT:-9223}
       --p2p.listen.udp ${KONA_NODE_DISCOVERY_PORT:-9223}

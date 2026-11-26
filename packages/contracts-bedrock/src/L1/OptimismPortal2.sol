@@ -334,9 +334,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 7.9.0
+    /// @custom:semver 7.9.1
     function version() public pure virtual returns (string memory) {
-        return "7.9.0";
+        return "7.9.1";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.
@@ -352,6 +352,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Initializer. If `_bridgeHook` is nonzero, sets it as the current hook and emits
     ///         BridgeHookSet. Upgrades pass the zero address to keep the current hook.
+    ///         WARNING: Do not set a bridge hook on a chain that carries migrated pre-Bedrock
+    ///         withdrawals, such as OP Mainnet. Already-relayed legacy (version 0) withdrawals can
+    ///         still be proven, and the hold path unlocks their ETH from the lockbox before the
+    ///         L1CrossDomainMessenger's already-relayed check runs, so the ETH ends up held and
+    ///         can never complete. See https://github.com/ethereum-optimism/optimism/issues/24397
     ///
     /// @param _systemConfig Address of the SystemConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
@@ -732,6 +737,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
             if (_tx.value > 0) _unlockETH(_tx.value);
         }
 
+        // NOTE: ETH is unlocked before screening; legacy already-relayed messages are not
+        // rejected here (see https://github.com/ethereum-optimism/optimism/issues/24397).
         if (_isUsingBridgeHook()) {
             ProvenWithdrawal memory proven = provenWithdrawals[withdrawalHash][_proofSubmitter];
             uint256 maturedAt = proven.timestamp + proofMaturityDelaySeconds;

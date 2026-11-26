@@ -417,9 +417,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-trie"
-version = "0.9.7"
+version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7895d0d2c946c0ae9253c227db77b9fc707383831058e6a5232fdfc774b28259"
+checksum = "b94e3e0a88f8db47250ac8a95fb825d020719f833eb1dc661bd3609c3bbece7d"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -2750,9 +2750,9 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef769807575055ccafe9db3a9d7eca3b97ca8213122942e71c47915776ec52b2"
+checksum = "59a24479f12308e4ff8db606bc445fed267899a56661877231667f94eb0fd699"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -2768,9 +2768,9 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs-derive"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0652b5da6dcce54dc8bcfb69c5241b0ef09211963f76929d4d63e23767b43bf6"
+checksum = "ecf4de10362fdf18e80e9f3d096f617ce0725c85dc24e9deabb414c52089040c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2779,9 +2779,9 @@ dependencies = [
 
 [[package]]
 name = "reth-zstd-compressors"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "253f7d5772f3c8d0dcc3fdac398db6bca4f6f6e602d240c3bc47338dde0910dd"
+checksum = "65d41037bdcd4d60ca6bbe4e65cc61bbaf29ef7235c2c614e59c25d5a94ac813"
 dependencies = [
  "zstd",
 ]

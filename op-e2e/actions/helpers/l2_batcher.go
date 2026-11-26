@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -402,8 +401,7 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 			opt(rawTx)
 		}
 
-		// The L1 miner builds no Amsterdam blocks, so the pre-Amsterdam floor applies.
-		gas, err := core.FloorDataGas(params.Rules{}, s.BatcherAddr, rawTx.To, nil, rawTx.Data, nil)
+		gas, err := batcher.MaxFloorDataGas(s.BatcherAddr, rawTx.To, rawTx.Data)
 		require.NoError(t, err, "need to compute floor data gas")
 		rawTx.Gas = gas
 		txData = rawTx

@@ -225,20 +225,22 @@ The RPC server starts once. If it stops unexpectedly, the node shuts down with a
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
 | `--rpc.disabled` | `KONA_NODE_RPC_DISABLED` | Disable the RPC server | `false` |
-| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `0.0.0.0` |
+| `--rpc.addr <IP>` | `KONA_NODE_RPC_ADDR` | RPC listening address | `127.0.0.1` |
 | `--port <PORT>` | `KONA_NODE_RPC_PORT` | RPC listening port | `9545` |
-| `--rpc.enable-admin` | `KONA_NODE_RPC_ENABLE_ADMIN` | Enable the admin API | `false` |
-| `--rpc.admin-state <PATH>` | `KONA_NODE_RPC_ADMIN_STATE` | File path for admin state persistence | - |
+
+The [admin API](/node-operators/kona-node/rpc/admin) is always served on the RPC port, without authentication. It can start and stop the sequencer and inject unsafe blocks: `admin_postUnsafePayload` checks only the block hash, not a signature. Binding a non-loopback address, such as `--rpc.addr 0.0.0.0` to publish the port from a Docker container, exposes the admin API, so firewall the port so that only trusted callers reach it.
 
 ## Sequencer Arguments
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--sequencer.stopped` | `KONA_NODE_SEQUENCER_STOPPED` | Start sequencer in stopped state | `false` |
+| `--sequencer.start` | `KONA_NODE_SEQUENCER_START` | Boot the sequencer active. Only for a single sequencer with no standby. Can't be combined with `--conductor.rpc`. | `false` |
 | `--sequencer.l1-confs <N>` | `KONA_NODE_SEQUENCER_L1_CONFS` | L1 block confirmations for sequencer | `4` |
 | `--sequencer.recover` | `KONA_NODE_SEQUENCER_RECOVER` | Strictly prepare next L1 origin and create empty L2 blocks | `false` |
 | `--conductor.rpc <URL>` | `KONA_NODE_CONDUCTOR_RPC` | RPC endpoint URL of an external conductor service. Supplying it enables the conductor integration in sequencer mode; it has no effect in validator mode. | - |
 | `--conductor.rpc.timeout <SECONDS>` | `KONA_NODE_CONDUCTOR_RPC_TIMEOUT` | Conductor service RPC timeout | `1` |
+
+Unless `--sequencer.start` is set, the sequencer boots stopped, after every restart. Start it with [`admin_startSequencer`](/node-operators/kona-node/rpc/admin#admin_startsequencer); with a conductor, op-conductor starts the leader. See [starting the sequencer](/node-operators/kona-node/run/sequencer#starting-the-sequencer).
 
 ## Interop Arguments
 
@@ -263,8 +265,8 @@ Unless overridden by the flags above, a `kona-node node` run has the following d
 - The P2P stack is spun up. The libp2p swarm listens on TCP `9222`
   to receive block gossip. The `discv5` discovery service runs on
   UDP port `9223`. Peer scoring is enabled.
-- An RPC server is exposed at `0.0.0.0:9545`. It accepts both HTTP
-  and WebSocket connections.
+- An RPC server, including the admin API, is exposed at `127.0.0.1:9545`.
+  It accepts both HTTP and WebSocket connections.
 - Prometheus metrics are disabled. Enable them with the
   `--metrics.enabled` flag; metrics are then served on `0.0.0.0:9090`,
   configurable via the `--metrics.port` and `--metrics.addr` flags.

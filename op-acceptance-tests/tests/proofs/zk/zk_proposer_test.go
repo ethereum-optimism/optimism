@@ -54,7 +54,11 @@ func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 		"second game must propose a sequence number beyond its parent")
 }
 
-func TestProposerBuildsOnValidGameFromAnotherProposer(gt *testing.T) {
+// TestProposerCreatesRootGameInsteadOfBuildingOnForeignGame covers the
+// ownership boundary on the create path: a valid foreign game that is not a
+// copy of the proposer's next game is never its parent, so the proposer starts
+// its own chain from the anchor.
+func TestProposerCreatesRootGameInsteadOfBuildingOnForeignGame(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t,
 		presets.WithZK(),
@@ -62,37 +66,53 @@ func TestProposerBuildsOnValidGameFromAnotherProposer(gt *testing.T) {
 		presets.WithoutHonestProposer(),
 	)
 	factory := sys.DisputeGameFactory()
+	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 
-	foreignProposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
-	foreignGame := factory.StartZKGame(foreignProposer)
+	// The proposer's first root claims a timestamp on its interval grid from the
+	// anchor, or its safe head when catching up. A foreign root off that grid and
+	// below the safe head when the proposer starts never shares its UUID, so the
+	// proposer does not adopt it.
+	interval := uint64(presets.DefaultZKProposalInterval / time.Second)
+	foreignTimestamp, _ := factory.WaitForSafeSuperRootAfter(anchorSequence)
+	if (foreignTimestamp-anchorSequence)%interval == 0 {
+		foreignTimestamp++
+	}
+	factory.WaitForSafeSuperRootAfter(foreignTimestamp)
+	foreignGame := factory.StartZKGame(sys.FunderL1.NewFundedEOA(eth.OneEther),
+		proofs.WithL2SequenceNumber(foreignTimestamp))
 	t.Require().Equal(uint32(0), foreignGame.FactoryIndex(),
 		"foreign game must be the first game observed by the honest proposer")
 
 	sys.StartZKProposer()
 
-	honestChild := factory.WaitForZKGameAtIndex(int64(foreignGame.FactoryIndex() + 1))
-	t.Require().Equal(foreignGame.FactoryIndex(), honestChild.ParentIndex(),
-		"honest proposer must adopt a valid foreign game as its canonical parent")
-	t.Require().Greater(honestChild.L2SequenceNumber(), foreignGame.L2SequenceNumber(),
-		"honest proposer child must advance beyond the foreign parent")
+	honestRoot := factory.WaitForZKGameAtIndex(int64(foreignGame.FactoryIndex() + 1))
+	t.Require().Equal(uint32(math.MaxUint32), honestRoot.ParentIndex(),
+		"honest proposer must create a root game instead of building on a foreign game")
+	honestChild := factory.WaitForZKGameAtIndex(int64(honestRoot.FactoryIndex() + 1))
+	t.Require().Equal(honestRoot.FactoryIndex(), honestChild.ParentIndex(),
+		"honest proposer must chain on its own root game, never on the foreign game")
 }
 
+// TestProposerRejectsValidChildOfInvalidGame seeds both games from an owned
+// creator, so the proposer skips the invalid game for its claim and the orphan
+// for its ancestry, rather than either for its creator.
 func TestProposerRejectsValidChildOfInvalidGame(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t,
 		presets.WithZK(),
 		presets.WithoutHonestChallenger(),
 		presets.WithoutHonestProposer(),
+		presets.WithZKProposerOption(sysgo.WithZKOwnedCreator(ownedCreatorKey)),
 	)
 	factory := sys.DisputeGameFactory()
 
 	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
-	foreignProposer := sys.FunderL1.NewFundedEOA(eth.OneEther)
+	creator := ownedCreator(t, sys)
 	invalidSequence, outputRoots := factory.WaitForSafeSuperRootAfter(anchorSequence)
 	t.Require().NotEmpty(outputRoots)
 	outputRoots[0][0] ^= 0xff
 	invalidGame := factory.StartZKGame(
-		foreignProposer,
+		creator,
 		proofs.WithL2SequenceNumber(invalidSequence),
 		proofs.WithSuperRootFrom(outputRoots...),
 	)
@@ -100,7 +120,7 @@ func TestProposerRejectsValidChildOfInvalidGame(gt *testing.T) {
 
 	orphanSequence, _ := factory.WaitForSafeSuperRootAfter(invalidGame.L2SequenceNumber())
 	orphan := factory.StartZKGame(
-		foreignProposer,
+		creator,
 		proofs.WithZKParent(invalidGame.FactoryIndex()),
 		proofs.WithL2SequenceNumber(orphanSequence),
 	)
@@ -113,14 +133,19 @@ func TestProposerRejectsValidChildOfInvalidGame(gt *testing.T) {
 		"honest proposer must not extend a valid claim whose parent was rejected")
 }
 
+// TestProposerDoesNotBuildOnGameCreatedAheadOfSuperRootRPC seeds the future
+// game from an owned creator, so the proposer skips it for its unavailable and
+// then mismatched super root rather than for its creator.
 func TestProposerDoesNotBuildOnGameCreatedAheadOfSuperRootRPC(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t,
 		presets.WithZK(),
 		presets.WithoutHonestChallenger(),
 		presets.WithoutHonestProposer(),
+		presets.WithZKProposerOption(sysgo.WithZKOwnedCreator(ownedCreatorKey)),
 	)
 	factory := sys.DisputeGameFactory()
+	creator := ownedCreator(t, sys)
 
 	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 	_, outputRoots := factory.WaitForSafeSuperRootAfter(anchorSequence)
@@ -133,7 +158,7 @@ func TestProposerDoesNotBuildOnGameCreatedAheadOfSuperRootRPC(gt *testing.T) {
 	// Keep the game invalid once its canonical root becomes available.
 	outputRoots[0][0] ^= 0xff
 	futureGame := factory.StartZKGame(
-		sys.FunderL1.NewFundedEOA(eth.OneEther),
+		creator,
 		proofs.WithL2SequenceNumber(futureSequence),
 		proofs.WithFutureProposal(),
 		proofs.WithSuperRootFrom(outputRoots...),
@@ -300,7 +325,8 @@ func TestProposerProvesBelowHeadMessageOnTablePath(gt *testing.T) {
 
 // newReplacedBlockSystem starts an interop system with the ZK proposer, not yet
 // running, whose L2 ELs refuse every request for a block hidden through the
-// returned HiddenBlocks.
+// returned HiddenBlocks. The proposer owns games from ownedCreatorKey, so tests
+// can seed its parent game.
 func newReplacedBlockSystem(t devtest.T, opts ...presets.Option) (*presets.SimpleInterop, *sysgo.HiddenBlocks) {
 	hidden := sysgo.NewHiddenBlocks()
 	sys := presets.NewSimpleInterop(t, append([]presets.Option{
@@ -310,6 +336,7 @@ func newReplacedBlockSystem(t devtest.T, opts ...presets.Option) (*presets.Simpl
 		presets.WithZKProposerOption(sysgo.WithZKFastFinality()),
 		presets.WithZKProposerOption(sysgo.WithZKMetrics()),
 		presets.WithZKProposerOption(hidden.ZKProposerOption()),
+		presets.WithZKProposerOption(sysgo.WithZKOwnedCreator(ownedCreatorKey)),
 		// WithZK pins Jovian at genesis; executing messages need Lagoon.
 		presets.WithDeployerOptions(sysgo.WithInteropAtGenesis()),
 	}, opts...)...)
@@ -406,13 +433,14 @@ func TestProposerProvesGameSpanningReplacedBlock(gt *testing.T) {
 // the timestamp of a block of chain B that the supernode replaced for an invalid
 // executing message. The supernode reports the denied block as optimistic at that
 // timestamp, so the game's first chunk must read its agreed output, the
-// replacement's, through kona-host. A foreign game at the denied timestamp makes
-// it the agreed timestamp of the proposer's first game, whatever its span.
+// replacement's, through kona-host. An owned creator's game at the denied
+// timestamp makes it the agreed timestamp of the proposer's first game, whatever
+// its span.
 func TestProposerProvesGameAgreeingOnReplacedBlock(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys, hidden := newReplacedBlockSystem(t)
 	execTimestamp := sendDeniedMessage(t, sys, hidden)
-	proposer, game := startProposerOnForeignGame(t, sys, execTimestamp)
+	proposer, game := startProposerOnOwnedGame(t, sys, execTimestamp)
 	requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
 }
 
@@ -421,9 +449,9 @@ func TestProposerProvesGameAgreeingOnReplacedBlock(gt *testing.T) {
 // replaced, after the chunk's first timestamp. Chain B makes a block every
 // second, so the next timestamp's optimistic block, whose output the chunk
 // claims, is not the replacement: the chunk must read the replacement's output
-// through kona-host at the denied timestamp. A foreign game one timestamp before
-// the denied block makes the denied timestamp the second agreed one of the
-// proposer's first game, which one chunk proves whole.
+// through kona-host at the denied timestamp. An owned creator's game one
+// timestamp before the denied block makes the denied timestamp the second agreed
+// one of the proposer's first game, which one chunk proves whole.
 func TestProposerProvesChunkAgreeingOnReplacedBlockInside(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys, hidden := newReplacedBlockSystem(t,
@@ -431,7 +459,7 @@ func TestProposerProvesChunkAgreeingOnReplacedBlockInside(gt *testing.T) {
 		presets.WithZKProposerOption(sysgo.WithZKRangeSplitCount(1)),
 	)
 	execTimestamp := sendDeniedMessage(t, sys, hidden)
-	proposer, game := startProposerOnForeignGame(t, sys, execTimestamp-1)
+	proposer, game := startProposerOnOwnedGame(t, sys, execTimestamp-1)
 	t.Require().Greater(game.L2SequenceNumber(), execTimestamp,
 		"the game must claim past the denied timestamp, so its chunk agrees on it")
 	requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
@@ -475,25 +503,31 @@ func TestProposerProvesChunksInsideReplacementIdleGap(gt *testing.T) {
 			}
 
 			parentTimestamp := execTimestamp - testCase.agreedOffset
-			proposer, game := startProposerOnForeignGame(t, sys, parentTimestamp)
+			proposer, game := startProposerOnOwnedGame(t, sys, parentTimestamp)
 			t.Require().GreaterOrEqual(game.L2SequenceNumber(), execTimestamp+4,
 				"the proof must include every idle timestamp and the next advancing block")
+			// At the default interval a game spans 6 s, or 12 to 24 s when catching up, so from
+			// either agreed timestamp it reaches chain B's block after the idle ones.
 			span := game.L2SequenceNumber() - parentTimestamp
 			t.Require().LessOrEqual(span, rangeSplitCount, "each timestamp must be its own proof chunk")
+			t.Require().LessOrEqual(span, uint64(4*presets.DefaultZKProposalInterval/time.Second),
+				"a game spans at most OP_ZK_PROPOSER_MAX_PROPOSAL_SPAN_INTERVALS (default 4) intervals")
 			requireProvenReadingReplacedAgreedOutput(t, proposer, game, hidden)
 			proposer.VerifyState(testCase.batches)
 		})
 	}
 }
 
-// startProposerOnForeignGame starts a foreign game that claims parentTimestamp,
-// then the proposer, and returns the proposer and its game on the foreign one.
-func startProposerOnForeignGame(t devtest.T, sys *presets.SimpleInterop, parentTimestamp uint64) (*zkproposer.ZKProposer, *proofs.ZKGame) {
+// startProposerOnOwnedGame starts a game from the owned creator that claims
+// parentTimestamp, then the proposer, and returns the proposer and its game on
+// the seeded one. The seed's creator is not the proposer's signer, so fast
+// finality leaves the seed unproven and proves only the proposer's game.
+func startProposerOnOwnedGame(t devtest.T, sys *presets.SimpleInterop, parentTimestamp uint64) (*zkproposer.ZKProposer, *proofs.ZKGame) {
 	factory := sys.DisputeGameFactory()
-	foreign := factory.StartZKGame(sys.FunderL1.NewFundedEOA(eth.OneEther), proofs.WithL2SequenceNumber(parentTimestamp))
+	seed := factory.StartZKGame(ownedCreator(t, sys), proofs.WithL2SequenceNumber(parentTimestamp))
 	proposer := sys.StartZKProposer()
-	game := factory.WaitForZKGameAtIndex(int64(foreign.FactoryIndex() + 1))
-	t.Require().Equal(foreign.FactoryIndex(), game.ParentIndex(), "the proposer must build on the foreign game")
+	game := factory.WaitForZKGameAtIndex(int64(seed.FactoryIndex() + 1))
+	t.Require().Equal(seed.FactoryIndex(), game.ParentIndex(), "the proposer must build on the owned creator's game")
 	return proposer, game
 }
 
@@ -573,4 +607,20 @@ func zkProposerAddress(t devtest.T, sys *presets.SimpleInterop) common.Address {
 	addr, err := keys.Address(devkeys.ProposerRole.Key(sys.L2ChainA.ChainID().ToBig()))
 	t.Require().NoError(err, "derive proposer address")
 	return addr
+}
+
+// ownedCreatorKey names a second game creator that tests list in the proposer's
+// owned creators with sysgo.WithZKOwnedCreator. No other devstack actor signs
+// with it: test wallets use random mnemonics and the funder is user key 10000.
+var ownedCreatorKey devkeys.Key = devkeys.UserKey(1)
+
+// ownedCreator returns the L1 account of ownedCreatorKey, funded to create games.
+func ownedCreator(t devtest.T, sys *presets.SimpleInterop) *dsl.EOA {
+	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	t.Require().NoError(err, "derive dev keys")
+	secret, err := keys.Secret(ownedCreatorKey)
+	t.Require().NoError(err, "derive owned creator key")
+	creator := dsl.NewKey(t, secret).User(sys.L1EL)
+	sys.FunderL1.FundAtLeast(creator, eth.OneEther)
+	return creator
 }

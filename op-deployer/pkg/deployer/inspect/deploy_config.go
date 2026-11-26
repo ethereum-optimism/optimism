@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -50,7 +51,7 @@ func DeployConfig(globalState *state.State, chainID common.Hash) (*genesis.Deplo
 		return nil, fmt.Errorf("failed to find chain intent: %w", err)
 	}
 
-	config, err := state.CombineDeployConfig(intent, chainIntent, globalState, chainState)
+	config, err := state.CombineDeployConfig(intent, chainIntent, globalState, chainState, registry.DefaultHardforkSchedule())
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate deploy config: %w", err)
 	}

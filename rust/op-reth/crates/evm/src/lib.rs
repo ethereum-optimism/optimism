@@ -214,7 +214,7 @@ pub fn validate_post_exec_attributes(
     })
 }
 
-/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@op-v2.8.1-0 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream `ConfigureEvm` plumbing with OP environments and execution context.
 impl<EvmF> ConfigureEvm for OpEvmConfig<EvmF>
@@ -300,9 +300,19 @@ where
             PostExecMode::default(),
         ))
     }
+
+    /// UPSTREAM-MIRROR(override): reth@op-v2.8.1-0 `reth_evm::ConfigureEvm::reuses_prewarm_results`
+    ///
+    /// Always `false`: OP execution adds per-transaction fee and post-exec work that a speculative
+    /// prewarm result does not capture, so committing one would diverge from executing the
+    /// transaction. `prewarm_tx_result` and `speculative_next_evm_env` are only called when this
+    /// returns `true`, so their defaults never run.
+    fn reuses_prewarm_results(&self) -> bool {
+        false
+    }
 }
 
-/// UPSTREAM-MIRROR(copy): reth@op-v2.7.0-2 `reth_evm_ethereum::EthEvmConfig`
+/// UPSTREAM-MIRROR(copy): reth@op-v2.8.1-0 `reth_evm_ethereum::EthEvmConfig`
 ///
 /// Mirrors upstream payload-to-EVM configuration with OP payload and fork semantics.
 /// `tx_iterator_for_payload` recovers senders directly; upstream routes the same recovery through
@@ -430,6 +440,11 @@ mod tests {
                 )
                 .build(),
         )
+    }
+
+    #[test]
+    fn never_reuses_prewarm_results() {
+        assert!(!test_evm_config().reuses_prewarm_results());
     }
 
     #[test]

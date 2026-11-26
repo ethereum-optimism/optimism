@@ -218,11 +218,12 @@ where
 
     fn multiproof_v2(
         &self,
-        mut input: TrieInput,
         targets: MultiProofTargetsV2,
+        _requires_masks: bool,
     ) -> ProviderResult<DecodedMultiProofV2> {
-        input.prepend_self(self.trie_input().clone());
-        self.inner.multiproof_v2(input, targets)
+        // The overlay carries the buffered blocks' trie updates, so masks match the trie as of the
+        // newest buffered block.
+        self.inner.overlay_multiproof_v2(self.trie_input().clone(), targets)
     }
 
     fn witness(

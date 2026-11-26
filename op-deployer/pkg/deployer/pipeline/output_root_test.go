@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/integration_test/shared"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -96,7 +97,7 @@ func v0RootOf(t *testing.T, intent *state.Intent, st *state.State, chainID commo
 	require.NoError(t, err)
 	chainState, err := st.Chain(chainID)
 	require.NoError(t, err)
-	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
+	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState, registry.DefaultHardforkSchedule())
 	require.NoError(t, err)
 	l2Genesis, err := genesis.BuildL2Genesis(&config, chainState.Allocs.Data, chainState.StartBlock.ToBlockRef())
 	require.NoError(t, err)
@@ -167,7 +168,7 @@ func TestComputeGenesisOutputRoot_ComputesAndPersists(t *testing.T) {
 	// Cross-check: independently rebuild the same L2 genesis block and recompute the output root.
 	chainIntent, err := intent.Chain(chainID)
 	require.NoError(t, err)
-	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
+	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState, registry.DefaultHardforkSchedule())
 	require.NoError(t, err)
 	l2Genesis, err := genesis.BuildL2Genesis(&config, chainState.Allocs.Data, chainState.StartBlock.ToBlockRef())
 	require.NoError(t, err)
@@ -230,7 +231,7 @@ func TestComputeGenesisOutputRoot_SuperGameTypeWrapsSuperV1Root(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, chainState.StartingAnchorRoot)
 
-	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
+	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState, registry.DefaultHardforkSchedule())
 	require.NoError(t, err)
 	l2Genesis, err := genesis.BuildL2Genesis(&config, chainState.Allocs.Data, chainState.StartBlock.ToBlockRef())
 	require.NoError(t, err)
@@ -283,7 +284,7 @@ func TestComputeGenesisOutputRoot_SuperAnchorRoundTrips(t *testing.T) {
 
 	// Recover the chain's own output root from the anchor by rebuilding the genesis block, then
 	// re-wrap it using only the recorded sequence number.
-	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
+	config, err := state.CombineDeployConfig(intent, chainIntent, st, chainState, registry.DefaultHardforkSchedule())
 	require.NoError(t, err)
 	l2Genesis, err := genesis.BuildL2Genesis(&config, chainState.Allocs.Data, chainState.StartBlock.ToBlockRef())
 	require.NoError(t, err)

@@ -1,0 +1,94 @@
+---
+title: ZK 분쟁 게임
+description: ZK 분쟁 게임이 제안에서 해결까지 진행되는 방식, 게임이 부모에서 자식으로 연결되는 방식, bond가 지급되는 방식을 알아봅니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+
+<NormativeSpec
+  what="ZK 분쟁 게임의 수명 주기와 bond 회계"
+  title="ZK 분쟁 게임 메커니즘 명세"
+  href="https://specs.optimism.io/fault-proof/stage-one/zk/game-mechanics.html"
+  note="이 페이지는 수명 주기를 서술형으로 설명하며, 명세 내용을 다시 서술하지 않습니다."
+/>
+
+<ZkProofsStatus />
+
+`ZKDisputeGame`은 하나의 제안을 정산하는 L1 컨트랙트입니다. 각 제안은 독립된 게임이며, `DisputeGameFactory`가 공유 구현체의 경량 클론(clone)으로 생성합니다. 게임 유형은 `10`입니다.
+
+## 제안 {#the-proposal}
+
+게임의 root claim은 super root입니다. super root는 버전 바이트, 타임스탬프, 그리고 각 체인별 `(chainId, outputRoot)` 쌍 하나씩을 담은 패킹된 preimage의 해시입니다. proposer는 게임을 생성할 때 이 preimage를 전달하며, 게임은 preimage의 해시가 root claim과 일치하는지 확인합니다.
+
+게임은 쌍의 순서를 확인하지 않습니다. 증명 프로그램은 체인 ID 기준 오름차순으로 정렬된 쌍만 허용하므로, 정렬되지 않은 preimage를 가진 게임은 결코 증명될 수 없으며 정직한 challenger가 이에 이의를 제기합니다.
+
+게임이 preimage를 저장하므로, 사용자가 출금을 증명할 때 `OptimismPortal`은 그 안에서 개별 체인의 output root를 조회할 수 있습니다.
+
+게임의 L2 시퀀스 번호는 블록 번호가 아니라 super root의 타임스탬프입니다.
+
+게임은 또한 자신을 생성한 L1 블록의 직전 블록 해시를 기록합니다. 증명은 제안이 해당 블록까지의 L1 데이터로부터 도출된다는 것을 보여야 하므로, 제안은 그 제안이 만들어졌을 때 L1에 존재하던 데이터로만 증명할 수 있습니다.
+
+## 부모 게임 {#parent-games}
+
+각 게임은 `DisputeGameFactory`에서의 인덱스로 부모 게임을 지정하거나, 부모를 지정하지 않고 `AnchorStateRegistry`의 앵커 상태(anchor state)를 기반으로 합니다. 게임의 시작점은 부모의 root claim이며, 증명은 그 시작점에서 게임 자체의 claim까지의 전이만 다룹니다.
+
+게임이 생성될 때 부모가 사용 가능한지 확인합니다. 부모는 ZK 게임이어야 하고, 패배하지 않았어야 하며, 블랙리스트에 등록되거나 폐기(retired)되지 않았어야 하고, 타임스탬프가 현재 앵커보다 크고 새 게임의 타임스탬프보다 작아야 합니다. ZK가 인정되는(respected) 게임 유형인 동안 생성된 게임은, 마찬가지로 ZK가 인정되는 게임 유형이던 동안 생성된 부모만을 기반으로 할 수 있습니다.
+
+부모 연결은 일련의 게임을 신뢰할 수 있게 만드는 요소입니다. 게임은 부모가 해결되기 전에는 해결될 수 없으며, 부모가 패배하면 자식 게임도 자체 상태와 관계없이 패배합니다. 따라서 자식 게임에 대한 유효한 증명이 있더라도 유효하지 않은 부모로부터 자식 게임을 구제할 수는 없습니다.
+
+## 수명 주기 {#lifecycle}
+
+게임은 다음 단계를 거칩니다.
+
+1.  **생성(Created).** proposer가 게임을 생성하고 init bond를 예치합니다. 이의 제기 기간(challenge window)이 시작됩니다.
+2.  **이의 제기(Challenged, 선택 사항).** 이의 제기 기간 동안 누구나 challenger bond를 예치하여 게임에 한 번 이의를 제기할 수 있습니다. 이의가 제기되면 이의 제기 기한이 증명 기한(prove deadline)으로 대체되며, 증명 기한은 이의 제기 시점으로부터 `maxProveDuration` 후입니다.
+3.  **증명(Proven, 선택 사항).** 이의 제기 여부와 관계없이 누구나 현재 기한 이전 또는 기한 시점에 증명을 제출할 수 있습니다. 게임은 검증자(verifier)를 호출하며, 검증자는 유효하지 않은 증명에 대해 revert합니다. 유효한 증명이 제출되면 게임은 즉시 종료됩니다.
+4.  **종료(Over).** 게임에 유효한 증명이 있거나 현재 기한이 지나면 게임이 종료됩니다.
+5.  **해결(Resolved).** 부모가 해결되고 게임이 종료되면 누구나 게임을 해결할 수 있습니다. 부모가 패배한 경우에는 게임이 종료되기를 기다리지 않고 누구나 즉시 해결할 수 있습니다.
+
+부모가 승리했다고 가정할 때의 결과는 다음과 같습니다.
+
+| 발생한 상황 | 결과 |
+| --- | --- |
+| 이의 제기 없음, 기한 경과 | proposer 승리 |
+| 증명됨(이의 제기 여부와 무관) | proposer 승리 |
+| 이의 제기됨, 증명 기한까지 증명 없음 | challenger 승리 |
+
+부모가 패배한 경우, 게임은 자체 상태와 관계없이 부모가 해결되는 즉시 challenger 승리로 해결됩니다.
+
+## Bond {#bonds}
+
+proposer는 게임을 생성할 때 init bond를 예치합니다. challenger는 challenger bond를 예치합니다. 승자는 게임에 걸린 bond를 받습니다.
+
+*   proposer가 승리하면 자신의 bond를 돌려받고, 게임에 이의가 제기되었다면 challenger의 bond도 받습니다.
+*   challenger가 승리하면 두 bond를 모두 받습니다.
+*   proposer가 아닌 다른 사람이 이의가 제기된 게임을 증명하면, 증명자(prover)는 challenger의 bond를 받고 proposer는 자신의 bond를 돌려받습니다. 이는 유효한 제안을 방어하는 누구에게나 보상을 제공합니다.
+*   게임이 부모의 패배만으로 패배했고 아무도 이의를 제기하지 않았다면, 누구도 해당 bond를 청구할 수 없습니다. 게임은 이를 `address(0)`에 귀속시킵니다.
+
+bond는 게임이 아니라 `DelayedWETH`에 보관됩니다. 게임이 해결되고 최종성 지연(finality delay)이 지나면 누구나 게임을 종결(close)할 수 있으며, 첫 번째 bond 청구도 게임을 종결합니다. 종결 시점에 bond를 정상적으로 지급할지 환불할지가 결정됩니다. Guardian이 블랙리스트에 등록했거나 폐기한 게임은 승자에게 지급하는 대신 각 당사자에게 자신의 bond를 환불합니다. 청구는 두 단계로 이루어집니다. 첫 번째 청구는 `DelayedWETH`의 자금 잠금을 해제하고, `DelayedWETH` 지연 기간이 지난 후의 두 번째 청구로 자금을 인출합니다.
+
+모든 경우는 [명세의 bond 분배 표](https://specs.optimism.io/fault-proof/stage-one/zk/game-mechanics.html?utm_source=op-docs&utm_medium=docs#bond-distribution)를 참고하십시오.
+
+## 구성 {#configuration}
+
+각 체인은 게임에 대해 자체 값을 설정합니다. 이 값들은 `DisputeGameFactory`에 게임 구현체와 함께 저장되므로, 구현체를 다시 배포하지 않고도 변경할 수 있습니다.
+
+*   `absolutePrestate`: 증명이 생성되어야 하는 ZK 프로그램의 식별자입니다. [Absolute prestate](/ko/op-stack/zk-proofs/proof-system#absolute-prestate)를 참고하십시오.
+*   `verifier`: 증명을 확인하는 컨트랙트입니다.
+*   `maxChallengeDuration`: 새 제안에 이의를 제기할 수 있는 기간입니다.
+*   `maxProveDuration`: 이의가 제기된 제안을 증명해야 하는 기간입니다.
+*   `challengerBond`: 이의 제기에 필요한 bond입니다.
+
+init bond는 별도의 `DisputeGameFactory` 설정입니다. 이 값들을 변경하면 새 게임에만 영향을 미치며, 이미 진행 중인 게임은 생성 시점의 값을 유지합니다.
+
+`OPContractsManager`는 체인을 업그레이드할 때 이 값들을 설정합니다. 업그레이드 입력에서 prestate, 기간, bond를 가져오며, 검증자는 항상 해당 릴리스의 `SP1PlonkAdapter`로 설정합니다. `DisputeGameFactory` 소유자는 `setImplementation(ZK_DISPUTE_GAME, impl, gameArgs)`로 값을 직접 변경할 수도 있습니다. 이후 `OPContractsManager` 업그레이드가 실행되면 검증자는 해당 릴리스의 `SP1PlonkAdapter`로 다시 설정됩니다.
+
+기간 설정에는 트레이드오프가 있습니다. 이의 제기 기간이 길면 challenger가 유효하지 않은 제안을 발견할 시간이 늘어나지만, 증명되지 않은 게임이 지연됩니다. 증명 기간이 길면 부하가 높을 때 proposer가 증명을 생성할 시간이 늘어나지만, 이의가 제기된 게임이 지연됩니다. 증명 기간은 최악의 경우의 증명 시간을 감당할 수 있을 만큼 여유가 있어야 합니다. 자세한 내용은 [완전성](/ko/op-stack/zk-proofs/security#completeness)을 참고하십시오.
+
+## 다음 단계 {#next-steps}
+
+*   증명이 무엇을 입증하는지는 [ZK 증명 시스템](/ko/op-stack/zk-proofs/proof-system)을 읽어 보십시오.
+*   컨트랙트 함수와 상태는 [ZK 증명 레퍼런스](/ko/op-stack/zk-proofs/reference)를 읽어 보십시오.
+*   가정과 불변 조건(invariant)을 포함한 규범적 정의는 [ZK 분쟁 게임 명세](https://specs.optimism.io/fault-proof/stage-one/zk/zk-dispute-game.html?utm_source=op-docs&utm_medium=docs)를 읽어 보십시오.

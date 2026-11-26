@@ -8,8 +8,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/flags"
-	opnode "github.com/ethereum-optimism/optimism/op-node"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logcli"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -62,6 +60,9 @@ type Config struct {
 	// ExecutionRPC is the HTTP provider URL for execution layer.
 	ExecutionRPC string
 
+	// ExecutionHeaderCacheSize is the header cache capacity. Zero uses the default.
+	ExecutionHeaderCacheSize int
+
 	// RollupBoostEnabled enables the rollup-boost healthcheck (HTTP status codes).
 	// When enabled, healthchecks are performed against ExecutionRPC + "/healthz".
 	// The client internally appends the /healthz path to ExecutionRPC.
@@ -84,9 +85,6 @@ type Config struct {
 
 	// HealthCheck is the health check configuration.
 	HealthCheck HealthCheckConfig
-
-	// RollupCfg is the rollup config.
-	RollupCfg rollup.Config
 
 	// RPCEnableProxy is true if the sequencer RPC proxy should be enabled.
 	RPCEnableProxy bool
@@ -127,6 +125,9 @@ func (c *Config) Check() error {
 	if c.ExecutionRPC == "" {
 		return fmt.Errorf("missing execution RPC")
 	}
+	if c.ExecutionHeaderCacheSize < 0 {
+		return fmt.Errorf("invalid execution header cache size: %d", c.ExecutionHeaderCacheSize)
+	}
 	if c.RollupBoostEnabled && c.RollupBoostNextEnabled {
 		return fmt.Errorf("only one of rollup-boost or rollup-boost next healthchecks can be enabled")
 	}
@@ -135,9 +136,6 @@ func (c *Config) Check() error {
 	}
 	if err := c.HealthCheck.Check(); err != nil {
 		return fmt.Errorf("invalid health check config: %w", err)
-	}
-	if err := c.RollupCfg.Check(); err != nil {
-		return fmt.Errorf("invalid rollup config: %w", err)
 	}
 	if err := c.MetricsConfig.Check(); err != nil {
 		return fmt.Errorf("invalid metrics config: %w", err)
@@ -157,10 +155,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		return nil, fmt.Errorf("missing required flags: %w", err)
 	}
 
-	rollupCfg, err := opnode.NewRollupConfigFromCLI(log, ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load rollup config: %w", err)
-	}
+	flags.WarnDeprecated(ctx, log)
 
 	executionP2pRpcUrl := ctx.String(flags.HealthcheckExecutionP2pRPCUrl.Name)
 	if executionP2pRpcUrl == "" {
@@ -186,6 +181,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RaftLeaderLeaseTimeout:        ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
 		NodeRPC:                       ctx.String(flags.NodeRPC.Name),
 		ExecutionRPC:                  ctx.String(flags.ExecutionRPC.Name),
+		ExecutionHeaderCacheSize:      ctx.Int(flags.ExecutionHeaderCacheSize.Name),
 		RollupBoostEnabled:            ctx.Bool(flags.RollupBoostEnabled.Name),
 		RollupBoostHealthcheckTimeout: ctx.Duration(flags.RollupBoostHealthcheckTimeout.Name),
 		RollupBoostNextEnabled:        ctx.Bool(flags.RollupBoostNextEnabled.Name),
@@ -204,7 +200,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 			RollupBoostPartialHealthinessToleranceLimit:           ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceLimit.Name),
 			RollupBoostPartialHealthinessToleranceIntervalSeconds: ctx.Uint64(flags.HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds.Name),
 		},
-		RollupCfg:           *rollupCfg,
 		RPCEnableProxy:      ctx.Bool(flags.RPCEnableProxy.Name),
 		RollupBoostWsURL:    ctx.String(flags.RollupBoostWsURL.Name),
 		WebsocketServerPort: ctx.Int(flags.WebsocketServerPort.Name),

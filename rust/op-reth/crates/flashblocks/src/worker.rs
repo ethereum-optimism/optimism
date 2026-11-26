@@ -35,7 +35,7 @@ use reth_storage_api::{
     BlockReaderIdExt, HashedPostStateProvider, StateProvider, StateProviderFactory,
     StateRootProvider, noop::NoopProvider,
 };
-use reth_trie_common::ComputedTrieData;
+use reth_trie_common::SortedTrieData;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -480,7 +480,7 @@ where
             ExecutedBlock::new(
                 block.into(),
                 execution_outcome,
-                ComputedTrieData::new(Arc::new(hashed_state.into_sorted()), Arc::default()),
+                SortedTrieData::new(Arc::new(hashed_state.into_sorted()), Arc::default()),
             ),
         );
         let pending_flashblock = PendingFlashBlock::new(

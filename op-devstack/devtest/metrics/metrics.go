@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 const (
@@ -117,7 +118,7 @@ func (c *MetricsClient) Fetch(ctx context.Context) (*Snapshot, error) {
 }
 
 func parseSnapshot(payload string) (*Snapshot, error) {
-	parser := expfmt.TextParser{}
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	families, err := parser.TextToMetricFamilies(strings.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("parse metrics response: %w", err)

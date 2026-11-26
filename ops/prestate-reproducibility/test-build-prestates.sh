@@ -106,6 +106,11 @@ case "$1" in
         esac
         [[ "$TEST_SCENARIO" != "test-build-marker" ]] || printf 'git_sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test"\n' >> elf/vkeys.toml
         [[ "$TEST_SCENARIO" != "duplicate-vkey" ]] || printf 'super-aggregation = "%s"\n' "$hash" >> elf/vkeys.toml ;;
+      "just --show")
+        [[ "$TEST_SCENARIO" == "verify-elfs" || "$TEST_SCENARIO" == "pin-mismatch" ]] ;;
+      "just verify-elfs")
+        printf '%s\n' "$PWD" >> "$TEST_ROOT/verify.calls"
+        [[ "$TEST_SCENARIO" != "pin-mismatch" ]] || { echo 'FAIL: super-range-elf embeds the log-commitment vkey 0 times' >&2; exit 1; } ;;
       "cargo metadata")
         [[ "$TEST_SCENARIO" != "failed-metadata" ]] || exit 1
         [[ "$TEST_SCENARIO" != "invalid-metadata" ]] || { printf 'invalid metadata'; exit 0; }
@@ -213,6 +218,21 @@ STUB
       cat "$root/output"
       exit 1
     }
+  elif [[ "$scenario" == "pin-mismatch" ]]; then
+    grep -q "do not pin each other's vkeys" "$root/output" || {
+      cat "$root/output"
+      exit 1
+    }
+  elif [[ "$scenario" == "verify-elfs" ]]; then
+    grep -q '/optimism/rust/kona/sp1$' "$root/verify.calls" || {
+      echo 'verify-elfs did not run in the tag checkout' >&2
+      exit 1
+    }
+  elif [[ "$scenario" == "success" ]]; then
+    [[ ! -f "$root/verify.calls" ]] || {
+      echo 'verify-elfs ran on a tag without the recipe' >&2
+      exit 1
+    }
   elif [[ "$scenario" == "symlink-parent" ]]; then
     [[ -f "$root/outside/docker/marker" ]] || {
       echo 'cleanup followed a symlink outside the worktree' >&2
@@ -224,11 +244,12 @@ STUB
 
 run_case success success
 run_case log-commitment success
+run_case verify-elfs success
 run_case zero zero
 run_case sudo-fails success
 run_case symlink-parent success
 run_case stdin-consumer two
-for scenario in missing-tag failed-recipe missing-vkey malformed-vkey uppercase-vkey duplicate-vkey zero-vkey vkey-mismatch derived-long custom-config stale failed-metadata invalid-metadata test-config-fallback test-build-marker test-elf-marker log-missing-elf log-missing-vkey log-malformed-vkey log-duplicate-vkey log-vkey-mismatch; do
+for scenario in missing-tag failed-recipe missing-vkey malformed-vkey uppercase-vkey duplicate-vkey zero-vkey vkey-mismatch derived-long custom-config stale failed-metadata invalid-metadata test-config-fallback test-build-marker test-elf-marker log-missing-elf log-missing-vkey log-malformed-vkey log-duplicate-vkey log-vkey-mismatch pin-mismatch; do
   run_case "$scenario" failure
 done
 echo "Kona SP1 build driver fixtures passed"

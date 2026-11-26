@@ -378,10 +378,35 @@ func (g *ZKGame) WaitForGameStatus(expected gameTypes.GameStatus) {
 	g.require.NoErrorf(err, "zk game %v status mismatch: expected %s, got %s; last read error: %v", g.Address, expected, actual, lastReadErr)
 }
 
+// WaitForCreditUnlocked waits until claimCredit has unlocked the recipient's credit into
+// DelayedWETH and returns the pending withdrawal. Call it before L1 passes the withdrawal's
+// maturity: the payout clears the pending withdrawal.
+func (g *ZKGame) WaitForCreditUnlocked(recipient common.Address) ZKWithdrawal {
+	g.t.Logf("Waiting for %v to unlock its credit from zk game %v", recipient, g.Address)
+	weth := newDelayedWETH(g.t, g.ethClient, g.WETHAddress())
+	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), defaultTimeout)
+	defer cancel()
+
+	var withdrawal ZKWithdrawal
+	var lastReadErr error
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		withdrawal, lastReadErr = contractio.Read(weth.contract.Withdrawals(g.Address, recipient), timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Zk game %v withdrawal for %v unavailable while waiting for unlock: %v", g.Address, recipient, lastReadErr)
+			return false, nil
+		}
+		g.t.Logf("Zk game %v pending withdrawal for %v: %v", g.Address, recipient, withdrawal.Amount)
+		return withdrawal.Amount.Sign() > 0, nil
+	})
+	g.require.NoErrorf(err, "%v did not unlock its credit from zk game %v; last read error: %v", recipient, g.Address, lastReadErr)
+	return withdrawal
+}
+
 // WaitForClaimedCredit waits until the game has distributed bonds (NormalDistributionMode) and the
-// recipient has no unclaimed credit remaining, i.e. the honest challenger closed the game and claimed.
+// recipient has been paid out: it has no credit left and no pending DelayedWETH withdrawal.
 func (g *ZKGame) WaitForClaimedCredit(recipient common.Address) {
-	g.t.Logf("Waiting for zk game %v to distribute bonds and for %v to claim its credit", g.Address, recipient)
+	g.t.Logf("Waiting for zk game %v to distribute bonds and pay out %v", g.Address, recipient)
+	weth := newDelayedWETH(g.t, g.ethClient, g.WETHAddress())
 	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), defaultTimeout)
 	defer cancel()
 
@@ -403,10 +428,16 @@ func (g *ZKGame) WaitForClaimedCredit(recipient common.Address) {
 			g.t.Logf("Zk game %v credit for %v unavailable while waiting to claim: %v", g.Address, recipient, lastReadErr)
 			return false, nil
 		}
-		g.t.Logf("Zk game %v closed, %v unclaimed credit %v", g.Address, recipient, credit)
-		return credit.Sign() == 0, nil
+		var withdrawal ZKWithdrawal
+		withdrawal, lastReadErr = contractio.Read(weth.contract.Withdrawals(g.Address, recipient), timedCtx)
+		if lastReadErr != nil {
+			g.t.Logf("Zk game %v withdrawal for %v unavailable while waiting to claim: %v", g.Address, recipient, lastReadErr)
+			return false, nil
+		}
+		g.t.Logf("Zk game %v closed, %v unclaimed credit %v, pending withdrawal %v", g.Address, recipient, credit, withdrawal.Amount)
+		return credit.Sign() == 0 && withdrawal.Amount.Sign() == 0, nil
 	})
-	g.require.NoErrorf(err, "challenger %v did not claim its credit for zk game %v; last read error: %v", recipient, g.Address, lastReadErr)
+	g.require.NoErrorf(err, "%v was not paid out by zk game %v; last read error: %v", recipient, g.Address, lastReadErr)
 }
 
 // WaitForProposalStatus polls the proposal status until it reaches expected or the timeout elapses.
@@ -473,10 +504,14 @@ type DelayedWETH struct {
 // DelayedWETH binds the DelayedWETH contract at addr (e.g. the ZK game
 // implementation's weth arg) using the factory's L1 client.
 func (f *DisputeGameFactory) DelayedWETH(addr common.Address) *DelayedWETH {
+	return newDelayedWETH(f.t, f.ethClient, addr)
+}
+
+func newDelayedWETH(t devtest.T, client apis.EthClient, addr common.Address) *DelayedWETH {
 	weth := bindings.NewBindings[delayedWETHBinding](
-		bindings.WithClient(f.ethClient),
+		bindings.WithClient(client),
 		bindings.WithTo(addr),
-		bindings.WithTest(f.t),
+		bindings.WithTest(t),
 	)
 	return &DelayedWETH{contract: &weth}
 }

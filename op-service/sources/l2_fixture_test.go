@@ -30,6 +30,9 @@ import (
 // minimal system without fault proofs (presets.NewMinimalNoFaultProofs) on op-reth, each sent
 // through OptimismPortal2.depositTransaction with a nonzero mint and value: a contract creation,
 // a plain value transfer to an EOA, and a call that reverts on L2.
+//
+// l2_10_159925550 is an OP Mainnet block, read from op-reth at mainnet.optimism.io, with a
+// legacy, dynamic-fee and set-code user tx.
 const l2FixturesDir = "testdata/l2"
 
 // wireTx holds the transaction-object fields the fixtures are checked against.
@@ -161,6 +164,9 @@ func TestRPCBlockDecodesOpRethFixtures(t *testing.T) {
 	}
 	require.True(t, seen[optypes.DepositTxType], "the fixtures must hold a deposit tx")
 	require.True(t, seen[optypes.PostExecTxType], "the fixtures must hold a post-exec tx")
+	for _, typ := range []byte{types.LegacyTxType, types.DynamicFeeTxType, types.SetCodeTxType} {
+		require.True(t, seen[typ], "the fixtures must hold a user tx of type %#x", typ)
+	}
 	require.True(t, seenMint, "the fixtures must hold a deposit with a nonzero mint")
 	require.True(t, seenCreation, "the fixtures must hold a contract-creation deposit")
 	require.True(t, seenRevertedDeposit, "the fixtures must hold a deposit whose receipt has status failed")

@@ -42,7 +42,7 @@ func testSetMaxDASize(t *testing.T, compliantSequencer bool, sequencerDown bool)
 	sequencer := mockrpc.NewMockRPC(t, testlog.Logger(t, slog.LevelDebug), mockrpc.WithExpectationsFile(t, expectationsFile))
 	endpoint := sequencer.Endpoint()
 
-	config := mockConfig(t)
+	config := mockConfig()
 	config.ExecutionRPC = endpoint
 	config.NodeRPC = endpoint // this won't be used but needs to be set to get the conductor to init properly
 	config.RPCEnableProxy = true

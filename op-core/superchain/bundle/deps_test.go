@@ -38,10 +38,9 @@ var bundleAllowed = []string{
 	"github.com/ethereum-optimism/optimism/op-challenger/...",
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/...",
 
-	// Resolves --network via op-node's rollup-config loading.
-	"github.com/ethereum-optimism/optimism/op-conductor/...",
-
-	// Reads superchain and chain records for standard deployments.
+	// Reads superchain and chain records for standard deployments. The
+	// intent and state types downstream modules import stay guarded by
+	// op-deployer/pkg/deployer/state's own TestNoBundleImport.
 	"github.com/ethereum-optimism/optimism/op-deployer/...",
 
 	// Embeds op-node, which loads registry configs.
