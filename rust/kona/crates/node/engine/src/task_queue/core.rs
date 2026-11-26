@@ -51,8 +51,9 @@ impl Ord for QueuedTask {
 ///
 /// Tasks within the queue are also considered fallible. If they fail with a temporary error,
 /// they are not popped from the queue, the error is returned, and they are retried on the
-/// next call to [`Engine::drain`]. A task that fails with a flush error has already replaced its
-/// block, so it is popped before the error is returned.
+/// next call to [`Engine::drain`], before any task enqueued meanwhile but an undo. A task that
+/// fails with a flush error has already replaced its block, so it is popped before the error is
+/// returned.
 ///
 /// A task that waits for a cross-chain verifier's denied blocks, the derived import of a node
 /// that has not heard them yet, is set aside instead, so it holds up nothing else: sequencing and
@@ -67,8 +68,10 @@ pub struct Engine {
     tasks: BinaryHeap<QueuedTask>,
     next_sequence: u64,
     /// Preserve the task being retried ahead of newly enqueued work: it may have already
-    /// performed part of an Engine API operation.
-    active: Option<EngineTask>,
+    /// performed part of an Engine API operation. An undo still goes first: the task may have
+    /// been made for the derivation the undo abandons, and an undo that moves nothing leaves the
+    /// task to its retry.
+    active: Option<QueuedTask>,
     /// The tasks set aside until the verifier's denied blocks arrive.
     waiting: Vec<EngineTask>,
 }
@@ -101,6 +104,11 @@ impl Engine {
         let sequence = self.next_sequence;
         self.next_sequence =
             self.next_sequence.checked_add(1).expect("engine task sequence exhausted");
+        if matches!(task, EngineTask::Undo(_)) &&
+            let Some(active) = self.active.take()
+        {
+            self.tasks.push(active);
+        }
         self.tasks.push(QueuedTask { sequence, task });
     }
 
@@ -174,16 +182,16 @@ impl Engine {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         loop {
             if self.active.is_none() {
-                self.active = self.tasks.pop().map(|queued| queued.task);
+                self.active = self.tasks.pop();
             }
-            let Some(task) = &self.active else { break };
-            let result = task.execute(&mut self.state).await;
+            let Some(queued) = &self.active else { break };
+            let result = queued.task.execute(&mut self.state).await;
 
             if let Err(err) = &result &&
                 err.severity() == EngineTaskErrorSeverity::Waiting
             {
                 debug!(target: "engine", %err, "Setting a task aside until the denied blocks arrive");
-                self.waiting.extend(self.active.take());
+                self.waiting.extend(self.active.take().map(|queued| queued.task));
                 continue;
             }
 
@@ -418,6 +426,102 @@ mod recovery_tests {
         assert_eq!(engine.waiting(), 1);
         engine.clear();
         assert_eq!(engine.waiting(), 0);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// The engine state of a node at its finalized head, as right after a start, so an undo
+    /// moves nothing.
+    fn at_the_finalized_head(finalized: L2BlockInfo) -> EngineState {
+        TestEngineStateBuilder::new()
+            .with_safe_label(SafeLabel::Verified { activation_timestamp: 0 })
+            .with_unsafe_head(finalized)
+            .with_local_safe_head(finalized)
+            .with_safe_head(finalized)
+            .with_finalized_head(finalized)
+            .build()
+    }
+
+    /// A queued undo runs before the derived import it woke, which was made for the derivation
+    /// the undo abandons. Moving nothing, as after a start, it leaves the import to run next.
+    #[tokio::test]
+    async fn an_undo_runs_before_the_import_it_woke() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        let finalized = test_block_info(10);
+        let attributes = TestAttributesBuilder::new().with_parent(finalized).build();
+        let (denials, unknown) = crate::DeniedBlocks::from_verifier(0);
+        let state = at_the_finalized_head(finalized);
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        engine.enqueue(EngineTask::Consolidate(Box::new(
+            ConsolidateTask::new(
+                client.clone(),
+                config,
+                ConsolidateInput::Attributes(Box::new(attributes)),
+                Arc::new(NoopBlockSink),
+            )
+            .with_denied_blocks(unknown),
+        )));
+        engine.drain().await.unwrap();
+        assert_eq!(engine.waiting(), 1);
+
+        // As the engine actor takes an undo in.
+        denials.publish(vec![]);
+        engine.wake_waiting();
+        let (done, mut heard) = tokio::sync::mpsc::channel(1);
+        engine.enqueue_replacing(EngineTask::Undo(Box::new(crate::UndoTask::new(
+            client.clone(),
+            done,
+        ))));
+        l2.expect_error("engine_forkchoiceUpdatedV2");
+        let error = engine.drain().await.unwrap_err();
+
+        assert_eq!(heard.try_recv(), Ok(()), "the undo ran first");
+        assert_eq!(error.severity(), EngineTaskErrorSeverity::Temporary);
+        assert_eq!(engine.len(), 1, "the import stays queued");
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A queued undo runs before the task being retried, which may have been made for the
+    /// derivation the undo abandons. Moving nothing, it leaves the task to its retry.
+    #[tokio::test]
+    async fn an_undo_runs_before_the_task_being_retried() {
+        let mut block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
+        block.header.number = 6;
+        let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(&block));
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        let state = at_the_finalized_head(test_block_info(5));
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
+            client.clone(),
+            config,
+            payload,
+            false,
+            Arc::new(NoopBlockSink),
+        ))));
+        l2.expect_error("engine_newPayloadV2");
+        assert_eq!(
+            engine.drain().await.unwrap_err().severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
+
+        let (done, mut heard) = tokio::sync::mpsc::channel(1);
+        engine.enqueue_replacing(EngineTask::Undo(Box::new(crate::UndoTask::new(
+            client.clone(),
+            done,
+        ))));
+        l2.expect_error("engine_newPayloadV2");
+        let error = engine.drain().await.unwrap_err();
+
+        assert_eq!(heard.try_recv(), Ok(()), "the undo ran first");
+        assert_eq!(error.severity(), EngineTaskErrorSeverity::Temporary);
+        assert_eq!(engine.len(), 1, "the retried task stays queued");
         l1.assert_finished();
         l2.assert_finished();
     }
