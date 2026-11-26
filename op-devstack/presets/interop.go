@@ -159,15 +159,11 @@ func NewSingleChainInterop(t devtest.T, opts ...Option) *SingleChainInterop {
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsRuntimeWithConfig(t, true, presetCfg))
 }
 
-// isthmusSuperOnLokahi is why the Isthmus super-root presets skip on lokahi: they schedule no
-// interop, and lokahi refuses to start for a chain that schedules none.
-const isthmusSuperOnLokahi = "the preset schedules no interop, and lokahi starts only for chains that schedule it"
-
 // NewSimpleInteropIsthmusSuper creates a fresh SimpleInterop target for the current test
 // using the Isthmus super-root system backed by op-supernode.
 func NewSimpleInteropIsthmusSuper(t devtest.T, opts ...Option) *SimpleInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSimpleInteropIsthmusSuper", opts, twoL2SupernodeProofsPresetSupportedOptionKinds)
-	selectInteropVerifier(t, &presetCfg, isthmusSuperOnLokahi)
+	selectInteropVerifier(t, &presetCfg, "")
 	return simpleInteropFromSupernodeProofsRuntime(t, sysgo.NewTwoL2SupernodeProofsRuntimeWithConfig(t, false, presetCfg))
 }
 
@@ -175,7 +171,7 @@ func NewSimpleInteropIsthmusSuper(t devtest.T, opts ...Option) *SimpleInterop {
 // current test using the single-chain Isthmus super-root system backed by op-supernode.
 func NewSingleChainInteropIsthmusSuper(t devtest.T, opts ...Option) *SingleChainInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewSingleChainInteropIsthmusSuper", opts, supernodeProofsPresetSupportedOptionKinds)
-	selectInteropVerifier(t, &presetCfg, isthmusSuperOnLokahi)
+	selectInteropVerifier(t, &presetCfg, "")
 	return singleChainInteropFromSupernodeProofsRuntime(t, sysgo.NewSingleChainSupernodeProofsRuntimeWithConfig(t, false, presetCfg))
 }
 
