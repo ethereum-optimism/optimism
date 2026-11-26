@@ -20,7 +20,7 @@ require (
 	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20261124204514-bfeb4b01674d
 	github.com/ethereum/go-ethereum v1.17.11-0.20261028021739-3dee18e7108c
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/gofrs/flock v0.13.0
+	github.com/gofrs/flock v0.13.2
 	github.com/golang/snappy v1.0.1-0.20260716114414-9ae09f520e93
 	github.com/google/go-cmp v0.7.0
 	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
