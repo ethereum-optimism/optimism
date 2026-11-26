@@ -18,7 +18,7 @@ type TwoL2Lokahi struct {
 	TestSequencer *dsl.TestSequencer
 
 	// InteropActivationTime is when interop activates on both chains, the genesis time unless a
-	// delay was asked for.
+	// delay was asked for. Zero when no chain schedules interop.
 	InteropActivationTime uint64
 
 	L2ELA *dsl.L2ELNode
@@ -47,8 +47,16 @@ func NewTwoL2LokahiWithInteropDelay(t devtest.T, delaySeconds uint64) *TwoL2Loka
 	return twoL2LokahiFromRuntime(t, sysgo.NewTwoL2LokahiRuntimeWithInteropDelay(t, delaySeconds), delaySeconds)
 }
 
-// twoL2LokahiFromRuntime is the [TwoL2Lokahi] of a lokahi runtime whose interop activates
-// delaySeconds after genesis.
+// NewTwoL2LokahiWithoutInterop is [NewTwoL2Lokahi] with no chain scheduling interop: lokahi
+// verifies nothing and serves the chains' own outputs, as op-supernode does with its interop
+// activity off.
+func NewTwoL2LokahiWithoutInterop(t devtest.T) *TwoL2Lokahi {
+	skipKonaOnlyPresetOnOpNode(t)
+	return twoL2LokahiFromRuntime(t, sysgo.NewTwoL2LokahiRuntimeWithoutInterop(t), 0)
+}
+
+// twoL2LokahiFromRuntime is the [TwoL2Lokahi] of a lokahi runtime whose interop, if scheduled,
+// activates delaySeconds after genesis.
 func twoL2LokahiFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime, delaySeconds uint64) *TwoL2Lokahi {
 	inOpReth := sysgo.ResolveMixedL2CLKind(t) == sysgo.MixedL2CLOpReth
 	for name, chain := range runtime.Chains {
@@ -66,12 +74,16 @@ func twoL2LokahiFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime, delay
 		"lokahi", runtime.Lokahi.ExecPath(), "lokahi_rpc", runtime.Lokahi.UserRPC())
 
 	twoL2, components := twoL2FromRuntime(t, runtime)
+	var activation uint64
+	if rollupCfg := twoL2.L2A.Escape().RollupConfig(); rollupCfg.LagoonTime != nil {
+		activation = rollupCfg.Genesis.L2Time + delaySeconds
+	}
 	testSequencer := newTestSequencerFrontend(t, runtime.TestSequencer.Name, runtime.TestSequencer.AdminRPC,
 		runtime.TestSequencer.ControlRPC, runtime.TestSequencer.JWTSecret)
 	preset := &TwoL2Lokahi{
 		TwoL2:                 *twoL2,
 		TestSequencer:         dsl.NewTestSequencer(testSequencer),
-		InteropActivationTime: twoL2.L2A.Escape().RollupConfig().Genesis.L2Time + delaySeconds,
+		InteropActivationTime: activation,
 		L2ELA:                 dsl.NewL2ELNode(components.l2AEL),
 		L2ELB:                 dsl.NewL2ELNode(components.l2BEL),
 		Wallet:                dsl.NewRandomHDWallet(t, 30),

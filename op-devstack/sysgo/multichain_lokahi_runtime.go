@@ -33,7 +33,18 @@ func NewTwoL2LokahiRuntime(t devtest.T) *MultiChainRuntime {
 // NewTwoL2LokahiRuntimeWithInteropDelay is [NewTwoL2LokahiRuntime] with interop activating
 // delaySeconds after genesis, or at genesis when it is zero.
 func NewTwoL2LokahiRuntimeWithInteropDelay(t devtest.T, delaySeconds uint64) *MultiChainRuntime {
-	runtime := newMultiL2LokahiRuntime(t, true, delaySeconds, PresetConfig{}, lokahiChainsConfig{}, []runtimeChainSpec{
+	return newTwoL2LokahiRuntime(t, true, delaySeconds)
+}
+
+// NewTwoL2LokahiRuntimeWithoutInterop is [NewTwoL2LokahiRuntime] with no chain scheduling
+// interop: lokahi verifies nothing and serves the chains' own outputs, as op-supernode does with
+// its interop activity off.
+func NewTwoL2LokahiRuntimeWithoutInterop(t devtest.T) *MultiChainRuntime {
+	return newTwoL2LokahiRuntime(t, false, 0)
+}
+
+func newTwoL2LokahiRuntime(t devtest.T, enableInterop bool, delaySeconds uint64) *MultiChainRuntime {
+	runtime := newMultiL2LokahiRuntime(t, enableInterop, delaySeconds, PresetConfig{}, lokahiChainsConfig{}, []runtimeChainSpec{
 		{Name: "l2a", ID: DefaultL2AID},
 		{Name: "l2b", ID: DefaultL2BID},
 	})
