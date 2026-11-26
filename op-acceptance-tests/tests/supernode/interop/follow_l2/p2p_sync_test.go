@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -16,6 +17,7 @@ import (
 // the sequencer and catches up to the same unsafe head.
 func TestFollowSource_P2PSync(gt *testing.T) {
 	t := devtest.ParallelT(gt)
+	sysgo.SkipOnOpRethCL(t, "the test stops the follower CL and checks its EL, which runs in the same process")
 
 	sys := presets.NewTwoL2SupernodeFollowL2(t, 0)
 	logger := sys.Log.With("Test", "TestFollowSource_P2PSync")
