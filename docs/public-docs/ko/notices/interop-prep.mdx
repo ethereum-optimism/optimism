@@ -16,6 +16,7 @@ is_imported_content: 'false'
 [OP Stack interop](/ko/op-stack/interop)은 거버넌스 승인을 전제로 **2026년 12월 10일**에 **OP Sepolia**(chain ID `11155420`)와 **Unichain Sepolia**(chain ID `1301`)에서, **2027년 1월 11일**에 **OP Mainnet**(chain ID `10`)과 **Unichain**(chain ID `130`)에서 활성화될 예정입니다.
 각 쌍은 2개 체인으로 구성된 interop dependency set을 형성합니다. mainnet 전에 testnet에서 이 체크리스트를 실행하세요.
 Interop은 [Lagoon 하드포크](/ko/op-stack/protocol/hardforks/lagoon)에 포함되어 배포되며, 이 하드포크에는 실행 후(post-execution) 트랜잭션과 [sequencer 정의 미터링(sequencer-defined metering)](/ko/op-stack/features/sdm)도 포함됩니다.
+Lagoon은 L1 컨트랙트도 함께 업그레이드하는 [Upgrade 22](/ko/notices/upgrade-22)의 일부입니다. 해당 공지에서 컨트랙트 변경 사항, 출금 재증명(re-proving), permissionless fault proof 체인을 위한 절차를 다룹니다.
 두 체인 중 어느 쪽이든 노드 운영자는 활성화 타임스탬프 전에 토폴로지를 변경해야 합니다. 각 운영자는 두 체인을 모두 파생(derive)하고 그 사이의 크로스체인 메시지를 검증하는 하나 이상의 [op-supernode](/ko/op-stack/interop/supernode) 인스턴스를 실행하며, 나머지 노드들은 L1에서 직접 파생하는 대신 supernode를 따르는 합의 계층 클라이언트인 [Light CL](/ko/notices/specialized-node-topology)로 실행합니다.
 
 <Warning>
@@ -27,9 +28,13 @@ Interop은 [Lagoon 하드포크](/ko/op-stack/protocol/hardforks/lagoon)에 포�
 </Warning>
 
 <Info>
-  활성화 타임스탬프는 **OP Sepolia**와 **Unichain Sepolia**의 경우 **2026년 12월 10일**, **OP Mainnet**과 **Unichain**의 경우 **2027년 1월 11일**을 목표로 하며, 정확한 타임스탬프는 아직 정해지지 않았습니다.
-  타임스탬프는 [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)에 게시될 예정이며, 확정되면 이 페이지도 업데이트됩니다.
+  활성화 타임스탬프는 [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)에 설정되어 있습니다.
+
+  *   **OP Sepolia** 및 **Unichain Sepolia**: Thu Dec 10, 2026 16:00:01 UTC (`1796918401`)
+  *   **OP Mainnet** 및 **Unichain**: Mon Jan 11, 2027 16:00:01 UTC (`1799683201`)
+
   mainnet 활성화는 거버넌스 승인을 받아야 합니다.
+  활성화 전에 진행되는 L1 컨트랙트 업그레이드를 포함한 전체 일정은 [Upgrade 22 공지](/ko/notices/upgrade-22#upgrade-timing)를 참조하세요.
 </Info>
 
 ## 변경 사항 {#what’s-changing}
@@ -56,7 +61,9 @@ replica, RPC 노드 또는 기타 op-node 배포 등 모든 op-node는 두 체�
 </Warning>
 
 이번 배포는 OP Mainnet과 Unichain을 대상으로 하며, OP Sepolia와 Unichain Sepolia가 testnet 쌍입니다.
-다른 OP Stack 체인은 superchain-registry의 체인 구성에 설정된 자체 일정에 따라 동일한 Lagoon 하드포크를 활성화하며, 각자의 타임스탬프까지 Lagoon을 지원하는 릴리스가 필요합니다.
+Ink와 Soneium(그리고 Ink Sepolia와 Soneium Minato)은 같은 타임스탬프에 Lagoon을 활성화하지만 interop set에는 참여하지 않습니다.
+다른 OP Stack 체인은 superchain-registry의 체인 구성에 설정된 자체 일정에 따라 Lagoon을 활성화합니다.
+Lagoon을 활성화하는 모든 체인은 각자의 타임스탬프까지 Lagoon을 지원하는 릴리스가 필요합니다.
 의존성이 없는 체인은 자기 자신만 포함하는 dependency set을 가지므로 교차 검증할 대상이 없으며, 해당 운영자는 일반 op-node를 계속 실행할 수 있습니다.
 다른 OP Stack 체인은 interop set에 참여할 때에만 supernode 토폴로지로 전환합니다.
 
@@ -110,15 +117,14 @@ supernode에서 체인별 safe head(`virtual_node_chain_id` 레이블이 붙은 
 ## 필수 구성 요소 {#required-components}
 
 활성화 타임스탬프 전에 다음 구성 요소를 업데이트하거나 설치합니다.
-아래 버전은 토폴로지 구축을 위한 현재 최소 버전입니다. Lagoon 타임스탬프를 포함하는 활성화 릴리스는 출시되는 대로 이 공지에 명시됩니다.
-업그레이드는 두 번 진행됩니다. 지금 이 버전들로 토폴로지를 마이그레이션한 다음, 활성화 릴리스가 여기에 명시되면 네트워크의 활성화 타임스탬프 전에 모든 구성 요소를 해당 활성화 릴리스로 업그레이드합니다.
+아래 버전은 Lagoon 타임스탬프를 포함하는 Lagoon 활성화 릴리스입니다. 이 버전은 [Upgrade 22 공지](/ko/notices/upgrade-22#node-operators)와 일치합니다.
 타임스탬프를 포함하지 않은 바이너리는 활성화 시점에 체인과 분기되며 다시 동기화해야 합니다. [네트워크 업그레이드](/ko/op-stack/protocol/network-upgrades#activations)를 참조하세요.
 
 | 구성 요소        | 버전 | 역할 |
 | ---------------- | ------- | ---- |
-| `op-supernode`   | [`v1.0.6`](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) 이상 | 하나의 바이너리 안에서 OP Mainnet과 Unichain(또는 OP Sepolia와 Unichain Sepolia)을 가상 노드로 실행하고 크로스체인 메시지를 검증합니다. 필수 구성 요소입니다. [supernode 설명서](/ko/op-stack/interop/supernode)와 [구성 가이드](/ko/node-operators/guides/configuration/supernode)를 참조하세요. |
-| `op-node`        | [`v1.19.11`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.19.11) 이상 | 모든 노드에서 [Light CL](/ko/notices/specialized-node-topology)로 실행되며, safe 및 finalized 뷰는 supernode에서 상속됩니다. |
-| `op-reth`        | [`v2.6.1`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.6.1) 이상 | 필수 실행 클라이언트입니다. dependency set의 체인마다 하나씩 실행합니다. 하나의 실행 클라이언트로 두 체인을 지원할 수 없으므로(op-node는 시작 시 일치하지 않는 chain ID를 거부함), 두 체인을 모두 서비스하는 호스트는 최소 두 개의 실행 클라이언트 프로세스를 실행합니다. |
+| `op-supernode`   | [`v1.2.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.2.0) 이상 | 하나의 바이너리 안에서 OP Mainnet과 Unichain(또는 OP Sepolia와 Unichain Sepolia)을 가상 노드로 실행하고 크로스체인 메시지를 검증합니다. 필수 구성 요소입니다. [supernode 설명서](/ko/op-stack/interop/supernode)와 [구성 가이드](/ko/node-operators/guides/configuration/supernode)를 참조하세요. |
+| `op-node`        | [`v1.21.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.21.0) 이상 | 모든 노드에서 [Light CL](/ko/notices/specialized-node-topology)로 실행되며, safe 및 finalized 뷰는 supernode에서 상속됩니다. |
+| `op-reth`        | [`v2.10.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.10.0) 이상 | 필수 실행 클라이언트입니다. dependency set의 체인마다 하나씩 실행합니다. 하나의 실행 클라이언트로 두 체인을 지원할 수 없으므로(op-node는 시작 시 일치하지 않는 chain ID를 거부함), 두 체인을 모두 서비스하는 호스트는 최소 두 개의 실행 클라이언트 프로세스를 실행합니다. |
 
 Lagoon 활성화 타임스탬프와 dependency set은 각 릴리스에 포함된 superchain-registry 번들에서 읽어옵니다.
 op-node에서 `--network`, op-supernode에서 `--vn.<chainID>.network`를 사용하면 추가 플래그가 필요하지 않습니다. 활성화 릴리스가 중요한 이유도 여기에 있습니다. 레지스트리 업데이트 이전에 빌드된 바이너리는 타임스탬프를 알지 못합니다.
@@ -126,9 +132,8 @@ dependency set은 chain ID로 조회되므로 사용자 정의 롤업 구성을 
 레지스트리의 dependency set을 재정의하려면 op-node에 `--interop.dependency-set`을, op-supernode에 `--dependency-set`을 전달합니다.
 
 <Info>
-  op-supernode는 [v1.0.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.0)(2026년 8월)부터 안정 릴리스를 제공하고 있습니다. 현재 [v1.0.6](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.0.6) 이상을 실행하세요.
-  op-supernode, op-node, op-reth의 활성화 릴리스는 출시되는 대로 여기에 명시됩니다.
-  그때까지는 [op-supernode](https://github.com/ethereum-optimism/optimism/releases?q=op-supernode), [op-node](https://github.com/ethereum-optimism/optimism/releases?q=op-node), [op-reth](https://github.com/ethereum-optimism/optimism/releases?q=op-reth) 릴리스 페이지를 확인하세요.
+  활성화 릴리스는 op-supernode [v1.2.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.2.0), op-node [v1.21.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.21.0), op-reth [v2.10.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.10.0)입니다.
+  업그레이드하기 전에 각 릴리스의 호환성이 깨지는 변경 사항(breaking changes)을 확인하세요.
 </Info>
 
 ## 조치 체크리스트 {#action-checklist}
@@ -379,6 +384,7 @@ L2에서 L1으로의 출금 증명을 위해 `eth_getProof`를 제공하거나 o
 
 ## 참고 자료 {#resources}
 
+* [Upgrade 22 공지](/ko/notices/upgrade-22) — Lagoon과 함께 진행되는 L1 컨트랙트 업그레이드, 출금 재증명, permissionless fault proof 절차
 * [Interop 설명서](/ko/op-stack/interop/explainer) — interop 환경에서 크로스체인 메시지와 블록 안전성이 작동하는 방식
 * [op-supernode 설명서](/ko/op-stack/interop/supernode) — op-supernode의 정의, 필요한 이유, Light CL과의 결합 방식
 * [Supernode 구성 가이드](/ko/node-operators/guides/configuration/supernode) — 권장 설정 및 시작 구성

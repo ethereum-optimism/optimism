@@ -1,0 +1,101 @@
+---
+title: interop set을 위한 ZK 증명
+description: 모든 체인이 하나의 게임, 하나의 증명, 하나의 분쟁 컨트랙트 집합을 공유하는 interop set을 ZK 증명이 어떻게 보호하는지 알아봅니다.
+diataxis: explanation
+---
+
+import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
+import ZkProofsStatus from "/ko/snippets/zk-proofs-status.mdx"
+
+<NormativeSpec
+  what="interop set 전반의 ZK 증명 시스템"
+  title="ZK 증명 시스템 명세"
+  href="https://specs.optimism.io/fault-proof/zk-proof-system.html"
+  note="이 페이지는 ZK 분쟁 게임이 둘 이상의 체인을 다룰 때 달라지는 점을 설명하며, 명세 내용을 다시 서술하지 않습니다."
+/>
+
+<ZkProofsStatus />
+
+interop set은 L1의 분쟁 컨트랙트를 공유하고, 상태가 하나의 super root로 함께 증명되는 OP Stack 체인들의 그룹입니다. 이는 체인들의 [종속성 집합(dependency set)](/ko/op-stack/interop/explainer#interop-clusters), 즉 크로스체인 메시지를 수락하는 체인 집합에 대응하는 L1 측 개념입니다. ZK 증명 시스템은 set 전체를 하나의 단위로 취급합니다. 각 제안은 set에 속한 모든 체인을 다루며, 하나의 증명으로 모든 체인이 올바르다는 것을 보여 줍니다.
+
+단독으로 운영되는 체인도 체인 하나로 이루어진 set으로서 동일한 게임과 동일한 프로그램을 사용합니다. 이 페이지에서는 set에 둘 이상의 체인이 있을 때 달라지는 점을 설명합니다.
+
+## set 전체에 대한 하나의 제안 {#one-proposal-for-the-whole-set}
+
+ZK 분쟁 게임(dispute game)의 root claim은 [super root](/ko/op-stack/zk-proofs/zk-dispute-game#the-proposal)입니다. super root의 preimage에는 set에 속한 각 체인마다 `(chainId, outputRoot)` 쌍이 하나씩 체인 ID 순으로 정렬되어 담겨 있습니다. 제안은 모든 쌍이 올바를 때만 유효하므로, 어느 한 체인의 output root라도 잘못되면 제안 전체가 유효하지 않게 됩니다.
+
+출금은 여전히 각 체인에서 이루어집니다. 사용자가 출금을 증명하면, 해당 체인의 `OptimismPortal`이 게임의 `rootClaimByChainId`를 호출하여 저장된 preimage에서 자기 체인의 output root를 읽습니다. set에 속한 모든 체인은 동일한 게임을 기준으로 출금을 증명합니다.
+
+특정 타임스탬프의 super root를 만들려면 해당 타임스탬프에서 모든 체인의 상태가 크로스체인 메시지를 포함하여 검증되어야 합니다. [op-supernode](/ko/op-stack/interop/supernode#safe-heads-advance-together)는 set에 속한 모든 체인의 safe head와 finalized head를 함께 진행시키므로, 제안할 수 있는 최신 super root는 가장 뒤처진 체인에 의해 결정됩니다. 한 체인의 batcher가 멈추면 set 전체의 새 제안이 멈추고, 더 새로운 제안을 기다리는 출금도 함께 멈춥니다.
+
+## 공유 컨트랙트 {#shared-contracts}
+
+interop set에 속한 체인들은 다음 L1 컨트랙트를 공유합니다.
+
+| 컨트랙트 | 공유 여부 | 결과 |
+| --- | --- | --- |
+| `DisputeGameFactory` | 공유 | set 전체에 하나의 게임 시퀀스와 하나의 게임 유형 구성이 적용됩니다. 즉, 하나의 `absolutePrestate`, 하나의 verifier, 한 쌍의 기간(duration), 하나의 bond 집합을 사용합니다. |
+| `AnchorStateRegistry` | 공유 | 앵커 상태, respected game type, 블랙리스트, retirement 타임스탬프가 하나씩만 존재합니다. Guardian은 모든 체인에 대해 한 번에 게임을 블랙리스트에 등록하거나 retire합니다. |
+| `DelayedWETH` | 공유 | set의 모든 게임에 하나의 bond 풀과 하나의 출금 지연이 적용됩니다. |
+| `ETHLockbox` | 공유 | 모든 체인의 입금(디파짓)과 출금에 하나의 ETH 풀이 사용됩니다. |
+| `OptimismPortal`, `SystemConfig` | 체인별 | 각 체인은 자체 portal을 유지합니다. portal은 공유 게임에서 자기 체인의 output root를 읽고, ETH는 공유 `ETHLockbox`에 보관합니다. |
+
+컨트랙트가 공유되므로 다음과 같은 결과가 따릅니다.
+
+*   어느 멤버 체인에서든 `OPContractsManager` 업그레이드를 실행하면 set 전체의 컨트랙트가 업그레이드됩니다.
+*   모든 멤버는 공유 `ETHLockbox`를 통해 일시 중지 상태와 Guardian을 결정하므로, 한 번의 일시 중지가 set 전체에 적용됩니다.
+*   모든 멤버는 동일한 `AnchorStateRegistry` 최종성 지연(finality delay)과 `DelayedWETH` 출금 지연을 사용합니다. 증명 성숙 지연(proof maturity delay)은 각 portal이 자체적으로 유지합니다.
+
+유동성을 공유한다는 것은 위험도 공유한다는 의미입니다. 한 체인의 output root를 잘못 증명한 게임이 있으면 해당 체인의 portal이 `ETHLockbox`에서 ETH를 인출할 수 있게 되는데, 이 `ETHLockbox`에는 set에 속한 모든 체인의 ETH가 보관되어 있습니다. 증명 시스템의 [건전성(soundness)](/ko/op-stack/zk-proofs/security#soundness)과 이를 뒷받침하는 안전장치는 모든 체인의 자금을 한꺼번에 보호합니다.
+
+## 모든 체인에 대한 하나의 증명 {#one-proof-for-every-chain}
+
+interop set에 대한 증명은 모든 체인을 다시 도출하고 실행한 다음, 체인 간 크로스체인 메시지를 검사합니다. [프로그램](/ko/op-stack/zk-proofs/proof-system#the-programs)은 단일 체인의 경우와 동일합니다. 체인이 늘어나면 다음이 달라집니다.
+
+*   **range 증명은 체인별로 나눌 수 있습니다.** range 증명은 모든 체인을 다룰 수도 있고 일부 체인만 다룰 수도 있습니다. 따라서 한 타임스탬프의 도출과 실행이 하나의 요청으로 처리하기에 너무 크면 proposer는 이를 체인 단위로 나눌 수 있습니다.
+*   **consolidation은 나눌 수 없습니다.** 한 체인의 메시지가 set의 다른 어떤 체인에도 의존할 수 있으므로, consolidation 증명은 각 타임스탬프에서 항상 모든 체인을 다룹니다. 한 타임스탬프의 consolidation이 proposer가 해당 타임스탬프에 대해 만들 수 있는 가장 작은 요청입니다.
+*   **비용은 set의 크기에 따라 증가합니다.** 체인이 하나 추가될 때마다 도출하고 실행해야 할 블록이 늘어나고, 크로스체인 메시지 하나마다 consolidation에서 검사가 하나씩 추가됩니다. 공격자는 크로스체인 메시지를 포함하여 증명 비용이 큰 트랜잭션으로 set에 속한 어느 체인의 블록이든 채울 수 있습니다.
+
+따라서 증명 기간(prove window)인 `maxProveDuration`은 단일 체인이 아니라 set 전체의 최악의 증명 시간을 수용할 수 있도록 여유 있게 설정해야 합니다. [증명 생성 과정](/ko/op-stack/zk-proofs/proof-system#how-a-proof-is-built)과 [완전성](/ko/op-stack/zk-proofs/security#completeness)을 참고하십시오.
+
+## prestate가 체인 set을 고정합니다 {#the-prestate-pins-the-chain-set}
+
+증명 프로그램은 프로그램에 컴파일되어 포함된 레지스트리에서만 체인 구성을 읽으며, 여기에는 interop set의 종속성 집합도 포함됩니다. 게임의 시작 super root에 포함된 체인 set은 컴파일된 종속성 집합과 같아야 하며, 그렇지 않으면 프로그램이 증명을 거부합니다. 따라서 [`absolutePrestate`](/ko/op-stack/zk-proofs/proof-system#absolute-prestate)는 해당 prestate의 증명이 다룰 수 있는 정확한 체인 set을 식별합니다.
+
+이로부터 두 가지 결과가 따릅니다.
+
+*   **체인 set은 고정되어 있습니다.** 종속성 집합을 변경하려면 새 프로그램과 `absolutePrestate`에 대한 거버넌스 변경이 필요합니다. 새 prestate만으로는 충분하지 않으며, L1 컨트랙트도 set 변경을 지원하지 않습니다. 멤버십은 영구적이며, 기존 set에 체인을 추가하거나, set을 분할하거나, set에서 체인을 제거하는 방법은 지원되지 않습니다.
+*   **커스텀 interop set에는 자체 빌드가 필요합니다.** 표준 prestate는 릴리스 시점에 superchain-registry에 있는 종속성 집합을 다룹니다. 종속성 집합이 레지스트리에 없는 set은 자체 구성으로 프로그램을 빌드해야 합니다. [커스텀 체인용 prestate 빌드하기](/ko/chain-operators/tutorials/zk-prestate#build-a-prestate-for-a-custom-chain)를 참고하십시오.
+
+## set을 위한 오프체인 서비스 {#off-chain-services-for-a-set}
+
+서비스는 단일 체인의 경우와 동일하며, set 전체에 대해 한 번만 실행합니다.
+
+*   **하나의 `op-zk-proposer`**가 공유 `DisputeGameFactory`에서 set의 게임을 제안하고 방어합니다. 이 proposer는 set의 모든 체인을 추적하는 [`op-supernode`](/ko/node-operators/guides/configuration/supernode)에서 super root를 읽으며, 증명이 읽는 데이터를 수집하기 위해 체인마다 L2 실행 node가 필요합니다. [op-zk-proposer 구성](/ko/chain-operators/guides/configuration/zk-proposer)을 참고하십시오.
+*   **`op-challenger`**는 자체 `op-supernode`를 기준으로 모든 게임을 검사하며, 이 `op-supernode`도 set의 모든 체인을 추적해야 합니다. 한 체인이라도 누락된 소스는 다른 super root를 계산하게 되어 유효한 제안에 이의를 제기합니다. [ZK 분쟁 게임을 위한 op-challenger 구성](/ko/chain-operators/guides/configuration/zk-challenger)을 참고하십시오.
+*   **`op-dispute-mon`**은 공유 `DisputeGameFactory`를 모니터링합니다. [체인 모니터링](/ko/chain-operators/tools/chain-monitoring#dispute-mon)을 참고하십시오.
+
+제안, 증명, 이의 제기는 모두 무허가(permissionless)로 이루어지므로, 어느 멤버 체인의 운영자든 또는 그 외의 누구든 set을 위해 이 서비스를 실행할 수 있습니다.
+
+## ZK 증명으로 interop set 구성하기 {#form-an-interop-set-with-zk-proofs}
+
+독립된 체인들은 `OPContractsManagerMigrator.migrate()`로 interop set이 됩니다. 마이그레이션은 한 번만 수행되며 되돌릴 수 없고, set에 합류하는 모든 체인을 한 번의 호출로 처리합니다. 마이그레이션은 공유 `DisputeGameFactory`, `AnchorStateRegistry`, `ETHLockbox`를 배포하고, 체인 ID가 가장 낮은 체인의 `DelayedWETH`를 공유 `DelayedWETH`로 재사용하며, 각 체인의 portal과 ETH를 이들 컨트랙트로 옮깁니다. 체인 간에 최종성 지연이나 `DelayedWETH` 출금 지연이 서로 다르면 revert됩니다.
+
+마이그레이션은 set의 시작 앵커 상태, 즉 첫 번째 게임이 기반으로 삼을 super root도 설정합니다. 컨트랙트는 이 super root를 L2 상태와 대조하여 검사할 수 없으므로, 서명하기 전에 직접 운영하는 `op-supernode`와 대조하여 검증하십시오.
+
+`migrate()`는 새 공유 `DisputeGameFactory`에 `ZK_DISPUTE_GAME`을 등록할 수 있지만, 이를 respected game type으로 지정할 수는 없습니다. 시작 respected game type은 `SUPER_CANNON_KONA` 또는 `SUPER_PERMISSIONED`여야 합니다. 이후 set을 ZK 증명으로 전환하려면 다음 중 하나를 수행합니다.
+
+*   [ZK 증명으로 마이그레이션](/ko/chain-operators/tutorials/migrate-to-zk-proofs#build-the-upgrade)에서처럼 `overrides.cfg.startingRespectedGameType` 지시와 함께 아무 멤버 체인에서 `OPContractsManager.upgrade()`를 실행합니다.
+*   Guardian이 공유 `AnchorStateRegistry`에서 `setRespectedGameType(10)`을 호출합니다.
+
+이미 컨트랙트를 공유하고 있는 set도 같은 방식으로, 멤버 체인에서 `upgrade()`를 실행하여 `ZK_DISPUTE_GAME`을 등록합니다. 어느 경우든 ZK가 respected game type이 되기 전에 set 전체를 위한 자금이 충전된 proposer와 challenger를 실행하십시오.
+
+공유 `AnchorStateRegistry`는 retirement 타임스탬프가 마이그레이션 블록으로 설정된 상태로 시작하므로, `migrate()`는 그 이전에 생성된 모든 게임을 retire합니다. 마이그레이션 전에 증명된 출금은 공유 `DisputeGameFactory`의 게임을 기준으로 다시 증명해야 하며, 새로운 증명 성숙 지연을 기다려야 합니다. 마이그레이션 시점에 진행 중이던 게임은 여전히 각 체인의 기존 컨트랙트를 기준으로 resolve되며, 해당 bond도 여전히 청구할 수 있습니다. 나중에 respected game type을 전환하는 것은 게임을 retire하지 않습니다.
+
+두 체인에 대한 `migrate()` 단계는 [두 체인을 공유 분쟁 게임으로 병합하기](/ko/chain-operators/tutorials/merge-shared-dispute-game)를 참고하십시오. 규범적 규칙은 [마이그레이션 명세의 Path C](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs#path-c-interop-set-shared-contracts)를 참고하십시오.
+
+## 다음 단계 {#next-steps}
+
+*   프로그램이 증명을 생성하는 방식은 [ZK 증명 시스템](/ko/op-stack/zk-proofs/proof-system)을 읽어 보십시오.
+*   set을 보호하는 안전장치는 [ZK 증명 보안](/ko/op-stack/zk-proofs/security)을 읽어 보십시오.
+*   크로스체인 메시지의 작동 방식은 [interop 설명](/ko/op-stack/interop/explainer)을 읽어 보십시오.

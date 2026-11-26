@@ -5,7 +5,7 @@ diataxis: explanation
 ---
 
 import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
-import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+import ZkProofsStatus from "/ko/snippets/zk-proofs-status.mdx"
 
 <NormativeSpec
   what="ZK 분쟁 게임의 수명 주기와 bond 회계"
@@ -65,7 +65,7 @@ proposer는 게임을 생성할 때 init bond를 예치합니다. challenger는 
 *   proposer가 승리하면 자신의 bond를 돌려받고, 게임에 이의가 제기되었다면 challenger의 bond도 받습니다.
 *   challenger가 승리하면 두 bond를 모두 받습니다.
 *   proposer가 아닌 다른 사람이 이의가 제기된 게임을 증명하면, 증명자(prover)는 challenger의 bond를 받고 proposer는 자신의 bond를 돌려받습니다. 이는 유효한 제안을 방어하는 누구에게나 보상을 제공합니다.
-*   게임이 부모의 패배만으로 패배했고 아무도 이의를 제기하지 않았다면, 누구도 해당 bond를 청구할 수 없습니다. 게임은 이를 `address(0)`에 귀속시킵니다.
+*   게임이 부모의 패배만으로 패배했고 아무도 이의를 제기하지 않았다면, 게임은 해당 bond를 `address(0)`에 귀속시키므로 어떤 참여자도 이를 청구할 수 없습니다. `ProxyAdmin` 소유자는 `hold()`와 `recover()`를 사용하여 `DelayedWETH`에서 이를 회수할 수 있습니다.
 
 bond는 게임이 아니라 `DelayedWETH`에 보관됩니다. 게임이 해결되고 최종성 지연(finality delay)이 지나면 누구나 게임을 종결(close)할 수 있으며, 첫 번째 bond 청구도 게임을 종결합니다. 종결 시점에 bond를 정상적으로 지급할지 환불할지가 결정됩니다. Guardian이 블랙리스트에 등록했거나 폐기한 게임은 승자에게 지급하는 대신 각 당사자에게 자신의 bond를 환불합니다. 청구는 두 단계로 이루어집니다. 첫 번째 청구는 `DelayedWETH`의 자금 잠금을 해제하고, `DelayedWETH` 지연 기간이 지난 후의 두 번째 청구로 자금을 인출합니다.
 

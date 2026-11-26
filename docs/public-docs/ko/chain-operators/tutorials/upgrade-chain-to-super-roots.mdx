@@ -10,7 +10,7 @@ import { SuperchainOpsPrereqs } from "/ko/snippets/superchain-ops-prereqs.mdx"
 
 # 체인을 Output Root에서 Super Root로 업그레이드하기
 
-<Warning>이 가이드는 아직 개발 중인 interop 기능에 의존합니다. 프로덕션 체인에서는 이 가이드를 따르지 마십시오.</Warning>
+<Note>이 가이드는 현재 활발히 개발 중인 interop에 의존하며, interop은 [Upgrade 22](/ko/notices/upgrade-22)와 함께 프로덕션 체인에서 사용할 수 있게 됩니다.</Note>
 
 이 런북은 단일 OP Stack 체인을 output-root 분쟁 게임(dispute game)(`PERMISSIONED_CANNON`, `CANNON` 또는 `CANNON_KONA`)에서 super-root 분쟁 게임(`SUPER_PERMISSIONED` 또는 `SUPER_CANNON_KONA`)으로 업그레이드하는 과정을 안내합니다. 이 작업은 체인의 기존 체인별 `AnchorStateRegistry`와 `DisputeGameFactory`를 대상으로 하는 단일 `opcm.upgrade` 호출로 실행됩니다. 체인의 권한 모델은 그대로 유지됩니다. permissioned 체인은 `SUPER_PERMISSIONED`만 사용하는 permissioned 상태를 유지하고, permissionless 체인은 두 super game type을 모두 실행하며 `SUPER_CANNON_KONA`를 respected game type으로 사용합니다. 둘 사이의 차이점은 본문 중에 별도로 언급합니다.
 

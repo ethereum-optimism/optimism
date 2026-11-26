@@ -5,7 +5,7 @@ diataxis: explanation
 ---
 
 import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
-import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+import ZkProofsStatus from "/ko/snippets/zk-proofs-status.mdx"
 
 <NormativeSpec
   what="ZK 증명 프로그램과 그 verifier"
@@ -44,7 +44,7 @@ prover의 주소는 public value에 포함되므로, 증명은 해당 증명이 
 
 최종 aggregation 증명은 PLONK 증명으로 감싸집니다. PLONK 증명은 크기가 작고 L1에서 저렴하게 검증할 수 있습니다.
 
-interop set에 속하지 않은 체인은 체인 하나로 이루어진 set을 가지며, 동일한 프로그램을 실행합니다. 이 경우 consolidation에서 검사할 크로스체인 메시지가 없습니다.
+interop set에 속하지 않은 체인은 체인 하나로 이루어진 set을 가지며, 동일한 프로그램을 실행합니다. 이 경우 consolidation에서 검사할 크로스체인 메시지가 없습니다. set의 크기에 따라 증명 비용이 어떻게 증가하는지는 [Interop set을 위한 ZK 증명](/ko/op-stack/zk-proofs/interop-sets#one-proof-for-every-chain)을 참고하십시오.
 
 ## 증명 생성 과정 {#how-a-proof-is-built}
 
@@ -75,7 +75,7 @@ verification key는 프로그램의 컴파일된 바이너리에서 도출됩니
 
 게임은 특정 증명 시스템에 의존하지 않습니다. 게임은 범용 `IZKVerifier` 인터페이스를 통해 verifier 컨트랙트를 호출합니다. 이 인터페이스는 프로그램 식별자, public value, 증명을 입력받으며 증명이 유효하지 않으면 revert합니다.
 
-SP1의 경우 verifier는 `SP1PlonkAdapter`입니다. 이는 Succinct의 감사를 마친 [SP1 PLONK verifier](https://github.com/succinctlabs/sp1-contracts)를 호출하여 `IZKVerifier`를 구현하는 작은 컨트랙트입니다. SP1 SDK로 생성된 증명은 동일한 PLONK 회로에 대한 verifier에서만 검증되므로, proposer는 증명에 비용을 쓰기 전에 각 게임의 verifier가 자신의 SDK와 일치하는지 확인합니다.
+SP1의 경우 verifier는 `SP1PlonkAdapter`입니다. 이는 Succinct의 [SP1 PLONK verifier](https://github.com/succinctlabs/sp1-contracts)([감사 보고서](https://github.com/succinctlabs/sp1-contracts/tree/main/audits))를 호출하여 `IZKVerifier`를 구현하는 작은 컨트랙트입니다. SP1 SDK로 생성된 증명은 동일한 PLONK 회로에 대한 verifier에서만 검증되므로, proposer는 증명에 비용을 쓰기 전에 각 게임의 verifier가 자신의 SDK와 일치하는지 확인합니다.
 
 verifier와 `absolutePrestate`는 체인별로 설정되며, 게임 구현을 다시 배포하지 않고도 변경할 수 있습니다. 이미 진행 중인 게임은 생성될 때의 verifier와 prestate를 그대로 유지합니다.
 

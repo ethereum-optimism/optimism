@@ -1,0 +1,284 @@
+---
+title: Upgrade 22
+description: Lagoon 하드포크와 OP Mainnet 및 Unichain 간 interop을 활성화하며, 마이그레이션 이전에 증명된 출금을 다시 증명해야 하는 Upgrade 22를 준비합니다. 이 업그레이드는 OP Stack에 Sequencer Defined Metering과 영지식(ZK) 분쟁 게임 타입도 도입합니다.
+lang: en-US
+diataxis: reference
+content_type: notice
+date: 2026-11-20
+topic: upgrade-22
+personas:
+  - chain-operator
+  - node-operator
+  - app-developer
+  - partner
+  - user
+categories:
+  - protocol-upgrades
+  - l1-contracts
+  - interop
+  - fault-proofs
+is_imported_content: 'false'
+---
+
+Upgrade 22는 `op-contracts/v10.0.0`을 배포하고 [Lagoon 하드포크](/ko/op-stack/protocol/hardforks/lagoon)를 활성화합니다.
+Lagoon은 **OP Mainnet**과 **Unichain** 간 [interop](/ko/op-stack/interop/explainer)을 활성화하며, testnet 쌍은 **OP Sepolia**와 **Unichain Sepolia**입니다.
+**Ink**와 **Soneium**(그리고 Ink Sepolia와 Soneium Minato)도 같은 타임스탬프에 Lagoon을 활성화하지만, interop은 활성화하지 않습니다.
+Lagoon은 [Sequencer Defined Metering](/ko/op-stack/features/sdm)도 활성화하며, Unichain은 사용자의 swap 비용을 낮추는 환불 정책(refund policy)을 도입할 예정입니다.
+Upgrade 22는 [ZK 분쟁 게임(dispute game)](/ko/op-stack/zk-proofs/zk-dispute-game)도 추가합니다. OP Mainnet과 Unichain은 활성화 직후 이를 respected game type으로 채택할 계획입니다.
+
+OP Mainnet과 Unichain(그리고 각 Sepolia 네트워크)은 두 단계로 업그레이드됩니다.
+
+1. L1 컨트랙트 업그레이드. OP Mainnet과 Unichain에서는 `OPContractsManagerV2.migrate`가 포함됩니다. 이 마이그레이션은 두 체인을 공유 dispute 컨트랙트로 이전합니다.
+2. 타임스탬프 기준으로 활성화되는 Lagoon 하드포크. Lagoon을 활성화하는 체인의 모든 node는 해당 타임스탬프 전에 Lagoon 릴리스를 실행해야 합니다.
+
+<Info>
+  이 공지는 잠정적인 내용입니다.
+  Mainnet 날짜는 Optimism Governance 승인에 따라 달라집니다.
+  Node 릴리스는 게시되었습니다. 결함 증명(fault proof) 및 proposer 구성 요소 버전과 prestate 해시는 해당 릴리스가 게시되면 추가됩니다.
+</Info>
+
+{/* TODO: Confirm whether Ink and Soneium also receive an L1 contract upgrade in Upgrade 22. */}
+
+<Warning>
+  **마이그레이션 이전에 증명된 출금은 다시 증명해야 합니다.**
+  OP Mainnet과 Unichain에서는 **2026년 12월 14일 월요일**에 실행되는 마이그레이션으로 최종 확정되지 않은 모든 출금 증명이 무효화됩니다.
+  OP Sepolia와 Unichain Sepolia에서는 마이그레이션이 **2026년 12월 8일 화요일**에 실행됩니다.
+  필요한 조치는 [사용자](#users)를 참조하세요.
+</Warning>
+
+## 포함 내용 {#what’s-included}
+
+### OP Mainnet과 Unichain 간 interop {#interop-between-op-mainnet-and-unichain}
+
+Lagoon 활성화 타임스탬프에 OP Mainnet과 Unichain은 두 체인으로 구성된 [dependency set](/ko/op-stack/interop/explainer)을 형성하며, OP Sepolia와 Unichain Sepolia도 마찬가지입니다.
+이후 각 체인은 상대 체인에서 시작된 메시지를 실행할 수 있습니다.
+dependency set은 [OP Mainnet](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/op.toml)과 [Unichain](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/unichain.toml)의 superchain-registry 체인 구성에 기록되어 있습니다.
+Ink와 Soneium에는 interop 의존성이 없으므로, Lagoon이 이 체인들의 크로스체인 메시징을 활성화하지는 않습니다.
+
+OP Mainnet, Unichain, OP Sepolia, Unichain Sepolia의 node 운영자는 활성화 전에 supernode 토폴로지로 전환해야 합니다.
+이 전환에 대한 체크리스트는 [Interop 활성화 준비](/ko/notices/interop-prep) 공지에 있으며, 이 공지에서는 해당 내용을 반복하지 않습니다.
+
+### 공유 dispute 컨트랙트 {#shared-dispute-contracts}
+
+Lagoon이 활성화되기 전에 `OPContractsManagerV2.migrate`가 단일 L1 트랜잭션으로 OP Mainnet과 Unichain을 하나의 interop set으로 병합합니다.
+이 함수는 공유 `ETHLockbox`, `DisputeGameFactory`, `AnchorStateRegistry`를 배포하고, 각 체인의 ETH를 공유 lockbox로 이동하며, 각 `OptimismPortal`이 공유 컨트랙트를 가리키도록 설정합니다.
+새 제안(proposal)은 공유 `DisputeGameFactory`에 대한 super-root 클레임이 됩니다.
+전체 흐름은 [공유 dispute game 런북](/ko/chain-operators/tutorials/merge-shared-dispute-game)에서 설명합니다.
+
+마이그레이션 이후 `OptimismPortal2`는 공유 factory에 등록된 분쟁 게임만 허용합니다.
+체인의 이전 factory에 있는 게임을 기준으로 증명된 출금은 더 이상 최종 확정할 수 없으므로 다시 증명해야 합니다.
+
+### 메시지 만료 {#message-expiry}
+
+`L2ToL2CrossDomainMessenger`는 interop 메시지가 8일 동안 전달되지 않으면 해당 메시지를 만료된 것으로 표시할 수 있습니다.
+새로운 `UndeliveredMessageExporter` predeploy(`0x4200000000000000000000000000000000000030`)와 `L1CrossDomainMessenger.relayUndeliveredMessage`가 만료 정보를 출발 체인으로 전달하며, `SuperchainETHBridge.refundETH`는 만료된 전송의 ETH를 발신자에게 반환합니다.
+작동 방식과 [알려진 제한 사항](/ko/app-developers/guides/interoperability/message-expiration#known-limitations)은 [메시지 만료](/ko/app-developers/guides/interoperability/message-expiration)를 참조하세요.
+
+### interop ETH bridge의 L2 일시 중지 {#l2-pause-for-the-interop-eth-bridge}
+
+이제 [일시 중지 기능](/ko/op-stack/security/pause#pause-functionality)이 `ETHLiquidity`에도 적용됩니다.
+누구나 `L1CrossDomainMessenger.syncETHLiquidityPause()`를 호출하여 L1 일시 중지 상태를 L2로 복사할 수 있으며, 일시 중지된 동안 `ETHLiquidity`는 `burn`과 `mint`를 차단합니다.
+
+### Post-execution 트랜잭션과 Sequencer Defined Metering {#post-execution-transactions-and-sequencer-defined-metering}
+
+Lagoon은 sequencer가 블록의 마지막 트랜잭션으로 추가하는 EIP-2718 트랜잭션 타입 `0x7D`인 [post-execution 트랜잭션](https://specs.optimism.io/protocol/lagoon/post-exec.html)을 추가합니다.
+첫 번째 용도는 [sequencer defined metering](/ko/op-stack/features/sdm)(SDM)으로, sequencer가 블록 내 트랜잭션에 gas를 리베이트할 수 있게 합니다.
+활성화 시점부터 블록은 `0x7D` 트랜잭션으로 끝날 수 있으며, receipt에는 `opGasRefund` JSON-RPC 필드가 추가됩니다.
+sequencer는 운영자가 옵트인(opt-in)한 후에만 리베이트를 지급합니다.
+
+Unichain은 SDM을 처음으로 채택하는 체인이 되며, Uniswap 프로토콜의 swap 비용을 낮추는 [환불 정책](/ko/chain-operators/guides/features/sequencer-defined-metering#refund-policies-and-op-enterprise)을 적용할 예정입니다.
+
+### BLS12-381 precompile 입력 제한 {#bls12-381-precompile-input-limits}
+
+BLS12-381 precompile의 [최대 입력 크기](https://specs.optimism.io/protocol/lagoon/exec-engine.html)가 줄어듭니다.
+
+| Precompile | Lagoon 이전 | Lagoon 이후 |
+| --- | --- | --- |
+| `BLS12-381 G1 MSM` | 288,960바이트(1,806쌍) | 130,720바이트(817쌍) |
+| `BLS12-381 G2 MSM` | 278,784바이트(968쌍) | 130,752바이트(454쌍) |
+| `BLS12-381 Pairing` | 156,672바이트(408쌍) | 130,560바이트(340쌍) |
+
+### 체인별 출금 지연 {#per-chain-withdrawal-delays}
+
+이제 출금 지연 시간은 컨트랙트 구현에 고정되는 대신 체인별로 저장됩니다.
+업그레이드 후 체인의 L1 ProxyAdmin 소유자는 다음 범위 내에서 각 지연 시간을 변경할 수 있습니다.
+
+| 지연 | Setter | 범위 |
+| --- | --- | --- |
+| 증명 성숙 지연(proof maturity delay) | `OptimismPortal2.setProofMaturityDelaySeconds` | 1일~7일 |
+| 분쟁 게임 최종성 지연(dispute game finality delay) | `AnchorStateRegistry.setDisputeGameFinalityDelaySeconds` | 12시간~3.5일 |
+| 본드 출금 지연(bond withdrawal delay) | `DelayedWETH.setDelay` | 12시간~7일 |
+
+* 업그레이드는 각 체인의 현재 지연 시간을 변경 없이 새 컨트랙트로 이전합니다. 이후에는 이 setter를 통해서만 변경됩니다.
+* 새 값은 이미 증명된 출금과 이미 resolve된 게임에도 즉시 적용됩니다.
+* OP Mainnet과 Unichain에서는 공유 `AnchorStateRegistry`와 `DelayedWETH`가 두 체인에 대해 하나의 최종성 지연과 하나의 본드 출금 지연을 보유합니다. 각 체인의 `OptimismPortal2`는 자체 증명 성숙 지연을 유지합니다.
+* 증명 성숙 지연을 줄인다고 해서 모든 출금이 빨라지는 것은 아닙니다. 출금은 분쟁 게임이 resolve되고 최종성 지연이 지날 때까지도 기다려야 합니다.
+
+### 기타 컨트랙트 변경 사항 {#other-contract-changes}
+
+* `L2ERC721Bridge`가 과거의 모든 `OptimismMintableERC721` 인터페이스 ID를 허용합니다. 이전에 실패했던 구형 L2 NFT 토큰으로의 입금(디파짓)을 이제 재생(replay)할 수 있습니다.
+
+전체 목록과 컨트랙트 버전은 [`op-contracts/v10.0.0` 릴리스 노트](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv10.0.0)를 참조하세요.
+
+### OP Mainnet과 Unichain의 ZK 증명 {#zk-proofs-on-op-mainnet-and-unichain}
+
+Lagoon이 활성화된 후 OP Mainnet과 Unichain은 [ZK 분쟁 게임](/ko/op-stack/zk-proofs/zk-dispute-game)(`ZK_DISPUTE_GAME`, game type `10`)을 respected game type으로 전환할 계획입니다.
+이는 하드포크 및 마이그레이션과는 별개의 L1 업그레이드입니다.
+OP Sepolia와 Unichain Sepolia에서는 **2026년 12월 11일 금요일**, OP Mainnet과 Unichain에서는 **2027년 1월 14일 목요일**로 예정되어 있습니다. [업그레이드 일정](#upgrade-timing)을 참조하세요.
+낙관적(optimistic) ZK 증명이 출금을 보호하는 방식은 [ZK 증명 설명](/ko/op-stack/zk-proofs/explainer)을 참조하세요.
+
+이 전환으로 인해 출금을 다시 증명할 필요는 없습니다.
+전환 이전에 생성된 게임은 원래 구현을 유지하며 이전과 같이 resolve되고, 해당 게임을 기준으로 증명된 출금은 계속 유효합니다.
+
+OP Mainnet과 Unichain의 서드파티 `op-challenger` 운영자는 전환이 실행될 때 `zk` game type을 추가하고, 이전의 모든 게임이 resolve될 때까지 `--game-types`에 `super-cannon-kona`를 유지합니다.
+[ZK 분쟁 게임을 위한 op-challenger 구성](/ko/chain-operators/guides/configuration/zk-challenger)과 [ZK 증명으로 마이그레이션](/ko/chain-operators/tutorials/migrate-to-zk-proofs#verify-after-the-migration)을 참조하세요.
+
+{/* TODO: add the op-challenger version that ships the zk game type. */}
+
+## 필요한 조치 {#required-actions}
+
+### 사용자 {#users}
+
+**OP Mainnet** 또는 **Unichain**(또는 OP Sepolia나 Unichain Sepolia)에서 마이그레이션 실행 시점에 증명은 되었지만 최종 확정되지 않은 출금이 있다면, 마이그레이션 후 다시 증명하고 최종 확정 전에 증명 성숙 지연 시간을 다시 기다려야 합니다.
+지연 시간은 원래 증명이 아니라 새 증명 시점부터 계산됩니다.
+공유 `DisputeGameFactory`에 해당 출금을 포함하는 게임이 생기면 다시 증명할 수 있습니다.
+공유 factory의 첫 번째 게임은 마이그레이션의 시작 anchor보다 이후의 타임스탬프를 제안해야 하므로, 마이그레이션 후 새 proposer가 시작되는 동안 잠시 공백이 생길 수 있습니다.
+
+마이그레이션 이전에 최종 확정된 출금은 영향을 받지 않습니다.
+마이그레이션 이후에 시작된 출금은 영향을 받지 않습니다.
+Ink와 Soneium의 출금은 영향을 받지 않습니다.
+
+### 앱 개발자 및 인프라 통합 업체 {#app-developers-and-infrastructure-integrators}
+
+통합이 다음 중 하나에 해당하는 경우 업데이트해야 합니다.
+
+* **OP Mainnet 또는 Unichain의 출금을 증명하거나 최종 확정하는 경우.** 마이그레이션 후에는 저장된 주소 대신 `OptimismPortal2.disputeGameFactory()`에서 분쟁 게임 factory를 읽고, 공유 factory의 super-root 게임을 기준으로 증명하며, `rootClaimByChainId(uint256)`를 사용하여 체인의 output root를 가져옵니다. 마이그레이션 이전의 최종 확정되지 않은 증명이 있는 사용자에게 다시 증명하도록 안내합니다.
+* **출금에 `viem/op-stack`을 사용하는 경우.** 해당 네트워크의 마이그레이션 전에 [`viem@2.58.4`](https://github.com/wevm/viem/releases/tag/viem%402.58.4) 이상으로 업그레이드합니다. 이 버전은 portal에서 분쟁 게임 factory를 읽고, ZK 분쟁 게임(game type `10`)을 super-root 게임으로 처리하며, `opGasRefund` receipt 필드를 포맷합니다. 이전 버전은 계속 체인별 이전 factory에서 게임을 찾기 때문에, 마이그레이션 후 `waitToProve`가 끝나지 않습니다. viem의 출금 액션에 하드코딩된 `disputeGameFactoryAddress`를 전달하지 마세요. 명시적 주소는 viem이 portal에서 읽은 주소보다 우선하므로, 저장된 체인별 factory 주소는 마이그레이션 후에도 계속 이전 factory를 가리킵니다. viem은 아직 트랜잭션 타입 `0x7D`에 대한 타입을 제공하지 않습니다.
+* **블록, 트랜잭션 또는 receipt를 파싱하는 경우.** 블록의 마지막 트랜잭션인 트랜잭션 타입 `0x7D`와 `opGasRefund` receipt 필드를 처리합니다. 트랜잭션 구조는 [Lagoon에서 변경되는 사항](/ko/op-stack/features/sdm#what-changes-at-lagoon)을 참조하세요.
+* **출금 대기 시간을 표시하는 경우.** 7일과 3.5일로 가정하는 대신 `OptimismPortal2`에서 `proofMaturityDelaySeconds()`를, `AnchorStateRegistry`에서 `disputeGameFinalityDelaySeconds()`를 읽습니다. 이 값은 체인마다 다를 수 있으며, 이미 증명된 출금에 대해서도 변경될 수 있습니다. `ProofMaturityDelaySecondsSet` 및 `DisputeGameFinalityDelaySecondsSet` 이벤트가 변경을 알립니다. viem의 `getTimeToFinalize`는 이미 두 값을 온체인에서 읽습니다.
+* 새 제한을 초과하는 입력으로 **BLS12-381 precompile을 호출하는 경우.**
+* **OP Mainnet과 Unichain 간에 interop 메시지나 ETH를 전송하는 경우.** `expiredMessages(messageHash)` 또는 `MessageExpired` 이벤트로 만료를 처리하고, 만료된 ETH 전송은 `SuperchainETHBridge.refundETH`로 환불합니다.
+
+### 노드 운영자 {#node-operators}
+
+Lagoon을 활성화하는 체인의 모든 node를 활성화 타임스탬프 전에 Lagoon 릴리스로 업그레이드합니다.
+
+**OP Mainnet**, **Unichain**, **OP Sepolia**, **Unichain Sepolia**에서는 [Interop 활성화 준비](/ko/notices/interop-prep) 체크리스트도 완료해야 합니다. 두 체인에 대해 op-supernode를 실행하고, 모든 op-node를 이를 따르는 Light CL로 실행합니다.
+
+| 구성 요소 | 버전 | 대상 | 조치 |
+| --- | --- | --- | --- |
+| `op-node` | [v1.21.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.21.0) | Lagoon을 활성화하는 모든 체인 | 활성화 전에 업그레이드합니다. OP Mainnet과 Unichain에서는 op-supernode를 따르는 Light CL로 실행합니다. |
+| `op-reth` | [v2.10.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-reth%2Fv2.10.0) | Lagoon을 활성화하는 모든 체인 | 활성화 전에 업그레이드합니다. |
+| `op-supernode` | [v1.2.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-supernode%2Fv1.2.0) | OP Mainnet, Unichain, OP Sepolia, Unichain Sepolia | 활성화 전에 실행하여 쌍을 이루는 두 체인을 모두 derive합니다. [Interop 활성화 준비](/ko/notices/interop-prep)를 참조하세요. |
+
+### 체인 운영자 {#chain-operators}
+
+sequencer와 기타 node를 [노드 운영자](#node-operators)에 나열된 Lagoon 릴리스로 업그레이드하고, 다음 체인 운영자 구성 요소도 업그레이드합니다.
+
+{/* TODO: fill versions once the U22 releases are cut. The op-challenger release must include the ZK bond-claiming fix (optimism#24331, open as of 2026-11-23); without it, op-challenger never sends the second claimCredit and its ZK bonds are never withdrawn from DelayedWETH. The op-dispute-mon release must include the fix for false "credit withdrawn early" alerts on ZK bonds. Add the op-proposer release tagged for U22. */}
+
+| 구성 요소 | 버전 | 대상 | 조치 |
+| --- | --- | --- | --- |
+| `op-batcher` | [v1.19.0](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.19.0) | Lagoon을 활성화하는 모든 체인 | v1.16.10 이후 릴리스는 이미 `0x7D` 트랜잭션을 배치합니다. v1.19.0을 권장하며, 업그레이드 전에 breaking change를 확인하세요. |
+| `op-challenger` | 게시 예정 | Lagoon을 활성화하는 permissionless 체인, 그리고 OP Mainnet과 Unichain의 challenger | Lagoon prestate를 위해 활성화 전에 업그레이드합니다. OP Mainnet과 Unichain에서는 challenger가 ZK 본드를 청구할 수 있도록 [ZK 전환](#zk-proofs-on-op-mainnet-and-unichain) 전에 이 릴리스가 필요하며, 전환 시점에 `zk` game type을 추가합니다. |
+| `op-dispute-mon` | 게시 예정 | OP Mainnet과 Unichain의 분쟁 게임을 모니터링하는 모든 사용자 | ZK 전환 전에 필요합니다. 공유 factory에서 ZK 게임을 자동으로 찾으므로 별도의 구성 변경은 필요하지 않습니다. |
+| `op-proposer` | 게시 예정 | OP Mainnet과 Unichain의 체인 운영자 | 마이그레이션부터 ZK 전환까지 공유 factory에서 두 체인을 위한 공유 `op-proposer` 하나를 game type `9`와 op-supernode의 root 엔드포인트로 실행합니다. [단일 공유 op-proposer로 전환](/ko/chain-operators/tutorials/merge-shared-dispute-game#cut-over-to-a-single-shared-op-proposer)을 참조하세요. |
+| `op-zk-proposer` | 게시 예정 | OP Mainnet과 Unichain의 체인 운영자 | ZK 전환 시점부터 ZK proposer를 실행합니다. [op-zk-proposer 구성](/ko/chain-operators/guides/configuration/zk-proposer)을 참조하세요. |
+
+* 활성화 후 SDM 리베이트를 지급하려면 [SDM 운영자 가이드](/ko/chain-operators/guides/features/sequencer-defined-metering)를 따르세요.
+* 업그레이드 후 출금 지연 시간을 변경하려면 L1 ProxyAdmin 소유자가 [체인별 출금 지연](#per-chain-withdrawal-delays)에 나열된 setter를 호출해야 합니다. `StandardValidator`는 범위 내의 모든 값을 허용합니다. OP Mainnet과 Unichain에서는 최종성 지연과 본드 출금 지연이 두 체인에 공유됩니다.
+* Lagoon은 superchain-registry에서 체인별로 예약되며, superchain 전체의 기본값이 아닙니다. 이 공지에 명시된 체인 외의 체인은 Upgrade 22와 함께 Lagoon을 활성화하도록 예약되어 있지 않습니다.
+
+#### permissionless 결함 증명 체인의 경우 {#for-permissionless-fault-proof-chains}
+
+Lagoon은 결함 증명 프로그램을 변경하므로, Lagoon을 활성화하는 모든 permissionless 체인은 Lagoon `kona-client` 릴리스로 빌드한 새 absolute prestate가 필요합니다.
+하드포크는 respected game type을 변경하지 않습니다. permissionless 체인에서 `OP_PROPOSER_GAME_TYPE`은 `9`(`SUPER_CANNON_KONA`)로 유지됩니다.
+
+* **OP Mainnet과 Unichain**은 마이그레이션 시점에 공유 `DisputeGameFactory`로 이전합니다. Optimism이 거버넌스 업그레이드의 일부로 interop prestate를 온체인에 설정합니다. 서드파티 `op-challenger` 및 `op-dispute-mon` 운영자는 마이그레이션 후 두 세트의 인스턴스를 실행합니다.
+  * **각 체인의 이전 factory에 대해 체인별로 하나씩 유지합니다.** 마이그레이션은 이전 factory의 게임 구현을 제거하므로 그곳에서 새 게임은 생성되지 않지만, 이미 진행 중인 게임은 이전 `AnchorStateRegistry`와 `DelayedWETH`를 통해 계속 resolve되고 본드를 지급합니다. `--game-factory-address`를 이전 factory로 설정하고, `--superroot-rpc`가 op-supernode의 `/<chainID>` 경로를 가리키도록 합니다. Light CL op-node를 소스로 사용하지 마세요. Light CL은 safe head를 derive한 L1 블록 없이 기록하므로, challenger가 게임의 L1 head 시점에 어떤 root가 derive 가능했는지 판단할 수 없습니다. 이 인스턴스에는 op-supernode의 root 엔드포인트를 사용하지 마세요. 이 엔드포인트는 두 체인에 대한 super root를 반환합니다. 게임이 resolve되고 본드가 청구되면 이 인스턴스를 종료합니다. [마이그레이션 이전 게임 drain 및 본드 회수](/ko/chain-operators/tutorials/merge-shared-dispute-game#drain-pre-migration-games-and-reclaim-bonds)와 [drain 후 정리](/ko/chain-operators/tutorials/merge-shared-dispute-game#tear-down-after-the-drain)를 참조하세요.
+  * **공유 factory에 대해 하나씩 추가합니다.** 마이그레이션이 실행되면 `OptimismPortal2.disputeGameFactory()`에서 주소를 읽어 `--game-factory-address`로 설정하고, `--superroot-rpc`가 두 체인을 모두 derive하는 op-supernode의 root 엔드포인트를 가리키도록 합니다.
+
+  <Warning>
+    `--network`로 구성되고 `--game-factory-address`가 없는 `op-challenger` 또는 `op-dispute-mon`은 바이너리에 컴파일된 superchain-registry에서 factory 주소를 읽습니다. registry가 공유 factory로 업데이트된 릴리스가 배포되면, 구성 변경 없이도 공유 factory로 이동하며 이전 factory의 진행 중인 게임은 더 이상 감시되지 않습니다. 모든 이전 factory 인스턴스에 `--game-factory-address`를 명시적으로 설정하세요.
+  </Warning>
+* **superchain registry에 포함된 기타 permissionless 체인**은 Lagoon `kona-client` 릴리스의 표준 `cannon64-kona-interop` prestate를 사용합니다. `SUPER_CANNON_KONA` 게임은 interop이 없는 체인에서도 interop prestate를 사용하므로, `cannon64-kona` 해시를 사용하지 마세요. `op-challenger`를 업데이트하고 새 prestate를 가져올 수 있는지 확인합니다.
+* **superchain registry에 포함되지 않은 permissionless 체인**이 Lagoon을 채택하는 경우 사용자 정의 prestate가 필요합니다. 아래 단계에 따라 prestate를 빌드하고, `op-challenger`용으로 호스팅한 다음, OPCM 업그레이드에서 온체인에 설정합니다.
+
+{/* TODO: fill in the Lagoon kona-client/kona-host release tag, the reviewed `cannon64-kona-interop` prestate hash, and the op-challenger version once the prestate review is Compatible and the final kona tags are cut. Confirm how Ink and Soneium receive the standard prestate. */}
+
+<Steps>
+  <Step title="absolute prestate 빌드 또는 검증">
+    <Tabs>
+      <Tab title="표준 체인 구성">
+        Lagoon `kona-client` 릴리스의 표준 `cannon64-kona-interop` prestate 해시는 릴리스가 게시되면 이곳과 [`standard-prestates.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/validation/standard/standard-prestates.toml)에 나열됩니다.
+
+        monorepo에서 Lagoon `kona-client` 태그를 체크아웃하고, prestate를 재현한 다음, 해시가 게시된 값과 일치하는지 확인합니다.
+
+        ```bash
+        just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
+        ```
+      </Tab>
+
+      <Tab title="사용자 정의 체인 구성">
+        [사용자 정의 kona-client absolute prestate 생성](/ko/chain-operators/tutorials/kona-custom-prestate)에 설명된 대로 `depsets.json`을 포함한 체인 데이터를 준비하고, 체인 구성에 `lagoon_time`을 설정합니다.
+        Lagoon `kona-client` 태그를 체크아웃하고, monorepo 루트에서 사용자 구성으로 prestate를 빌드합니다.
+
+        ```bash
+        KONA_CUSTOM_CONFIGS_DIR=/absolute/path/to/custom-configs \
+          just reproducible-prestate-kona
+        jq -r .pre rust/kona/prestate-artifacts-cannon-interop/prestate-proof.json  # cannon64-kona-interop
+        ```
+
+        체인이 빌드에 포함되었는지 확인합니다. 체인이 조용히 누락된 빌드는 대신 표준 해시를 생성합니다.
+        빌드 옵션은 [kona prestate 빌드](https://github.com/ethereum-optimism/optimism/tree/develop/rust/kona/docker#building-kona-prestates)를 참조하세요.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="새 preimage 파일 업로드">
+    prestate 해시를 이름으로 하는 preimage 파일(예: `0x<hash>.bin.gz`)을 `--cannon-kona-prestates-url`이 가리키는 위치에 업로드합니다.
+    `op-challenger`가 업그레이드 이전에 생성된 게임을 완료할 수 있도록 Upgrade 21 prestate 파일은 그대로 유지합니다.
+  </Step>
+
+  <Step title="op-challenger 업데이트">
+    활성화 타임스탬프 전에 `op-challenger`를 Lagoon 릴리스로 업데이트합니다.
+    표준 OP Labs `op-challenger` Docker 이미지를 사용하지 않는 경우, `--cannon-kona-server`(`OP_CHALLENGER_CANNON_KONA_SERVER`)를 prestate와 동일한 릴리스에서 빌드한 `kona-host` 바이너리로 설정합니다.
+  </Step>
+
+  <Step title="새 prestate를 온체인에 설정">
+    OPCM 업그레이드 입력의 dispute game 구성에서 새 해시를 `absolutePrestate`로 전달합니다.
+    트랜잭션을 실행하기 전에 예상 출력을 시뮬레이션하고 검증합니다.
+  </Step>
+</Steps>
+
+## 업그레이드 일정 {#upgrade-timing}
+
+| 마일스톤 | Sepolia | Mainnet |
+| --- | --- | --- |
+| 거버넌스 제안 게시 | 해당 없음 | **2026년 12월 2일 수요일** |
+| 거버넌스 거부권(veto) 기간 종료 | 해당 없음 | **2026년 12월 9일 수요일** |
+| L1 컨트랙트 업그레이드 및 마이그레이션(OP 및 Unichain) | **2026년 12월 8일 화요일** | **2026년 12월 14일 월요일** |
+| Lagoon 활성화 | **2026년 12월 10일 목요일 16:00:01 UTC** (`1796918401`) | **2027년 1월 11일 월요일 16:00:01 UTC** (`1799683201`) |
+| [ZK 분쟁 게임](#zk-proofs-on-op-mainnet-and-unichain)이 respected game type이 됨(OP 및 Unichain) | **2026년 12월 11일 금요일** | **2027년 1월 14일 목요일** |
+
+활성화 타임스탬프는 superchain-registry에서 체인별로 설정됩니다. 예를 들어 [`sepolia/op.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/sepolia/op.toml)과 [`mainnet/op.toml`](https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/op.toml)을 참조하세요.
+Mainnet 컨트랙트 업그레이드, 마이그레이션, ZK 전환은 Optimism Governance 승인에 따라 달라지므로, 이 날짜는 변경될 수 있습니다.
+거버넌스 제안은 게시되면 여기에 링크됩니다.
+
+OP Enterprise Fully Managed 체인은 이 일정을 따릅니다.
+OP Enterprise Self Managed 체인은 지원이 필요한 경우 Optimism 담당자에게 문의할 수 있습니다.
+
+## 준비 상태 확인 {#verify-readiness}
+
+네트워크의 활성화 타임스탬프 전에 다음을 수행합니다.
+
+* 모든 node가 Lagoon 릴리스를 실행하는지 확인합니다. op-node에서는 시작 시 기록되는 `Rollup Config` 줄에 `lagoon_time`이 네트워크의 활성화 타임스탬프로 설정되어 있는지 확인합니다.
+* OP Mainnet과 Unichain에서는 [활성화 전 설정 확인](/ko/notices/interop-prep#verify-your-setup-before-activation)의 검사를 실행합니다.
+* 도구가 블록을 디코딩하는 경우, `0x7D` 트랜잭션으로 끝나는 블록을 파싱하는 통합 테스트를 실행합니다.
+
+네트워크에서 마이그레이션이 실행된 후 다음을 수행합니다.
+
+* 출금 도구가 공유 `DisputeGameFactory`의 게임을 기준으로 증명하는지 확인합니다.
+
+질문이 있거나 지원이 필요한 경우 Optimism 담당자에게 문의하세요.

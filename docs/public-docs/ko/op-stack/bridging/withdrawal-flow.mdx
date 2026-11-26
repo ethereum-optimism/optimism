@@ -99,7 +99,7 @@ sequenceDiagram
 
 ### 유효하지 않은 게임에 대한 증명 삭제
 
-`deleteProvenWithdrawal`은 [Upgrade 21](/ko/notices/upgrade-21)이 배포하는 릴리스인 `op-contracts/v9.0.0` 이상을 실행하는 체인에서 사용할 수 있습니다.
+`deleteProvenWithdrawal`은 [Upgrade 21](/ko/notices/archive/upgrade-21)이 배포하는 릴리스인 `op-contracts/v9.0.0` 이상을 실행하는 체인에서 사용할 수 있습니다.
 
 분쟁 게임이 challenger에게 유리하게 해결되었거나 게임이 `AnchorStateRegistry`에서 블랙리스트에 등록된 경우, 해당 증명은 절대 최종 확정될 수 없습니다.
 누구나 [`OptimismPortal.deleteProvenWithdrawal(bytes32 withdrawalHash, address proofSubmitter)`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OptimismPortal2.sol#L864)를 호출하여 이러한 증명을 제거할 수 있으며, 이 함수는 `provenWithdrawals`의 항목을 삭제하고 `WithdrawalProofDeleted(withdrawalHash, proofSubmitter)` 이벤트를 발생시킵니다.
