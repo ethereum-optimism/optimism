@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"regexp"
 	"time"
@@ -39,6 +40,7 @@ type rpcConfig struct {
 	batchCallTimeout time.Duration
 	fixedDialBackoff time.Duration
 	connectTimeout   time.Duration
+	maxResponseSize  int64
 }
 
 type RPCOption func(cfg *rpcConfig)
@@ -73,6 +75,16 @@ func WithDialAttempts(attempts int) RPCOption {
 func WithFixedDialBackoff(d time.Duration) RPCOption {
 	return func(cfg *rpcConfig) {
 		cfg.fixedDialBackoff = d
+	}
+}
+
+// WithMaxResponseSize sets the largest JSON-RPC response, in bytes, that the client reads over
+// HTTP or websocket. A call whose response is larger fails with ErrResponseTooLarge over HTTP,
+// and with a websocket read limit error over websocket. The default, also for a size of 0 or
+// less, is DefaultMaxResponseSize.
+func WithMaxResponseSize(size int64) RPCOption {
+	return func(cfg *rpcConfig) {
+		cfg.maxResponseSize = size
 	}
 }
 
@@ -153,6 +165,9 @@ func applyOptions(opts []RPCOption) rpcConfig {
 	if cfg.batchCallTimeout == 0 {
 		cfg.batchCallTimeout = 20 * time.Second
 	}
+	if cfg.maxResponseSize <= 0 {
+		cfg.maxResponseSize = DefaultMaxResponseSize
+	}
 	return cfg
 }
 
@@ -171,11 +186,17 @@ func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, 
 		bOff = retry.Fixed(cfg.fixedDialBackoff)
 	}
 	return retry.Do(ctx, cfg.backoffAttempts, bOff, func() (*rpc.Client, error) {
-		return CheckAndDial(ctx, log, addr, cfg.connectTimeout, cfg.gethRPCOptions...)
+		return checkAndDial(ctx, log, addr, cfg.connectTimeout, cfg.maxResponseSize, cfg.gethRPCOptions...)
 	})
 }
 
+// CheckAndDial dials addr, after checking that it accepts TCP connections, with responses
+// limited to DefaultMaxResponseSize.
 func CheckAndDial(ctx context.Context, log log.Logger, addr string, connectTimeout time.Duration, options ...rpc.ClientOption) (*rpc.Client, error) {
+	return checkAndDial(ctx, log, addr, connectTimeout, DefaultMaxResponseSize, options...)
+}
+
+func checkAndDial(ctx context.Context, log log.Logger, addr string, connectTimeout time.Duration, maxResponseSize int64, options ...rpc.ClientOption) (*rpc.Client, error) {
 	ctx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
 
@@ -183,22 +204,35 @@ func CheckAndDial(ctx context.Context, log log.Logger, addr string, connectTimeo
 		log.Warn("failed to dial address, but may connect later", "addr", addr)
 		return nil, fmt.Errorf("address unavailable (%s)", addr)
 	}
-	client, err := dialRPCWithOptions(ctx, addr, options...)
+	client, err := dialRPCWithOptions(ctx, addr, maxResponseSize, options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
 	}
 	return client, nil
 }
 
-// defaultWebsocketMessageSizeLimit is the websocket message size limit that dialRPCWithOptions
-// applies: 0, no limit, as over HTTP. Without it, geth's 32 MiB limit would apply. There should be
-// no limit: don't add one.
-const defaultWebsocketMessageSizeLimit = 0
+// DefaultMaxResponseSize is the default limit on the size of a single JSON-RPC response (a batch
+// response counts as one). It is above the largest L2 block that derivation accepts: a channel
+// holds at most 100 MB of batch data, about 200 MB as hex in JSON. Clients that fetch block
+// receipts need MaxReceiptsResponseSize.
+const DefaultMaxResponseSize = 256 << 20
 
-// dialRPCWithOptions dials addr with defaultWebsocketMessageSizeLimit. options can set a limit, since
-// they are applied after the default.
-func dialRPCWithOptions(ctx context.Context, addr string, options ...rpc.ClientOption) (*rpc.Client, error) {
-	options = append([]rpc.ClientOption{rpc.WithWebsocketMessageSizeLimit(defaultWebsocketMessageSizeLimit)}, options...)
+// MaxReceiptsResponseSize is the response size limit for clients that fetch block receipts. A
+// receipts response can be about one byte of JSON per gas: an empty LOG0 costs 375 gas and adds
+// a log object of about 370 bytes. That makes about 500 MB for an L2 block at 500M gas, the
+// largest gas limit that SystemConfig accepts, and leaves room for L1 gas limits up to about 1G.
+const MaxReceiptsResponseSize = 1 << 30
+
+// dialRPCWithOptions dials addr with a limit of maxResponseSize bytes for each response, over HTTP
+// and over websocket. Over HTTP it counts the body after net/http inflates it; websocket
+// messages aren't compressed. options must not replace the HTTP client, or the limit is lost
+// over HTTP.
+func dialRPCWithOptions(ctx context.Context, addr string, maxResponseSize int64, options ...rpc.ClientOption) (*rpc.Client, error) {
+	httpClient := &http.Client{Transport: &limitedTransport{base: http.DefaultTransport, limit: maxResponseSize}}
+	options = append([]rpc.ClientOption{
+		rpc.WithHTTPClient(httpClient),
+		rpc.WithWebsocketMessageSizeLimit(maxResponseSize),
+	}, options...)
 	return rpc.DialOptions(ctx, addr, options...)
 }
 

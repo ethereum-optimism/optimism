@@ -439,6 +439,7 @@ func (s *Supernode) initL1Client(ctx context.Context, cfg *config.CLIConfig) err
 	l1RPC, err := client.NewRPC(ctx, s.log, cfg.L1NodeAddr,
 		client.WithDialAttempts(10),
 		client.WithHttpPollInterval(cfg.L1HTTPPollInterval),
+		client.WithMaxResponseSize(client.MaxReceiptsResponseSize),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
