@@ -169,20 +169,6 @@ subpackages:
           ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
       - uses: strip
 
-  - name: op-interop-mon
-    description: op-interop-mon — OP Stack interop monitor
-    pipeline:
-      - uses: go/build
-        with:
-          modroot: .
-          packages: ./op-interop-mon/cmd
-          output: op-interop-mon
-          go-package: go-1.26
-          # /usr/local/bin, where upstream's images install binaries.
-          prefix: usr/local
-          ldflags: -s -w -X main.GitCommit=${GIT_COMMIT:-unknown} -X main.GitDate=${GIT_DATE:-0} -X main.Version=${GIT_VERSION:-v0.0.0}
-      - uses: strip
-
   - name: op-supernode
     description: op-supernode — OP Stack supernode
     pipeline:

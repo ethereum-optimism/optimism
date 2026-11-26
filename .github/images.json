@@ -538,41 +538,6 @@
         "verify_version": true
       }
     },
-    "op-interop-mon": {
-      "builders": {
-        "apko": {
-          "needs_packages": [
-            "op-stack-go"
-          ],
-          "configs": [
-            {
-              "config": "apko/op-interop-mon.yaml",
-              "tag_suffix": ""
-            },
-            {
-              "config": "apko/op-interop-mon-slim.yaml",
-              "tag_suffix": "-slim"
-            }
-          ]
-        }
-      },
-      "paths": [
-        "op-interop-mon/**",
-        "apko/op-interop-mon.yaml",
-        "apko/op-interop-mon-slim.yaml",
-        "go.mod",
-        "go.sum",
-        "op-service/**",
-        "op-core/**",
-        "op-chain-ops/**"
-      ],
-      "smoke": {
-        "commands": [
-          "op-interop-mon --version"
-        ],
-        "verify_version": true
-      }
-    },
     "op-node": {
       "builders": {
         "apko": {

@@ -79,7 +79,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
 ├── <a href="./op-faucet">op-faucet</a>: Dev-faucet with support for multiple chains
 ├── <a href="./op-fetcher">op-fetcher</a>: Data fetching utilities
-├── <a href="./op-interop-mon">op-interop-mon</a>: Interoperability monitoring service
 ├── <a href="./op-node">op-node</a>: Rollup consensus-layer client
 ├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
 ├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
