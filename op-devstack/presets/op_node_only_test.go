@@ -68,6 +68,7 @@ var konaOnlyPresets = []presetCase{
 	{"NewTwoL2Lokahi", func(t devtest.T) { NewTwoL2Lokahi(t) }},
 	{"NewTwoL2LokahiWithInteropDelay", func(t devtest.T) { NewTwoL2LokahiWithInteropDelay(t, 0) }},
 	{"NewTwoL2LokahiMultiNode", func(t devtest.T) { NewTwoL2LokahiMultiNode(t) }},
+	{"NewTwoL2LokahiLight", func(t devtest.T) { NewTwoL2LokahiLight(t) }},
 }
 
 // notPresets take a devtest.T but start nothing themselves.

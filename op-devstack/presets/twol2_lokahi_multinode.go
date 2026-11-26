@@ -6,17 +6,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
-// LokahiChainNodes are the three nodes of one chain of a [TwoL2LokahiMultiNode] system, which all
-// follow lokahi for their safe and finalized labels.
+// LokahiChainNodes are the three nodes of one chain of a [TwoL2LokahiMultiNode] or
+// [TwoL2LokahiLight] system. The source and the follower import the sequencer's unsafe blocks over
+// p2p.
 type LokahiChainNodes struct {
-	// Sequencer builds the chain's blocks and derives it. The batcher posts its blocks.
+	// Sequencer builds the chain's blocks. The batcher posts them.
 	Sequencer   *dsl.L2CLNode
 	SequencerEL *dsl.L2ELNode
-	// Source derives the chain, and is the only node lokahi reads the chain from. It imports the
-	// sequencer's unsafe blocks over p2p.
+	// Source derives the chain and follows lokahi for its safe and finalized labels. It is the
+	// only node lokahi reads the chain from.
 	Source   *dsl.L2CLNode
 	SourceEL *dsl.L2ELNode
-	// Follower derives the chain and imports the sequencer's unsafe blocks over p2p.
+	// Follower is not read by lokahi.
 	Follower   *dsl.L2CLNode
 	FollowerEL *dsl.L2ELNode
 }
@@ -32,8 +33,8 @@ func (n *LokahiChainNodes) ELs() []*dsl.L2ELNode {
 }
 
 // TwoL2LokahiMultiNode is two interop chains, each run by a sequencer, a source node lokahi reads
-// and a follower, all following one lokahi process. Its test sequencer controls L1 and builds
-// blocks on each chain's sequencer.
+// and a follower, which all derive the chain and follow one lokahi process. Its test sequencer
+// controls L1 and builds blocks on each chain's sequencer.
 type TwoL2LokahiMultiNode struct {
 	TwoL2Lokahi
 
@@ -56,7 +57,7 @@ func NewTwoL2LokahiMultiNode(t devtest.T) *TwoL2LokahiMultiNode {
 
 // lokahiChainNodes adds the source and follower of chain to network, next to its sequencer, and
 // keeps both peered with the sequencer across restarts. They need the peer to start: kona-node has
-// no CL-sync start, so a node that does not sequence derives only once an unsafe block reaches it.
+// no CL-sync start, so a node that does not sequence starts only once an unsafe block reaches it.
 func lokahiChainNodes(
 	t devtest.T,
 	network *dsl.L2Network,
