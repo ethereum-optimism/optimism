@@ -834,44 +834,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         assertEq(disputeGameFactory.initBonds(GameTypes.SUPER_CANNON_KONA), originalBond, "init bond not restored");
     }
 
-    /// @notice Tests that a stale SUPER_CANNON registration left over from a prior OPCM is
-    ///         cleared by the upgrade. SUPER_CANNON is no longer in the OPCMv2 deploy/upgrade
-    ///         allow-list, so the standard 6-config upgrade input does not touch type 4. The
-    ///         StandardValidator's SCDG-SHAPE / SCDG-NOSHAPE checks both require
-    ///         gameImpls(SUPER_CANNON) == address(0), so the upgrade must clear any pre-existing
-    ///         registration unconditionally.
-    function test_upgrade_clearsStaleSuperCannonRegistration_succeeds() public {
-        // Pre-register a fake SUPER_CANNON impl + bond as the current DGF owner.
-        IDisputeGame staleImpl = IDisputeGame(address(0xDEAD));
-        address dgfOwner = disputeGameFactory.owner();
-        vm.startPrank(dgfOwner);
-        disputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, staleImpl, hex"");
-        disputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, 1 ether);
-        vm.stopPrank();
-
-        // Sanity: confirm the stale state is in place pre-upgrade.
-        assertEq(
-            address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON)),
-            address(staleImpl),
-            "stale SUPER_CANNON impl not pre-registered"
-        );
-        assertEq(
-            disputeGameFactory.initBonds(GameTypes.SUPER_CANNON), 1 ether, "stale SUPER_CANNON bond not pre-registered"
-        );
-
-        // Run the standard 6-config upgrade. The StandardValidator runs inside
-        // _runOpcmV2UpgradeAndChecks, so a missing clear would fail validation here.
-        runCurrentUpgradeV2(chainPAO);
-
-        // Explicitly assert SUPER_CANNON has been cleared post-upgrade.
-        assertEq(
-            address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON)),
-            address(0),
-            "stale SUPER_CANNON impl not cleared"
-        );
-        assertEq(disputeGameFactory.initBonds(GameTypes.SUPER_CANNON), 0, "stale SUPER_CANNON bond not cleared");
-    }
-
     /// @notice Tests that disabling a game type removes it from the factory.
     function test_upgrade_disableGameType_succeeds() public {
         runCurrentUpgradeV2(chainPAO);
@@ -1399,10 +1361,6 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
             address(disputeGameFactory.gameImpls(GameTypes.CANNON_KONA)), address(0), "CANNON_KONA impl not cleared"
         );
         assertEq(disputeGameFactory.initBonds(GameTypes.CANNON_KONA), 0, "CANNON_KONA bond not cleared");
-        assertEq(
-            address(disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON)), address(0), "SUPER_CANNON impl not cleared"
-        );
-        assertEq(disputeGameFactory.initBonds(GameTypes.SUPER_CANNON), 0, "SUPER_CANNON bond not cleared");
 
         // Verify new super game type is registered.
         assertTrue(
@@ -2639,7 +2597,7 @@ contract OPContractsManagerV2_Deploy_Test is OPContractsManagerV2_TestInit {
 
     /// @notice Tests that deploy reverts when startingRespectedGameType is not in the disputeGameConfigs.
     function test_deploy_startingGameTypeNotInConfigs_reverts() public {
-        deployConfig.startingRespectedGameType = GameTypes.SUPER_CANNON;
+        deployConfig.startingRespectedGameType = GameTypes.UNSUPPORTED_SUPER_CANNON;
 
         // nosemgrep: sol-style-use-abi-encodecall
         runDeployV2(
@@ -3274,7 +3232,6 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     function _assertOldGamesZeroed(IDisputeGameFactory _disputeGameFactory) internal view {
         // Assert that the old game implementations are now zeroed out.
         _assertGameIsEmpty(_disputeGameFactory, GameTypes.CANNON, "CANNON");
-        _assertGameIsEmpty(_disputeGameFactory, GameTypes.SUPER_CANNON, "SUPER_CANNON");
         _assertGameIsEmpty(_disputeGameFactory, GameTypes.PERMISSIONED_CANNON, "PERMISSIONED_CANNON");
         _assertGameIsEmpty(_disputeGameFactory, GameTypes.SUPER_PERMISSIONED, "SUPER_PERMISSIONED");
         _assertGameIsEmpty(_disputeGameFactory, GameTypes.CANNON_KONA, "CANNON_KONA");
@@ -4047,9 +4004,7 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     /// @notice Tests that the migration function reverts when the starting respected game type is invalid.
     /// @param _gameTypeRaw The raw game type value to test.
     function testFuzz_migrate_invalidStartingRespectedGameType_reverts(uint32 _gameTypeRaw) public {
-        // Only SUPER_CANNON_KONA and SUPER_PERMISSIONED are valid. SUPER_CANNON (4) is a
-        // fuzz-reachable invalid input; see test_migrate_superCannonStartingRespectedGameType_reverts
-        // for the direct assertion.
+        // Only SUPER_CANNON_KONA and SUPER_PERMISSIONED are valid.
         vm.assume(_gameTypeRaw != GameTypes.SUPER_CANNON_KONA.raw());
         vm.assume(_gameTypeRaw != GameTypes.SUPER_PERMISSIONED.raw());
 
@@ -4065,10 +4020,10 @@ contract OPContractsManagerV2_Migrate_Test is OPContractsManagerV2_TestInit {
     }
 
     /// @notice Tests that the migration function reverts when the starting respected game type is
-    ///         SUPER_CANNON. SUPER_CANNON is retired in favor of SUPER_CANNON_KONA.
-    function test_migrate_superCannonStartingRespectedGameType_reverts() public {
+    ///         UNSUPPORTED_SUPER_CANNON.
+    function test_migrate_unsupportedSuperCannonStartingRespectedGameType_reverts() public {
         IOPContractsManagerMigrator.MigrateInput memory input = _getDefaultMigrateInput();
-        input.startingRespectedGameType = GameTypes.SUPER_CANNON;
+        input.startingRespectedGameType = GameTypes.UNSUPPORTED_SUPER_CANNON;
         _doMigration(
             input, IOPContractsManagerMigrator.OPContractsManagerMigrator_InvalidStartingRespectedGameType.selector
         );

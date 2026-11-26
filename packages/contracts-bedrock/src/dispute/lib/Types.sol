@@ -62,8 +62,9 @@ library GameTypes {
     /// @notice A dispute game type that uses the asterisc vm with Kona.
     GameType internal constant ASTERISC_KONA = GameType.wrap(3);
 
-    /// @notice A dispute game type that uses the cannon vm (Super Roots).
-    GameType internal constant SUPER_CANNON = GameType.wrap(4);
+    /// @notice Unsupported and never deployed. The value is reserved so it is not reused for a new
+    ///         game type.
+    GameType internal constant UNSUPPORTED_SUPER_CANNON = GameType.wrap(4);
 
     /// @notice A permissioned dispute game type for Super Roots.
     GameType internal constant SUPER_PERMISSIONED = GameType.wrap(5);
@@ -71,8 +72,9 @@ library GameTypes {
     /// @notice A dispute game type that uses OP Succinct
     GameType internal constant OP_SUCCINCT = GameType.wrap(6);
 
-    /// @notice A dispute game type that uses the asterisc vm with Kona (Super Roots).
-    GameType internal constant SUPER_ASTERISC_KONA = GameType.wrap(7);
+    /// @notice Unsupported and never deployed. The value is reserved so it is not reused for a new
+    ///         game type.
+    GameType internal constant UNSUPPORTED_SUPER_ASTERISC_KONA = GameType.wrap(7);
 
     /// @notice A dispute game type that uses the cannon vm with Kona.
     GameType internal constant CANNON_KONA = GameType.wrap(8);
@@ -95,25 +97,20 @@ library GameTypes {
     GameType internal constant KAILUA = GameType.wrap(1337);
 
     /// @notice The game types migration clears from a chain's pre-migration DisputeGameFactory.
-    ///         It might include other games than the valid game types an OPCM accepts as
-    ///         it also covers retired types, which are never valid config but may still be
-    ///         registered on an old factory.
     function clearedGameTypes() internal pure returns (GameType[] memory types_) {
-        types_ = new GameType[](7);
+        types_ = new GameType[](6);
         types_[0] = CANNON;
         types_[1] = PERMISSIONED_CANNON;
         types_[2] = CANNON_KONA;
-        types_[3] = SUPER_CANNON;
-        types_[4] = SUPER_PERMISSIONED;
-        types_[5] = SUPER_CANNON_KONA;
-        types_[6] = ZK_DISPUTE_GAME;
+        types_[3] = SUPER_PERMISSIONED;
+        types_[4] = SUPER_CANNON_KONA;
+        types_[5] = ZK_DISPUTE_GAME;
     }
 
     /// @notice Returns true if the game type uses super roots.
     function isSuperGame(GameType _gameType) internal pure returns (bool) {
         uint32 raw = _gameType.raw();
-        return raw == SUPER_CANNON.raw() || raw == SUPER_PERMISSIONED.raw() || raw == SUPER_ASTERISC_KONA.raw()
-            || raw == SUPER_CANNON_KONA.raw() || raw == ZK_DISPUTE_GAME.raw();
+        return raw == SUPER_PERMISSIONED.raw() || raw == SUPER_CANNON_KONA.raw() || raw == ZK_DISPUTE_GAME.raw();
     }
 }
 

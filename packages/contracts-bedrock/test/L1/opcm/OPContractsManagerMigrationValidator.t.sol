@@ -429,7 +429,7 @@ contract OPContractsManagerMigrationValidator_ValidateMigration_Test is OPContra
 }
 
 /// @title OPContractsManagerMigrationValidator_DGFShape_Test
-/// @notice Negative tests for MIG-DGF-10 through MIG-DGF-60.
+/// @notice Negative tests for MIG-DGF-10 through MIG-DGF-50.
 contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManagerMigrationValidator_TestInit {
     /// @notice MIG-DGF-10: SUPER_PERMISSIONED not registered on shared DGF.
     function test_validate_dgf10SuperPermissionedMissing_succeeds() public {
@@ -481,16 +481,6 @@ contract OPContractsManagerMigrationValidator_DGFShape_Test is OPContractsManage
             abi.encode(address(0xbad))
         );
         assertEq("MIG-DGF-50", _validateMigration(true));
-    }
-
-    /// @notice MIG-DGF-60: Legacy SUPER_CANNON still registered on shared DGF.
-    function test_validate_dgf60SuperCannonStillRegistered_succeeds() public {
-        vm.mockCall(
-            address(sharedDGF),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.SUPER_CANNON)),
-            abi.encode(address(0xbad))
-        );
-        assertEq("MIG-DGF-60", _validateMigration(true));
     }
 }
 
@@ -1149,15 +1139,14 @@ contract OPContractsManagerMigrationValidator_MigrationIntent_Test is OPContract
     function test_validate_everyClearedGameTypeIsChecked_succeeds() public {
         GameType[] memory gameTypes = GameTypes.clearedGameTypes();
 
-        string[] memory expectedCodes = new string[](7);
-        string[] memory gameTypeNames = new string[](7);
+        string[] memory expectedCodes = new string[](6);
+        string[] memory gameTypeNames = new string[](6);
         (expectedCodes[0], gameTypeNames[0]) = ("MIG-CHAIN-1-20", "CANNON");
         (expectedCodes[1], gameTypeNames[1]) = ("MIG-CHAIN-1-30", "PERMISSIONED_CANNON");
         (expectedCodes[2], gameTypeNames[2]) = ("MIG-CHAIN-1-40", "CANNON_KONA");
-        (expectedCodes[3], gameTypeNames[3]) = ("MIG-CHAIN-1-50", "SUPER_CANNON");
-        (expectedCodes[4], gameTypeNames[4]) = ("MIG-CHAIN-1-60", "SUPER_PERMISSIONED");
-        (expectedCodes[5], gameTypeNames[5]) = ("MIG-CHAIN-1-70", "SUPER_CANNON_KONA");
-        (expectedCodes[6], gameTypeNames[6]) = ("MIG-CHAIN-1-140", "ZK_DISPUTE_GAME");
+        (expectedCodes[3], gameTypeNames[3]) = ("MIG-CHAIN-1-60", "SUPER_PERMISSIONED");
+        (expectedCodes[4], gameTypeNames[4]) = ("MIG-CHAIN-1-70", "SUPER_CANNON_KONA");
+        (expectedCodes[5], gameTypeNames[5]) = ("MIG-CHAIN-1-140", "ZK_DISPUTE_GAME");
         assertEq(gameTypes.length, expectedCodes.length, "clearing list changed without choosing a code");
 
         IDisputeGameFactory legacyDGF = chainContracts2.disputeGameFactory;

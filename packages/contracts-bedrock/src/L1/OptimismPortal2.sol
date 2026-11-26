@@ -334,9 +334,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_InvalidProofMaturityDelay();
 
     /// @notice Semantic version.
-    /// @custom:semver 7.9.1
+    /// @custom:semver 7.10.0
     function version() public pure virtual returns (string memory) {
-        return "7.9.1";
+        return "7.10.0";
     }
 
     /// @param _minProofMaturityDelaySeconds The lowest proof maturity delay a chain may use.

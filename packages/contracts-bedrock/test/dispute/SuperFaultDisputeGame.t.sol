@@ -62,7 +62,7 @@ contract ClaimCreditReenter {
 /// @notice Base test initializer that can be used by other contracts outside of this test suite.
 abstract contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
-    GameType internal immutable GAME_TYPE = GameTypes.SUPER_CANNON;
+    GameType internal immutable GAME_TYPE = GameTypes.SUPER_CANNON_KONA;
 
     /// @dev The initial bond for the game.
     uint256 internal initBond;
@@ -159,13 +159,6 @@ abstract contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_Te
         // Get the actual anchor roots
         (, uint256 l2Seqno) = anchorStateRegistry.getAnchorRoot();
         validl2SequenceNumber = l2Seqno + 1;
-
-        if (isL1ForkTest()) {
-            // Set the init bond of anchor game type 4 to be 0.
-            vm.store(
-                address(disputeGameFactory), keccak256(abi.encode(GameType.wrap(4), uint256(102))), bytes32(uint256(0))
-            );
-        }
 
         SUPER_ROOT_PROOF.version = bytes1(uint8(1));
         SUPER_ROOT_PROOF.timestamp = uint64(validl2SequenceNumber);
