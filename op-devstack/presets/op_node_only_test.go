@@ -67,6 +67,7 @@ var konaCapablePresets = []presetCase{
 var konaOnlyPresets = []presetCase{
 	{"NewTwoL2Lokahi", func(t devtest.T) { NewTwoL2Lokahi(t) }},
 	{"NewTwoL2LokahiWithInteropDelay", func(t devtest.T) { NewTwoL2LokahiWithInteropDelay(t, 0) }},
+	{"NewTwoL2LokahiWithoutInterop", func(t devtest.T) { NewTwoL2LokahiWithoutInterop(t) }},
 	{"NewTwoL2LokahiMultiNode", func(t devtest.T) { NewTwoL2LokahiMultiNode(t) }},
 	{"NewTwoL2LokahiLight", func(t devtest.T) { NewTwoL2LokahiLight(t) }},
 	{"NewTwoL2LokahiDifferential", func(t devtest.T) { NewTwoL2LokahiDifferential(t) }},
