@@ -55,7 +55,8 @@ func NewTwoL2LokahiMultiNode(t devtest.T) *TwoL2LokahiMultiNode {
 }
 
 // lokahiChainNodes adds the source and follower of chain to network, next to its sequencer, and
-// keeps both peered with the sequencer across restarts.
+// keeps both peered with the sequencer across restarts. They need the peer to start: kona-node has
+// no CL-sync start, so a node that does not sequence derives only once an unsafe block reaches it.
 func lokahiChainNodes(
 	t devtest.T,
 	network *dsl.L2Network,

@@ -25,10 +25,9 @@ const (
 //     lokahi reads;
 //   - the follower, which derives the chain.
 //
-// The source and the follower import the sequencer's unsafe blocks over p2p: a kona-node that
-// does not sequence starts deriving only once an unsafe block reaches it. All three follow lokahi
-// for their safe and finalized labels. A test sequencer controls L1 and builds blocks on each
-// chain's sequencer.
+// The source and the follower are peered with the sequencer and import its unsafe blocks over
+// p2p. All three follow lokahi for their safe and finalized labels. A test sequencer controls L1
+// and builds blocks on each chain's sequencer.
 //
 // With DEVSTACK_L2CL_KIND=op-reth, each kona-node runs inside its op-reth process.
 func NewTwoL2LokahiMultiNodeRuntime(t devtest.T) *MultiChainRuntime {
