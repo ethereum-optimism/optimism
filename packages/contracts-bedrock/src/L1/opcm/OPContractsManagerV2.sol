@@ -101,7 +101,8 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         bool useCustomGasToken;
         // Withdrawal timing configuration. Stored per chain on the portal, the
         // AnchorStateRegistry and the DelayedWETH, and bounded by the implementations' min/max
-        // immutables.
+        // immutables. After migrate, the AnchorStateRegistry and DelayedWETH are shared, so their
+        // delays apply to the whole set.
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 withdrawalDelaySeconds;
@@ -186,9 +187,9 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
     ///         - Major bump: New required sequential upgrade
     ///         - Minor bump: Replacement OPCM for same upgrade
     ///         - Patch bump: Development changes (expected for normal dev work)
-    /// @custom:semver 11.0.0
+    /// @custom:semver 11.0.1
     function version() public pure returns (string memory) {
-        return "11.0.0";
+        return "11.0.1";
     }
 
     /// @param _standardValidator The standard validator for this OPCM release.
@@ -372,11 +373,10 @@ contract OPContractsManagerV2 is ISemver, OPContractsManagerUtilsCaller {
         // NOTE (IMPORTANT FOR DEVELOPERS): You MAY need to allow permitted instructions here for
         // your specific upgrade. For example, if you are adding a new contract that needs to be
         // deployed you will need to add an allowance so that the proxy can be deployed.
-        // Allowances MUST always be restricted to one specific upgrade. Here we maintain this
-        // restriction by checking that the version is less than the NEXT release version. Once
-        // developers start working on the next release this will automatically become false so
-        // even if the code is somehow forgotten it will not actually apply to the deployment. Make
-        // sure to REMOVE the allowance once the upgrade is complete.
+        // An allowance needed for only one upgrade MUST be restricted to that upgrade with an
+        // explicit release check (for example, on the major version of _version()), and MUST be
+        // removed once the upgrade is complete. An allowance kept for every upgrade MUST say why
+        // it is permanent, like the two below.
 
         // Allow overriding the starting respected game type during upgrades. This is needed when
         // disabling the currently-respected game type, since the validation requires the starting

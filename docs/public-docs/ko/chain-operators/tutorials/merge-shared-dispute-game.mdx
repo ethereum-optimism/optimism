@@ -546,7 +546,7 @@ pause는 저절로 만료됩니다. 만료 후 `paused`는 `false`를 반환하�
 
 ### 두 체인을 함께 업그레이드
 
-두 체인은 동일한 공유 컨트랙트에서 실행되므로 한 쌍으로 업그레이드됩니다. 공유 컨트랙트가 더 새로운 릴리스로 업그레이드되면, 어느 체인에서든 더 오래된 OPCM을 실행하면 `OPContractsManagerUtils_DowngradeNotAllowed`로 실패합니다.
+두 체인은 동일한 공유 컨트랙트에서 실행되므로 한 쌍으로 업그레이드됩니다. 어느 체인에서든 더 오래된 OPCM을 실행하면 더 새로운 OPCM이 업그레이드한 proxy에 대해서는 `OPContractsManagerUtils_DowngradeNotAllowed`로 실패하지만, 분쟁 게임 구현은 버전을 검사하지 않으므로 항상 두 체인을 같은 OPCM으로 업그레이드하세요.
 
 한 체인을 업그레이드하면 다른 체인도 재구성됩니다. `upgrade`는 해당 업그레이드의 `disputeGameConfigs`로 공유 `DisputeGameFactory`에 모든 game type을 다시 등록합니다. 따라서 한 체인을 대상으로 한 task가 세트 전체의 구현, prestate, 본드, respected game type을 설정합니다. 업그레이드 task를 작성할 때 다음 세 가지 규칙을 따르십시오.
 
