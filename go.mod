@@ -86,6 +86,7 @@ require (
 	github.com/pion/mdns/v2 v2.0.7 // indirect
 	github.com/pion/srtp/v3 v3.0.6 // indirect
 	github.com/pion/stun v0.6.1 // indirect
+	github.com/pion/stun/v2 v2.0.0 // indirect
 	github.com/pion/stun/v3 v3.1.7 // indirect
 	github.com/pion/transport/v4 v4.1.0 // indirect
 	github.com/pion/transport/v5 v5.0.0 // indirect
