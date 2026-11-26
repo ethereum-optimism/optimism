@@ -49,7 +49,9 @@ fn engine_state(chain: &[L2BlockInfo], finalized: Option<u64>) -> EngineState {
 }
 
 /// The undo moves the local-safe head and the safe label back to the finalized head, keeps the
-/// unsafe head, reports that the forkchoice update took effect, and restarts derivation.
+/// unsafe head, reports that the forkchoice update took effect, and restarts derivation. This is
+/// also the first answer after a start that left local-safe above the finalized head, as when
+/// finality stalled for longer than the sequencing window.
 #[tokio::test]
 async fn undo_moves_local_safe_and_safe_back_to_the_finalized_head() {
     let chain = chain();
@@ -108,6 +110,30 @@ async fn undo_before_activation_moves_nothing() {
         .with_safe_label(SafeLabel::Verified { activation_timestamp })
         .with_unsafe_head(chain[UNSAFE as usize])
         .with_local_safe_head(chain[LOCAL_SAFE as usize])
+        .with_finalized_head(chain[FINALIZED as usize])
+        .build();
+    let state_before = state;
+    let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+    let (done, mut heard) = mpsc::channel(1);
+
+    UndoTask::new(Arc::new(client), done).execute(&mut state).await.unwrap();
+
+    assert_eq!(state, state_before);
+    assert_eq!(heard.try_recv(), Ok(()));
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// Right after a start local-safe is at the finalized head, so the first answer's undo moves
+/// nothing and is done at once.
+#[tokio::test]
+async fn undo_at_the_finalized_head_moves_nothing() {
+    let chain = chain();
+    let mut state = TestEngineStateBuilder::new()
+        .with_safe_label(SafeLabel::Verified { activation_timestamp: 0 })
+        .with_unsafe_head(chain[UNSAFE as usize])
+        .with_local_safe_head(chain[FINALIZED as usize])
+        .with_safe_head(chain[FINALIZED as usize])
         .with_finalized_head(chain[FINALIZED as usize])
         .build();
     let state_before = state;
