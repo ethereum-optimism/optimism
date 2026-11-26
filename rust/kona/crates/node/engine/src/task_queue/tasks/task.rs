@@ -7,8 +7,8 @@ use super::{
     InsertTask, OpStackTask, PromoteTask, UndoTask,
 };
 use crate::{
-    BuildTaskError, ConsolidateTaskError, DenyTaskError, EngineState, FinalizeTaskError,
-    InsertTaskError, PromoteTaskError, UndoTaskError,
+    BuildTaskError, ConsolidateInput, ConsolidateTaskError, DenyTaskError, EngineState,
+    FinalizeTaskError, InsertTaskError, PromoteTaskError, UndoTaskError,
     task_queue::{SealTask, SealTaskError},
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
@@ -150,6 +150,24 @@ pub enum EngineTask {
 }
 
 impl EngineTask {
+    /// Whether this task, carrying the latest value of a polled input, makes the queued task
+    /// redundant: both carry the same input's full value, the denied blocks above the finalized
+    /// head, an undo, a safe or finalized head, or a delegate's safe head. Derived attributes,
+    /// unsafe payloads and block building each carry their own block, and supersede nothing.
+    pub fn supersedes(&self, queued: &Self) -> bool {
+        match (self, queued) {
+            (Self::Deny(_), Self::Deny(_)) |
+            (Self::Undo(_), Self::Undo(_)) |
+            (Self::Promote(_), Self::Promote(_)) |
+            (Self::Finalize(_), Self::Finalize(_)) => true,
+            (Self::Consolidate(task), Self::Consolidate(queued)) => {
+                matches!(task.input, ConsolidateInput::BlockInfo(_)) &&
+                    matches!(queued.input, ConsolidateInput::BlockInfo(_))
+            }
+            _ => false,
+        }
+    }
+
     /// Executes the task without consuming it.
     async fn execute_inner(&self, state: &mut EngineState) -> Result<(), EngineTaskErrors> {
         match self {

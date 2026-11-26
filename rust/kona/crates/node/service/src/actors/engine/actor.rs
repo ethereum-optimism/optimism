@@ -426,7 +426,8 @@ where
                     Arc::clone(&self.block_sink),
                 )
                 .with_denied_blocks(self.denied.clone());
-                self.engine.enqueue(EngineTask::Consolidate(Box::new(task)));
+                // A delegate's safe head, sent on every poll, replaces the queued one.
+                self.engine.enqueue_replacing(EngineTask::Consolidate(Box::new(task)));
             }
             EngineActorRequest::ProcessFinalizedL2Block(finalized_l2_block_id) => {
                 self.finalize(FinalityUpdate::L1(*finalized_l2_block_id));
@@ -459,8 +460,9 @@ where
                 denied_sender.publish(denied.clone());
                 // The derived imports that waited for the denied blocks can run now.
                 self.engine.wake_waiting();
+                // Each poll sends the full list above the finalized head.
                 if !denied.is_empty() {
-                    self.engine.enqueue(EngineTask::Deny(Box::new(DenyTask::new(
+                    self.engine.enqueue_replacing(EngineTask::Deny(Box::new(DenyTask::new(
                         self.client.clone(),
                         self.rollup.clone(),
                         denied,
@@ -476,8 +478,11 @@ where
                 // Derivation again consults the new denied blocks from the start.
                 denied_sender.publish(denied);
                 self.engine.wake_waiting();
-                self.engine
-                    .enqueue(EngineTask::Undo(Box::new(UndoTask::new(self.client.clone(), done))));
+                // The verifier asks again on its next poll after giving up on this undo.
+                self.engine.enqueue_replacing(EngineTask::Undo(Box::new(UndoTask::new(
+                    self.client.clone(),
+                    done,
+                ))));
             }
             EngineActorRequest::ProcessUnsafeL2Block(envelope) => {
                 let task = EngineTask::Insert(Box::new(

@@ -675,11 +675,12 @@ async fn opstack_commit_runs_through_the_engine_queue() {
     l2.assert_finished();
 }
 
-/// A stalled engine keeps taking the verifier's polls without queuing a task per poll: the newest
-/// safe and finalized heads replace the queued ones, so the inbox is drained and cannot fill up.
-#[tokio::test(start_paused = true)]
-async fn polled_heads_do_not_pile_up_while_the_engine_is_stalled() {
-    // An unsafe import whose execution layer fails keeps the engine retrying it.
+/// Hands `polls` to an engine stalled on an unsafe import whose execution layer fails, and returns
+/// it after checking it took every request.
+async fn stalled_after_polls(
+    following_verifier: bool,
+    polls: Vec<EngineActorRequest>,
+) -> EngineActor<QueuedEngineDerivationClient> {
     let mut block = alloy_consensus::Block::<OpTxEnvelope>::default();
     block.header.number = 1;
     let payload = ExecutionPayloadV1::from_block_slow(&block);
@@ -692,8 +693,7 @@ async fn polled_heads_do_not_pile_up_while_the_engine_is_stalled() {
     l2.expect_error("engine_newPayloadV2");
     let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(0)).build();
     let (state_tx, _state_rx) = watch::channel(state);
-    let polls = 50;
-    let (requests, request_rx) = mpsc::channel(2 * polls + 1);
+    let (requests, request_rx) = mpsc::channel(polls.len() + 1);
     let (derivation_tx, _derivation_rx) = mpsc::channel(8);
     let mut actor = EngineActor::new(
         Arc::new(client),
@@ -704,31 +704,84 @@ async fn polled_heads_do_not_pile_up_while_the_engine_is_stalled() {
         request_rx,
         Arc::new(NoopBlockSink),
     );
+    if following_verifier {
+        actor = actor.following_verifier();
+    }
+    let steps = polls.len() + 1;
     requests
         .send(EngineActorRequest::ProcessUnsafeL2Block(Box::new(OpExecutionPayloadEnvelope::V1(
             payload,
         ))))
         .await
         .unwrap();
-    for poll in 1..=polls as u64 {
-        let block = alloy_eips::BlockNumHash { number: poll, hash: B256::repeat_byte(poll as u8) };
-        let head = kona_engine::VerifierHead::Verified { block, timestamp: poll, l1: block };
-        requests.send(EngineActorRequest::ProcessVerifiedSafeHead(Box::new(head))).await.unwrap();
-        requests
-            .send(EngineActorRequest::ProcessFinalizedL2Block(Box::new(FinalizeBlockId::ByNumber(
-                poll,
-            ))))
-            .await
-            .unwrap();
+    for request in polls {
+        requests.send(request).await.unwrap();
     }
 
-    for _ in 0..=2 * polls {
+    for _ in 0..steps {
         actor.step().await.unwrap();
     }
 
     assert_eq!(requests.capacity(), requests.max_capacity(), "the engine took every request");
-    // The retried import, and one safe and one finalized head.
-    assert_eq!(actor.engine.len(), 3);
     l1.assert_finished();
     l2.assert_finished();
+    actor
+}
+
+/// A stalled engine keeps taking the verifier's polls without queuing a task per poll: the newest
+/// safe and finalized heads replace the queued ones, so the inbox is drained and cannot fill up.
+#[tokio::test(start_paused = true)]
+async fn polled_heads_do_not_pile_up_while_the_engine_is_stalled() {
+    let mut polls = Vec::new();
+    for poll in 1..=50 {
+        let block = alloy_eips::BlockNumHash { number: poll, hash: B256::repeat_byte(poll as u8) };
+        let head = kona_engine::VerifierHead::Verified { block, timestamp: poll, l1: block };
+        polls.push(EngineActorRequest::ProcessVerifiedSafeHead(Box::new(head)));
+        polls.push(EngineActorRequest::ProcessFinalizedL2Block(Box::new(
+            FinalizeBlockId::ByNumber(poll),
+        )));
+    }
+
+    // The retried import, and one safe and one finalized head.
+    assert_eq!(stalled_after_polls(false, polls).await.engine.len(), 3);
+}
+
+/// Like the heads, the verifier's denied blocks, polled again and again while a denial is above
+/// the finalized head, and its repeated undo requests, replace the queued ones.
+#[tokio::test(start_paused = true)]
+async fn polled_denials_and_undos_do_not_pile_up_while_the_engine_is_stalled() {
+    let mut polls = Vec::new();
+    let mut undos_heard = Vec::new();
+    let denied = vec![alloy_eips::BlockNumHash { number: 5, hash: B256::repeat_byte(5) }];
+    for _ in 0..50 {
+        polls.push(EngineActorRequest::ProcessDeniedBlocks(denied.clone()));
+        let (done, heard) = mpsc::channel(1);
+        undos_heard.push(heard);
+        polls.push(EngineActorRequest::UndoVerifications(Box::new(kona_engine::UndoRequest {
+            denied: denied.clone(),
+            done,
+        })));
+    }
+
+    let actor = stalled_after_polls(true, polls).await;
+
+    // The retried import, and one deny and one undo: the last, which the verifier still awaits.
+    assert_eq!(actor.engine.len(), 3);
+    let (last, replaced) = undos_heard.split_last_mut().unwrap();
+    assert_eq!(last.try_recv(), Err(mpsc::error::TryRecvError::Empty));
+    for heard in replaced {
+        assert_eq!(heard.try_recv(), Err(mpsc::error::TryRecvError::Disconnected));
+    }
+}
+
+/// A node delegating derivation polls its delegate's safe head again and again; while the engine
+/// is stalled, the newest replaces the queued one.
+#[tokio::test(start_paused = true)]
+async fn polled_delegated_safe_heads_do_not_pile_up_while_the_engine_is_stalled() {
+    let polls = (2..=51)
+        .map(|number| EngineActorRequest::ProcessSafeL2Signal(test_block_info(number).into()))
+        .collect();
+
+    // The retried import, and one delegated safe head.
+    assert_eq!(stalled_after_polls(false, polls).await.engine.len(), 2);
 }
