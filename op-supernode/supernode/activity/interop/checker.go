@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -78,6 +79,7 @@ func newL1ConsistencyChecker(l1 l1ByNumberSource) l1ConsistencyChecker {
 // It fetches the heads that are not in the finalized cache in one batch request.
 func (c *l1ByNumberChecker) SameL1Chain(ctx context.Context, heads []eth.BlockID) (bool, error) {
 	var toFetch []eth.BlockID
+	var nums []uint64
 	checked := make(map[eth.BlockID]struct{}, len(heads))
 	for _, head := range heads {
 		if head == (eth.BlockID{}) {
@@ -94,48 +96,31 @@ func (c *l1ByNumberChecker) SameL1Chain(ctx context.Context, heads []eth.BlockID
 			continue
 		}
 		toFetch = append(toFetch, head)
+		nums = append(nums, head.Number)
 	}
-	hashes, err := c.fetchCanonicalHashes(ctx, toFetch)
+	if len(toFetch) == 0 {
+		return true, nil
+	}
+
+	// Read finality before fetching: a hash fetched while its number was above
+	// finality must not be cached, even if finality passes it meanwhile.
+	finalized, canCache := c.finalizedNumber(ctx, slices.Max(nums))
+	refs, err := c.l1.L1BlockRefsByNumbers(ctx, nums)
 	if err != nil {
 		return false, err
 	}
+	if len(refs) != len(nums) {
+		return false, fmt.Errorf("expected %d L1 block refs, got %d", len(nums), len(refs))
+	}
 	for i, head := range toFetch {
-		if hashes[i] != head.Hash {
+		if canCache && head.Number <= finalized {
+			c.canonical.Add(head.Number, refs[i].Hash)
+		}
+		if refs[i].Hash != head.Hash {
 			return false, nil
 		}
 	}
 	return true, nil
-}
-
-// fetchCanonicalHashes returns the canonical L1 hash at each head's number, from
-// one batch request, and caches the ones known to be finalized.
-func (c *l1ByNumberChecker) fetchCanonicalHashes(ctx context.Context, heads []eth.BlockID) ([]common.Hash, error) {
-	if len(heads) == 0 {
-		return nil, nil
-	}
-	nums := make([]uint64, len(heads))
-	cacheable := make([]bool, len(heads))
-	for i, head := range heads {
-		nums[i] = head.Number
-		// Check finality before fetching: a hash fetched while num was above
-		// finality must not be cached, even if finality passes num meanwhile.
-		cacheable[i] = c.canonical != nil && c.isFinalized(ctx, head.Number)
-	}
-	refs, err := c.l1.L1BlockRefsByNumbers(ctx, nums)
-	if err != nil {
-		return nil, err
-	}
-	if len(refs) != len(nums) {
-		return nil, fmt.Errorf("expected %d L1 block refs, got %d", len(nums), len(refs))
-	}
-	hashes := make([]common.Hash, len(refs))
-	for i, ref := range refs {
-		hashes[i] = ref.Hash
-		if cacheable[i] {
-			c.canonical.Add(nums[i], ref.Hash)
-		}
-	}
-	return hashes, nil
 }
 
 func (c *l1ByNumberChecker) cachedCanonicalHash(num uint64) (common.Hash, bool) {
@@ -145,26 +130,25 @@ func (c *l1ByNumberChecker) cachedCanonicalHash(num uint64) (common.Hash, bool) 
 	return c.canonical.Get(num)
 }
 
-// isFinalized reports whether num is at or below the L1 finalized head. It
-// refreshes the finalized head at most once per finalizedRefreshInterval, and
-// only when num is above the last known value. Errors are treated as "not
-// finalized", which only costs a cache miss.
-func (c *l1ByNumberChecker) isFinalized(ctx context.Context, num uint64) bool {
+// finalizedNumber returns the highest known L1 finalized number, and false when
+// the source cannot report finality. It refreshes the value at most once per
+// finalizedRefreshInterval, and only when num is above it. An error keeps the
+// known value, which only costs cache misses.
+func (c *l1ByNumberChecker) finalizedNumber(ctx context.Context, num uint64) (uint64, bool) {
+	if c.finalized == nil {
+		return 0, false
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if num <= c.finalizedNum {
-		return true
+		return c.finalizedNum, true
 	}
 	if !c.finalizedSeenAt.IsZero() && c.now().Sub(c.finalizedSeenAt) < finalizedRefreshInterval {
-		return false
+		return c.finalizedNum, true
 	}
-	ref, err := c.finalized.L1BlockRefByLabel(ctx, eth.Finalized)
-	if err != nil {
-		return false
+	if ref, err := c.finalized.L1BlockRefByLabel(ctx, eth.Finalized); err == nil {
+		c.finalizedSeenAt = c.now()
+		c.finalizedNum = max(c.finalizedNum, ref.Number)
 	}
-	c.finalizedSeenAt = c.now()
-	if ref.Number > c.finalizedNum {
-		c.finalizedNum = ref.Number
-	}
-	return num <= c.finalizedNum
+	return c.finalizedNum, true
 }
