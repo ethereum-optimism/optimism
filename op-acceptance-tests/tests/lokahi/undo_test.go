@@ -22,10 +22,11 @@ import (
 // removes while the denied chain's node is down. The denied block's batch, and with it the
 // replacement the node made, are on an L1 block the reorg keeps, so nothing of the node's own
 // makes it derive the height again: only lokahi knows the denial is gone. lokahi deletes it with
-// a new epoch; once the node is back it takes the epoch on by deriving again from its finalized
-// head, so the denied block comes back and lokahi decides it again on the new L1 chain. Whatever
-// chain B ends up with, a replacement at the height stands only next to a denial of the block that
-// holds on the canonical L1 chain.
+// a new epoch. The restarted node holds no epoch, so lokahi's first answer makes it derive again
+// from its finalized head: an undo that moves nothing when its start already derives from there,
+// and moves local-safe back otherwise. The denied block comes back and lokahi decides it again on
+// the new L1 chain. Whatever chain B ends up with, a replacement at the height stands only next to
+// a denial of the block that holds on the canonical L1 chain.
 func TestLokahiDenialVoidedWhileNodeIsDown(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewTwoL2Lokahi(t)
@@ -98,8 +99,13 @@ func TestLokahiDenialVoidedWhileNodeIsDown(gt *testing.T) {
 	sys.TestSequencer.SequenceBlock(t, sys.L1Network.ChainID(), divergence.ParentHash)
 	sys.L1CL.Start()
 	sys.L1EL.ReorgTriggered(divergence, 5)
-	awaitEpochChange(t, sys.Lokahi, sys.L2ACL, epochBefore)
+	epochAfter := awaitEpochChange(t, sys.Lokahi, sys.L2ACL, epochBefore)
+	// lokahi is down while node B starts, so the node shows what it holds before any answer.
+	sys.Lokahi.Stop()
 	sys.L2BCL.Start()
+	t.Require().Nil(appliedEpochOf(t, sys.L2BCL), "a restarted node holds no epoch")
+	sys.Lokahi.Start()
+	awaitAppliedEpoch(t, sys.L2BCL, epochAfter)
 	if active, err := sys.L2BCL.Escape().RollupAPI().SequencerActive(t.Ctx()); err != nil || !active {
 		sys.L2BCL.StartSequencer()
 	}
@@ -122,8 +128,9 @@ func TestLokahiDenialVoidedWhileNodeIsDown(gt *testing.T) {
 	}
 }
 
-// awaitEpochChange waits until lokahi answers an epoch other than before for node's chain.
-func awaitEpochChange(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode, before common.Hash) {
+// awaitEpochChange waits until lokahi answers an epoch other than before for node's chain, and
+// returns it.
+func awaitEpochChange(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode, before common.Hash) common.Hash {
 	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
 	defer cancel()
 	client, err := rpc.DialContext(ctx, lokahi.UserRPC())
@@ -131,11 +138,17 @@ func awaitEpochChange(t devtest.T, lokahi *sysgo.Lokahi, node *dsl.L2CLNode, bef
 	defer client.Close()
 	chainID, ok := node.ChainID().Uint64()
 	t.Require().True(ok, "chain ID fits in 64 bits")
+	var epoch common.Hash
 	err = wait.For(ctx, 500*time.Millisecond, func() (bool, error) {
 		status, err := chainStatus(ctx, client, chainID)
-		return err == nil && status.Epoch != before, nil
+		if err != nil {
+			return false, nil
+		}
+		epoch = status.Epoch
+		return epoch != before, nil
 	})
 	t.Require().NoError(err, "lokahi must delete the reorged denial with a new epoch")
+	return epoch
 }
 
 // TestLokahiEpochChangeRestoresBlocksBuiltOnAReplacement checks the undo of a replacement that
@@ -171,8 +184,7 @@ func TestLokahiEpochChangeRestoresBlocksBuiltOnAReplacement(gt *testing.T) {
 	sys.Lokahi.Stop()
 	sys.Lokahi.WipeData()
 	sys.Lokahi.Start()
-	awaitEpochChange(t, sys.Lokahi, sys.L2BCL, epochBefore)
-	epoch := lokahiStatusOf(t, sys.Lokahi, sys.L2BCL).Epoch
+	epoch := awaitEpochChange(t, sys.Lokahi, sys.L2BCL, epochBefore)
 	awaitAppliedEpoch(t, sys.L2BCL, epoch)
 	sys.Lokahi.Stop()
 
@@ -221,17 +233,28 @@ func awaitBuiltOn(t devtest.T, el *dsl.L2ELNode, block eth.BlockID, n uint64, ms
 
 // awaitAppliedEpoch waits until node derives under epoch.
 func awaitAppliedEpoch(t devtest.T, node *dsl.L2CLNode, epoch common.Hash) {
+	awaitAppliedEpochWhere(t, node, func(applied *common.Hash) bool { return applied != nil && *applied == epoch },
+		"%s must take lokahi's epoch %s on", node, epoch)
+}
+
+// appliedEpochOf returns the epoch node derives under, once its RPC answers.
+func appliedEpochOf(t devtest.T, node *dsl.L2CLNode) *common.Hash {
+	return awaitAppliedEpochWhere(t, node, func(*common.Hash) bool { return true }, "%s must serve its applied epoch", node)
+}
+
+func awaitAppliedEpochWhere(t devtest.T, node *dsl.L2CLNode, done func(*common.Hash) bool, msg string, args ...any) *common.Hash {
 	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
 	defer cancel()
 	client, err := rpc.DialContext(ctx, node.Escape().UserRPC())
 	t.Require().NoError(err, "dial %s", node)
 	defer client.Close()
+	var applied *common.Hash
 	err = wait.For(ctx, 200*time.Millisecond, func() (bool, error) {
-		var applied *common.Hash
 		if err := client.CallContext(ctx, &applied, "interop_appliedEpoch"); err != nil {
 			return false, nil
 		}
-		return applied != nil && *applied == epoch, nil
+		return done(applied), nil
 	})
-	t.Require().NoError(err, "%s must take lokahi's epoch %s on", node, epoch)
+	t.Require().NoError(err, append([]any{msg}, args...)...)
+	return applied
 }
