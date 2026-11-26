@@ -562,6 +562,11 @@ release-paths component:
         op-node|op-proposer|op-dispute-mon)
             specs=("{{ component }}/" "$go_shared")
             ;;
+        op-interop-filter)
+            # op-interop-filter stores logs in op-supernode's logs DB and reads
+            # chain config through op-node's rollup config.
+            specs=("op-interop-filter/" "linked=op-supernode/supernode/activity/interop/raftwallogdb/,op-node/chaincfg/,op-node/rollup/types.go,op-node/rollup/chain_spec.go,op-node/rollup/toggles.go" "$go_shared")
+            ;;
         op-batcher)
             # op-batcher builds channels with op-node's derivation code, against
             # op-node's rollup config.
@@ -598,7 +603,7 @@ release-paths component:
             specs=("packages/contracts-bedrock/")
             ;;
         *)
-            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-dispute-mon, op-reth, op-deployer, op-contracts, op-supernode, kona-*, op-zk-proposer; is {{ component }}" >&2
+            echo "error: component must be one of: op-node, op-batcher, op-proposer, op-challenger, op-dispute-mon, op-reth, op-deployer, op-contracts, op-supernode, op-interop-filter, kona-*, op-zk-proposer; is {{ component }}" >&2
             exit 1
             ;;
     esac
