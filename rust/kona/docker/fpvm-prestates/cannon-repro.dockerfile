@@ -49,7 +49,15 @@ ENV RUSTUP_HOME=/root/.rustup
 COPY mise.toml /app/mise.toml
 COPY rust/rust-toolchain.toml /app/rust/rust-toolchain.toml
 WORKDIR /app
-RUN mise trust && mise install rust go just jq
+# Retry transient release lookup failures without changing the pinned toolchain.
+RUN mise trust && \
+    attempt=1 && \
+    until mise install rust go just jq; do \
+      [ "$attempt" -lt 5 ] || exit 1; \
+      echo "mise install failed (attempt $attempt/5); retrying in 10s" >&2; \
+      attempt=$((attempt + 1)); \
+      sleep 10; \
+    done
 
 # Rustup's cargo/rustc proxies go ahead of mise shims on PATH. Any
 # cargo call then resolves to the rustup proxy directly and respects
