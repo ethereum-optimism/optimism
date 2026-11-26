@@ -110,8 +110,6 @@ pub struct RollupNode {
     pub(crate) verifier_l1_confs: u64,
     /// The cross-chain verification authority whose heads the safe and finalized labels follow.
     pub(crate) interop_authority_url: Option<Url>,
-    /// The file recording the authority epoch the node derives under.
-    pub(crate) interop_authority_epoch_path: Option<std::path::PathBuf>,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -346,7 +344,7 @@ impl RollupNode {
             .request_timeout(INTEROP_AUTHORITY_REQUEST_TIMEOUT)
             .build(url)
             .map_err(|e| format!("Failed to build interop authority client: {e}"))?;
-        info!(target: "rollup_node", %url, applied_epoch = ?applied_epoch.get(), "Following the interop authority for the safe and finalized labels");
+        info!(target: "rollup_node", %url, "Following the interop authority for the safe and finalized labels");
         Ok(Some(AuthorityActor::new(
             authority,
             self.config.clone(),
@@ -647,12 +645,7 @@ impl RollupNode {
             unsafe_head_tx,
         );
 
-        let applied_epoch = self
-            .interop_authority_url
-            .as_ref()
-            .map(|_| AppliedEpoch::load(self.interop_authority_epoch_path.clone()))
-            .transpose()
-            .map_err(|e| format!("Failed to read the applied interop authority epoch: {e}"))?;
+        let applied_epoch = self.interop_authority_url.as_ref().map(|_| AppliedEpoch::default());
         let applied_epoch_rx = applied_epoch.as_ref().map(AppliedEpoch::watch);
         let authority = self.build_authority_actor(
             engine_actor_request_tx.clone(),

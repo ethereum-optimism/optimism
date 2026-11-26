@@ -30,8 +30,10 @@ const UNDO_TIMEOUT: Duration = Duration::from_secs(30);
 /// The authority owns undoing its decisions. When its epoch differs from the one this node
 /// applied, it deleted a denial the node may have replaced a block on, or lost its store, so the
 /// node derives again from its finalized head with the new denied blocks
-/// ([`kona_engine::UndoTask`]), and only then records the new epoch, durably: a crash in between
-/// derives again on the next start. The node follows nothing else of an answer on another epoch.
+/// ([`kona_engine::UndoTask`]), and only then records the new epoch. The node follows nothing
+/// else of an answer on another epoch. The epoch is held in memory only, see [`AppliedEpoch`]:
+/// the first answer after a start always undoes, which moves nothing once the start derives
+/// from the finalized head.
 #[derive(Debug)]
 pub struct AuthorityActor<Authority> {
     /// The authority's client.
@@ -127,9 +129,7 @@ where
             warn!(target: "authority", epoch = %status.epoch, "The engine did not move its labels back yet; trying again on the next poll");
             return Ok(());
         }
-        if let Err(err) = self.applied.store(status.epoch) {
-            error!(target: "authority", %err, epoch = %status.epoch, "Failed to record the applied epoch; the next start derives again");
-        }
+        self.applied.apply(status.epoch);
         info!(target: "authority", epoch = %status.epoch, "Deriving under the interop authority's epoch");
         Ok(())
     }

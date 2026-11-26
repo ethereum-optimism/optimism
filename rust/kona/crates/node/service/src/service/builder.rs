@@ -1,7 +1,7 @@
 //! Contains the builder for the [`RollupNode`].
 
 use crate::{EngineConfig, NetworkConfig, RollupNode, SequencerConfig, service::node::L1Config};
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use url::Url;
 
 use kona_genesis::{L1ChainConfig, RollupConfig};
@@ -58,8 +58,6 @@ pub struct RollupNodeBuilder {
     pub verifier_l1_confs: u64,
     /// The cross-chain verification authority whose heads the safe and finalized labels follow.
     pub interop_authority_url: Option<Url>,
-    /// The file recording the authority epoch the node derives under.
-    pub interop_authority_epoch_path: Option<PathBuf>,
 }
 
 impl RollupNodeBuilder {
@@ -85,7 +83,6 @@ impl RollupNodeBuilder {
             safe_db: None,
             verifier_l1_confs: 0,
             interop_authority_url: None,
-            interop_authority_epoch_path: None,
         }
     }
 
@@ -134,13 +131,6 @@ impl RollupNodeBuilder {
         Self { interop_authority_url, ..self }
     }
 
-    /// Sets the file recording the authority epoch the node derives under, so that a restart
-    /// knows whether it missed an epoch. Without one, every start derives again from the finalized
-    /// head once the authority answers.
-    pub fn with_interop_authority_epoch_path(self, path: Option<PathBuf>) -> Self {
-        Self { interop_authority_epoch_path: path, ..self }
-    }
-
     /// Assembles the [`RollupNode`] service.
     pub fn build(self) -> RollupNode {
         let mut l1_beacon = OnlineBeaconClient::new_http(self.l1_config_builder.beacon.to_string());
@@ -181,7 +171,6 @@ impl RollupNodeBuilder {
             safe_db: self.safe_db,
             verifier_l1_confs: self.verifier_l1_confs,
             interop_authority_url: self.interop_authority_url,
-            interop_authority_epoch_path: self.interop_authority_epoch_path,
         }
     }
 }

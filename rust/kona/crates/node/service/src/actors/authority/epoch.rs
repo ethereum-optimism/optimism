@@ -4,75 +4,31 @@ use alloy_primitives::B256;
 use async_trait::async_trait;
 use jsonrpsee::core::RpcResult;
 use kona_rpc::InteropNodeApiServer;
-use std::{
-    fs::{self, File},
-    io,
-    path::PathBuf,
-};
 use tokio::sync::watch;
 
-/// The interop authority epoch a node took on by deriving again from its finalized head, kept in
-/// a file so that a restart knows whether the authority moved to another epoch meanwhile.
+/// The interop authority epoch a node took on by deriving again from its finalized head.
 ///
-/// Without a file it is held in memory only, so every start derives again from the finalized head
-/// once the authority answers.
-#[derive(Debug)]
-pub struct AppliedEpoch {
-    /// The file holding the epoch, as a hex string.
-    path: Option<PathBuf>,
-    current: watch::Sender<Option<B256>>,
-}
+/// It is held in memory only. A start derives again from the finalized head unless finality
+/// stalled for longer than the sequencing window (see [`kona_engine::find_starting_forkchoice`]),
+/// so the first answer after it takes the authority's epoch on with an undo that usually moves
+/// nothing, see [`kona_engine::UndoTask`].
+#[derive(Debug, Default)]
+pub struct AppliedEpoch(watch::Sender<Option<B256>>);
 
 impl AppliedEpoch {
-    /// The epoch recorded at `path`, or none when there is no file yet. A file that does not hold
-    /// an epoch counts as none, with a warning: the node then derives again, which is always
-    /// safe.
-    pub fn load(path: Option<PathBuf>) -> io::Result<Self> {
-        let epoch = match &path {
-            None => None,
-            Some(path) => match fs::read_to_string(path) {
-                Ok(text) => match text.trim().parse::<B256>() {
-                    Ok(epoch) => Some(epoch),
-                    Err(err) => {
-                        warn!(target: "authority", %err, path = %path.display(), "The applied epoch file holds no epoch; deriving again");
-                        None
-                    }
-                },
-                Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-                Err(err) => return Err(err),
-            },
-        };
-        Ok(Self { path, current: watch::channel(epoch).0 })
-    }
-
-    /// The epoch the node derives under, if any.
+    /// The epoch the node derives under, if it took one on since it started.
     pub fn get(&self) -> Option<B256> {
-        *self.current.borrow()
+        *self.0.borrow()
     }
 
     /// A view of the epoch the node derives under.
     pub fn watch(&self) -> watch::Receiver<Option<B256>> {
-        self.current.subscribe()
+        self.0.subscribe()
     }
 
-    /// Records that the node derives under `epoch`: in the file, written aside, synced and
-    /// renamed over the last one, so a crash leaves the last epoch or this one. The epoch is held
-    /// also if the file cannot be written.
-    pub fn store(&self, epoch: B256) -> io::Result<()> {
-        let written = self.path.as_ref().map_or(Ok(()), |path| {
-            let mut aside = path.clone().into_os_string();
-            aside.push(".new");
-            let aside = PathBuf::from(aside);
-            fs::write(&aside, format!("{epoch}\n"))?;
-            File::open(&aside)?.sync_all()?;
-            fs::rename(&aside, path)?;
-            match path.parent() {
-                Some(dir) if !dir.as_os_str().is_empty() => File::open(dir)?.sync_all(),
-                _ => Ok(()),
-            }
-        });
-        self.current.send_replace(Some(epoch));
-        written
+    /// Records that the node derives under `epoch`.
+    pub fn apply(&self, epoch: B256) {
+        self.0.send_replace(Some(epoch));
     }
 }
 
@@ -92,34 +48,15 @@ impl InteropNodeApiServer for AppliedEpochRpc {
 mod tests {
     use super::*;
 
-    /// A stored epoch is there after a restart; a missing or broken file is none.
     #[test]
-    fn a_stored_epoch_survives_a_restart() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("authority-epoch");
-        assert_eq!(AppliedEpoch::load(Some(path.clone())).unwrap().get(), None);
-
-        let applied = AppliedEpoch::load(Some(path.clone())).unwrap();
+    fn an_applied_epoch_is_seen_by_its_views() {
+        let applied = AppliedEpoch::default();
         let view = applied.watch();
-        applied.store(B256::repeat_byte(7)).unwrap();
-        assert_eq!(*view.borrow(), Some(B256::repeat_byte(7)));
-        applied.store(B256::repeat_byte(8)).unwrap();
+        assert_eq!(applied.get(), None);
 
-        assert_eq!(
-            AppliedEpoch::load(Some(path.clone())).unwrap().get(),
-            Some(B256::repeat_byte(8))
-        );
-        assert!(!dir.path().join("authority-epoch.new").exists());
-        fs::write(&path, "not an epoch").unwrap();
-        assert_eq!(AppliedEpoch::load(Some(path)).unwrap().get(), None);
-    }
-
-    #[test]
-    fn without_a_file_the_epoch_is_held_in_memory() {
-        let applied = AppliedEpoch::load(None).unwrap();
-        applied.store(B256::repeat_byte(1)).unwrap();
+        applied.apply(B256::repeat_byte(1));
 
         assert_eq!(applied.get(), Some(B256::repeat_byte(1)));
-        assert_eq!(AppliedEpoch::load(None).unwrap().get(), None);
+        assert_eq!(*view.borrow(), Some(B256::repeat_byte(1)));
     }
 }

@@ -14,7 +14,6 @@ use kona_engine::{EngineActorRequest, EngineState, VerifierHead, VerifierStatus}
 use kona_genesis::RollupConfig;
 use kona_rpc::InteropAuthorityApiServer;
 use std::{
-    path::PathBuf,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -61,7 +60,6 @@ async fn serve(status: VerifierStatus) -> (HttpClient, ServerHandle, Arc<Mutex<O
 
 fn actor(
     authority: HttpClient,
-    epoch_path: Option<PathBuf>,
 ) -> (AuthorityActor<HttpClient>, mpsc::Receiver<EngineActorRequest>) {
     let (engine_request_tx, engine_request_rx) = mpsc::channel(8);
     let (_, engine_state_rx) = watch::channel(EngineState::default());
@@ -73,7 +71,7 @@ fn actor(
             engine_request_tx,
             engine_state_rx,
             Duration::from_millis(1),
-            AppliedEpoch::load(epoch_path).unwrap(),
+            AppliedEpoch::default(),
         ),
         engine_request_rx,
     )
@@ -85,8 +83,8 @@ fn actor(
 #[tokio::test]
 async fn poll_forwards_the_denied_blocks_and_the_verified_and_finalized_heads() {
     let (client, _server, denied_from) = serve(status(true)).await;
-    let (mut actor, mut requests) = actor(client, None);
-    actor.applied.store(EPOCH).unwrap();
+    let (mut actor, mut requests) = actor(client);
+    actor.applied.apply(EPOCH);
 
     actor.step().await.unwrap();
 
@@ -115,8 +113,8 @@ async fn poll_forwards_the_denied_blocks_and_the_verified_and_finalized_heads() 
 #[tokio::test]
 async fn authority_without_heads_forwards_only_the_denied_blocks() {
     let (client, _server, _) = serve(status(false)).await;
-    let (mut actor, mut requests) = actor(client, None);
-    actor.applied.store(EPOCH).unwrap();
+    let (mut actor, mut requests) = actor(client);
+    actor.applied.apply(EPOCH);
 
     actor.step().await.unwrap();
 
@@ -134,7 +132,7 @@ async fn unreachable_authority_moves_no_label() {
     let (client, server, _) = serve(status(true)).await;
     server.stop().unwrap();
     server.stopped().await;
-    let (mut actor, mut requests) = actor(client, None);
+    let (mut actor, mut requests) = actor(client);
 
     actor.step().await.unwrap();
 
@@ -143,34 +141,32 @@ async fn unreachable_authority_moves_no_label() {
 
 /// On another epoch than the one applied, also on none, the node first derives again from its
 /// finalized head with the new denied blocks, and records the epoch only once the engine moved
-/// its labels back, in its file, so a restart on the same epoch derives on without undoing again.
+/// its labels back. A restarted node holds no epoch, so its first answer undoes again.
 #[tokio::test]
 async fn another_epoch_derives_again_before_anything_else() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("authority-epoch");
     let (client, _server, _) = serve(status(true)).await;
-    let (mut actor, mut requests) = actor(client.clone(), Some(path.clone()));
-    let applied = actor.applied.watch();
-
-    let engine = tokio::spawn(async move {
-        match requests.recv().await.unwrap() {
-            EngineActorRequest::UndoVerifications(request) => {
-                assert_eq!(request.denied, status(true).denied);
-                assert_eq!(*applied.borrow(), None, "the epoch waits for the undo");
-                request.done.send(()).await.unwrap();
+    for _start in 0..2 {
+        let (mut actor, mut requests) = actor(client.clone());
+        let applied = actor.applied.watch();
+        let engine = tokio::spawn(async move {
+            match requests.recv().await.unwrap() {
+                EngineActorRequest::UndoVerifications(request) => {
+                    assert_eq!(request.denied, status(true).denied);
+                    assert_eq!(*applied.borrow(), None, "the epoch waits for the undo");
+                    request.done.send(()).await.unwrap();
+                }
+                other => panic!("expected the undo, got {other:?}"),
             }
-            other => panic!("expected the undo, got {other:?}"),
-        }
-        requests
-    });
-    actor.step().await.unwrap();
-    let mut requests = engine.await.unwrap();
+            requests
+        });
+        actor.step().await.unwrap();
+        let mut requests = engine.await.unwrap();
 
-    assert!(requests.try_recv().is_err(), "nothing else of the answer is followed");
-    assert_eq!(actor.applied.get(), Some(EPOCH));
-    let (mut restarted, mut requests) = actor_with(client, path);
-    restarted.step().await.unwrap();
-    assert!(matches!(requests.try_recv().unwrap(), EngineActorRequest::ProcessDeniedBlocks(_)));
+        assert!(requests.try_recv().is_err(), "nothing else of the answer is followed");
+        assert_eq!(actor.applied.get(), Some(EPOCH));
+        actor.step().await.unwrap();
+        assert!(matches!(requests.try_recv().unwrap(), EngineActorRequest::ProcessDeniedBlocks(_)));
+    }
 }
 
 /// Until the engine confirmed the undo, the node follows nothing of the authority's answers and
@@ -178,7 +174,7 @@ async fn another_epoch_derives_again_before_anything_else() {
 #[tokio::test]
 async fn heads_wait_until_the_epoch_is_applied() {
     let (client, _server, _) = serve(status(true)).await;
-    let (mut actor, mut requests) = actor(client, None);
+    let (mut actor, mut requests) = actor(client);
     let engine = tokio::spawn(async move {
         for _ in 0..2 {
             match requests.recv().await.unwrap() {
@@ -195,11 +191,4 @@ async fn heads_wait_until_the_epoch_is_applied() {
 
     assert!(requests.try_recv().is_err(), "no head while the epoch is not applied");
     assert_eq!(actor.applied.get(), None);
-}
-
-fn actor_with(
-    client: HttpClient,
-    path: PathBuf,
-) -> (AuthorityActor<HttpClient>, mpsc::Receiver<EngineActorRequest>) {
-    actor(client, Some(path))
 }
