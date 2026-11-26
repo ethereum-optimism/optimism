@@ -178,7 +178,7 @@ func NewTwoL2SupernodeInterop(t devtest.T, delaySeconds uint64, opts ...Option) 
 // light op-node CLs sequence blocks and the shared supernode derives safe heads.
 func NewTwoL2SupernodeLightSequencerInterop(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeInterop {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeLightSequencerInterop", opts, twoL2SupernodeLightSequencerPresetSupportedOptionKinds)
-	selectInteropVerifier(t, &presetCfg, "the lokahi backend has no light sequencers following a deriving node")
+	selectInteropVerifier(t, &presetCfg, "")
 	return twoL2SupernodeInteropFromRuntime(t, sysgo.NewTwoL2SupernodeLightSequencerInteropRuntimeWithConfig(t, delaySeconds, presetCfg))
 }
 

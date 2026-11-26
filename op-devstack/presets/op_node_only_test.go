@@ -38,8 +38,8 @@ var supernodePresets = []supernodePresetCase{
 	{presetCase{"NewSingleChainInteropSuperRootAtGenesis", func(t devtest.T) { NewSingleChainInteropSuperRootAtGenesis(t) }}, true},
 	{presetCase{"NewTwoL2Supernode", func(t devtest.T) { NewTwoL2Supernode(t) }}, false},
 	{presetCase{"NewTwoL2SupernodeInterop", func(t devtest.T) { NewTwoL2SupernodeInterop(t, 0) }}, true},
-	{presetCase{"NewTwoL2SupernodeLightSequencerInterop", func(t devtest.T) { NewTwoL2SupernodeLightSequencerInterop(t, 0) }}, false},
-	{presetCase{"NewTwoL2SupernodeFollowL2", func(t devtest.T) { NewTwoL2SupernodeFollowL2(t, 0) }}, false},
+	{presetCase{"NewTwoL2SupernodeLightSequencerInterop", func(t devtest.T) { NewTwoL2SupernodeLightSequencerInterop(t, 0) }}, true},
+	{presetCase{"NewTwoL2SupernodeFollowL2", func(t devtest.T) { NewTwoL2SupernodeFollowL2(t, 0) }}, true},
 	{presetCase{"NewSingleSupernodeWithSyncTester", func(t devtest.T) { NewSingleSupernodeWithSyncTester(t) }}, false},
 }
 

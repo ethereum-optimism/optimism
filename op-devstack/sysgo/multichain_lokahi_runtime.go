@@ -63,6 +63,13 @@ type lokahiChainsConfig struct {
 	// perChainProposer starts an op-proposer per chain on the chain's node, as the supernode
 	// runtime does on each chain's supernode route.
 	perChainProposer bool
+	// lightSequencer has a light kona-node sequence each chain, as the supernode runtime's light
+	// sequencers do: it derives nothing, and takes its safe and finalized labels from the chain's
+	// deriving kona-node, which then sequences only with bootstrapSequencer.
+	lightSequencer bool
+	// bootstrapSequencer has the deriving kona-node sequence until a test hands sequencing to the
+	// light sequencer, which starts stopped, as the supernode's virtual node does.
+	bootstrapSequencer bool
 }
 
 // newMultiL2LokahiRuntime deploys chainSpecs with interop activating delaySeconds after genesis
@@ -140,7 +147,9 @@ func newMultiL2LokahiRuntime(
 //
 // Each kona-node derives for itself and records its local-safe heads in a safe head database,
 // which lokahi reads through superroot_atTimestamp. It also stands in for the supernode route of
-// its chain, as in the supernode presets where the supernode's virtual node sequences.
+// its chain, as in the supernode presets where the supernode's virtual node sequences. With
+// chainsCfg.lightSequencer, a light kona-node with its own op-reth sequences the chain instead,
+// following the deriving kona-node over gossip and its sync status.
 func startLokahiChains(
 	t devtest.T,
 	runtime *MultiChainRuntime,
@@ -192,11 +201,16 @@ func startLokahiChains(
 	for i, chainSpec := range chainSpecs {
 		l2Net := l2Nets[i]
 		el := els[i]
-		safeDBPath := t.TempDirWithPrefix("safedb-" + NewComponentTarget("sequencer", l2Net.ChainID()).String())
+		key := "sequencer"
+		if chainsCfg.lightSequencer {
+			key = "verifier"
+		}
+		isSequencer := !chainsCfg.lightSequencer || chainsCfg.bootstrapSequencer
+		safeDBPath := t.TempDirWithPrefix("safedb-" + NewComponentTarget(key, l2Net.ChainID()).String())
 		startCfg := konaNodeStartConfig{
 			InOpReth:      inOpReth,
 			DependencySet: runtimeDepSet,
-			L2CLConfig: resolveKonaL2CLConfig(t, "sequencer", l2Net.ChainID(), true, "", append([]L2CLOption{
+			L2CLConfig: resolveKonaL2CLConfig(t, key, l2Net.ChainID(), isSequencer, "", append([]L2CLOption{
 				L2CLOptionFn(func(_ devtest.T, _ ComponentTarget, c *L2CLConfig) {
 					c.SafeDBPath = safeDBPath
 				}),
@@ -206,8 +220,7 @@ func startLokahiChains(
 			startCfg.InteropAuthorityRPC = lokahi.UserRPC()
 		}
 		cl := startMixedKonaNode(t, runtime.Keys, runtime.L1Network, l2Net, runtime.L1EL, runtime.L1CL, el,
-			"sequencer", "sequencer", startCfg)
-		batcher := startMinimalBatcher(t, runtime.Keys, l2Net, runtime.L1EL, cl, el, cfg.BatcherOptions...)
+			key, key, startCfg)
 		chain := &MultiChainNodeRuntime{
 			Name:        chainSpec.Name,
 			Network:     l2Net,
@@ -215,8 +228,16 @@ func startLokahiChains(
 			CL:          cl,
 			SupernodeCL: cl,
 			SupernodeEL: el,
-			Batcher:     batcher,
 		}
+		batchCL, batchEL := L2CLNode(cl), L2ELNode(el)
+		if chainsCfg.lightSequencer {
+			chain.EL, chain.CL = startLightLokahiSequencer(t, runtime, jwtPath, jwtSecret, cfg, l2Net, runtimeDepSet, cl, el,
+				chainsCfg.bootstrapSequencer)
+			if !chainsCfg.bootstrapSequencer {
+				batchCL, batchEL = chain.CL, chain.EL
+			}
+		}
+		chain.Batcher = startMinimalBatcher(t, runtime.Keys, l2Net, runtime.L1EL, batchCL, batchEL, cfg.BatcherOptions...)
 		if chainsCfg.perChainProposer {
 			chain.Proposer = startMinimalProposer(t, runtime.Keys, l2Net, runtime.L1EL, cl)
 		}
@@ -236,6 +257,27 @@ func startLokahiChains(
 		interopFilter.WaitForReady(t, 120*time.Second)
 		runtime.InteropFilter = interopFilter
 	}
+}
+
+// startLightLokahiSequencer starts a light kona-node sequencer with its own op-reth on l2Net. It
+// takes its safe and finalized labels from the deriving kona-node verifierCL, and it is peered
+// with that node and its op-reth verifierEL: gossip carries the unsafe blocks both ways, and its
+// op-reth fetches from verifierEL the blocks only derivation produces, such as the replacement of
+// a denied block. With stopped, it starts stopped, for a test to start it.
+func startLightLokahiSequencer(t devtest.T, runtime *MultiChainRuntime, jwtPath string, jwtSecret [32]byte,
+	cfg PresetConfig, l2Net *L2Network, depSet depset.DependencySet, verifierCL L2CLNode, verifierEL L2ELNode,
+	stopped bool) (L2ELNode, L2CLNode) {
+	el := startSequencerEL(t, l2Net, jwtPath, jwtSecret, ResolveMixedL2ELOpts(t)...)
+	cl := startMixedKonaNode(t, runtime.Keys, runtime.L1Network, l2Net, runtime.L1EL, runtime.L1CL, el,
+		"sequencer", "sequencer", konaNodeStartConfig{
+			InOpReth:         ResolveMixedL2CLKind(t) == MixedL2CLOpReth,
+			DependencySet:    depSet,
+			L2CLConfig:       resolveKonaL2CLConfig(t, "sequencer", l2Net.ChainID(), true, verifierCL.UserRPC(), cfg.GlobalL2CLOptions),
+			SequencerStopped: stopped,
+		})
+	connectL2CLPeers(t, t.Logger(), cl, verifierCL)
+	connectL2ELPeers(t, t.Logger(), verifierEL.UserRPC(), el.UserRPC())
+	return el, cl
 }
 
 // newSingleChainLokahiRuntime is the lokahi backend of the single-chain supernode runtime: the

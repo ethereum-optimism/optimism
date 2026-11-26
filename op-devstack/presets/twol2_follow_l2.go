@@ -21,6 +21,6 @@ type TwoL2SupernodeFollowL2 struct {
 // supernode interop preset for the current test.
 func NewTwoL2SupernodeFollowL2(t devtest.T, delaySeconds uint64, opts ...Option) *TwoL2SupernodeFollowL2 {
 	presetCfg, _ := collectSupportedPresetConfig(t, "NewTwoL2SupernodeFollowL2", opts, twoL2SupernodeInteropPresetSupportedOptionKinds)
-	selectInteropVerifier(t, &presetCfg, "the lokahi backend has no follow-source CL followers")
+	selectInteropVerifier(t, &presetCfg, "")
 	return twoL2SupernodeFollowL2FromRuntime(t, sysgo.NewTwoL2SupernodeFollowL2RuntimeWithConfig(t, delaySeconds, presetCfg))
 }
