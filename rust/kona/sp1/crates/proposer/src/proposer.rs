@@ -334,9 +334,9 @@ pub struct Game {
     /// Informational for the create path; the defend path selects the
     /// proving program by it.
     pub absolute_prestate: B256,
-    /// The game's creator address (`gameCreator()`). Ownership starts here: only games whose
-    /// creator is the signer or listed in `OP_ZK_PROPOSER_OWNED_CREATORS` are extended,
-    /// validated, and defended (see `owns`).
+    /// The game's creator address (`gameCreator()`). Ownership starts here: games whose creator
+    /// is the signer or listed in `OP_ZK_PROPOSER_OWNED_CREATORS` are owned, and so are adopted
+    /// copies (see `ProposerState::is_owned`).
     pub creator: Address,
     /// The game's own `DelayedWETH` address, from its immutable args. Bond
     /// reads and claims bind this address, not the currently registered one:
@@ -616,34 +616,45 @@ impl ProposerState {
         game.creator == signer || self.adopted.contains(&game.address)
     }
 
-    /// Adopts every foreign parent above the anchor of an owned game: only our own proposer
-    /// picks our parents, so after a restart this re-adopts the copies adopted before it. Drops
-    /// adoptions whose game left the cache, except `guarded`, the creation guard's game, which
-    /// a lagging pin may not have cached yet.
+    /// Records the game at `address` as adopted when it is a copy.
+    fn adopt(&mut self, address: Address, adoption: Adoption) {
+        if adoption == Adoption::Copy {
+            self.adopted.insert(address);
+        }
+    }
+
+    /// Adopts the foreign ancestors of every owned game, a listed creator's included, down to an
+    /// owned-creator game or, at or below the anchor, a settled one. Owned games' parents were
+    /// picked by our proposer under the signer or a listed creator, so after a restart this
+    /// re-adopts the copies adopted before it. Drops adoptions whose game left the cache, except
+    /// `guarded`, the creation guard's game, which a lagging pin may not have cached yet.
     fn refresh_adoptions(&mut self, owned_creators: &HashSet<Address>, guarded: Address) {
-        let cached = self.games.values().map(|game| game.address).collect::<HashSet<_>>();
-        self.adopted.retain(|address| *address == guarded || cached.contains(address));
+        self.adopted.retain(|address| {
+            *address == guarded || self.games.values().any(|game| game.address == *address)
+        });
         let anchor_sequence_number = self.anchor_game.as_ref().map(|a| a.l2_sequence_number);
-        let mut children = self
+        let mut parents = self
             .games
             .values()
             .filter(|game| self.is_owned(game, owned_creators))
             .map(|game| game.parent_index)
             .collect::<Vec<_>>();
-        while let Some(parent_index) = children.pop() {
+        while let Some(parent_index) = parents.pop() {
             if parent_index == u32::MAX {
                 continue;
             }
             let Some(parent) = self.games.get(&U256::from(parent_index)) else {
                 continue;
             };
-            if anchor_sequence_number.is_some_and(|seq| parent.l2_sequence_number <= seq) ||
-                owned_creators.contains(&parent.creator)
-            {
+            // An in-progress copy below an anchor on another branch can still lose and take our
+            // games with it.
+            let settled_below_anchor = parent.status != GameStatus::InProgress &&
+                anchor_sequence_number.is_some_and(|seq| parent.l2_sequence_number <= seq);
+            if settled_below_anchor || owned_creators.contains(&parent.creator) {
                 continue;
             }
             if self.adopted.insert(parent.address) {
-                children.push(parent.parent_index);
+                parents.push(parent.parent_index);
             }
         }
     }
@@ -741,15 +752,14 @@ struct CreationGuard {
     extra_data: Vec<u8>,
 }
 
-/// What a game found at the uuid of a create of ours is to the proposer.
+/// What a usable game at the uuid of a create of ours is to the proposer
+/// ([`Proposer::uuid_occupant`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum UuidOccupant {
-    /// Cannot carry our chain: see [`Proposer::uuid_occupant`].
-    Unusable,
+enum Adoption {
     /// Created by an owned creator.
     Owned,
-    /// Created by another address. The uuid fixes the parent, timestamp, and claim, so it is
-    /// the game we planned, adopted when the guard is armed on it.
+    /// Created by another address: a copy, [adopted](ProposerState::adopted) when the guard is
+    /// armed on it.
     Copy,
 }
 
@@ -818,7 +828,7 @@ enum GameSyncFacts {
         lifecycle: GameLifecycle,
         parent_status: GameStatus,
         /// [Owned](ProposerState::is_owned) with a known prestate.
-        owned: bool,
+        owned_provable: bool,
         proposer_created: bool,
     },
     /// A resolved game of either outcome, tracked until it is closed and our
@@ -865,7 +875,13 @@ fn classify_game_sync(
     disallowed: bool,
 ) -> Result<GameSyncAction> {
     match facts {
-        GameSyncFacts::InProgress { index, lifecycle, parent_status, owned, proposer_created } => {
+        GameSyncFacts::InProgress {
+            index,
+            lifecycle,
+            parent_status,
+            owned_provable,
+            proposer_created,
+        } => {
             let (clock_expired_or_proven, winning) = match lifecycle.proposal_status {
                 ProposalStatus::Unchallenged => {
                     let expired = now_ts > lifecycle.deadline;
@@ -896,8 +912,8 @@ fn classify_game_sync(
                 lifecycle,
                 should_attempt_to_resolve: (parent_status == GameStatus::DefenderWins &&
                     winning &&
-                    owned) ||
-                    (proposer_created && (owned || disallowed) && resolvable),
+                    owned_provable) ||
+                    (proposer_created && (owned_provable || disallowed) && resolvable),
                 should_attempt_to_claim_bond: false,
                 retention: None,
             })
@@ -1859,9 +1875,8 @@ impl Proposer {
         }
     }
 
-    /// Arms the creation guard on `address` and, when `adopt`, adopts that game in the same
-    /// state-lock section, so [`ProposerState::refresh_adoptions`] never sees one without the
-    /// other.
+    /// Arms the creation guard on `address` and adopts a copy there in the same state-lock
+    /// section, so [`ProposerState::refresh_adoptions`] never sees one without the other.
     async fn arm_creation_guard(
         &self,
         sequence_number: u64,
@@ -1869,7 +1884,7 @@ impl Proposer {
         address: Address,
         root_claim: B256,
         extra_data: Vec<u8>,
-        adopt: bool,
+        adoption: Adoption,
     ) {
         // Serialize with ancestry updates through the state lock. If the receipt
         // returns after its parent was invalidated or disallowed, re-arming this
@@ -1895,9 +1910,7 @@ impl Proposer {
 
         *self.creation_guard.lock().await =
             Some(CreationGuard { address, sequence_number, root_claim, extra_data });
-        if adopt {
-            state.adopted.insert(address);
-        }
+        state.adopt(address, adoption);
     }
 
     async fn invalid_game_result(&self, index: U256, game_address: Address) -> GameFetchResult {
@@ -2132,10 +2145,10 @@ impl Proposer {
             .l1_view
             .game_lifecycle(target.address, target.anchor_state_registry, pinned_block)
             .await?;
-        let owned = target.owned;
         match lifecycle.status {
             GameStatus::InProgress => {
-                let owned = owned && known_prestates.contains(&target.absolute_prestate);
+                let owned_provable =
+                    target.owned && known_prestates.contains(&target.absolute_prestate);
                 let proposer_created = target.creator == self.proposer_address;
                 let parent_status = if lifecycle_only {
                     GameStatus::InProgress
@@ -2153,7 +2166,7 @@ impl Proposer {
                     index: target.index,
                     lifecycle,
                     parent_status,
-                    owned,
+                    owned_provable,
                     proposer_created,
                 })
             }
@@ -2169,7 +2182,7 @@ impl Proposer {
                     lifecycle,
                     bond,
                     canonical_head_index,
-                    owned,
+                    owned: target.owned,
                 })
             }
         }
@@ -2442,7 +2455,7 @@ impl Proposer {
     }
 
     async fn resolve_games(&self) -> Result<()> {
-        // Classification only sets this flag for owned games (`owns`) and for
+        // Classification only sets this flag for owned games with a known prestate and for
         // signer-created games we may resolve to recover a bond.
         let candidates = {
             let state = self.state.read().await;
@@ -3092,7 +3105,7 @@ impl Proposer {
                             game_address,
                             super_root.super_root,
                             extra_data,
-                            false,
+                            Adoption::Owned,
                         )
                         .await;
                         ProposerGauge::GamesCreated.increment(1.0);
@@ -3109,19 +3122,14 @@ impl Proposer {
                 }
             }
 
-            // A game with identical parameters already exists (UUID collision): ours from a
-            // create whose confirmation timed out, or a copy from another creator. Either way it
-            // has the parent, timestamp, and claim we planned, so adopt it instead of bonding a
-            // second game on the same parent, unless it cannot carry our chain
+            // UUID collision: adopt the game there unless it is unusable
             // ([`Self::uuid_occupant`]).
-            let occupant = self.uuid_occupant(existing_game, sequence_number).await?;
-            let adoptable = occupant != UuidOccupant::Unusable;
-            if adoptable {
+            if let Some(adoption) = self.uuid_occupant(existing_game, sequence_number).await? {
                 tracing::info!(
                     sequence_number,
                     parent_game_index,
                     game_address = ?existing_game,
-                    ?occupant,
+                    ?adoption,
                     "Adopting the existing game at our create's uuid"
                 );
                 self.arm_creation_guard(
@@ -3130,7 +3138,7 @@ impl Proposer {
                     existing_game,
                     super_root.super_root,
                     extra_data,
-                    occupant == UuidOccupant::Copy,
+                    adoption,
                 )
                 .await;
                 return Ok(());
@@ -3161,9 +3169,7 @@ impl Proposer {
 
     /// Resolves an in-flight creation left by a confirmation timeout.
     ///
-    /// Looks the recorded uuid up on the factory first: if a game exists
-    /// there, ours or a copy from another creator, adopt it (arm the
-    /// duplicate-creation guard).
+    /// Looks the recorded uuid up on the factory first ([`Self::try_adopt_recorded_uuid`]).
     /// Otherwise consult the signer's pool: while the pending transaction
     /// count exceeds the latest, something of ours is still floating and
     /// may land, so the record is kept and proposals stay held. Once the
@@ -3217,45 +3223,52 @@ impl Proposer {
             return Ok(false);
         }
 
-        let occupant = self.uuid_occupant(existing_game, record.sequence_number).await?;
-        if occupant == UuidOccupant::Unusable {
+        let Some(adoption) = self.uuid_occupant(existing_game, record.sequence_number).await?
+        else {
             tracing::info!(
                 sequence_number = record.sequence_number,
                 game_address = ?existing_game,
                 "In-flight uuid holds a game that cannot carry our chain; clearing the record"
             );
-        } else {
-            // Not counted in GamesCreated, consistent with the collision-adoption path
-            // (accepted under-count).
-            tracing::info!(
-                sequence_number = record.sequence_number,
-                parent_game_index = record.parent_game_index,
-                game_address = ?existing_game,
-                ?occupant,
-                "Adopting the game at the in-flight uuid after its confirmation timeout"
-            );
-            self.arm_creation_guard(
-                record.sequence_number,
-                record.parent_game_index,
-                existing_game,
-                record.root_claim,
-                record.extra_data.clone(),
-                occupant == UuidOccupant::Copy,
-            )
-            .await;
-        }
+            *self.in_flight_creation.lock().await = None;
+            return Ok(true);
+        };
+        // Not counted in GamesCreated, consistent with the collision-adoption path
+        // (accepted under-count).
+        tracing::info!(
+            sequence_number = record.sequence_number,
+            parent_game_index = record.parent_game_index,
+            game_address = ?existing_game,
+            ?adoption,
+            "Adopting the game at the in-flight uuid after its confirmation timeout"
+        );
+        self.arm_creation_guard(
+            record.sequence_number,
+            record.parent_game_index,
+            existing_game,
+            record.root_claim,
+            record.extra_data.clone(),
+            adoption,
+        )
+        .await;
         *self.in_flight_creation.lock().await = None;
         Ok(true)
     }
 
-    /// Classifies the game at the uuid of our create at `sequence_number`. The uuid fixes its
-    /// parent, timestamp, and claim, but not whether it can carry our chain. It cannot when the
-    /// cache holds it as lost or disallowed, it lost (a lost foreign record leaves the cache), it
-    /// was created while ZK games were not respected (no child can be created on it), it is
-    /// challenged past its prove deadline (it will lose, and our children with it), or it is a
-    /// copy whose l1Head predates the L1 data its root needs (made from unsafe L2 data, its proof
-    /// can never bind that l1Head).
-    async fn uuid_occupant(&self, game: Address, sequence_number: u64) -> Result<UuidOccupant> {
+    /// Classifies the game at the uuid of our create at `sequence_number`; `None` when it cannot
+    /// carry our chain. The uuid fixes its parent, timestamp, and claim
+    /// ([`ProposerState::adopted`]), but no game can carry our chain when the cache holds it as
+    /// lost or disallowed, it lost (a lost foreign record leaves the cache), it was created while
+    /// ZK games were not respected (no child can be created on it), or it is challenged with less
+    /// than half its prove window left (a defense may not land in time, and our children would
+    /// lose with it). A copy also cannot when:
+    /// - its l1Head predates the L1 data its root needs: made from unsafe L2 data, its proof can
+    ///   never bind that l1Head;
+    /// - it starts below the registered anchor: a root copy made before the anchor moved spans more
+    ///   than our root would;
+    /// - this proposer cannot prove its prestate, or its verifier rejects the linked sp1-sdk's
+    ///   proofs.
+    async fn uuid_occupant(&self, game: Address, sequence_number: u64) -> Result<Option<Adoption>> {
         let cached_eligible = {
             let state = self.state.read().await;
             state
@@ -3266,20 +3279,27 @@ impl Proposer {
         };
         let validity = self.l1_view.game_validity(game, BlockId::latest()).await?;
         let claim = self.l1_view.game_claim(game, BlockId::latest()).await?;
-        let prove_deadline_passed = ProposalStatus::try_from(claim.status)? ==
-            ProposalStatus::Challenged &&
-            self.l1_view.latest_l1_timestamp().await? > claim.deadline;
+        let prove_window_short =
+            ProposalStatus::try_from(claim.status)? == ProposalStatus::Challenged && {
+                let max_prove_duration = *self
+                    .max_prove_duration
+                    .get()
+                    .context("max_prove_duration must be set via try_init")?;
+                let now = self.l1_view.latest_l1_timestamp().await?;
+                check_deadline_status(now, claim.deadline, max_prove_duration) != DeadlineStatus::Ok
+            };
         if !cached_eligible ||
             validity.status == GameStatus::ChallengerWins ||
             !validity.was_respected ||
-            prove_deadline_passed
+            prove_window_short
         {
-            return Ok(UuidOccupant::Unusable);
+            return Ok(None);
         }
         let creator = self.l1_view.game_creator(game).await?;
         if self.owned_creators.contains(&creator) {
-            return Ok(UuidOccupant::Owned);
+            return Ok(Some(Adoption::Owned));
         }
+        let inputs = self.l1_view.proof_inputs(game).await?;
         let required_l1 = self
             .superroot_source
             .super_root_at_timestamp(sequence_number)
@@ -3287,12 +3307,14 @@ impl Proposer {
             .response
             .data
             .map(|data| data.verified_required_l1.number);
-        let l1_head = self.l1_view.game_l1_head_number(game, BlockId::latest()).await?;
-        Ok(if required_l1.is_some_and(|required| required <= l1_head) {
-            UuidOccupant::Copy
-        } else {
-            UuidOccupant::Unusable
-        })
+        let args = self.l1_view.registered_game_args(BlockId::latest()).await?;
+        let anchor =
+            self.l1_view.anchor_root(args.anchor_state_registry, BlockId::latest()).await?;
+        let usable = required_l1.is_some_and(|required| required <= inputs.l1_head_number) &&
+            U256::from(inputs.starting_sequence_number) >= anchor.sequence_number &&
+            self.prestate_usable_for_creation(validity.absolute_prestate).await &&
+            self.verifier_compatible(inputs.verifier).await?;
+        Ok(usable.then_some(Adoption::Copy))
     }
 
     async fn fetch_proposer_metrics(&self) {
@@ -4087,27 +4109,24 @@ impl Proposer {
         if existing == guard.address {
             return Ok(false);
         }
-        if existing != Address::ZERO {
-            let occupant = self.uuid_occupant(existing, guard.sequence_number).await?;
-            if occupant != UuidOccupant::Unusable {
-                let mut state = self.state.write().await;
-                let mut current = self.creation_guard.lock().await;
-                if let Some(current) =
-                    current.as_mut().filter(|current| current.address == guard.address)
-                {
-                    tracing::info!(
-                        from = ?guard.address,
-                        to = ?existing,
-                        ?occupant,
-                        "Creation guard followed the game at its uuid"
-                    );
-                    current.address = existing;
-                    if occupant == UuidOccupant::Copy {
-                        state.adopted.insert(existing);
-                    }
-                }
-                return Ok(false);
+        if existing != Address::ZERO &&
+            let Some(adoption) = self.uuid_occupant(existing, guard.sequence_number).await?
+        {
+            let mut state = self.state.write().await;
+            let mut current = self.creation_guard.lock().await;
+            if let Some(current) =
+                current.as_mut().filter(|current| current.address == guard.address)
+            {
+                tracing::info!(
+                    from = ?guard.address,
+                    to = ?existing,
+                    ?adoption,
+                    "Creation guard followed the game at its uuid"
+                );
+                current.address = existing;
+                state.adopt(existing, adoption);
             }
+            return Ok(false);
         }
         self.reset_creation_guard(Some(guard.address), "tracked creation is no longer on L1").await;
         Ok(true)
@@ -4653,8 +4672,8 @@ pub enum GameFetchResult {
         /// Claim deadline of the game (L1 timestamp, seconds), used by the
         /// pending eviction cutoff.
         deadline: u64,
-        /// The game's `absolutePrestate()`: owned (`owns`) games
-        /// are exempt from pending eviction.
+        /// The game's `absolutePrestate()`: games of owned creators with a
+        /// known prestate are exempt from pending eviction.
         prestate: B256,
         /// The game's creator.
         creator: Address,
@@ -5059,8 +5078,8 @@ impl PrestateCache {
     }
 
     /// Snapshot of the prestates the proposer can currently prove: loaded
-    /// artifacts whose proving keys are not poisoned. Defense and resolution
-    /// need one (`owns`); claims do not.
+    /// artifacts whose proving keys are not poisoned. Defending or resolving
+    /// an owned game needs one; claims do not.
     pub async fn known_prestates(&self) -> HashSet<B256> {
         self.programs
             .read()
@@ -6917,14 +6936,14 @@ mod tests {
         fn in_progress(
             proposal_status: ProposalStatus,
             parent_status: GameStatus,
-            owned: bool,
+            owned_provable: bool,
             proposer_created: bool,
         ) -> GameSyncFacts {
             GameSyncFacts::InProgress {
                 index: U256::from(7),
                 lifecycle: GameLifecycle { proposal_status, ..lifecycle(GameStatus::InProgress) },
                 parent_status,
-                owned,
+                owned_provable,
                 proposer_created,
             }
         }
@@ -9940,12 +9959,8 @@ mod tests {
         s.canonical_head_index = Some(U256::from(1));
         s.canonical_head_sequence_number = Some(200);
         s.invalid_games.insert(U256::from(1));
-        let (guarded, unguarded) = (Address::repeat_byte(0x88), Address::repeat_byte(0x99));
-        s.adopted.extend([guarded, unguarded]);
 
         let removed = s.reset_factory_cache().into_iter().collect::<HashSet<_>>();
-        // The guard's adopted game may not be cached yet under a lagging pin; it survives.
-        s.refresh_adoptions(&HashSet::from([TEST_SIGNER]), guarded);
 
         assert_eq!(s.cursor, Cursor::none());
         assert!(s.games.is_empty());
@@ -9953,10 +9968,55 @@ mod tests {
         assert!(s.anchor_game.is_none());
         assert!(s.canonical_head_index.is_none());
         assert_eq!(s.canonical_head_sequence_number, Some(200));
-        assert_eq!(s.adopted, HashSet::from([guarded]));
         assert_eq!(
             removed,
             HashSet::from([Address::left_padding_from(&[0]), Address::left_padding_from(&[1]),])
+        );
+    }
+
+    /// Pins which foreign games a restart re-adopts: every foreign ancestor of an owned game, a
+    /// listed creator's included, up to an owned-creator game, the anchor, or a settled game at
+    /// or below it. An in-progress copy below an anchor on another branch stays adopted, since
+    /// our child on it still needs it to win.
+    #[test]
+    fn refresh_adoptions_re_adopts_foreign_ancestors_of_owned_games() {
+        let foreign = Address::repeat_byte(0xbb);
+        let listed = Address::repeat_byte(0x5a);
+        let copy = |index, parent, seq| Game { creator: foreign, ..game_with(index, parent, seq) };
+        let anchor = Game { status: GameStatus::DefenderWins, ..copy(0, u32::MAX, 100) };
+        let (copy_a, copy_b, copy_c) = (copy(1, 0, 200), copy(2, 1, 300), copy(4, 3, 500));
+        let off_branch = copy(6, u32::MAX, 50);
+        let settled = Game { status: GameStatus::DefenderWins, ..copy(8, u32::MAX, 60) };
+        let mut s = state(
+            vec![
+                anchor.clone(),
+                copy_a.clone(),
+                copy_b.clone(),
+                Game { creator: listed, ..game_with(3, 2, 400) },
+                copy_c.clone(),
+                game_with(5, 4, 600),
+                off_branch.clone(),
+                game_with(7, 6, 150),
+                settled,
+                game_with(9, 8, 160),
+            ],
+            Some(anchor),
+        );
+        // The guard's adopted game may not be cached yet under a lagging pin; it survives.
+        let (guarded, uncached) = (Address::repeat_byte(0x88), Address::repeat_byte(0x99));
+        s.adopted.extend([guarded, uncached]);
+
+        s.refresh_adoptions(&HashSet::from([TEST_SIGNER, listed]), guarded);
+
+        assert_eq!(
+            s.adopted,
+            HashSet::from([
+                copy_a.address,
+                copy_b.address,
+                copy_c.address,
+                off_branch.address,
+                guarded
+            ])
         );
     }
 
@@ -10138,6 +10198,7 @@ mod tests {
                 horizon: ProposalHorizon { safe_timestamp: 5, finalized_timestamp: 5 },
                 roots: vec![(5, super_root_at_timestamp(5, B256::ZERO, 12, 11))],
             });
+            proposer.prestates.insert_for_tests(B256::ZERO, PrestatePrograms::stub(1)).await;
             *proposer.creation_guard.lock().await = Some(guarded());
             proposer
         }
@@ -10153,7 +10214,10 @@ mod tests {
             let looked_up = vec!["nonce_state", "game_by_uuid"];
             let classified =
                 vec!["nonce_state", "game_by_uuid", "game_validity", "game_claim", "game_creator"];
-            let copy_checked = [classified.clone(), vec!["game_l1_head_number"]].concat();
+            let copy_read =
+                [classified.clone(), vec!["proof_inputs", "registered_game_args", "anchor_root"]]
+                    .concat();
+            let copy_checked = [copy_read.clone(), vec!["verifier_hash"]].concat();
             for (nonce_state, game_by_uuid, game_creator, l1_head, address_after, calls) in [
                 (
                     NonceState { pending: 1, latest: 0 },
@@ -10175,14 +10239,14 @@ mod tests {
                 (idle, guarded.address, None, 11, Some(guarded.address), looked_up.clone()),
                 (idle, relocated, Some(TEST_SIGNER), 11, Some(relocated), classified.clone()),
                 (idle, relocated, Some(copier), 11, Some(relocated), copy_checked.clone()),
-                (idle, relocated, Some(copier), 10, None, copy_checked.clone()),
+                (idle, relocated, Some(copier), 10, None, copy_read.clone()),
                 (idle, Address::ZERO, None, 11, None, looked_up.clone()),
             ] {
                 let view = Arc::new(RecordingL1View {
                     nonce_state,
                     game_by_uuid,
                     game_creator,
-                    game_l1_head_number: l1_head,
+                    proof_inputs: ProofInputs { l1_head_number: l1_head, ..Default::default() },
                     ..Default::default()
                 });
                 let proposer = proposer_with(view.clone()).await;

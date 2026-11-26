@@ -4615,8 +4615,43 @@ async fn unsupported_anchor_adopts_a_foreign_root_copy() {
     assert!(scenario.proposer.state.read().await.adopted.contains(&copy_address));
 }
 
-/// A game from another creator at our next create's UUID has the same parent, timestamp, and
-/// claim as the game we planned. The proposer adopts it as its next game instead of walking
+/// A root starts from the anchor registered when it is created, which the uuid does not fix. A
+/// root copy made before the anchor moved spans more than our root would, so creation walks past
+/// it.
+#[tokio::test]
+async fn root_copy_from_an_older_anchor_is_walked_past() {
+    let world = ScenarioWorld::new();
+    let mut old_anchor = ScenarioGame::new(0, u32::MAX, 20, ScenarioWorld::default_prestate());
+    old_anchor.game_type = ZK_GAME_TYPE + 1;
+    let old_anchor_target = old_anchor.target();
+    world.add_game(old_anchor);
+    world.set_anchor_game(&old_anchor_target);
+    let copy = ScenarioGame::new(1, u32::MAX, 220, ScenarioWorld::default_prestate());
+    let copy_address = copy.address;
+    world.add_game(copy);
+    let mut new_anchor = ScenarioGame::new(2, u32::MAX, 120, ScenarioWorld::default_prestate());
+    new_anchor.game_type = ZK_GAME_TYPE + 1;
+    let new_anchor_target = new_anchor.target();
+    world.add_game(new_anchor);
+    world.set_anchor_game(&new_anchor_target);
+    world.set_horizons(221, 221);
+    let mut config = scenario_config();
+    config.proposal_interval_seconds = 100;
+    let scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    scenario.proposer.handle_game_creation(220, u32::MAX).await.unwrap();
+    assert!(
+        world
+            .action_record(
+                &ActionTarget::Create { sequence_number: 221, parent_game_index: u32::MAX },
+                1,
+            )
+            .is_some()
+    );
+    assert!(!scenario.proposer.state.read().await.adopted.contains(&copy_address));
+}
+
+/// The proposer adopts a game from another creator at our next create's uuid instead of walking
 /// past it, so one copy per attempt cannot delay creation.
 #[tokio::test]
 async fn foreign_copy_of_the_next_game_is_adopted() {
@@ -4657,20 +4692,65 @@ async fn foreign_copy_of_the_next_game_is_adopted() {
     });
 }
 
+/// A create whose confirmation timed out can find a copy at its uuid instead of our game. A
+/// usable copy is adopted and guarded like our own game; one whose l1Head predates its root's L1
+/// data only clears the record.
+#[tokio::test]
+async fn timed_out_create_adopts_only_a_usable_copy_at_its_uuid() {
+    for stale_l1_head in [false, true] {
+        let world = ScenarioWorld::new();
+        world.add_game(
+            ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).owned(),
+        );
+        world.set_horizons(20, 20);
+        let create = ActionTarget::Create { sequence_number: 20, parent_game_index: 0 };
+        world.script_action(create, 1, ActionOutcome::Timeout);
+        let mut config = scenario_config();
+        config.proposal_interval_seconds = 10;
+        let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+        let submitted = scenario.tick().await.unwrap();
+        scenario.settle_scheduled(&submitted).await.unwrap();
+        let copy = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+        let copy_target = copy.target();
+        world.add_game(copy);
+        if stale_l1_head {
+            // The root at 20 needs L1 block 1.
+            world.update_game(&copy_target, |game| game.proof_inputs.l1_head_number = 0);
+        }
+
+        let reconciled = scenario.tick().await.unwrap();
+        reconciled.task_id_for(|operation| {
+            matches!(operation, OperationSummary::ReconcileCreation { sequence_number: 20, .. })
+        });
+        scenario.settle_scheduled(&reconciled).await.unwrap();
+        assert!(scenario.proposer.in_flight_creation.lock().await.is_none());
+        assert_eq!(
+            scenario.proposer.creation_guard.lock().await.as_ref().map(|guard| guard.address),
+            (!stale_l1_head).then_some(copy_target.address)
+        );
+        assert_eq!(
+            scenario.proposer.state.read().await.adopted.contains(&copy_target.address),
+            !stale_l1_head
+        );
+    }
+}
+
 /// The uuid does not fix everything that lets a copy carry our chain. The proposer walks past a
-/// copy that binds an l1Head before the L1 data its root needs (made from unsafe L2 data, it can
-/// never be proven), one created while ZK games were not respected (no child can be created on
-/// it), and one challenged past its prove deadline (it will lose, and our children with it).
+/// copy that binds an l1Head before the L1 data its root needs, one created while ZK games were
+/// not respected, one challenged with less than half its prove window left, and one with a
+/// prestate it cannot prove.
 #[tokio::test]
 async fn copies_that_cannot_carry_our_chain_are_walked_past() {
-    let unusable: [fn(&mut ScenarioGame); 3] = [
+    let unusable: [fn(&mut ScenarioGame); 4] = [
         // The root at 20 needs L1 block 1.
         |game| game.proof_inputs.l1_head_number = 0,
         |game| game.was_respected = false,
         |game| {
             game.proposal_status = ProposalStatus::Challenged;
-            game.deadline = 0;
+            game.deadline -= DEFAULT_MAX_DURATION / 2 + 1;
         },
+        |game| game.absolute_prestate = B256::repeat_byte(0xee),
     ];
     for make_unusable in unusable {
         let world = ScenarioWorld::new();
