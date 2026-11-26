@@ -6,9 +6,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
-// LokahiChainNodes are the three nodes of one chain of a [TwoL2LokahiMultiNode] or
-// [TwoL2LokahiLight] system. The source and the follower import the sequencer's unsafe blocks over
-// p2p.
+// LokahiChainNodes are the three nodes of one chain of a [TwoL2LokahiMultiNode] system, which all
+// derive the chain. The source and the follower import the sequencer's unsafe blocks over p2p.
 type LokahiChainNodes struct {
 	// Sequencer builds the chain's blocks. The batcher posts them.
 	Sequencer   *dsl.L2CLNode

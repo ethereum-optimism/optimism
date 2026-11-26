@@ -9,12 +9,11 @@ import (
 )
 
 // The names of the nodes besides the sequencer that every chain of
-// [NewTwoL2LokahiMultiNodeRuntime] and [NewTwoL2LokahiLightRuntime] runs, as keys of
-// [MultiChainNodeRuntime.Followers].
+// [NewTwoL2LokahiMultiNodeRuntime] runs, as keys of [MultiChainNodeRuntime.Followers].
 const (
 	// LokahiSourceNode derives its chain and is the node lokahi reads the chain from.
 	LokahiSourceNode = "source"
-	// LokahiFollowerNode is not read by lokahi.
+	// LokahiFollowerNode derives its chain and is not read by lokahi.
 	LokahiFollowerNode = "follower"
 )
 
@@ -34,9 +33,9 @@ const (
 func NewTwoL2LokahiMultiNodeRuntime(t devtest.T) *MultiChainRuntime {
 	return newTwoL2LokahiNodesRuntime(t, "test-sequencer-lokahi-multinode",
 		func(startNode lokahiNodeStarter, l2Net *L2Network) lokahiNodes {
-			sequencer := startNode(l2Net, "sequencer", true, "")
-			source := startNode(l2Net, LokahiSourceNode, false, "", lokahiSafeDB(t, l2Net))
-			follower := startNode(l2Net, LokahiFollowerNode, false, "")
+			sequencer := startNode(l2Net, "sequencer", true)
+			source := startNode(l2Net, LokahiSourceNode, false, lokahiSafeDB(t, l2Net))
+			follower := startNode(l2Net, LokahiFollowerNode, false)
 			for _, node := range []*SingleChainNodeRuntime{source, follower} {
 				connectL2CLPeers(t, t.Logger(), sequencer.CL, node.CL)
 				connectL2ELPeers(t, t.Logger(), sequencer.EL.UserRPC(), node.EL.UserRPC())
@@ -54,10 +53,9 @@ type lokahiNodes struct {
 	follower *SingleChainNodeRuntime
 }
 
-// lokahiNodeStarter starts a kona-node named name with its own op-reth on a chain. With an empty
-// followSource, the node derives and follows lokahi for its safe and finalized labels. Otherwise
-// it is a light node: it derives nothing and takes those labels from the CL at followSource.
-type lokahiNodeStarter func(l2Net *L2Network, name string, isSequencer bool, followSource string,
+// lokahiNodeStarter starts a kona-node named name with its own op-reth on a chain. The node
+// derives, and follows lokahi for its safe and finalized labels.
+type lokahiNodeStarter func(l2Net *L2Network, name string, isSequencer bool,
 	options ...L2CLOption) *SingleChainNodeRuntime
 
 // lokahiSafeDB is the option that makes a node on l2Net record its safe heads, which lokahi reads
@@ -100,18 +98,14 @@ func newTwoL2LokahiNodesRuntime(t devtest.T, testSequencerName string,
 	require.NoError(err, "marshal interop dependency set")
 
 	lokahi := newLokahi(t)
-	startNode := func(l2Net *L2Network, name string, isSequencer bool, followSource string,
+	startNode := func(l2Net *L2Network, name string, isSequencer bool,
 		options ...L2CLOption) *SingleChainNodeRuntime {
-		authority := lokahi.UserRPC()
-		if followSource != "" {
-			authority = ""
-		}
 		el := startMixedOpRethNode(t, l2Net, name, jwtPath, jwtSecret, nil)
 		cl := startMixedKonaNode(t, keys, l1Net, l2Net, l1EL, l1CL, el, name, name, konaNodeStartConfig{
 			InOpReth:            inOpReth,
 			DependencySet:       depSet,
-			L2CLConfig:          resolveKonaL2CLConfig(t, name, l2Net.ChainID(), isSequencer, followSource, options),
-			InteropAuthorityRPC: authority,
+			L2CLConfig:          resolveKonaL2CLConfig(t, name, l2Net.ChainID(), isSequencer, "", options),
+			InteropAuthorityRPC: lokahi.UserRPC(),
 		})
 		return &SingleChainNodeRuntime{Name: name, IsSequencer: isSequencer, EL: el, CL: cl}
 	}
