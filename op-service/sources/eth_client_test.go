@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	crand "crypto/rand"
+	"errors"
 	"math/big"
 	"math/rand"
 	"slices"
@@ -174,6 +175,130 @@ func TestEthClient_InfoByNumber(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, info, expectedInfo)
 	m.Mock.AssertExpectations(t)
+}
+
+func TestL1Client_L1BlockRefsByNumbers(t *testing.T) {
+	ctx := context.Background()
+	_, rhdr1 := randHeader()
+	rhdr2 := *rhdr1
+	rhdr2.Hash = randHash()
+	rhdr2.Number = 1235
+	newClient := func(t *testing.T, trustRPC bool, batchErr error, fill func(b []rpc.BatchElem)) (*L1Client, *mockRPC) {
+		m := new(mockRPC)
+		m.On("BatchCallContext", ctx, mock.Anything).Run(func(args mock.Arguments) {
+			fill(args[1].([]rpc.BatchElem))
+		}).Return([]error{batchErr})
+		s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, trustRPC, RPCKindStandard))
+		require.NoError(t, err)
+		return s, m
+	}
+
+	t.Run("fetches all numbers in one batch", func(t *testing.T) {
+		s, m := newClient(t, true, nil, func(b []rpc.BatchElem) {
+			require.Len(t, b, 2)
+			for i, n := range []string{"0x4d2", "0x4d3"} {
+				require.Equal(t, "eth_getBlockByNumber", b[i].Method)
+				require.Equal(t, []any{n, false}, b[i].Args)
+			}
+			*b[0].Result.(**RPCHeader) = rhdr1
+			*b[1].Result.(**RPCHeader) = &rhdr2
+		})
+		refs, err := s.L1BlockRefsByNumbers(ctx, []uint64{1234, 1235})
+		require.NoError(t, err)
+		var expected []eth.L1BlockRef
+		for _, rhdr := range []*RPCHeader{rhdr1, &rhdr2} {
+			header, err := rhdr.Header(true, false)
+			require.NoError(t, err)
+			expected = append(expected, eth.InfoToL1BlockRef(eth.HeaderBlockInfo(header)))
+		}
+		require.Equal(t, expected, refs)
+		m.AssertNumberOfCalls(t, "BatchCallContext", 1)
+
+		// The fetched refs are cached by hash.
+		ref, err := s.L1BlockRefByHash(ctx, refs[0].Hash)
+		require.NoError(t, err)
+		require.Equal(t, refs[0], ref)
+		m.AssertNumberOfCalls(t, "BatchCallContext", 1)
+	})
+
+	t.Run("no numbers makes no request", func(t *testing.T) {
+		s, m := newClient(t, true, nil, func([]rpc.BatchElem) {})
+		refs, err := s.L1BlockRefsByNumbers(ctx, nil)
+		require.NoError(t, err)
+		require.Empty(t, refs)
+		m.AssertNotCalled(t, "BatchCallContext", mock.Anything, mock.Anything)
+	})
+
+	errElement := errors.New("element failed")
+	errTransport := errors.New("transport failed")
+	wrongHash := *rhdr1
+	wrongHash.Hash = randHash()
+	tests := []struct {
+		name     string
+		trustRPC bool
+		batchErr error
+		fill     func(b []rpc.BatchElem)
+		nums     []uint64
+		errIs    error
+		errText  string
+	}{
+		{
+			name:     "transport error",
+			trustRPC: true,
+			batchErr: errTransport,
+			fill:     func([]rpc.BatchElem) {},
+			nums:     []uint64{1234},
+			errIs:    errTransport,
+		},
+		{
+			name:     "element error",
+			trustRPC: true,
+			fill: func(b []rpc.BatchElem) {
+				*b[0].Result.(**RPCHeader) = rhdr1
+				b[1].Error = errElement
+			},
+			nums:  []uint64{1234, 1235},
+			errIs: errElement,
+		},
+		{
+			name:     "missing block",
+			trustRPC: true,
+			fill: func(b []rpc.BatchElem) {
+				*b[0].Result.(**RPCHeader) = rhdr1
+			},
+			nums:  []uint64{1234, 1235},
+			errIs: ethereum.NotFound,
+		},
+		{
+			name:     "wrong block number",
+			trustRPC: true,
+			fill: func(b []rpc.BatchElem) {
+				*b[0].Result.(**RPCHeader) = &rhdr2
+			},
+			nums:    []uint64{1234},
+			errText: "does not match requested ID",
+		},
+		{
+			name:     "header hash does not match an untrusted RPC",
+			trustRPC: false,
+			fill: func(b []rpc.BatchElem) {
+				*b[0].Result.(**RPCHeader) = &wrongHash
+			},
+			nums:    []uint64{1234},
+			errText: "failed to verify block hash",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, _ := newClient(t, tt.trustRPC, tt.batchErr, tt.fill)
+			_, err := s.L1BlockRefsByNumbers(ctx, tt.nums)
+			if tt.errIs != nil {
+				require.ErrorIs(t, err, tt.errIs)
+			} else {
+				require.ErrorContains(t, err, tt.errText)
+			}
+		})
+	}
 }
 
 func TestEthClient_WrongInfoByNumber(t *testing.T) {

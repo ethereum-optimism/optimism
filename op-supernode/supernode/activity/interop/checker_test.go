@@ -16,12 +16,16 @@ type mockL1Source struct {
 	blocks map[uint64]eth.L1BlockRef
 }
 
-func (m *mockL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
-	ref, ok := m.blocks[num]
-	if !ok {
-		return eth.L1BlockRef{}, fmt.Errorf("block %d not found", num)
+func (m *mockL1Source) L1BlockRefsByNumbers(ctx context.Context, nums []uint64) ([]eth.L1BlockRef, error) {
+	refs := make([]eth.L1BlockRef, len(nums))
+	for i, num := range nums {
+		ref, ok := m.blocks[num]
+		if !ok {
+			return nil, fmt.Errorf("block %d not found", num)
+		}
+		refs[i] = ref
 	}
-	return ref, nil
+	return refs, nil
 }
 
 // noopL1Checker treats every set of heads as canonical. Intended for tests that
@@ -110,21 +114,31 @@ func TestL1ConsistencyChecker_SameL1Chain(t *testing.T) {
 	})
 }
 
-// countingFinalizedL1Source counts by-number and finality lookups.
+// shortL1Source returns no refs for any request.
+type shortL1Source struct{}
+
+func (shortL1Source) L1BlockRefsByNumbers(context.Context, []uint64) ([]eth.L1BlockRef, error) {
+	return nil, nil
+}
+
+// countingFinalizedL1Source counts by-number batches, the numbers in them, and
+// finality lookups.
 type countingFinalizedL1Source struct {
 	mockL1Source
 	finalized      uint64
 	byNumberCalls  int
+	fetched        [][]uint64
 	finalizedCalls int
-	onByNumber     func() // runs inside each by-number lookup
+	onByNumber     func() // runs inside each by-number batch
 }
 
-func (m *countingFinalizedL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
+func (m *countingFinalizedL1Source) L1BlockRefsByNumbers(ctx context.Context, nums []uint64) ([]eth.L1BlockRef, error) {
 	m.byNumberCalls++
+	m.fetched = append(m.fetched, nums)
 	if m.onByNumber != nil {
 		m.onByNumber()
 	}
-	return m.mockL1Source.L1BlockRefByNumber(ctx, num)
+	return m.mockL1Source.L1BlockRefsByNumbers(ctx, nums)
 }
 
 func (m *countingFinalizedL1Source) L1BlockRefByLabel(_ context.Context, label eth.BlockLabel) (eth.L1BlockRef, error) {
@@ -189,6 +203,54 @@ func TestL1ConsistencyChecker_FinalizedCache(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, same)
 		same, err = c.SameL1Chain(ctx, []eth.BlockID{{Hash: common.HexToHash("0xdead"), Number: 95}})
+		require.NoError(t, err)
+		require.False(t, same)
+		require.Equal(t, 1, src.byNumberCalls)
+	})
+
+	t.Run("uncached heads are fetched in one batch", func(t *testing.T) {
+		now := time.Unix(1000, 0)
+		src := newSource(100)
+		c := newChecker(src, &now)
+		_, err := c.SameL1Chain(ctx, []eth.BlockID{{Hash: hash(95), Number: 95}}) // cache 95
+		require.NoError(t, err)
+		same, err := c.SameL1Chain(ctx, []eth.BlockID{
+			{Hash: hash(95), Number: 95},
+			{Hash: hash(103), Number: 103},
+			{Hash: hash(105), Number: 105},
+		})
+		require.NoError(t, err)
+		require.True(t, same)
+		require.Equal(t, [][]uint64{{95}, {103, 105}}, src.fetched)
+	})
+
+	t.Run("a mixed batch caches only the finalized numbers", func(t *testing.T) {
+		now := time.Unix(1000, 0)
+		src := newSource(100)
+		c := newChecker(src, &now)
+		heads := []eth.BlockID{{Hash: hash(95), Number: 95}, {Hash: hash(105), Number: 105}}
+		for i := 0; i < 2; i++ {
+			same, err := c.SameL1Chain(ctx, heads)
+			require.NoError(t, err)
+			require.True(t, same)
+		}
+		require.Equal(t, [][]uint64{{95, 105}, {105}}, src.fetched)
+	})
+
+	t.Run("a short batch result is an error", func(t *testing.T) {
+		c := newL1ConsistencyChecker(shortL1Source{})
+		_, err := c.SameL1Chain(ctx, []eth.BlockID{{Hash: hash(95), Number: 95}})
+		require.ErrorContains(t, err, "expected 1 L1 block refs, got 0")
+	})
+
+	t.Run("mismatch in a batch is detected", func(t *testing.T) {
+		now := time.Unix(1000, 0)
+		src := newSource(100)
+		c := newChecker(src, &now)
+		same, err := c.SameL1Chain(ctx, []eth.BlockID{
+			{Hash: hash(103), Number: 103},
+			{Hash: common.HexToHash("0xdead"), Number: 105},
+		})
 		require.NoError(t, err)
 		require.False(t, same)
 		require.Equal(t, 1, src.byNumberCalls)

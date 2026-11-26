@@ -2,6 +2,7 @@ package interop
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -23,7 +24,7 @@ const (
 
 // l1ByNumberSource provides L1 block lookups by number for consistency checking.
 type l1ByNumberSource interface {
-	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
+	L1BlockRefsByNumbers(ctx context.Context, nums []uint64) ([]eth.L1BlockRef, error)
 }
 
 // l1FinalizedSource is optionally implemented by an l1ByNumberSource. When it
@@ -74,7 +75,9 @@ func newL1ConsistencyChecker(l1 l1ByNumberSource) l1ConsistencyChecker {
 }
 
 // SameL1Chain returns true if all non-zero heads belong to the same canonical L1 chain.
+// It fetches the heads that are not in the finalized cache in one batch request.
 func (c *l1ByNumberChecker) SameL1Chain(ctx context.Context, heads []eth.BlockID) (bool, error) {
+	var toFetch []eth.BlockID
 	checked := make(map[eth.BlockID]struct{}, len(heads))
 	for _, head := range heads {
 		if head == (eth.BlockID{}) {
@@ -84,36 +87,62 @@ func (c *l1ByNumberChecker) SameL1Chain(ctx context.Context, heads []eth.BlockID
 			continue
 		}
 		checked[head] = struct{}{}
-		canonical, err := c.canonicalHash(ctx, head.Number)
-		if err != nil {
-			return false, err
+		if hash, ok := c.cachedCanonicalHash(head.Number); ok {
+			if hash != head.Hash {
+				return false, nil
+			}
+			continue
 		}
-		if canonical != head.Hash {
+		toFetch = append(toFetch, head)
+	}
+	hashes, err := c.fetchCanonicalHashes(ctx, toFetch)
+	if err != nil {
+		return false, err
+	}
+	for i, head := range toFetch {
+		if hashes[i] != head.Hash {
 			return false, nil
 		}
 	}
 	return true, nil
 }
 
-// canonicalHash returns the canonical L1 hash at num, from the cache when num
-// is known to be finalized.
-func (c *l1ByNumberChecker) canonicalHash(ctx context.Context, num uint64) (common.Hash, error) {
-	if c.canonical != nil {
-		if hash, ok := c.canonical.Get(num); ok {
-			return hash, nil
+// fetchCanonicalHashes returns the canonical L1 hash at each head's number, from
+// one batch request, and caches the ones known to be finalized.
+func (c *l1ByNumberChecker) fetchCanonicalHashes(ctx context.Context, heads []eth.BlockID) ([]common.Hash, error) {
+	if len(heads) == 0 {
+		return nil, nil
+	}
+	nums := make([]uint64, len(heads))
+	cacheable := make([]bool, len(heads))
+	for i, head := range heads {
+		nums[i] = head.Number
+		// Check finality before fetching: a hash fetched while num was above
+		// finality must not be cached, even if finality passes num meanwhile.
+		cacheable[i] = c.canonical != nil && c.isFinalized(ctx, head.Number)
+	}
+	refs, err := c.l1.L1BlockRefsByNumbers(ctx, nums)
+	if err != nil {
+		return nil, err
+	}
+	if len(refs) != len(nums) {
+		return nil, fmt.Errorf("expected %d L1 block refs, got %d", len(nums), len(refs))
+	}
+	hashes := make([]common.Hash, len(refs))
+	for i, ref := range refs {
+		hashes[i] = ref.Hash
+		if cacheable[i] {
+			c.canonical.Add(nums[i], ref.Hash)
 		}
 	}
-	// Check finality before fetching: a hash fetched while num was above
-	// finality must not be cached, even if finality passes num meanwhile.
-	final := c.canonical != nil && c.isFinalized(ctx, num)
-	ref, err := c.l1.L1BlockRefByNumber(ctx, num)
-	if err != nil {
-		return common.Hash{}, err
+	return hashes, nil
+}
+
+func (c *l1ByNumberChecker) cachedCanonicalHash(num uint64) (common.Hash, bool) {
+	if c.canonical == nil {
+		return common.Hash{}, false
 	}
-	if final {
-		c.canonical.Add(num, ref.Hash)
-	}
-	return ref.Hash, nil
+	return c.canonical.Get(num)
 }
 
 // isFinalized reports whether num is at or below the L1 finalized head. It

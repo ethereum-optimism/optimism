@@ -222,6 +222,11 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID
 	if err != nil {
 		return nil, eth.MaybeAsNotFoundErr(err)
 	}
+	return s.verifyHeader(rpcHdr, id)
+}
+
+// verifyHeader checks a header fetched for id and caches it. A nil header is not found.
+func (s *EthClient) verifyHeader(rpcHdr *RPCHeader, id rpcBlockID) (*types.Header, error) {
 	if rpcHdr == nil {
 		return nil, ethereum.NotFound
 	}
@@ -613,6 +618,41 @@ func (s *EthClient) BlockRefByNumber(ctx context.Context, num uint64) (eth.Block
 	ref := eth.InfoToL1BlockRef(info)
 	s.blockRefsCache.Add(ref.Hash, ref)
 	return ref, nil
+}
+
+// BlockRefsByNumbers returns the [eth.BlockRef]s at the given block numbers, in
+// order, from one batch request. The request is not split by MaxRequestsPerBatch,
+// so callers must keep nums small.
+func (s *EthClient) BlockRefsByNumbers(ctx context.Context, nums []uint64) ([]eth.BlockRef, error) {
+	if len(nums) == 0 {
+		return nil, nil
+	}
+	rpcHeaders := make([]*RPCHeader, len(nums))
+	batch := make([]rpc.BatchElem, len(nums))
+	for i, num := range nums {
+		batch[i] = rpc.BatchElem{
+			Method: "eth_getBlockByNumber",
+			Args:   []any{numberID(num).Arg(), false}, // headers are just blocks without txs
+			Result: &rpcHeaders[i],
+		}
+	}
+	if err := s.client.BatchCallContext(ctx, batch); err != nil {
+		return nil, fmt.Errorf("failed to fetch headers by num %v: %w", nums, err)
+	}
+	refs := make([]eth.BlockRef, len(nums))
+	for i, num := range nums {
+		if err := batch[i].Error; err != nil {
+			return nil, fmt.Errorf("failed to fetch header by num %d: %w", num, eth.MaybeAsNotFoundErr(err))
+		}
+		header, err := s.verifyHeader(rpcHeaders[i], numberID(num))
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch header by num %d: %w", num, err)
+		}
+		ref := eth.InfoToL1BlockRef(eth.HeaderBlockInfo(header))
+		s.blockRefsCache.Add(ref.Hash, ref)
+		refs[i] = ref
+	}
+	return refs, nil
 }
 
 // BlockRefByHash returns the [eth.BlockRef] for the given block hash.

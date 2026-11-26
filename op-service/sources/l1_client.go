@@ -76,6 +76,12 @@ func (s *L1Client) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1Bl
 	return s.BlockRefByNumber(ctx, num)
 }
 
+// L1BlockRefsByNumbers returns the [eth.L1BlockRef]s at the given block numbers, in order,
+// from one batch request. Like [L1Client.L1BlockRefByNumber], the results are not cached by number.
+func (s *L1Client) L1BlockRefsByNumbers(ctx context.Context, nums []uint64) ([]eth.L1BlockRef, error) {
+	return s.BlockRefsByNumbers(ctx, nums)
+}
+
 // L1BlockRefByHash returns the [eth.L1BlockRef] for the given block hash.
 // We cache the block reference by hash as it is safe to assume collision will not occur.
 func (s *L1Client) L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error) {
