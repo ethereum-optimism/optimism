@@ -10,7 +10,6 @@ use alloy_primitives::{B256, map::HashMap};
 use alloy_provider::{Provider, RootProvider};
 use kona_genesis::RollupConfig;
 use kona_interop::{BlocksWithReceipts, DependencySet, MessageGraph, MessageGraphError};
-use kona_protocol::OutputRoot;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
@@ -213,22 +212,30 @@ impl Verifier {
             return Err(self.deny(timestamp, &frontier, invalid)?);
         }
 
+        // A replacement holds only while the denial it replaced holds, so the result's L1
+        // inclusion covers the L1 block that denial was decided on.
+        let mut l1_inclusion = frontier_l1_inclusion(&frontier);
         let mut chains = BTreeMap::new();
         for (&chain_id, at) in &frontier {
             let replaced = if self.sources[&chain_id].has_block_at(timestamp) {
-                self.replaced_output(chain_id, at.block).await?
+                self.replaced_denial(chain_id, at.block).await?
             } else {
                 None
             };
+            if let Some(denial) = replaced &&
+                denial.l1.number > l1_inclusion.number
+            {
+                l1_inclusion = denial.l1;
+            }
             let chain = ChainResult {
                 block: at.block,
                 output: at.output,
                 required_l1: at.l1_inclusion,
-                replaced,
+                replaced: replaced.map(|denial| denial.output),
             };
             chains.insert(chain_id, chain);
         }
-        let result = VerifiedResult { l1_inclusion: frontier_l1_inclusion(&frontier), chains };
+        let result = VerifiedResult { l1_inclusion, chains };
         info!(timestamp, chains = ?result.chains, l1_inclusion = result.l1_inclusion.number, "Verified timestamp");
         let mut state = self.state.write().expect("state lock");
         state.commit(timestamp, result)?;
@@ -237,15 +244,15 @@ impl Verifier {
         Ok(())
     }
 
-    /// The output of the block `block` of `chain_id` replaced: the denied block at its height
+    /// The denial of the block `block` of `chain_id` replaced: the denied block at its height
     /// whose denial holds on the canonical L1 chain. Its chain derived that block first and
     /// replaced it because of the denial. A denial decided on L1 blocks a reorg removed is of a
     /// block the chain no longer derives, so `block` did not replace it.
-    async fn replaced_output(
+    async fn replaced_denial(
         &self,
         chain_id: u64,
         block: BlockNumHash,
-    ) -> Result<Option<OutputRoot>, Wait> {
+    ) -> Result<Option<DeniedRecord>, Wait> {
         let denials = self.state.read().expect("state lock").denials_at(chain_id, block.number)?;
         let mut replaced: Option<DeniedRecord> = None;
         for denial in denials {
@@ -256,7 +263,7 @@ impl Verifier {
                 replaced = Some(denial);
             }
         }
-        Ok(replaced.map(|denial| denial.output))
+        Ok(replaced)
     }
 
     /// Every chain's local-safe block at `timestamp`, unless one has not derived it yet or its
@@ -653,6 +660,7 @@ pub(crate) mod tests {
     };
     use kona_genesis::ChainGenesis;
     use kona_interop::{ChainDependency, ExecutingMessageBuilder, SuperchainBuilder};
+    use kona_protocol::OutputRoot;
     use kona_rpc::{
         DecimalChainId, OutputV0Response, OutputWithRequiredL1, SuperRootApiServer,
         SuperRootAtTimestampResponse,
@@ -1546,6 +1554,42 @@ pub(crate) mod tests {
             matches!(wait, Wait::FinalityViolation { timestamp: GENESIS_TIME, .. }),
             "got {wait:?}"
         );
+    }
+
+    /// The hazard the epoch closes. The denial is decided on L1 block 6, the replacement is
+    /// derived from L1 block 5. An L1 reorg removes block 6 but keeps block 5, so the replacement
+    /// is still on the canonical L1 chain, but no canonical denial stands behind it any more: the
+    /// chain may derive the denied block again. The result with the replacement depends on the
+    /// denial, so it is not final before block 6 is, and is deleted with the denial; the verifier
+    /// then verifies nothing more of the chain while its source has not derived again under the
+    /// new epoch, although the source still serves the replacement.
+    #[tokio::test]
+    async fn a_replacement_whose_denial_was_reorged_out_is_not_verified() {
+        let (invalid, replacement) = (invalid_block().hash_slow(), replacement_block().hash_slow());
+        let fixture = fixture([chain_a_at_genesis(), vec![Some((invalid, l1_id(6, 0)))]]).await;
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::Denied { .. }), "got {wait:?}");
+        fixture.answer(CHAIN_B, Some((replacement, l1_inclusion())));
+        fixture.verifier.round().await.unwrap();
+        let verified_replacement = || {
+            fixture
+                .state
+                .read()
+                .unwrap()
+                .result_at(GENESIS_TIME)
+                .unwrap()
+                .is_some_and(|result| result.chains[&CHAIN_B].block.hash == replacement)
+        };
+        assert!(verified_replacement());
+
+        fixture.l1.reorg_from(6);
+        let wait = fixture.verifier.round().await.unwrap_err();
+
+        assert!(matches!(wait, Wait::Rewound { from: GENESIS_TIME, .. }), "got {wait:?}");
+        assert!(!verified_replacement(), "the result built on the replacement is deleted");
+        let wait = fixture.verifier.round().await.unwrap_err();
+        assert!(matches!(wait, Wait::OtherEpoch { .. }), "got {wait:?}");
+        assert!(!verified_replacement(), "the replacement is not verified again");
     }
 
     /// A rewind that deletes no denial keeps the epoch, so the sources are read on at once.
