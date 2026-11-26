@@ -2880,6 +2880,92 @@ async fn own_creation_guard_survives_confirmation_lag_until_the_pin_catches_up()
     scenario.settle_scheduled(&caught_up).await.unwrap();
 }
 
+/// Pins that a guard whose game is reorged out before the pin caches it is released.
+#[tokio::test]
+async fn creation_guard_releases_when_its_game_is_reorged_out() {
+    let world = ScenarioWorld::new();
+    world.set_horizons(2, 2);
+    world.mine_block();
+    world.mine_block();
+    let create = ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX };
+    world.script_action(create.clone(), 1, ActionOutcome::Timeout);
+    let mut config = scenario_config();
+    config.sync_l1_confirmations = 2;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let submitted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&submitted).await.unwrap();
+    scenario.include_transaction(&create, 1, InclusionDepth::LatestOnly).unwrap();
+    let adopted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&adopted).await.unwrap();
+
+    let guarded = scenario.tick().await.unwrap();
+    assert!(
+        !guarded
+            .scheduled
+            .iter()
+            .any(|scheduled| matches!(scheduled.operation, OperationSummary::ProposeGame { .. }))
+    );
+    scenario.settle_scheduled(&guarded).await.unwrap();
+    world.clear_factory();
+    for _ in 0..3 {
+        world.mine_block();
+    }
+    let released = scenario.tick().await.unwrap();
+    assert!(released.scheduled.iter().any(|scheduled| matches!(
+        scheduled.operation,
+        OperationSummary::ProposeGame { sequence_number: 1, parent_game_index: u32::MAX }
+    )));
+    scenario.settle_scheduled(&released).await.unwrap();
+}
+
+/// Pins that the guard follows a create a reorg re-includes at a new address and holds
+/// creation until the pin caches it there.
+#[tokio::test]
+async fn creation_guard_follows_a_create_re_included_at_a_new_address() {
+    let world = ScenarioWorld::new();
+    world.set_horizons(2, 2);
+    world.mine_block();
+    world.mine_block();
+    let create = ActionTarget::Create { sequence_number: 1, parent_game_index: u32::MAX };
+    world.script_action(create.clone(), 1, ActionOutcome::Timeout);
+    let mut config = scenario_config();
+    config.sync_l1_confirmations = 2;
+    let mut scenario = ScenarioHarness::new(world.clone(), config).await.unwrap();
+
+    let submitted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&submitted).await.unwrap();
+    scenario.include_transaction(&create, 1, InclusionDepth::LatestOnly).unwrap();
+    let adopted = scenario.tick().await.unwrap();
+    scenario.settle_scheduled(&adopted).await.unwrap();
+
+    let mut moved = world.observation().games.last().cloned().unwrap();
+    moved.address = Address::repeat_byte(0x4e);
+    world.replace_factory(vec![moved.clone()]);
+    let followed = scenario.tick().await.unwrap();
+    assert!(
+        !followed
+            .scheduled
+            .iter()
+            .any(|scheduled| matches!(scheduled.operation, OperationSummary::ProposeGame { .. }))
+    );
+    scenario.settle_scheduled(&followed).await.unwrap();
+    assert_eq!(
+        scenario.proposer.creation_guard.lock().await.as_ref().map(|guard| guard.address),
+        Some(moved.address)
+    );
+
+    world.mine_block();
+    world.mine_block();
+    let cached = scenario.tick().await.unwrap();
+    cached.task_id_for(|operation| {
+        matches!(
+            operation,
+            OperationSummary::ProposeGame { sequence_number: 2, parent_game_index: 0 }
+        )
+    });
+}
+
 #[tokio::test]
 async fn pending_trusted_mismatch_releases_the_address_matched_creation_guard() {
     let world = ScenarioWorld::new();
