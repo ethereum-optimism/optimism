@@ -214,6 +214,16 @@ func (s *Supernode) AwaitBackfillCompleted() {
 	s.require.NoError(err, "backfill did not complete in time")
 }
 
+// VerifiedBlockAtL1 returns the block of chainID that op-supernode's interop activity would
+// finalize with l1 finalized: the chain's block in the latest verified result whose L1 inclusion is
+// at or below l1, and that result's timestamp. A zero block means the verifier has no such result.
+// Requires NewSupernodeWithTestControl.
+func (s *Supernode) VerifiedBlockAtL1(chainID eth.ChainID, l1 eth.L1BlockRef) (eth.BlockID, uint64) {
+	block, ts, err := s.interopActivity().VerifiedBlockAtL1(chainID, l1)
+	s.require.NoErrorf(err, "verified block of chain %s at L1 %s", chainID, l1.ID())
+	return block, ts
+}
+
 // ActivationTimestamp returns the configured interop activation timestamp.
 // Requires NewSupernodeWithTestControl.
 func (s *Supernode) ActivationTimestamp() uint64 {

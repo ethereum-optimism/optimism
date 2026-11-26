@@ -15,7 +15,7 @@ type TwoL2LokahiDifferential struct {
 
 	// LokahiRoots answers superroot_atTimestamp and supernode_syncStatus from lokahi.
 	LokahiRoots *dsl.Supernode
-	// Supernode answers them from op-supernode.
+	// Supernode answers them from op-supernode, and reads its interop activity.
 	Supernode *dsl.Supernode
 
 	// SupernodeCLA and SupernodeCLB are the supernode's per-chain routes, and SupernodeELA and
@@ -39,7 +39,8 @@ func NewTwoL2LokahiDifferential(t devtest.T) *TwoL2LokahiDifferential {
 	out := &TwoL2LokahiDifferential{
 		TwoL2Lokahi: *base,
 		LokahiRoots: dsl.NewSupernode(newSupernodeFrontend(t, "lokahi", runtime.Lokahi.UserRPC(), runtime.Lokahi)),
-		Supernode:   dsl.NewSupernode(newSupernodeFrontend(t, "supernode", runtime.Supernode.UserRPC(), runtime.Supernode)),
+		Supernode: dsl.NewSupernodeWithTestControl(
+			newSupernodeFrontend(t, "supernode", runtime.Supernode.UserRPC(), runtime.Supernode), runtime.Supernode),
 	}
 	out.SupernodeCLA, out.SupernodeELA = supernodeChainNodes(t, base.L2A, runtime.Chains["l2a"])
 	out.SupernodeCLB, out.SupernodeELB = supernodeChainNodes(t, base.L2B, runtime.Chains["l2b"])
