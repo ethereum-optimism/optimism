@@ -98,18 +98,22 @@ func newMultiL2LokahiRuntime(
 	}
 
 	depSet := wb.output.InteropDepSet
+	if enableInterop {
+		require.NotNil(depSet, "op-deployer must generate the interop dependency set")
+	}
 	if cfg.MessageExpiryWindow != nil && depSet != nil {
 		depSet, err = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(
 			depSet.Dependencies(), *cfg.MessageExpiryWindow)
 		require.NoError(err, "failed to override message expiry window")
 	}
 	runtime := &MultiChainRuntime{
-		Keys:       keys,
-		Migration:  migration,
-		L1Network:  l1Net,
-		L1EL:       l1EL,
-		L1CL:       l1CL,
-		TimeTravel: timeTravelClock,
+		Keys:         keys,
+		Migration:    migration,
+		L1Network:    l1Net,
+		L1EL:         l1EL,
+		L1CL:         l1CL,
+		TimeTravel:   timeTravelClock,
+		DelaySeconds: delaySeconds,
 	}
 	if depSet != nil {
 		runtime.DependencySet = depSet

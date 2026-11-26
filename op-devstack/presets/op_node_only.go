@@ -37,5 +37,8 @@ func selectInteropVerifier(t devtest.T, cfg *sysgo.PresetConfig, lokahiUnsupport
 	if cfg.InteropLogBackfillDepth != 0 {
 		t.Skip("skipping on lokahi: the log backfill depth configures op-supernode's log backfill, which lokahi does not have")
 	}
+	if cfg.SupernodeVNSequencerForBootstrap {
+		t.Skip("skipping on lokahi: the bootstrap sequencer is op-supernode's virtual node, which lokahi does not have")
+	}
 	cfg.InteropVerifier = sysgo.SupernodeLokahi
 }

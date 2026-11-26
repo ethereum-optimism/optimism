@@ -119,6 +119,8 @@ func (s *Supernode) interopActivity() *interop.Interop {
 	if !ok {
 		s.t.Skipf("skipping: the test reads op-supernode's in-process interop activity, which %s (%T) does not have",
 			s.Name(), s.testControl)
+		// With DEVNET_EXPECT_PRECONDITIONS_MET a skip only records an error and returns.
+		s.t.FailNow()
 	}
 	ia := internals.InteropActivity()
 	s.require.NotNil(ia, "interop activity not present (supernode stopped or interop disabled)")
