@@ -65,6 +65,7 @@ arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 
 arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
 arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
 arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
+arg: --snap.v2 [action: SetTrue] [num-args: 0] [hidden] help: Advertise and serve experimental snap/2. `reth node` also bootstraps a fresh database with it, and uses the staged pipeline while the chain head predates block access lists
 arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs of trusted peers for P2P connections
 arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
 arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs for P2P discovery bootstrap
@@ -134,7 +135,7 @@ arg: --rpc.max-blocks-per-filter <COUNT> [action: Set] [num-args: 1] [aliases: r
 arg: --rpc.max-logs-per-response <COUNT> [action: Set] [num-args: 1] [aliases: rpc-max-logs-per-response] [default: 20000] help: Maximum number of logs that can be returned in a single response. (0 = no limit)
 arg: --rpc.gascap <GAS_CAP> [action: Set] [num-args: 1] [aliases: rpc-gascap] [default: 50000000] help: Maximum gas limit for `eth_call`, `eth_estimateGas`, and call tracing RPC methods
 arg: --rpc.evm-memory-limit <MEMORY_LIMIT> [action: Set] [num-args: 1] [aliases: rpc-evm-memory-limit] [default: 4294967295] help: Maximum memory the EVM can allocate per RPC request
-arg: --rpc.txfeecap <TX_FEE_CAP> [action: Set] [num-args: 1] [aliases: rpc-txfeecap] [default: 1.0] help: Maximum eth transaction fee (in ether) that can be sent via the RPC APIs (0 = no cap)
+arg: --rpc.txfeecap <TX_FEE_CAP> [action: Set] [num-args: 1] [aliases: rpc-txfeecap] [default: 1] help: Maximum eth transaction fee (in ether) that can be sent via the RPC APIs (0 = no cap)
 arg: --rpc.max-simulate-blocks <BLOCKS_COUNT> [action: Set] [num-args: 1] [default: 256] help: Maximum number of blocks for `eth_simulateV1` call
 arg: --rpc.compute-state-root-for-eth-simulate [action: SetTrue] [num-args: 0] [env: RETH_RPC_COMPUTE_STATE_ROOT_FOR_ETH_SIMULATE] [default: false] help: Compute state roots for `eth_simulateV1` responses
 arg: --rpc.eth-proof-window <RPC_ETH_PROOF_WINDOW> [action: Set] [num-args: 1] [default: 0] help: The maximum proof window for historical proof generation. This value allows for generating historical proofs up to configured number of blocks from current tip (up to `tip - window`)
@@ -150,16 +151,16 @@ arg: --rpc-cache.max-blocks-bytes <BYTES> [action: Set] [num-args: 1] [default: 
 arg: --rpc-cache.max-receipts-bytes <BYTES> [action: Set] [num-args: 1] [default: 1073741824] help: Maximum estimated receipts cache memory in bytes or with a unit (e.g. 1GB, 500MB). Units use powers of 1024. Zero disables caching. The entry count limit also applies
 arg: --rpc-cache.max-bals-bytes <BYTES> [action: Set] [num-args: 1] [default: 524288000] [hidden] help: Maximum estimated block access list cache memory in bytes or with a unit (e.g. 1GB, 500MB). Units use powers of 1024. Zero disables caching. The entry count limit also applies
 arg: --rpc-cache.idle-timeout <DURATION> [action: Set] [num-args: 1] [default: 1h] help: Evict blocks, receipts, and block access lists after this duration without a cache hit (e.g. 5m, 30s). Zero disables expiration. Cleanup starts every 1 to 60 seconds and removes at most five entries per cache per poll
-arg: --rpc-cache.cache-computed-bals [action: SetTrue] [num-args: 0] [hidden] help: Cache block access lists computed by RPC requests for transaction tracing
+arg: --rpc-cache.cache-computed-bals [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Cache block access lists computed by RPC requests for transaction tracing
 arg: --rpc-cache.prewarm-bals <BLOCKS> [action: Set] [num-args: 0..=1] [default-missing-values: ["0"]] [hidden] [require-equals] help: Replay new canonical blocks to cache block access lists until native BAL support
 arg: --rpc-cache.max-concurrent-db-requests <MAX_CONCURRENT_DB_REQUESTS> [action: Set] [num-args: 1] [default: 512] help: Max number of concurrent database requests
 arg: --rpc-cache.max-cached-tx-hashes <MAX_CACHED_TX_HASHES> [action: Set] [num-args: 1] [default: 100000] help: Maximum number of transaction hashes to cache for transaction lookups
 arg: --gpo.blocks <BLOCKS> [action: Set] [num-args: 1] [default: 20] help: Number of recent blocks to check for gas price
-arg: --gpo.ignoreprice <IGNORE_PRICE> [action: Set] [num-args: 1] [default: 0] help: Gas Price below which gpo will ignore transactions
+arg: --gpo.ignoreprice <IGNORE_PRICE> [action: Set] [num-args: 1] [default: 2] help: Gas Price below which gpo will ignore transactions
 arg: --gpo.maxprice <MAX_PRICE> [action: Set] [num-args: 1] [default: 500000000000] help: Maximum transaction priority fee(or gasprice before London Fork) to be recommended by gpo
 arg: --gpo.percentile <PERCENTILE> [action: Set] [num-args: 1] [default: 60] help: The percentile of gas prices to use for the estimate
 arg: --gpo.default-suggested-fee <DEFAULT_SUGGESTED_FEE> [action: Set] [num-args: 1] help: The default gas price to use if there are no blocks to use
-arg: --rpc.send-raw-transaction-sync-timeout <SECONDS> [action: Set] [num-args: 1] [default: 30s] help: Timeout for `send_raw_transaction_sync` RPC method
+arg: --rpc.send-raw-transaction-sync-timeout <SECONDS> [action: Set] [num-args: 1] [default: 30] help: Timeout for `send_raw_transaction_sync` RPC method
 arg: --testing.skip-invalid-transactions [action: SetTrue] [num-args: 0] [default: false] help: Skip invalid transactions in `testing_buildBlockV1` instead of failing
 arg: --testing.gas-limit <GAS_LIMIT> [action: Set] [num-args: 1] [hidden] help: Override the gas limit used by `testing_buildBlockV1`
 arg: --rpc.force-blob-sidecar-upcasting [action: SetTrue] [num-args: 0] [default: false] help: Force upcasting EIP-4844 blob sidecars to EIP-7594 format when Osaka is active
@@ -176,7 +177,7 @@ arg: --txpool.disable-blobs-support [action: SetTrue] [num-args: 0] [aliases: tx
 arg: --txpool.max-account-slots <MAX_ACCOUNT_SLOTS> [action: Set] [num-args: 1] [aliases: txpool.max_account_slots] [default: 16] help: Max number of executable transaction slots guaranteed per account
 arg: --txpool.pricebump <PRICE_BUMP> [action: Set] [num-args: 1] [default: 10] help: Price bump (in %) for the transaction pool underpriced check
 arg: --txpool.minimal-protocol-fee <MINIMAL_PROTOCOL_BASEFEE> [action: Set] [num-args: 1] [default: 7] help: Minimum base fee required by the protocol
-arg: --txpool.minimum-priority-fee <MINIMUM_PRIORITY_FEE> [action: Set] [num-args: 1] help: Minimum priority fee required for transaction acceptance into the pool. Transactions with priority fee below this value will be rejected
+arg: --txpool.minimum-priority-fee <MINIMUM_PRIORITY_FEE> [action: Set] [num-args: 1] help: Minimum priority fee required for transaction acceptance into the pool. Transactions with priority fee below this value will be rejected. For legacy and EIP-2930 transactions the gas price is used as the priority fee
 arg: --txpool.gas-limit <ENFORCED_GAS_LIMIT> [action: Set] [num-args: 1] [default: 30000000] help: The default enforced gas limit for transactions entering the pool
 arg: --txpool.max-tx-gas <MAX_TX_GAS_LIMIT> [action: Set] [num-args: 1] help: Maximum gas limit for individual transactions. Transactions exceeding this limit will be rejected by the transaction pool
 arg: --blobpool.pricebump <BLOB_TRANSACTION_PRICE_BUMP> [action: Set] [num-args: 1] [default: 100] help: Price bump percentage to replace an already existing blob transaction
@@ -216,6 +217,7 @@ arg: --debug.invalid-block-hook <INVALID_BLOCK_HOOK> [action: Set] [num-args: 1]
 arg: --debug.healthy-node-rpc-url <URL> [action: Set] [num-args: 1] help: The RPC URL of a healthy node to use for comparing invalid block hook results against.
 arg: --ethstats <ETHSTATS> [action: Set] [num-args: 1] help: The URL of the ethstats server to connect to. Example: `nodename:secret@host:port`
 arg: --debug.startup-sync-state-idle [action: SetTrue] [num-args: 0] help: Set the node to idle state when the backfill is not running
+arg: --debug.lazy-kzg-settings [action: SetTrue] [num-args: 0] [hidden] help: Load the KZG trusted setup when it is first needed instead of in the background on startup
 arg: --db.log-level <LOG_LEVEL> [action: Set] [num-args: 1] [possible: fatal, error, warn, notice, verbose, debug, trace, extra] help: Database logging level. Levels higher than "notice" require a debug build
 arg: --db.exclusive <EXCLUSIVE> [action: Set] [num-args: 1] [possible: true, false] help: Open environment in exclusive/monopolistic mode. Makes it possible to open a database on an NFS volume
 arg: --db.max-size <MAX_SIZE> [action: Set] [num-args: 1] help: Maximum database size (e.g., 4TB, 8TB)
@@ -223,7 +225,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -277,13 +279,14 @@ arg: --engine.state-root-task-compare-updates [action: SetTrue] [num-args: 0] [d
 arg: --engine.accept-execution-requests-hash [action: SetTrue] [num-args: 0] [default: false] help: Enables accepting requests hash instead of an array of requests in `engine_newPayloadV4`
 arg: --engine.multiproof-chunk-size <MULTIPROOF_CHUNK_SIZE> [action: Set] [num-args: 1] [default: 5] help: Multiproof task chunk size for proof targets
 arg: --engine.reserved-cpu-cores <RESERVED_CPU_CORES> [action: Set] [num-args: 1] [default: 1] help: Configure the number of reserved CPU cores for non-reth processes
+arg: --cpu-cores <COUNT> [action: Set] [num-args: 1] [hidden] help: Override the available CPU count for node thread pools and parallel execution decisions. Does not change CPU affinity. Explicit thread counts take precedence
 arg: --engine.precompile-cache [action: SetTrue] [num-args: 0] [default: true] [hidden] help: CAUTION: This CLI flag has no effect anymore, use --engine.disable-precompile-cache if you want to disable precompile cache
 arg: --engine.disable-precompile-cache [action: SetTrue] [num-args: 0] [default: false] help: Disable precompile cache
 arg: --engine.state-root-fallback [action: SetTrue] [num-args: 0] [default: false] help: Enable state root fallback, useful for testing
 arg: --engine.always-process-payload-attributes-on-canonical-head [action: SetTrue] [num-args: 0] [default: false] help: Always process payload attributes and begin a payload build process even if `forkchoiceState.headBlockHash` is already the canonical head or an ancestor. See `TreeConfig::always_process_payload_attributes_on_canonical_head` for more details
 arg: --engine.allow-unwind-canonical-header [action: SetTrue] [num-args: 0] [default: false] help: Allow unwinding canonical header to ancestor during forkchoice updates. See `TreeConfig::unwind_canonical_header` for more details
-arg: --engine.storage-worker-count <STORAGE_WORKER_COUNT> [action: Set] [num-args: 1] help: Configure the number of storage proof workers in the Tokio blocking pool. If not specified, defaults to 2x available parallelism
-arg: --engine.account-worker-count <ACCOUNT_WORKER_COUNT> [action: Set] [num-args: 1] help: Configure the number of account proof workers in the Tokio blocking pool. If not specified, defaults to the same count as storage workers
+arg: --engine.storage-worker-count <STORAGE_WORKER_COUNT> [action: Set] [num-args: 1] help: Configure the number of storage proof workers spawned for each block. If not specified or zero, the count is derived from the block: 2x available parallelism, halved for blocks with few transactions and doubled for blocks at or above 100M gas
+arg: --engine.account-worker-count <ACCOUNT_WORKER_COUNT> [action: Set] [num-args: 1] help: Configure the number of account proof workers spawned for each block. If not specified or zero, the count is derived from the block the same way as for storage workers
 arg: --engine.prewarming-threads <PREWARMING_THREADS> [action: Set] [num-args: 1] help: Configure the number of prewarming threads. If not specified, defaults to available parallelism
 arg: --engine.disable-cache-metrics [action: SetTrue] [num-args: 0] [default: false] help: Disable cache metrics recording, which can take up to 50ms with large cached state
 arg: --engine.slow-block-threshold <DURATION> [action: Set] [num-args: 1] help: Configure the slow block logging threshold in milliseconds
@@ -295,6 +298,7 @@ arg: --engine.suppress-persistence-during-build [action: SetTrue] [num-args: 0] 
 arg: --engine.disable-bal-parallel-execution [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Disable BAL (Block Access List, EIP-7928) based parallel execution
 arg: --engine.disable-bal-parallel-state-root [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Disable BAL-driven parallel state root computation. This is only valid together with `--engine.disable-bal-parallel-execution`
 arg: --engine.disable-bal-batch-io [action: SetTrue] [num-args: 0] [default: false] [hidden] help: Disable BAL (Block Access List) storage prefetch IO during prewarming. When set, BAL storage slots are not read into the execution cache
+arg: --engine.prewarm-reuse [action: SetTrue] [num-args: 0] [env: RETH_ENGINE_PREWARM_REUSE] [default: false] [hidden] help: Reuse transaction prewarming results during block execution instead of executing transactions again when their prewarm reads are still valid
 arg: --era.enable [action: SetTrue] [num-args: 0] [default: false] help: Enable import from ERA1 files
 arg: --era.path <ERA_PATH> [action: Set] [num-args: 1] help: The path to a directory for import.
 arg: --era.url <ERA_URL> [action: Set] [num-args: 1] help: The URL to a remote host where the ERA1 files are hosted.
@@ -355,7 +359,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -382,7 +386,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -419,7 +423,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -492,7 +496,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -646,7 +650,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -680,6 +684,7 @@ arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 
 arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
 arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
 arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
+arg: --snap.v2 [action: SetTrue] [num-args: 0] [hidden] help: Advertise and serve experimental snap/2. `reth node` also bootstraps a fresh database with it, and uses the staged pipeline while the chain head predates block access lists
 arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs of trusted peers for P2P connections
 arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
 arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs for P2P discovery bootstrap
@@ -729,7 +734,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -758,7 +763,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -814,7 +819,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -857,6 +862,7 @@ arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 
 arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
 arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
 arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
+arg: --snap.v2 [action: SetTrue] [num-args: 0] [hidden] help: Advertise and serve experimental snap/2. `reth node` also bootstraps a fresh database with it, and uses the staged pipeline while the chain head predates block access lists
 arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs of trusted peers for P2P connections
 arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
 arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs for P2P discovery bootstrap
@@ -916,6 +922,7 @@ arg: --discovery.v5.port.ipv6 <DISCOVERY_V5_PORT_IPV6> [action: Set] [num-args: 
 arg: --discovery.v5.lookup-interval <DISCOVERY_V5_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 20] help: The interval in seconds at which to carry out periodic lookup queries, for the whole run of the program
 arg: --discovery.v5.bootstrap.lookup-interval <DISCOVERY_V5_BOOTSTRAP_LOOKUP_INTERVAL> [action: Set] [num-args: 1] [default: 5] help: The interval in seconds at which to carry out boost lookup queries, for a fixed number of times, at bootstrap
 arg: --discovery.v5.bootstrap.lookup-countdown <DISCOVERY_V5_BOOTSTRAP_LOOKUP_COUNTDOWN> [action: Set] [num-args: 1] [default: 200] help: The number of times to carry out boost lookup queries at bootstrap
+arg: --snap.v2 [action: SetTrue] [num-args: 0] [hidden] help: Advertise and serve experimental snap/2. `reth node` also bootstraps a fresh database with it, and uses the staged pipeline while the chain head predates block access lists
 arg: --trusted-peers <TRUSTED_PEERS> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs of trusted peers for P2P connections
 arg: --trusted-only [action: SetTrue] [num-args: 0] help: Connect to or accept from trusted peers only
 arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma separated enode URLs or ENRs for P2P discovery bootstrap
@@ -971,11 +978,13 @@ arg: --addr <ADDR> [action: Set] [num-args: 1] [default: 0.0.0.0:30301] help: Li
 arg: --p2p-secret-key <PATH> [action: Set] [num-args: 1] help: Secret key to use for the bootnode
 arg: --nat <NAT> [action: Append] [num-args: 1] [default: any] help: NAT resolution method (any|none|upnp|publicip|extip:\<IP\>)
 arg: --v5 [action: SetTrue] [num-args: 0] help: Also run discv5, sharing the discv4 UDP port (`--addr`)
+arg: --bootnodes <BOOTNODES> [action: Append] [num-args: 1] [value-delimiter: ','] help: Comma-separated nodes to seed discovery: `enode://` URLs with an IP host and/or signed `enr:` records. Each entry seeds discv4 and (with `--v5`) discv5
 
 == op-reth p2p enode
 about: Print enode identifier
 arg: [positional: discovery_secret] <DISCOVERY_SECRET> [action: Set] [num-args: 1] [required] help: Path to the secret key file for discovery
 arg: --ip <IP> [action: Set] [num-args: 1] help: Optional IP address to include in the enode URL
+arg: --port <PORT> [action: Set] [num-args: 1] [default: 30303] help: Port to include in the enode URL
 
 == op-reth config
 about: Write config to stdout
@@ -997,7 +1006,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -1041,7 +1050,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -1087,7 +1096,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -1120,7 +1129,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -1152,7 +1161,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -1187,7 +1196,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -1217,7 +1226,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics
@@ -1246,7 +1255,7 @@ arg: --db.page-size <PAGE_SIZE> [action: Set] [num-args: 1] help: Database page 
 arg: --db.growth-step <GROWTH_STEP> [action: Set] [num-args: 1] help: Database growth step (e.g., 4GB, 4KB)
 arg: --db.read-transaction-timeout <READ_TRANSACTION_TIMEOUT> [action: Set] [num-args: 1] help: Read transaction timeout in seconds, 0 means no timeout
 arg: --db.max-readers <MAX_READERS> [action: Set] [num-args: 1] help: Maximum number of readers allowed to access the database concurrently
-arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] help: Controls how aggressively the database synchronizes data to disk
+arg: --db.sync-mode <SYNC_MODE> [action: Set] [num-args: 1] [env: RETH_DB_SYNC_MODE] help: Controls how aggressively the database synchronizes data to disk
 arg: --db.rocksdb-block-cache-size <ROCKSDB_BLOCK_CACHE_SIZE> [action: Set] [num-args: 1] help: `RocksDB` block cache size (e.g., 512MB, 4GB)
 arg: --db.balstore-cache-size <BALSTORE_CACHE_SIZE> [action: Set] [num-args: 1] [hidden] help: Number of recent blocks to keep in the in-memory BAL store cache
 arg: --db.disable-metrics [action: SetTrue] [num-args: 0] help: Disable built-in database metrics

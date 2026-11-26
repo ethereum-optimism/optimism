@@ -8,8 +8,9 @@
 //! onto the anchor through its overlay manager
 //! (<https://github.com/ethereum-optimism/optimism/issues/24062>). The trait impls are
 //! unchanged, except that `canonical_hashes_range` no longer reserves capacity for the whole
-//! requested range. The other changes fit it to this crate: import paths, crate-private visibility
-//! and the lints that follow from it, and no default for the primitives type.
+//! requested range and `multiproof_v2` is unsupported. The other changes fit it to this crate:
+//! import paths, crate-private visibility and the lints that follow from it, and no default for the
+//! primitives type.
 //!
 //! UPSTREAM-MIRROR(port): reth@v2.6.0 `reth_chain_state::memory_overlay`
 
@@ -18,7 +19,7 @@ use alloy_primitives::{
     Address, B256, BlockNumber, Bytes, StorageKey, StorageValue, U256, keccak256,
 };
 use reth_chain_state::ExecutedBlock;
-use reth_errors::ProviderResult;
+use reth_errors::{ProviderError, ProviderResult};
 use reth_primitives_traits::{Account, Bytecode, NodePrimitives};
 use reth_storage_api::{
     AccountReader, BlockHashReader, BytecodeReader, HashedPostStateProvider, StateProofProvider,
@@ -65,8 +66,8 @@ impl<'a, N: NodePrimitives> MemoryOverlayStateProviderRef<'a, N> {
             // Iterate from oldest to newest
             for block in self.in_memory.iter().rev() {
                 let data = block.trie_data();
-                input.nodes.extend_from_sorted(&data.sorted.trie_updates);
-                input.state.extend_from_sorted(&data.sorted.hashed_state);
+                input.nodes.extend_from_sorted(&data.trie_updates);
+                input.state.extend_from_sorted(&data.hashed_state);
             }
             input
         })
@@ -211,13 +212,15 @@ impl<N: NodePrimitives> StateProofProvider for MemoryOverlayStateProviderRef<'_,
         self.historical.multiproof(input, targets)
     }
 
+    /// Unsupported: since paradigmxyz/reth#27945 `multiproof_v2` takes no [`TrieInput`], so the
+    /// in-memory blocks cannot be layered onto the historical provider's proof. Its only RPC
+    /// caller, `eth_getMultiProof`, is not served on OP.
     fn multiproof_v2(
         &self,
-        mut input: TrieInput,
-        targets: MultiProofTargetsV2,
+        _targets: MultiProofTargetsV2,
+        _requires_masks: bool,
     ) -> ProviderResult<DecodedMultiProofV2> {
-        input.prepend_self(self.trie_input().clone());
-        self.historical.multiproof_v2(input, targets)
+        Err(ProviderError::UnsupportedProvider)
     }
 
     fn witness(

@@ -122,6 +122,12 @@ impl Consensus<OpBlock> for OpBeaconConsensus {
         validation::validate_body_against_header_op(&self.chain_spec, body, header.header())
     }
 
+    /// UPSTREAM-MIRROR(copy): reth@op-v2.8.1-0
+    /// `reth_consensus_common::validation::validate_block_pre_execution`
+    ///
+    /// Follows upstream's checks with OP forks in place of Ethereum's: Canyon for Shanghai,
+    /// Ecotone and Jovian for Cancun blob gas, Isthmus for the withdrawals root. Upstream's Osaka
+    /// EIP-7934 block size check is not mirrored.
     fn validate_block_pre_execution(
         &self,
         block: &SealedBlock<OpBlock>,
@@ -148,6 +154,10 @@ impl Consensus<OpBlock> for OpBeaconConsensus {
             canyon::ensure_empty_shanghai_withdrawals(block.body()).map_err(|err| {
                 ConsensusError::msg(format!("failed to verify block {}: {err}", block.number()))
             })?
+        } else if block.body().withdrawals.is_some() {
+            // Pre-Canyon headers carry no withdrawals root, so the block hash does not commit to
+            // body withdrawals.
+            return Err(ConsensusError::BodyWithdrawalsUnexpected);
         } else {
             return Ok(());
         }
@@ -460,6 +470,32 @@ mod tests {
                     .is_err()
             );
         }
+    }
+
+    #[test]
+    fn pre_canyon_block_with_withdrawals_fails() {
+        let chain_spec = OpChainSpecBuilder::default()
+            .regolith_activated()
+            .genesis(OP_MAINNET.genesis.clone())
+            .chain(OP_MAINNET.chain)
+            .build();
+        let consensus = OpBeaconConsensus::new(Arc::new(chain_spec));
+
+        let header = Header {
+            transactions_root: proofs::calculate_transaction_root::<OpTransactionSigned>(&[]),
+            ..Default::default()
+        };
+        let body = BlockBody::<OpTransactionSigned>::default();
+        let block =
+            SealedBlock::seal_slow(alloy_consensus::Block::new(header.clone(), body.clone()));
+        assert!(consensus.validate_block_pre_execution(&block).is_ok());
+
+        let body = BlockBody { withdrawals: Some(Withdrawals::default()), ..body };
+        let block = SealedBlock::seal_slow(alloy_consensus::Block::new(header, body));
+        assert!(matches!(
+            consensus.validate_block_pre_execution(&block).unwrap_err(),
+            ConsensusError::BodyWithdrawalsUnexpected
+        ));
     }
 
     #[test]

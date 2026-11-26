@@ -88,6 +88,12 @@ const DENIED_ARGS: &[(&str, &str, &str)] = &[
     ("node", "bal_parallel_execution_disabled", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "bal_parallel_state_root_disabled", BAL_ARGS_UNSUPPORTED_HELP),
     ("node", "disable_bal_batch_io", BAL_ARGS_UNSUPPORTED_HELP),
+    // snap/2 syncs from block access lists, which OP blocks never carry. Part of the network
+    // args, which `node`, `p2p` and `stage run` take.
+    (ANY_SUBCOMMAND, "snap_v2", BAL_ARGS_UNSUPPORTED_HELP),
+    ("node", "cpu_cores", CPU_CORES_UNSUPPORTED_HELP),
+    ("node", "prewarm_reuse", PREWARM_REUSE_NO_EFFECT_HELP),
+    ("node", "lazy_kzg_settings", LAZY_KZG_SETTINGS_NO_EFFECT_HELP),
 ];
 
 /// `DENIED_ARGS` subcommand wildcard.
@@ -118,15 +124,16 @@ fn hide_denied_args(cmd: clap::Command) -> clap::Command {
     .mut_subcommands(hide_denied_args)
 }
 
-/// Returns the error of the first `DENIED_ARGS` entry set on the command line anywhere in the
-/// selected subcommand chain.
+/// Returns the error of the first `DENIED_ARGS` entry set from any source other than its default
+/// (the command line or an environment variable) anywhere in the selected subcommand chain.
 fn find_denied_arg(matches: &clap::ArgMatches) -> Option<&'static str> {
     let (name, sub) = matches.subcommand()?;
     denied_args_for(name)
         .find(|(_, id, _)| {
             // `value_source` panics on ids the subcommand doesn't define, so check that first.
             sub.try_get_raw(id).is_ok() &&
-                sub.value_source(id) == Some(clap::parser::ValueSource::CommandLine)
+                sub.value_source(id)
+                    .is_some_and(|source| source != clap::parser::ValueSource::DefaultValue)
         })
         .map(|(_, _, help)| *help)
         .or_else(|| find_denied_arg(sub))
@@ -138,6 +145,15 @@ const MINIMAL_REMOVED_HELP: &str = "--minimal is not supported by op-reth and ha
 
 /// Startup error for block access list options, which are not useful on OP chains.
 const BAL_ARGS_UNSUPPORTED_HELP: &str = "Block access list options are not supported by op-reth.\n\nOP blocks do not carry EIP-7928 block access lists.";
+
+/// Startup error for `--cpu-cores`, which op-reth does not use to size its runtime.
+const CPU_CORES_UNSUPPORTED_HELP: &str = "--cpu-cores is not supported by op-reth yet.\n\nop-reth does not size its runtime from it, so it would enable the CPU-gated state root task\nwithout sizing the thread pools to match. Give the node more CPUs instead.";
+
+/// Startup error for `--engine.prewarm-reuse`; see the `ConfigureEvm` impl of `OpEvmConfig`.
+const PREWARM_REUSE_NO_EFFECT_HELP: &str = "--engine.prewarm-reuse has no effect on op-reth.\n\nOP block execution never reuses prewarm results: it adds per-transaction fee and post-exec\nwork that a speculative prewarm result does not capture.";
+
+/// Startup error for `--debug.lazy-kzg-settings`: op-reth's pool never loads KZG settings eagerly.
+const LAZY_KZG_SETTINGS_NO_EFFECT_HELP: &str = "--debug.lazy-kzg-settings has no effect on op-reth.\n\nop-reth's transaction pool does not accept blob transactions, so it never loads the KZG\ntrusted setup on startup.";
 
 /// Argument id of upstream `--engine.num-state-masking-blocks`.
 ///
@@ -269,6 +285,40 @@ mod test {
     }
 
     #[test]
+    fn deny_args_set_through_env() {
+        // SAFETY: nextest runs each test in its own process, so no other thread reads the
+        // environment concurrently.
+        unsafe { std::env::set_var("RETH_ENGINE_PREWARM_REUSE", "true") };
+        let result = Cli::<RollupArgs>::try_parse_with_denied_args_from(["op-reth", "node"]);
+        // SAFETY: as above.
+        unsafe { std::env::remove_var("RETH_ENGINE_PREWARM_REUSE") };
+
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+        assert!(err.to_string().contains("--engine.prewarm-reuse has no effect"), "{err}");
+    }
+
+    #[test]
+    fn deny_upstream_args_op_reth_does_not_wire() {
+        for (args, expected) in [
+            (&["op-reth", "node", "--cpu-cores", "5"][..], "--cpu-cores is not supported"),
+            (
+                &["op-reth", "node", "--engine.prewarm-reuse"],
+                "--engine.prewarm-reuse has no effect",
+            ),
+            (
+                &["op-reth", "node", "--debug.lazy-kzg-settings"],
+                "--debug.lazy-kzg-settings has no effect",
+            ),
+        ] {
+            let err = Cli::<RollupArgs>::try_parse_with_denied_args_from(args).unwrap_err();
+            assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation, "{args:?}");
+            let msg = err.to_string();
+            assert!(msg.contains(expected), "{args:?}: {msg}");
+        }
+    }
+
+    #[test]
     fn deny_minimal_hidden_from_help() {
         let mut cmd = Cli::<RollupArgs>::command_with_denied_args_hidden();
         let help = cmd
@@ -290,6 +340,9 @@ mod test {
             &["op-reth", "prune", "--db.balstore-cache-size", "10"],
             &["op-reth", "db", "--db.balstore-cache-size", "10", "stats"],
             &["op-reth", "stage", "drop", "--db.balstore-cache-size", "10", "headers"],
+            &["op-reth", "node", "--snap.v2"],
+            &["op-reth", "stage", "run", "--from", "0", "--to", "1", "--snap.v2", "headers"],
+            &["op-reth", "p2p", "header", "--snap.v2", "1"],
         ] {
             let err = Cli::<RollupArgs>::try_parse_with_denied_args_from(args).unwrap_err();
             assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation, "{args:?}");

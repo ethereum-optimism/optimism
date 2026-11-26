@@ -10,7 +10,7 @@ use op_alloy_consensus::{
 };
 use reth_chain_state::CanonStateSubscriptions;
 use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{SignedTransaction, SignerRecoverable, WithEncoded};
+use reth_primitives_traits::{SignedTransaction, WithEncoded};
 use reth_rpc_eth_api::{
     EthApiTypes as _, FromEthApiError, FromEvmError, RpcConvert, RpcNodeCore, RpcReceipt,
     TxInfoMapper,
@@ -79,7 +79,7 @@ where
         Ok(hash)
     }
 
-    /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-2
+    /// UPSTREAM-MIRROR(override): reth@op-v2.8.1-0
     /// `reth_rpc_eth_api::helpers::EthTransactions::send_raw_transaction_sync`
     ///
     /// Derived from the upstream default: the timeout computation is taken verbatim and the
@@ -171,7 +171,7 @@ where
     ///
     /// With flashblocks, we should also lookup the pending block for the transaction
     /// because this is considered confirmed/mined.
-    /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-2
+    /// UPSTREAM-MIRROR(override): reth@op-v2.8.1-0
     /// `reth_rpc_eth_api::helpers::EthTransactions::transaction_receipt`
     ///
     /// Extends the upstream default with a flashblock receipt lookup.
@@ -208,7 +208,7 @@ where
     OpEthApiError: FromEvmError<N::Evm>,
     Rpc: RpcConvert<Primitives = N::Primitives, Error = OpEthApiError>,
 {
-    /// UPSTREAM-MIRROR(override): reth@op-v2.7.0-2
+    /// UPSTREAM-MIRROR(override): reth@op-v2.8.1-0
     /// `reth_rpc_eth_api::helpers::LoadTransaction::transaction_by_hash`
     ///
     /// Inserts a flashblock lookup between upstream's disk and pool lookups, and does not
@@ -226,9 +226,8 @@ where
             })
             .await?
         {
-            let transaction = tx
-                .try_into_recovered_unchecked()
-                .map_err(|_| EthApiError::InvalidTransactionSignature)?;
+            let transaction =
+                self.recover_mined_transaction(tx).map_err(Self::Error::from_eth_err)?;
 
             return Ok(Some(TransactionSource::Block {
                 transaction,
