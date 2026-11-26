@@ -10,7 +10,7 @@ use kona_engine::{
 };
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use rstest::rstest;
-use std::{collections::VecDeque, sync::Mutex};
+use std::{collections::VecDeque, sync::Mutex, time::Duration};
 use tokio::{
     sync::{mpsc, watch},
     time::{self, Instant},
@@ -22,16 +22,19 @@ const CURRENT_L1: u64 = 3;
 
 type SyncStatusReply = Result<SyncStatus, &'static str>;
 
-/// Answers each sync status poll with the next scripted reply.
+/// Answers each sync status poll with the next scripted reply, after its delay.
 #[derive(Debug)]
-struct ScriptedDelegate(Mutex<VecDeque<SyncStatusReply>>);
+struct ScriptedDelegate(Mutex<VecDeque<(Duration, SyncStatusReply)>>);
 
 #[async_trait]
 impl SyncStatusSource for ScriptedDelegate {
     type Error = &'static str;
 
     async fn sync_status(&self) -> SyncStatusReply {
-        self.0.lock().unwrap().pop_front().expect("unexpected sync status poll")
+        let (delay, reply) =
+            self.0.lock().unwrap().pop_front().expect("unexpected sync status poll");
+        time::sleep(delay).await;
+        reply
     }
 }
 
@@ -48,6 +51,13 @@ struct Harness {
 
 impl Harness {
     fn new(replies: impl IntoIterator<Item = SyncStatusReply>) -> Self {
+        Self::with_delayed_replies(replies.into_iter().map(|reply| (Duration::ZERO, reply)))
+    }
+
+    /// A harness whose delegate answers each poll with its reply after the reply's delay.
+    fn with_delayed_replies(
+        replies: impl IntoIterator<Item = (Duration, SyncStatusReply)>,
+    ) -> Self {
         let mut l1 = TestChainProvider::default();
         for number in [SAFE_ORIGIN, FINALIZED_ORIGIN, CURRENT_L1] {
             l1.insert_block(number, canonical_l1_block(number));
@@ -497,4 +507,24 @@ async fn lagging_heads_with_a_moved_safe_head_are_forwarded_again() {
     harness.actor.step().await.unwrap();
 
     assert_eq!(harness.forwarded(), forwarded_for(&second));
+}
+
+/// A poll whose request hangs past the poll interval and then fails, as a stalled delegate's does
+/// once the request times out, is followed by the next poll a full interval later rather than at
+/// once, so the failed request is closed before the delegate is asked again.
+#[tokio::test(start_paused = true)]
+async fn poll_after_a_failed_fetch_waits_a_full_interval() {
+    let hang = DERIVATION_DELEGATE_POLL_INTERVAL + Duration::from_secs(1);
+    let mut harness = Harness::with_delayed_replies([
+        (hang, Err("request timed out")),
+        (Duration::ZERO, DelegateReply::Valid.sync_status()),
+    ]);
+    harness.complete_engine_sync().await;
+    harness.actor.step().await.unwrap();
+    let failed_at = Instant::now();
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(Instant::now() - failed_at, DERIVATION_DELEGATE_POLL_INTERVAL);
+    assert_eq!(harness.forwarded(), forwarded_for(&delegate_status()));
 }

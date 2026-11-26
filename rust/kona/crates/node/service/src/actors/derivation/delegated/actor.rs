@@ -306,6 +306,10 @@ where
                     error = %err,
                     "Failed to fetch sync status from delegate"
                 );
+                // The next poll waits a full interval rather than catching up on the ticks the
+                // request missed: a timed-out request may still be open at the delegate, and
+                // asking again at once would put a second request next to it.
+                self.delegated_derivation_ticker.reset();
                 return Ok(());
             }
         };
