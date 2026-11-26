@@ -152,6 +152,27 @@ async fn listed_creator_game_is_defended_and_resolved_but_not_fast_finalized() {
     );
 }
 
+/// An adopted copy sits in our chain: our games above it resolve only after it does, so fast
+/// finality proves it like a signer game.
+#[tokio::test]
+async fn adopted_copy_is_fast_finalized() {
+    let world = ScenarioWorld::new();
+    world.add_game(ScenarioGame::new(0, u32::MAX, 10, ScenarioWorld::default_prestate()).owned());
+    let copy = ScenarioGame::new(1, 0, 20, ScenarioWorld::default_prestate());
+    let copy_address = copy.address;
+    world.add_game(copy);
+    world.add_game(ScenarioGame::new(2, 1, 30, ScenarioWorld::default_prestate()).owned());
+    world.set_horizons(30, 30);
+    let mut scenario = ScenarioHarness::new(world.clone(), ff_config(3)).await.unwrap();
+
+    let tick = scenario.tick().await.unwrap();
+    tick.task_id_for(|operation| {
+        matches!(operation, OperationSummary::ProveGame {
+            address, purpose: ProvingPurpose::FastFinality, ..
+        } if *address == copy_address)
+    });
+}
+
 #[tokio::test]
 async fn nearest_deadline_proof_holds_capacity_through_failure_and_retry_then_creation_resumes() {
     let world = ScenarioWorld::new();

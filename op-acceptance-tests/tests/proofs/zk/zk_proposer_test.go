@@ -55,9 +55,9 @@ func TestProposerChainsSecondZKGameOnFirst(gt *testing.T) {
 }
 
 // TestProposerCreatesRootGameInsteadOfBuildingOnForeignGame covers the
-// ownership boundary on the create path: a valid game from a creator the
-// proposer does not own is never its parent, so the proposer starts its own
-// chain from the anchor.
+// ownership boundary on the create path: a valid foreign game that is not a
+// copy of the proposer's next game is never its parent, so the proposer starts
+// its own chain from the anchor.
 func TestProposerCreatesRootGameInsteadOfBuildingOnForeignGame(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t,
@@ -66,8 +66,20 @@ func TestProposerCreatesRootGameInsteadOfBuildingOnForeignGame(gt *testing.T) {
 		presets.WithoutHonestProposer(),
 	)
 	factory := sys.DisputeGameFactory()
+	_, anchorSequence := sys.AnchorStateRegistry(sys.L2ChainA).AnchorRoot()
 
-	foreignGame := factory.StartZKGame(sys.FunderL1.NewFundedEOA(eth.OneEther))
+	// The proposer's first root claims a timestamp on its interval grid from the
+	// anchor, or its safe head when catching up. A foreign root off that grid and
+	// below the safe head when the proposer starts never shares its UUID, so the
+	// proposer does not adopt it.
+	interval := uint64(presets.DefaultZKProposalInterval / time.Second)
+	foreignTimestamp, _ := factory.WaitForSafeSuperRootAfter(anchorSequence)
+	if (foreignTimestamp-anchorSequence)%interval == 0 {
+		foreignTimestamp++
+	}
+	factory.WaitForSafeSuperRootAfter(foreignTimestamp)
+	foreignGame := factory.StartZKGame(sys.FunderL1.NewFundedEOA(eth.OneEther),
+		proofs.WithL2SequenceNumber(foreignTimestamp))
 	t.Require().Equal(uint32(0), foreignGame.FactoryIndex(),
 		"foreign game must be the first game observed by the honest proposer")
 
@@ -75,7 +87,7 @@ func TestProposerCreatesRootGameInsteadOfBuildingOnForeignGame(gt *testing.T) {
 
 	honestRoot := factory.WaitForZKGameAtIndex(int64(foreignGame.FactoryIndex() + 1))
 	t.Require().Equal(uint32(math.MaxUint32), honestRoot.ParentIndex(),
-		"honest proposer must create a root game instead of adopting a foreign game")
+		"honest proposer must create a root game instead of building on a foreign game")
 	honestChild := factory.WaitForZKGameAtIndex(int64(honestRoot.FactoryIndex() + 1))
 	t.Require().Equal(honestRoot.FactoryIndex(), honestChild.ParentIndex(),
 		"honest proposer must chain on its own root game, never on the foreign game")
