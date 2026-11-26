@@ -104,6 +104,16 @@ impl Engine {
         self.tasks.push(QueuedTask { sequence, task });
     }
 
+    /// Enqueues `task` in place of the queued tasks of its kind, for a task that carries the latest
+    /// value of an input polled again and again, such as a verifier's heads: the newest supersedes
+    /// the older ones, so an engine that cannot run them queues one of each kind, not one per poll.
+    /// A task being retried stays.
+    pub fn enqueue_replacing(&mut self, task: EngineTask) {
+        let kind = std::mem::discriminant(&task);
+        self.tasks.retain(|queued| std::mem::discriminant(&queued.task) != kind);
+        self.enqueue(task);
+    }
+
     /// Number of queued and active tasks, including work awaiting a retry, but not the tasks set
     /// aside until the verifier's denied blocks arrive.
     pub fn len(&self) -> usize {

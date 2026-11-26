@@ -674,3 +674,61 @@ async fn opstack_commit_runs_through_the_engine_queue() {
     l1.assert_finished();
     l2.assert_finished();
 }
+
+/// A stalled engine keeps taking the verifier's polls without queuing a task per poll: the newest
+/// safe and finalized heads replace the queued ones, so the inbox is drained and cannot fill up.
+#[tokio::test(start_paused = true)]
+async fn polled_heads_do_not_pile_up_while_the_engine_is_stalled() {
+    // An unsafe import whose execution layer fails keeps the engine retrying it.
+    let mut block = alloy_consensus::Block::<OpTxEnvelope>::default();
+    block.header.number = 1;
+    let payload = ExecutionPayloadV1::from_block_slow(&block);
+    let imported: OpBlock =
+        OpExecutionPayloadEnvelope::V1(payload.clone()).try_into_block().unwrap();
+    let mut config = RollupConfig::default();
+    config.genesis.l2 = alloy_eips::BlockNumHash { number: 1, hash: imported.header.hash_slow() };
+    let config = Arc::new(config);
+    let (client, l1, l2) = test_engine_client(config.clone());
+    l2.expect_error("engine_newPayloadV2");
+    let state = TestEngineStateBuilder::new().with_unsafe_head(test_block_info(0)).build();
+    let (state_tx, _state_rx) = watch::channel(state);
+    let polls = 50;
+    let (requests, request_rx) = mpsc::channel(2 * polls + 1);
+    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    requests
+        .send(EngineActorRequest::ProcessUnsafeL2Block(Box::new(OpExecutionPayloadEnvelope::V1(
+            payload,
+        ))))
+        .await
+        .unwrap();
+    for poll in 1..=polls as u64 {
+        let block = alloy_eips::BlockNumHash { number: poll, hash: B256::repeat_byte(poll as u8) };
+        let head = kona_engine::VerifierHead::Verified { block, timestamp: poll, l1: block };
+        requests.send(EngineActorRequest::ProcessVerifiedSafeHead(Box::new(head))).await.unwrap();
+        requests
+            .send(EngineActorRequest::ProcessFinalizedL2Block(Box::new(FinalizeBlockId::ByNumber(
+                poll,
+            ))))
+            .await
+            .unwrap();
+    }
+
+    for _ in 0..=2 * polls {
+        actor.step().await.unwrap();
+    }
+
+    assert_eq!(requests.capacity(), requests.max_capacity(), "the engine took every request");
+    // The retried import, and one safe and one finalized head.
+    assert_eq!(actor.engine.len(), 3);
+    l1.assert_finished();
+    l2.assert_finished();
+}

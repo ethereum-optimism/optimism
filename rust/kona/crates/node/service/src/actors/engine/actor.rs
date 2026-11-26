@@ -136,7 +136,9 @@ where
     /// Queues the finalization `update` asks for, see [`Self::finality_target`].
     fn finalize(&mut self, update: FinalityUpdate) {
         let Some(target) = self.finality_target(update) else { return };
-        self.engine.enqueue(EngineTask::Finalize(Box::new(FinalizeTask::new(
+        // A newer target supersedes the queued one, so finality polled while the engine is stalled
+        // does not pile up.
+        self.engine.enqueue_replacing(EngineTask::Finalize(Box::new(FinalizeTask::new(
             self.client.clone(),
             self.rollup.clone(),
             target,
@@ -441,7 +443,9 @@ where
                 self.finalize(FinalityUpdate::Verifier(*head));
             }
             EngineActorRequest::ProcessVerifiedSafeHead(head) => {
-                self.engine.enqueue(EngineTask::Promote(Box::new(PromoteTask::new(
+                // The verifier is polled every second, also while the engine is stalled: the newest
+                // head supersedes the queued one, and a held head is sent again by the next poll.
+                self.engine.enqueue_replacing(EngineTask::Promote(Box::new(PromoteTask::new(
                     self.client.clone(),
                     self.rollup.clone(),
                     *head,
