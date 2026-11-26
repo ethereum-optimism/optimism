@@ -18,6 +18,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -117,7 +118,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			))
 
 			// Defining a file locator will always deploy a new superchain and OPCM
-			superCfg, err := standard.SuperchainFor(l1ChainID)
+			superCfg, err := registry.SuperchainFor(l1ChainID)
 			require.NoError(t, err)
 			proxyAdmin, err := standard.SuperchainProxyAdminAddrFor(l1ChainID)
 			require.NoError(t, err)
@@ -232,7 +233,7 @@ func TestPopulateSuperchainState(t *testing.T) {
 	// The latest block on Sepolia as of 04/30/2025.
 	client := pinnedCaller{client: ethclient.NewClient(rpcClient), block: big.NewInt(8227159)}
 
-	superchain, err := standard.SuperchainFor(11155111)
+	superchain, err := registry.SuperchainFor(11155111)
 	require.NoError(t, err)
 
 	t.Run("Sepolia superchain", func(t *testing.T) {
@@ -296,7 +297,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxy(t *testing.T) {
 	client := ethclient.NewClient(rpcClient)
 
 	l1ChainID := uint64(11155111)
-	superchain, err := standard.SuperchainFor(l1ChainID)
+	superchain, err := registry.SuperchainFor(l1ChainID)
 	require.NoError(t, err)
 
 	intent := &state.Intent{
@@ -355,7 +356,7 @@ func TestInitLiveStrategy_OPCMV2WithSuperchainConfigProxyAndRoles_reverts(t *tes
 	client := ethclient.NewClient(rpcClient)
 
 	l1ChainID := uint64(11155111)
-	superchain, err := standard.SuperchainFor(l1ChainID)
+	superchain, err := registry.SuperchainFor(l1ChainID)
 	require.NoError(t, err)
 
 	intent := &state.Intent{
@@ -408,7 +409,7 @@ func TestInitLiveStrategy_OPCMV1WithSuperchainConfigProxy(t *testing.T) {
 	client := ethclient.NewClient(rpcClient)
 
 	l1ChainID := uint64(11155111)
-	superchain, err := standard.SuperchainFor(l1ChainID)
+	superchain, err := registry.SuperchainFor(l1ChainID)
 	require.NoError(t, err)
 
 	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, standard.CurrentTag)
@@ -631,7 +632,7 @@ func TestInitLiveStrategy_FlowSelection_OPCMV2(t *testing.T) {
 	client := ethclient.NewClient(rpcClient)
 
 	l1ChainID := uint64(11155111)
-	superchain, err := standard.SuperchainFor(l1ChainID)
+	superchain, err := registry.SuperchainFor(l1ChainID)
 	require.NoError(t, err)
 
 	intent := &state.Intent{

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-core/devfeatures"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/common"
@@ -56,7 +57,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			expectError:       false,
 			expectedOverrides: defaultOverrides(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
-				return standard.DefaultHardforkSchedule()
+				return registry.DefaultHardforkSchedule()
 			},
 		},
 		{
@@ -73,7 +74,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				return defaults
 			}(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
-				return standard.DefaultHardforkSchedule()
+				return registry.DefaultHardforkSchedule()
 			},
 		},
 		{
@@ -111,7 +112,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				GovernanceTokenOwner:                     common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
-				sched := standard.DefaultHardforkSchedule()
+				sched := registry.DefaultHardforkSchedule()
 				sched.L2GenesisLagoonTimeOffset = op_service.U64UtilPtr(0x1234)
 				return sched
 			},
@@ -154,7 +155,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				GovernanceTokenOwner:                     common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
-				sched := standard.DefaultHardforkSchedule()
+				sched := registry.DefaultHardforkSchedule()
 				sched.L2GenesisLagoonTimeOffset = op_service.U64UtilPtr(0x1234)
 				return sched
 			},
@@ -171,7 +172,7 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			expectError:       false,
 			expectedOverrides: defaultOverrides(),
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
-				schedule := standard.DefaultHardforkSchedule()
+				schedule := registry.DefaultHardforkSchedule()
 				schedule.L2GenesisLagoonTimeOffset = op_service.U64UtilPtr(0)
 				return schedule
 			},

@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
@@ -208,6 +209,7 @@ func RenderGenesisAndRollup(globalState *state.State, chainID common.Hash, useGl
 		chainIntent,
 		globalState,
 		chainState,
+		registry.DefaultHardforkSchedule(),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to combine L2 init config: %w", err)

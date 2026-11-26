@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard/registry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -200,7 +201,7 @@ func testImplementations(t *testing.T, forkRPCURL string) {
 	chainID, err := client.ChainID(ctx)
 	require.NoError(t, err)
 
-	superchain, err := standard.SuperchainFor(bigs.Uint64Strict(chainID))
+	superchain, err := registry.SuperchainFor(bigs.Uint64Strict(chainID))
 	require.NoError(t, err)
 
 	loc, _ := testutil.LocalArtifacts(t)
