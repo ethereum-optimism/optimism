@@ -250,12 +250,6 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_FAUCET_VERSION" \
   just op-faucet/op-faucet
 
-FROM --platform=$BUILDPLATFORM builder AS op-interop-mon-builder
-ARG OP_INTEROP_MON_VERSION=v0.0.0
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_INTEROP_MON_VERSION" \
-  just op-interop-mon/op-interop-mon
-
 # The Rust version must match rust/rust-toolchain.toml. We don't use "latest" to ensure reproducibility
 FROM --platform=$BUILDPLATFORM rust:1.99.1 AS kona-host-builder
 ARG TARGETARCH
@@ -375,8 +369,3 @@ FROM $TARGET_BASE_IMAGE AS op-faucet-target
 USER 0
 COPY --from=op-faucet-builder /app/op-faucet/bin/op-faucet /usr/local/bin/
 CMD ["op-faucet"]
-
-FROM $TARGET_BASE_IMAGE AS op-interop-mon-target
-USER 0
-COPY --from=op-interop-mon-builder /app/op-interop-mon/bin/op-interop-mon /usr/local/bin/
-CMD ["op-interop-mon"]
