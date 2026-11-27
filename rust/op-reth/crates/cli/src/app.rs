@@ -62,8 +62,13 @@ impl<Ext: clap::Args + fmt::Debug> CliApp<Ext> {
 
         self.init_tracing(&runner)?;
 
-        // Install the prometheus recorder to be sure to record all metrics
-        install_prometheus_recorder();
+        // Install the prometheus recorder to be sure to record all metrics. Its histograms keep
+        // every sample until an upkeep pass drains them, and the node is the only command that
+        // would otherwise start the upkeep, so long-running commands such as `init-state` or
+        // `stage` would hold every sample until they exit. `spawn_upkeep` spawns onto the Tokio
+        // runtime, so it has to be called from inside it.
+        let recorder = install_prometheus_recorder();
+        runner.block_on(async { recorder.spawn_upkeep() });
         if let Some(chain_spec) = self.cli.command.chain_spec() {
             register_hardfork_activation_metrics(chain_spec);
         }
