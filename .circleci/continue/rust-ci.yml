@@ -418,6 +418,9 @@ jobs:
           name: Cross-language Interop activation diff
           command: |
             bash ops/scripts/test-interop-deposits-diff.sh
+      - run:
+          name: Cross-language fee and DA footprint diff
+          command: bash ops/scripts/test-fee-diff.sh
       - rust-save-build-cache: *interop-diff-cache-args
 
   # Shared unused dependencies check job
