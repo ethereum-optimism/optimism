@@ -10,7 +10,7 @@ use crate::{
 };
 use alloy_consensus::BlockHeader;
 use eyre::ErrReport;
-use futures_util::FutureExt;
+use futures_util::{FutureExt, future::BoxFuture};
 use op_alloy_consensus::{OpPooledTransaction, interop::SafetyLevel};
 use reth_chainspec::{
     BaseFeeParams, ChainSpecProvider, EthChainSpec, EthereumHardforks, ForkCondition, Hardforks,
@@ -377,6 +377,16 @@ pub async fn launch_node(
     builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
     node: OpNode,
 ) -> eyre::Result<(), ErrReport> {
+    launch_node_with_consensus(builder, node, None).await
+}
+
+/// Launches the execution node, then runs optional rollup consensus after its RPC servers are up.
+/// Returns the first result from the execution node or consensus; the caller owns process shutdown.
+pub async fn launch_node_with_consensus(
+    builder: WithLaunchContext<NodeBuilder<DatabaseEnv, OpChainSpec>>,
+    node: OpNode,
+    consensus: Option<BoxFuture<'static, eyre::Result<()>>>,
+) -> eyre::Result<(), ErrReport> {
     // op-reth's CLI already defaults masking to 0 and rejects nonzero values; this catches
     // callers that build a `NodeConfig` without that CLI.
     eyre::ensure!(
@@ -473,7 +483,14 @@ pub async fn launch_node(
             warn!(target: "reth::cli", %err, "Failed to check whether Storage V1 deprecation applies");
         }
     }
-    handle.node_exit_future.await
+    if let Some(consensus) = consensus {
+        tokio::select! {
+            result = handle.node_exit_future => result,
+            result = consensus => result,
+        }
+    } else {
+        handle.node_exit_future.await
+    }
 }
 
 impl<N> Node<N> for OpNode
