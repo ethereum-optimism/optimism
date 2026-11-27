@@ -4,7 +4,7 @@ description: ZK 증명을 사용하는 OP Stack 체인에서 op-zk-proposer를 �
 diataxis: how-to
 ---
 
-import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+import ZkProofsStatus from "/ko/snippets/zk-proofs-status.mdx"
 
 <ZkProofsStatus />
 
@@ -98,7 +98,16 @@ cargo run -p spn-wallet -- history <requester>
 
 `OP_ZK_PROPOSER_PROOF_PROVIDER=local-cuda`를 사용하면 proposer는 Succinct Prover Network에서 증명을 구매하는 대신 로컬 NVIDIA GPU에서 증명을 생성합니다. prover network 계정이 필요하지 않으므로 prover network 장애 시 백업으로 사용할 수 있습니다. prestate 및 verifier 검사는 `network` 모드와 동일합니다.
 
-이 모드는 GPU prover 서버가 포함된 amd64용 `op-zk-proposer-cuda` 이미지에서만 실행됩니다. 이 이미지는 `op-zk-proposer` 릴리스 `vX.Y.Z`와 동일한 커밋에서 `us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer-cuda:vX.Y.Z`로 게시됩니다. 사용할 GPU의 ID를 쉼표로 구분하여 `OP_ZK_PROPOSER_CUDA_DEVICES`에 설정하십시오(기본값 `0`). 메모리 설정과 proposer가 각 요청을 실행하는 방식은 SP1 통합 README의 [Local CUDA proving](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#local-cuda-proving)을 참조하십시오.
+이 모드는 GPU prover 서버가 포함된 amd64용 `op-zk-proposer-cuda` 이미지에서만 실행됩니다. 이 이미지는 `op-zk-proposer` 릴리스 `vX.Y.Z`와 동일한 커밋에서 `us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer-cuda:vX.Y.Z`로 게시됩니다. 사용할 GPU의 ID를 쉼표로 구분하여 `OP_ZK_PROPOSER_CUDA_DEVICES`에 설정하고(기본값 `0`), `OP_ZK_PROPOSER_MAX_CONCURRENT_RANGE_PROOFS`를 GPU 수로 설정하십시오. 기본값인 `1`에서는 게임 하나가 GPU를 하나만 사용합니다.
+
+prover는 프로그램 메모리를 `/dev/shm`에 보관합니다. 컨테이너 기본값인 64 MiB로는 모든 요청이 실패하므로, GPU당 `OP_ZK_PROPOSER_CUDA_MEMORY_LIMIT_BYTES`(기본값 24 GiB)의 두 배만큼 `/dev/shm` 공간을 확보하고, 이를 컨테이너 메모리에 포함하여 계산하십시오. 또한 CUDA 이미지는 사용자 `10001`로 실행되므로, [Proposer 시작](#start-the-proposer)에서와 같이 첫 실행 전에 `/data` 볼륨의 소유자를 설정하십시오. 예를 들어 GPU가 하나인 경우는 다음과 같습니다.
+
+```bash
+docker run --gpus all --shm-size=48g --env-file proposer.env -v proposer-data:/data -p 7300:7300 \
+  us-docker.pkg.dev/oplabs-tools-artifacts/images/op-zk-proposer-cuda:vX.Y.Z
+```
+
+proposer는 시작 시 `/dev/shm`에 남아 있는 prover 세그먼트를 삭제하므로, `/dev/shm`은 이 proposer 전용이어야 합니다. 메모리 설정과 proposer가 각 요청을 실행하는 방식은 SP1 통합 README의 [Local CUDA proving](https://github.com/ethereum-optimism/optimism/blob/develop/rust/kona/sp1/README.md#local-cuda-proving)을 참조하십시오.
 
 이 모드에서 proposer는 `prove_balance`와 `spn_requester_info`를 내보내지 않습니다.
 
@@ -126,20 +135,20 @@ docker run --env-file proposer.env -v proposer-data:/data -p 7300:7300 \
 한 번의 제안 간격 내에 게임이 생성되었는지 확인합니다.
 
 ```bash
-COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC)
-read -r GAME_TYPE CREATED_AT GAME_PROXY < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
+COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC | cut -d' ' -f1)
+{ read -r GAME_TYPE; read -r CREATED_AT; read -r GAME_PROXY; } < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
 echo "gameType=$GAME_TYPE gameProxy=$GAME_PROXY"
 # Expect: gameType=10
 
 cast call $GAME_PROXY 'rootClaim()(bytes32)' --rpc-url $L1_RPC
-cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
 cast call $GAME_PROXY 'parentIndex()(uint32)' --rpc-url $L1_RPC
+SEQ=$(cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC | cut -d' ' -f1)
 ```
 
 root claim이 해당 타임스탬프에서 super root 소스의 값과 일치하는지 확인합니다.
 
 ```bash
-cast rpc superroot_atTimestamp "$(cast 2h <l2SequenceNumber>)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
+cast rpc superroot_atTimestamp "$(cast 2h $SEQ)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
 # Expect: equals rootClaim
 ```
 
@@ -175,7 +184,11 @@ kill -USR1 <pid>
 
 `OP_ZK_PROPOSER_FAST_FINALITY_MODE=true`를 설정하면 proposer는 이의 제기된 게임만이 아니라 자신의 서명자가 생성한 모든 게임을 생성 즉시 증명합니다. 증명된 게임은 challenge window가 끝나기를 기다리지 않고 부모 게임이 resolve되는 즉시 resolve됩니다. [Fast finality](/ko/op-stack/zk-proofs/explainer#fast-finality)를 참조하십시오.
 
-이 모드에서는 모든 게임에 대해 range, consolidation, aggregation 증명과 log-commitment 증명 전체를 구매하게 됩니다. 1시간 간격이라면 하루에 약 24개의 게임에 해당합니다. `OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT`(기본값 `1`)는 진행 중인 증명 작업의 수를 제한하며, 이 한도에 도달하면 proposer는 게임 생성을 일시 중지합니다. 제때 증명되지 않은 게임을 확인하려면 `deadline_passed_total{window="fast_finality"}`에 대한 알림을 설정하십시오. fast finality window를 놓치더라도 게임에서 지는 것은 아닙니다.
+이 모드에서는 모든 게임에 대해 range, consolidation, aggregation 증명과 log-commitment 증명 전체를 구매하게 됩니다. 1시간 간격이라면 하루에 약 24개의 게임에 해당합니다.
+
+`OP_ZK_PROPOSER_FAST_FINALITY_PROVING_LIMIT`(기본값 `1`)는 proposer가 fast finality 증명을 시작하고 게임을 생성하는 시점을 제한합니다. 이 한도는 진행 중인 모든 증명, 즉 fast finality 증명과 이의 제기된 게임을 방어하는 증명을 모두 합산합니다. 합산 수가 한도에 도달하면 proposer는 새 fast finality 증명을 시작하지 않으며 새 게임도 생성하지 않습니다. 기본값에서는 이의 제기된 게임 하나 또는 이전 게임의 fast finality 증명 하나만으로도 해당 증명이 끝날 때까지 새 제안이 일시 중지됩니다. 방어 중에도 계속 제안하려면 동시에 방어할 것으로 예상되는 게임 수보다 큰 값으로 한도를 설정하십시오. 방어 증명은 이 한도와 관계없이 `OP_ZK_PROPOSER_MAX_CONCURRENT_DEFENSE_TASKS`개까지 시작됩니다.
+
+제때 증명되지 않은 게임을 확인하려면 `deadline_passed_total{window="fast_finality"}`에 대한 알림을 설정하십시오. fast finality window를 놓치더라도 게임에서 지는 것은 아닙니다.
 
 ## 이전 prestate 유지 {#keep-old-prestates-available}
 

@@ -4,7 +4,7 @@ description: 단일 opcm.upgrade 호출로 OP Stack 체인을 현재의 super-ro
 diataxis: how-to
 ---
 
-import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+import ZkProofsStatus from "/ko/snippets/zk-proofs-status.mdx"
 
 <ZkProofsStatus />
 
@@ -17,7 +17,7 @@ import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
 </Note>
 
 <Note>
-  이 런북은 자체 `DisputeGameFactory`와 `AnchorStateRegistry`를 가진 체인을 다룹니다. 여러 체인이 이를 공유하는 interop set은 다루지 않습니다. 이 경우에는 [마이그레이션 사양의 Path C](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs#path-c-interop-set-shared-contracts)를 참조하십시오.
+  이 런북은 자체 `DisputeGameFactory`와 `AnchorStateRegistry`를 가진 체인을 다룹니다. 여러 체인이 이를 공유하는 interop set은 다루지 않습니다. 이 경우에는 [ZK 증명으로 interop set 구성하기](/ko/op-stack/zk-proofs/interop-sets#form-an-interop-set-with-zk-proofs)를 참조하십시오.
 </Note>
 
 마이그레이션에 대한 규범적 설명은 [ZK 분쟁 게임 마이그레이션 사양](https://specs.optimism.io/fault-proof/stage-one/zk/zk-migration.html?utm_source=op-docs&utm_medium=docs)을 참조하십시오.
@@ -47,7 +47,7 @@ cast call <ASR> 'respectedGameType()(uint32)' --rpc-url $L1_RPC
 
 {/* TODO: add the standard values for the durations and bonds once they are set for the release. */}
 
-**릴리스 아티팩트.** [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)의 `validation/standard/standard-versions-<network>.toml`에서 `op-contracts/v10.0.0`(Upgrade 22) 이상 릴리스의 `OPContractsManager` 주소를 확인합니다. 이전 릴리스는 개발용 feature flag를 통해서만 ZK 분쟁 게임을 배포합니다. `OPContractsManager`가 게임의 verifier를 자체 `SP1PlonkAdapter`로 설정하므로 verifier를 직접 제공할 필요는 없습니다.
+**릴리스 아티팩트.** [superchain-registry](https://github.com/ethereum-optimism/superchain-registry)의 `validation/standard/standard-versions-<network>.toml`에서 `op-contracts/v10.0.0`(Upgrade 22) 이상 릴리스의 `OPContractsManager` 주소를 확인합니다. 이 주소는 해당 릴리스가 superchain-registry에 게시된 후에 확인할 수 있습니다. 이전 릴리스는 개발용 feature flag를 통해서만 ZK 분쟁 게임을 배포합니다. `OPContractsManager`가 게임의 verifier를 자체 `SP1PlonkAdapter`로 설정하므로 verifier를 직접 제공할 필요는 없습니다.
 
 {/* TODO: name the superchain-ops template for this upgrade once one supports op-contracts/v10.0.0. */}
 
@@ -144,8 +144,8 @@ cast call <ASR> 'getAnchorRoot()(bytes32,uint256)' --rpc-url $L1_RPC
 한 번의 제안 간격 내에 proposer는 앵커 상태를 기반으로 첫 번째 ZK 게임을 생성합니다. 게임의 구성과 claim을 확인합니다.
 
 ```bash
-COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC)
-read -r GAME_TYPE CREATED_AT GAME_PROXY < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
+COUNT=$(cast call <DGF> 'gameCount()(uint256)' --rpc-url $L1_RPC | cut -d' ' -f1)
+{ read -r GAME_TYPE; read -r CREATED_AT; read -r GAME_PROXY; } < <(cast call <DGF> 'gameAtIndex(uint256)(uint32,uint64,address)' $((COUNT-1)) --rpc-url $L1_RPC)
 echo "gameType=$GAME_TYPE gameProxy=$GAME_PROXY"
 # Expect: gameType=10
 
@@ -156,8 +156,8 @@ cast call $GAME_PROXY 'challengerBond()(uint256)' --rpc-url $L1_RPC
 # Expect: the configured values
 
 cast call $GAME_PROXY 'rootClaim()(bytes32)' --rpc-url $L1_RPC
-cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC
-cast rpc superroot_atTimestamp "$(cast 2h <l2SequenceNumber>)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
+SEQ=$(cast call $GAME_PROXY 'l2SequenceNumber()(uint256)' --rpc-url $L1_RPC | cut -d' ' -f1)
+cast rpc superroot_atTimestamp "$(cast 2h $SEQ)" --rpc-url $SUPER_ROOT_RPC | jq -r '.data.super_root'
 # Expect: equals rootClaim
 ```
 

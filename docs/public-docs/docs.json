@@ -4515,6 +4515,7 @@
                       "ko/op-stack/zk-proofs/zk-dispute-game",
                       "ko/op-stack/zk-proofs/proof-system",
                       "ko/op-stack/zk-proofs/components",
+                      "ko/op-stack/zk-proofs/interop-sets",
                       "ko/op-stack/zk-proofs/security",
                       "ko/op-stack/zk-proofs/reference"
                     ]
@@ -4679,15 +4680,13 @@
                   {
                     "group": "네트워크 업그레이드",
                     "pages": [
-                      "ko/notices/upgrade-21",
+                      "ko/notices/upgrade-22",
                       "ko/notices/interop-prep"
                     ]
                   },
                   {
                     "group": "운영",
                     "pages": [
-                      "ko/notices/preconfirmation-architecture-transition",
-                      "ko/notices/subblocks",
                       "ko/notices/specialized-node-topology",
                       "ko/notices/op-reth-storage-v1-deprecation"
                     ]

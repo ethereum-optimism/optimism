@@ -5,7 +5,7 @@ diataxis: explanation
 ---
 
 import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
-import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+import ZkProofsStatus from "/ko/snippets/zk-proofs-status.mdx"
 
 <NormativeSpec
   what="ZK 분쟁 게임의 가정과 불변 조건"
@@ -22,7 +22,7 @@ ZK 증명 시스템은 두 가지 속성으로 출금을 보호합니다. **건�
 
 유효하지 않은 제안은 아무도 이의를 제기하지 않거나 누군가 그것을 증명한 경우에만 승리합니다. 유효하지 않은 제안을 증명하려면 다음 중 하나를 깨뜨려야 합니다.
 
-*   **Verifier.** SP1 PLONK verifier는 잘못된 명제에 대한 모든 증명을 거부해야 합니다. 이 verifier는 감사를 마쳤습니다. `OPContractsManager`는 업그레이드할 때마다 해당 릴리스의 verifier를 설치합니다.
+*   **Verifier.** SP1 PLONK verifier는 잘못된 명제에 대한 모든 증명을 거부해야 합니다. Succinct의 [verifier 컨트랙트 감사 보고서](https://github.com/succinctlabs/sp1-contracts/tree/main/audits)를 참고하십시오. `OPContractsManager`는 업그레이드할 때마다 해당 릴리스의 verifier를 설치합니다.
 *   **프로그램.** 증명 프로그램은 OP Stack 상태 전이를 올바르게 구현해야 하며, prover가 제공하는 모든 입력을 게임의 public value와 대조하여 검사해야 합니다. 이 프로그램은 OP Stack의 다른 곳에서 상태 전이를 구현하는 것과 동일한 Kona 코드로 빌드됩니다.
 *   **Prestate.** 각 게임은 `absolutePrestate`가 식별하는 프로그램의 증명만 받아들입니다. 프로그램을 변경하려면 prestate를 변경해야 합니다.
 

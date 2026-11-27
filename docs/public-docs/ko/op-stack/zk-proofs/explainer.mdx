@@ -5,7 +5,7 @@ diataxis: explanation
 ---
 
 import { NormativeSpec } from "/ko/snippets/normative-spec.mdx"
-import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+import ZkProofsStatus from "/ko/snippets/zk-proofs-status.mdx"
 
 <NormativeSpec
   what="ZK 분쟁 게임"
@@ -24,7 +24,7 @@ ZK 증명(ZK proof)은 OP Stack 체인이 Ethereum에 자신의 상태를 증명
 
 제안은 특정 시점의 체인 상태에 대한 주장(claim)으로, L1의 `DisputeGameFactory` 컨트랙트에 제출됩니다. 각 제안은 새로운 [ZK 분쟁 게임(dispute game)](/ko/op-stack/zk-proofs/zk-dispute-game)을 생성하며, proposer는 제안과 함께 bond를 예치합니다.
 
-모든 제안은 **super root**입니다. super root는 특정 타임스탬프에서 해당 체인의 interop set에 속한 모든 체인의 output root에 커밋하는 단일 해시입니다. interop set에 속하지 않은 체인은 체인 하나로 구성된 set으로 취급되므로, 두 경우 모두 동일한 게임과 동일한 증명 시스템을 사용합니다.
+모든 제안은 **super root**입니다. super root는 특정 타임스탬프에서 해당 체인의 interop set에 속한 모든 체인의 output root에 커밋하는 단일 해시입니다. interop set에 속하지 않은 체인은 체인 하나로 구성된 set으로 취급되므로, 두 경우 모두 동일한 게임과 동일한 증명 시스템을 사용합니다. set에 체인이 둘 이상일 때 달라지는 점은 [Interop set을 위한 ZK 증명](/ko/op-stack/zk-proofs/interop-sets)을 참고하십시오.
 
 각 제안은 이전 제안을 기반으로 합니다. 게임은 부모 게임을 지정하며, 그 주장은 체인이 부모의 super root에서 자신의 super root로 이동했다는 것입니다. 일련의 게임 중 첫 번째 게임은 `AnchorStateRegistry`에 기록된 앵커 상태(anchor state)를 기반으로 합니다. 따라서 증명은 체인의 전체 기록이 아니라 두 제안 사이의 블록만 다루면 됩니다.
 

@@ -1,7 +1,7 @@
 ---
 title: "Subblocks: 200 ms 간격 및 스트림 페이로드 변경"
 description: OP Sepolia와 OP Mainnet에서 Subblocks(이전 명칭 Flashblocks)가 200 ms 간격으로 전환되며, 스트림 페이로드의 4개 필드가 0으로 설정됩니다.
-date: 2026-08-17
+date: 2026-08-31
 diataxis: reference
 lang: en-US
 content_type: notice
@@ -28,7 +28,7 @@ OP Sepolia와 OP Mainnet에 두 가지 변경 사항이 배포됩니다. subbloc
   **2026년 8월 17일** 전에 스트림 통합을 점검하세요.
 </Warning>
 
-## 의미
+## 의미 {#what-this-means}
 
 *   **간격이 250 ms에서 200 ms로 줄어듭니다.** 이에 따라 OP Sepolia와 OP Mainnet은 `FLASHBLOCKS_TIME = 200ms`가 됩니다.
 *   **4개의 페이로드 필드가 0 값으로 설정됩니다.** 4개 필드 모두 `ExecutionPayloadFlashblockDeltaV1`에 계속 존재합니다. wire format에서 제거되는 항목은 없습니다.
@@ -44,11 +44,11 @@ OP Sepolia와 OP Mainnet에 두 가지 변경 사항이 배포됩니다. subbloc
 이러한 필드를 읽는 통합은 파싱 단계에서 명확하게 실패하지 않고 0 값을 받은 채 계속 진행됩니다.
 마이그레이션 전에 애플리케이션 또는 통합에서 이러한 필드를 읽는 부분을 직접 점검할 것을 권장합니다.
 
-## 점진적 배포
+## 점진적 배포 {#the-rollout-is-gradual}
 
 이 변경은 한 번에 전환되는 것이 아니라 점진적으로 배포되므로, 일정 기간 동안 이전 동작과 새 동작이 모두 나타날 수 있습니다.
 
-## 필요한 조치
+## 필요한 조치 {#action-required}
 
 subblock 스트림을 직접 사용하는 팀의 경우:
 
@@ -56,7 +56,7 @@ subblock 스트림을 직접 사용하는 팀의 경우:
 *   이들 중 어느 필드의 0 값도 다운스트림 상태, 잔액 또는 증명으로 전파되지 않는지 확인합니다.
 *   스트림 페이로드를 자체 소비자에게 전달하는 RPC 제공업체는 이 공지를 해당 소비자에게 전달해야 합니다.
 
-## 일정
+## 일정 {#timeline}
 
 | 네트워크 | 목표 배포일 |
 | --- | --- |
@@ -65,7 +65,7 @@ subblock 스트림을 직접 사용하는 팀의 경우:
 
 두 날짜 모두 목표이며 변경될 수 있습니다.
 
-## 주요 링크
+## 주요 링크 {#key-links}
 
 | 자료 | 링크 |
 | --- | --- |

@@ -25,7 +25,7 @@ diataxis: reference
 업그레이드는 레지스트리의
 [컨트랙트 업그레이드 표](/ko/op-stack/protocol/network-upgrades#contract-upgrades)에 있습니다.
 
-## 보관된 공지
+## 보관된 공지 {#archived-notices}
 
 **발효일** 열은 변경 사항이 발효된 날짜입니다. mainnet 하드포크
 활성화일, 지원 종료일, 컨트랙트 업그레이드의 mainnet 실행일, 또는 기간 한정 실험의 시작일을 나타냅니다. 일부 공지는
@@ -34,7 +34,10 @@ diataxis: reference
 
 | 발효일 | 공지 | 다룬 내용 |
 | --- | --- | --- |
+| 2026-11-16 | [Upgrade 21](/ko/notices/archive/upgrade-21) | 모든 체인에서 `ETHLockbox`를 보관(custody) 및 일시 중지 식별자로 지정하고, interop을 위한 L1 컨트랙트 변경 사항을 적용하는 컨트랙트 업그레이드입니다. [`op-contracts/v9.0.0`](/ko/releases/op-contracts)에 포함되어 출시되었습니다. |
+| 날짜 없음 | [Preconfirmation 아키텍처 전환](/ko/notices/archive/preconfirmation-architecture-transition) | OP Labs가 Flashblocks preconfirmation 스택에 대한 지원을 종료하고 Subblocks로 전환했습니다. 이 페이지의 마지막 마일스톤인 Flashbots로의 best-effort 이슈 전달 종료는 2026년 10월 31일을 목표로 했으며, 확정 예정으로 표시되어 있었습니다. |
 | 2026-09-24 | [Upgrade 20: Super Root 분쟁 게임](/ko/notices/archive/upgrade-20) | 결함 증명(Fault Proofs)을 Output Root 분쟁 게임에서 Super Root 분쟁 게임(`SUPER_PERMISSIONED` 및 `SUPER_CANNON_KONA`)으로 전환하고, `SystemConfig.batchInbox()` 및 `setGasConfig(uint256,uint256)`를 제거하는 컨트랙트 업그레이드입니다. [`op-contracts/v8.0.0`](/ko/releases/op-contracts)에 포함되어 출시되었습니다. |
+| 2026-08-31 | [Subblocks: 200 ms 간격 및 스트림 페이로드 변경](/ko/notices/archive/subblocks) | Subblocks(이전 명칭 Flashblocks)가 200 ms 간격으로 전환되었으며(OP Sepolia는 2026-08-17, OP Mainnet은 2026-08-31), 4개의 스트림 페이로드 필드가 0으로 설정되었습니다. |
 | 2026-07-08 | [Upgrade 19: Karst 하드포크](/ko/notices/archive/upgrade-19) | Karst: L2 Contract Manager(L2CM), 승인된 게임 유형(respected game type)으로 승격된 `CANNON_KONA`, L2에 적용되는 Osaka EIP 일부, 선제적인 BN256 pairing 입력 크기 축소. |
 | 2026-06-26 | [Req/Res CL P2P sync 지원 중단](/ko/notices/archive/req-resp-cl-sync-deprecation) | 실행 클라이언트를 통한 동기화로 대체하기 위해 `op-node`의 request-response 합의 계층 P2P sync 클라이언트를 폐기합니다. `op-node/v1.19.1`에서 제거되었습니다. |
 | 2026-05-31 | [op-geth 및 op-program 지원 종료](/ko/notices/archive/op-geth-deprecation) | Karst를 지원하지 않는 op-geth와 op-program의 지원 종료. 실행 클라이언트는 op-reth로, 결함 증명은 kona-client로 마이그레이션하십시오. |

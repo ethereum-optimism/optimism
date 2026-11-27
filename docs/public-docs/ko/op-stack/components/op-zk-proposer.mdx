@@ -4,7 +4,7 @@ description: OP Stack ZK proposer인 op-zk-proposer의 정식 허브입니다. o
 diataxis: explanation
 ---
 
-import ZkProofsStatus from "/snippets/zk-proofs-status.mdx"
+import ZkProofsStatus from "/ko/snippets/zk-proofs-status.mdx"
 
 <ZkProofsStatus />
 
@@ -14,11 +14,11 @@ op-zk-proposer는 OP Stack의 ZK proposer입니다. 체인의 super root를 L1�
 
 op-zk-proposer는 [ZK 분쟁 게임(dispute game)](/ko/op-stack/zk-proofs/zk-dispute-game)에서 proposer 측의 모든 역할을 수행합니다.
 
-1.  **생성.** 고정된 간격마다 super root 소스에서 정식(canonical) super root를 읽고, 이전 게임을 기반으로 `DisputeGameFactory`에 해당 super root에 대한 게임을 생성합니다.
-2.  **방어.** 게임에 이의가 제기되면 증명에 필요한 데이터를 수집하고, Succinct Prover Network에서 증명을 구매하거나 로컬 GPU로 생성한 뒤, 집계 증명(aggregation proof)을 게임에 제출합니다. 빠른 최종성(fast finality) 모드에서는 누군가 이의를 제기하기 전에 자신의 게임을 미리 증명하기도 합니다.
-3.  **해결 및 청구.** 종료된 게임을 해결하고 bond를 청구합니다. 여기에는 다른 proposer의 이의가 제기된 게임을 증명하여 얻는 challenger bond도 포함됩니다.
+1.  **생성.** 고정된 간격마다 super root 소스에서 정식(canonical) super root를 읽고, 자신의 이전 게임 또는 anchor 게임을 기반으로 `DisputeGameFactory`에 해당 super root에 대한 게임을 생성합니다.
+2.  **방어.** 자신의 게임 중 하나에 이의가 제기되면 증명에 필요한 데이터를 수집하고, Succinct Prover Network에서 증명을 구매하거나 로컬 GPU로 생성한 뒤, 집계 증명(aggregation proof)을 게임에 제출합니다. 빠른 최종성(fast finality) 모드에서는 누군가 이의를 제기하기 전에 자신의 서명자(signer)가 생성한 게임을 미리 증명하기도 합니다.
+3.  **해결 및 청구.** 자신의 종료된 게임을 해결하고 자신의 bond를 청구합니다. 여기에는 이의가 제기된 자신의 게임을 증명하여 얻는 challenger bond도 포함됩니다.
 
-op-zk-proposer는 게임을 누가 생성했는지와 관계없이, 해당 prestate의 프로그램 파일을 보유한 모든 게임을 방어합니다. 특정 prestate로 게임을 생성하기 전에는 해당 prestate에 대한 증명을 생성할 수 있는지, 그리고 게임의 검증자(verifier)가 자신의 SP1 SDK에서 생성한 증명을 수락하는지 확인합니다. 따라서 방어할 수 없는 게임에 bond를 예치하는 일은 없습니다.
+op-zk-proposer는 자신의 게임만 확장하고 방어합니다. 자신의 게임이란 자신의 서명자가 생성한 게임, 또는 교체되어 물러난 서명자처럼 `OP_ZK_PROPOSER_OWNED_CREATORS`에 나열된 주소가 생성한 게임을 말합니다. 게임을 방어하려면 해당 게임의 prestate에 대한 프로그램 파일도 필요합니다. 다른 생성자의 게임은 op-challenger 또는 게임 생성자가 해결하고 종료하며, proposer는 해당 게임에 자신이 보유한 credit을 청구할 때만 게임을 종료합니다. 특정 prestate로 게임을 생성하기 전에는 해당 prestate에 대한 증명을 생성할 수 있는지, 그리고 게임의 검증자(verifier)가 자신의 SP1 SDK에서 생성한 증명을 수락하는지 확인합니다. 따라서 방어할 수 없는 게임에 bond를 예치하는 일은 없습니다.
 
 op-zk-proposer는 Rust로 작성되었으며, Kona workspace에서 ZK 증명 프로그램과 함께 관리됩니다. 프로그램이 읽는 데이터를 수집하기 위해 `kona-host`를 내장하고 있습니다.
 
