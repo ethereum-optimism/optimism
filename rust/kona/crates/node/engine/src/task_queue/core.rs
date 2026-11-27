@@ -49,8 +49,9 @@ impl Ord for QueuedTask {
 ///
 /// Tasks within the queue are also considered fallible. If they fail with a temporary error,
 /// they are not popped from the queue, the error is returned, and they are retried on the
-/// next call to [`Engine::drain`]. A task that fails with a flush error has already replaced its
-/// block, so it is popped before the error is returned.
+/// next call to [`Engine::drain`]. A task that fails with a wait error returns to the queue in its
+/// place instead, so higher-priority tasks enqueued since run before its retry. A task that fails
+/// with a flush error has already replaced its block, so it is popped before the error is returned.
 #[derive(Debug)]
 pub struct Engine {
     /// The state of the engine.
@@ -61,8 +62,8 @@ pub struct Engine {
     tasks: BinaryHeap<QueuedTask>,
     next_sequence: u64,
     /// Preserve the task being retried ahead of newly enqueued work: it may have already
-    /// performed part of an Engine API operation.
-    active: Option<EngineTask>,
+    /// performed part of an Engine API operation. A task that waits returns to the queue instead.
+    active: Option<QueuedTask>,
 }
 
 impl Engine {
@@ -144,26 +145,33 @@ impl Engine {
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
     /// an error along the way, the error is returned and the task is not popped from the queue (in
-    /// case it must be retried), unless it is a flush or skip error.
+    /// case it must be retried), unless it is a flush or skip error. A task that returns a wait
+    /// error goes back into the queue.
     pub async fn drain(&mut self) -> Result<(), EngineTaskErrors> {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         loop {
             if self.active.is_none() {
-                self.active = self.tasks.pop().map(|queued| queued.task);
+                self.active = self.tasks.pop();
             }
-            let Some(task) = &self.active else { break };
-            let result = task.execute(&mut self.state).await;
+            let Some(active) = &self.active else { break };
+            let result = active.task.execute(&mut self.state).await;
 
-            // A flush reports that the task replaced its block with a deposits-only block, so the
-            // task is done; retrying it would replace that block again. A skip reports a task that
-            // no longer applies, so retrying it cannot succeed either.
-            if let Err(err) = &result &&
-                !matches!(
-                    err.severity(),
-                    EngineTaskErrorSeverity::Flush | EngineTaskErrorSeverity::Skip
-                )
-            {
-                return result;
+            if let Err(err) = &result {
+                match err.severity() {
+                    // A waiting task left the execution layer unchanged, so it need not stay ahead
+                    // of new work. Its sequence keeps its place among tasks of its kind.
+                    EngineTaskErrorSeverity::Wait => {
+                        self.tasks.extend(self.active.take());
+                        return result;
+                    }
+                    // A flush reports that the task replaced its block with a deposits-only block,
+                    // so the task is done; retrying it would replace that block again. A skip
+                    // reports a task that no longer applies, so retrying it cannot succeed either.
+                    EngineTaskErrorSeverity::Flush | EngineTaskErrorSeverity::Skip => {}
+                    EngineTaskErrorSeverity::Critical |
+                    EngineTaskErrorSeverity::Reset |
+                    EngineTaskErrorSeverity::Temporary => return result,
+                }
             }
 
             self.state_sender.send_replace(self.state);
@@ -211,7 +219,7 @@ mod recovery_tests {
         NoopBlockSink,
         test_utils::{
             TestAttributesBuilder, TestEngineStateBuilder, expect_sync_start, test_block_info,
-            test_engine_client,
+            test_engine_client, test_l2_block,
         },
     };
     use alloy_rpc_types_engine::{
@@ -277,6 +285,74 @@ mod recovery_tests {
         engine.drain().await.unwrap();
         assert!(engine.is_empty());
         assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 3);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    // A waiting task goes back into the queue in its place. An unsafe import enqueued during the
+    // wait runs before its retry, while a later consolidation and a finalization stay behind it:
+    // the scripted replies fix that order, and either of those two would look up another block.
+    #[tokio::test]
+    async fn waiting_task_yields_to_higher_priority_tasks_only() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        let safe_head = test_block_info(9);
+        let state = TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(20))
+            .with_safe_head(safe_head)
+            .build();
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        engine.enqueue(EngineTask::Finalize(Box::new(FinalizeTask::new(
+            client.clone(),
+            config.clone(),
+            FinalizeBlockId::ByNumber(5),
+        ))));
+        engine.enqueue(EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+            client.clone(),
+            config.clone(),
+            ConsolidateInput::Attributes(Box::new(
+                TestAttributesBuilder::new().with_parent(safe_head).build(),
+            )),
+            Arc::new(NoopBlockSink),
+        ))));
+        let syncing =
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Syncing));
+        l2.expect_block_by_number(10, None);
+        l2.expect("engine_forkchoiceUpdatedV3", &syncing);
+
+        let error = engine.drain().await.unwrap_err();
+
+        assert_eq!(error.severity(), EngineTaskErrorSeverity::Wait, "got {error:?}");
+        assert_eq!(engine.len(), 2);
+
+        engine.enqueue(EngineTask::Consolidate(Box::new(ConsolidateTask::new(
+            client.clone(),
+            config.clone(),
+            ConsolidateInput::Attributes(Box::new(
+                TestAttributesBuilder::new().with_parent(test_block_info(10)).build(),
+            )),
+            Arc::new(NoopBlockSink),
+        ))));
+        let unsafe_block = test_l2_block(21, Default::default(), 0);
+        engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
+            client,
+            config,
+            OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(&unsafe_block)),
+            false,
+            Arc::new(NoopBlockSink),
+        ))));
+        l2.expect("engine_newPayloadV2", PayloadStatus::from_status(PayloadStatusEnum::Syncing));
+        l2.expect("engine_forkchoiceUpdatedV3", &syncing);
+        l2.expect_block_by_number(10, None);
+        l2.expect("engine_forkchoiceUpdatedV3", &syncing);
+
+        let error = engine.drain().await.unwrap_err();
+
+        assert_eq!(error.severity(), EngineTaskErrorSeverity::Wait, "got {error:?}");
+        assert_eq!(engine.len(), 3);
+        assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 21);
         l1.assert_finished();
         l2.assert_finished();
     }

@@ -268,6 +268,47 @@ impl ConsolidateTask {
         }
     }
 
+    /// Returns a derived block at or below the unsafe head that the execution layer did not have,
+    /// once the execution layer has the unsafe head.
+    ///
+    /// The execution layer answers the engine's unchanged forkchoice with `SYNCING` while it syncs
+    /// toward the unsafe head, and the task then waits for it to fill the block in. A reset would
+    /// instead restart from the execution layer's own labels, which are genesis after a datadir
+    /// wipe, and derive the chain again. Like op-node, the engine resets only when an execution
+    /// layer that has the unsafe head still lacks the block.
+    async fn derived_block_once_el_has_unsafe_head(
+        &self,
+        state: &mut EngineState,
+        block_num: u64,
+    ) -> Result<Block<Transaction>, ConsolidateTaskError> {
+        synchronize_unconditionally(self.client.as_ref(), state, EngineSyncStateUpdate::default())
+            .await?;
+        if !state.el_applied_last_forkchoice {
+            debug!(
+                target: "engine",
+                block_num,
+                unsafe_number = state.sync_state.unsafe_head().block_info.number,
+                "Waiting for the execution layer to sync the derived block"
+            );
+            return Err(ConsolidateTaskError::MissingUnsafeL2BlockDuringElSync(block_num));
+        }
+        self.unsafe_block(block_num).await?.ok_or_else(|| {
+            warn!(target: "engine", "Received `None` block for {}", block_num);
+            ConsolidateTaskError::MissingUnsafeL2Block(block_num)
+        })
+    }
+
+    /// Looks up the execution layer's block at `block_num`, `None` if it has none.
+    async fn unsafe_block(
+        &self,
+        block_num: u64,
+    ) -> Result<Option<Block<Transaction>>, ConsolidateTaskError> {
+        self.client
+            .l2_block_by_label(block_num.into())
+            .await
+            .map_err(|_| ConsolidateTaskError::FailedToFetchUnsafeL2Block)
+    }
+
     /// Attempts consolidation on the engine state.
     #[tracing::instrument(
         name = "consolidate",
@@ -279,17 +320,13 @@ impl ConsolidateTask {
     pub async fn consolidate(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
         // Fetch the unsafe L2 block
         let block_num = self.input.l2_block_number();
-        let block = match self.client.l2_block_by_label(block_num.into()).await {
-            Ok(Some(block)) => block,
-            Ok(None) => {
+        let block = match self.unsafe_block(block_num).await? {
+            Some(block) => block,
+            None => {
                 if let ConsolidateInput::BlockInfo(safe_l2) = &self.input {
                     return self.follow_safe_head_during_el_sync(state, safe_l2).await;
                 }
-                warn!(target: "engine", "Received `None` block for {}", block_num);
-                return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_num));
-            }
-            Err(_) => {
-                return Err(ConsolidateTaskError::FailedToFetchUnsafeL2Block);
+                self.derived_block_once_el_has_unsafe_head(state, block_num).await?
             }
         };
         let block_hash = block.header.hash;
@@ -710,20 +747,82 @@ mod tests {
         l2.assert_finished();
     }
 
-    /// Unlike a delegated safe head, derived attributes whose block is missing below the unsafe
-    /// head still reset the engine.
+    /// Derived attributes whose block is missing below the unsafe head wait while the execution
+    /// layer syncs toward the unsafe head, instead of resetting the engine.
     #[tokio::test]
-    async fn derived_attributes_missing_from_el_reset_the_engine() {
+    async fn derived_attributes_missing_from_syncing_el_wait() {
+        let cfg = Arc::new(RollupConfig::default());
+        let attributes = derived_attributes(true);
+        let mut state = engine_state_with_safe_head(attributes.parent);
+        let sync_state_before = state.sync_state;
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_block_by_number(10, None);
+        l2.expect_forkchoice_updated(
+            sync_state_before.create_forkchoice_state(),
+            PayloadStatusEnum::Syncing,
+        );
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::Attributes(Box::new(attributes)),
+            Arc::new(NoopBlockSink),
+        );
+
+        let err = task.execute(&mut state).await.unwrap_err();
+
+        assert!(
+            matches!(err, ConsolidateTaskError::MissingUnsafeL2BlockDuringElSync(10)),
+            "got {err:?}"
+        );
+        assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Wait);
+        assert_eq!(state.sync_state, sync_state_before);
+        assert!(!state.el_applied_last_forkchoice);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// An execution layer that cannot be asked whether it has the unsafe head has not shown that it
+    /// lost the derived block, so the task is retried instead of resetting the engine.
+    #[tokio::test]
+    async fn derived_attributes_missing_from_unreachable_el_are_retried() {
         let cfg = Arc::new(RollupConfig::default());
         let attributes = derived_attributes(true);
         let mut state = engine_state_with_safe_head(attributes.parent);
         let state_before = state;
         let (client, l1, l2) = test_engine_client(cfg.clone());
-        l2.expect_params(
-            "eth_getBlockByNumber",
-            serde_json::json!(["0xa", true]),
-            None::<RpcBlock<Transaction>>,
+        l2.expect_block_by_number(10, None);
+        l2.expect_transport_error("engine_forkchoiceUpdatedV3");
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::Attributes(Box::new(attributes)),
+            Arc::new(NoopBlockSink),
         );
+
+        let err = task.execute(&mut state).await.unwrap_err();
+
+        assert!(matches!(err, ConsolidateTaskError::ForkchoiceUpdateFailed(_)), "got {err:?}");
+        assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Temporary);
+        assert_eq!(state, state_before);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// An execution layer that has the unsafe head but not the derived block below it has lost
+    /// the block or is on another chain, so the engine still resets.
+    #[tokio::test]
+    async fn derived_attributes_missing_from_synced_el_reset_the_engine() {
+        let cfg = Arc::new(RollupConfig::default());
+        let attributes = derived_attributes(true);
+        let mut state = engine_state_with_safe_head(attributes.parent);
+        let state_before = state;
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_block_by_number(10, None);
+        l2.expect_forkchoice_updated(
+            state.sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Valid,
+        );
+        l2.expect_block_by_number(10, None);
         let task = ConsolidateTask::new(
             Arc::new(client),
             cfg,
@@ -736,6 +835,40 @@ mod tests {
         assert!(matches!(err, ConsolidateTaskError::MissingUnsafeL2Block(10)), "got {err:?}");
         assert_eq!(err.severity(), crate::EngineTaskErrorSeverity::Reset);
         assert_eq!(state, state_before);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// The execution layer can commit the derived block between the lookup and its answer that it
+    /// has the unsafe head, as when it finishes syncing. The block is then consolidated.
+    #[tokio::test]
+    async fn derived_attributes_consolidate_once_el_has_unsafe_head() {
+        let cfg = Arc::new(RollupConfig::default());
+        let attributes = derived_attributes(true);
+        let block = unsafe_block_matching(&attributes);
+        let mut state = engine_state_with_safe_head(attributes.parent);
+        let expected_sync_state = with_safe_head(&state, block_info_of(&cfg, &block));
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_block_by_number(10, None);
+        l2.expect_forkchoice_updated(
+            state.sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Valid,
+        );
+        l2.expect_block_by_number(10, Some(block));
+        l2.expect_forkchoice_updated(
+            expected_sync_state.create_forkchoice_state(),
+            PayloadStatusEnum::Valid,
+        );
+        let task = ConsolidateTask::new(
+            Arc::new(client),
+            cfg,
+            ConsolidateInput::Attributes(Box::new(attributes)),
+            Arc::new(NoopBlockSink),
+        );
+
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(state.sync_state, expected_sync_state);
         l1.assert_finished();
         l2.assert_finished();
     }

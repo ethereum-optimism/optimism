@@ -36,6 +36,10 @@ pub enum EngineTaskErrorSeverity {
     /// the engine keeps running.
     #[display("skip")]
     Skip,
+    /// The task waits for the execution layer, which it left unchanged. It returns to the queue in
+    /// its place, so higher-priority tasks run before its retry.
+    #[display("wait")]
+    Wait,
 }
 
 /// The interface for an engine task error.
