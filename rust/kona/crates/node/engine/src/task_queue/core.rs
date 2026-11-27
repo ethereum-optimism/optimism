@@ -190,16 +190,52 @@ impl EngineResetError {
     /// Whether retrying the reset can recover without changing the node configuration.
     pub fn is_temporary(&self) -> bool {
         match self {
-            // A missing L1 block below the head means a lagging backend that may catch up, and
-            // any other L1 failure is an RPC failure.
+            // A missing L1 block below the head means a lagging backend that may catch up, any
+            // other L1 failure is an RPC failure, and a missing L2 block can follow an execution
+            // layer restart. Every other sync-start error is data that cannot be right, which
+            // stops the node so that the operator fixes the RPC.
             Self::SyncStart(
                 SyncStartError::RpcError(_) |
                 SyncStartError::L1(_) |
-                SyncStartError::L1BlockMissing { .. },
+                SyncStartError::L1BlockMissing { .. } |
+                SyncStartError::BlockNotFound(_),
             ) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
         }
+    }
+}
+
+#[cfg(test)]
+mod reset_error_tests {
+    use super::*;
+    use alloy_eips::BlockId;
+    use alloy_primitives::B256;
+    use kona_protocol::FromBlockError;
+    use rstest::rstest;
+
+    /// A block missing from the L2 execution layer can follow its restart, so the reset is
+    /// retried. Data that cannot be right stops the node.
+    #[rstest]
+    #[case::l2_block_not_found(SyncStartError::BlockNotFound(BlockId::hash(B256::ZERO)), true)]
+    #[case::invalid_l1_genesis(
+        SyncStartError::InvalidL1GenesisHash(B256::ZERO, B256::repeat_byte(1)),
+        false
+    )]
+    #[case::too_deep_reorg(
+        SyncStartError::TooDeepReorg { unsafe_head: 1, previous_unsafe_head: 100 },
+        false
+    )]
+    #[case::mismatched_finalized(
+        SyncStartError::MismatchedFinalizedBlock(B256::ZERO, B256::repeat_byte(1)),
+        false
+    )]
+    #[case::undecodable_l2_block(
+        SyncStartError::FromBlock(FromBlockError::MissingL1InfoDeposit(B256::ZERO)),
+        false
+    )]
+    fn retries_only_a_missing_l2_block(#[case] error: SyncStartError, #[case] temporary: bool) {
+        assert_eq!(EngineResetError::SyncStart(error).is_temporary(), temporary);
     }
 }
 

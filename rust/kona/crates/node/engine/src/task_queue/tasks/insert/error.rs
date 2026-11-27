@@ -12,7 +12,7 @@ use op_alloy_rpc_types_engine::OpPayloadError;
 #[derive(Debug, thiserror::Error)]
 pub enum InsertTaskError {
     /// Error converting a payload into a block.
-    #[error(transparent)]
+    #[error("Payload the execution layer accepted does not convert into a block: {0}")]
     FromBlockError(#[from] OpPayloadError),
     /// Failed to insert new payload.
     #[error("Failed to insert new payload: {0}")]
@@ -21,7 +21,7 @@ pub enum InsertTaskError {
     #[error("Unexpected payload status: {0}")]
     UnexpectedPayloadStatus(PayloadStatusEnum),
     /// Error converting the payload + chain genesis into an L2 block info.
-    #[error(transparent)]
+    #[error("Payload the execution layer accepted is not a valid L2 block: {0}")]
     L2BlockInfoConstruction(#[from] FromBlockError),
     /// The forkchoice update call to consolidate the block into the engine state failed.
     #[error(transparent)]
