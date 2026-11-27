@@ -1,6 +1,6 @@
 //! Contains the error type for the forkchoice update that synchronizes the execution layer.
 
-use crate::{EngineTaskError, task_queue::tasks::task::EngineTaskErrorSeverity};
+use crate::{EngineTaskError, FinalityViolation, task_queue::tasks::task::EngineTaskErrorSeverity};
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use alloy_transport::{RpcError, TransportErrorKind};
 use thiserror::Error;
@@ -11,6 +11,9 @@ pub enum SynchronizeTaskError {
     /// The forkchoice update call to the engine api failed.
     #[error("Forkchoice update engine api call failed due to an RPC error: {0}")]
     ForkchoiceUpdateFailed(RpcError<TransportErrorKind>),
+    /// The safe or local-safe head would sit below the finalized head.
+    #[error("Invalid forkchoice state: a safe label would sit below finality: {0}")]
+    FinalizedAheadOfSafe(FinalityViolation),
     /// The finalized head is behind the unsafe head.
     #[error("Invalid forkchoice state: unsafe head {0} is ahead of finalized head {1}")]
     FinalizedAheadOfUnsafe(u64, u64),
@@ -26,6 +29,9 @@ impl EngineTaskError for SynchronizeTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
             Self::FinalizedAheadOfUnsafe(_, _) => EngineTaskErrorSeverity::Critical,
+            // A reset rebuilds the labels, so a label update that would break finality is
+            // recoverable without stopping the node.
+            Self::FinalizedAheadOfSafe(_) |
             Self::InvalidForkchoiceState |
             Self::UnexpectedPayloadStatus(PayloadStatusEnum::Invalid { .. }) => {
                 EngineTaskErrorSeverity::Reset

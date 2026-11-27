@@ -106,7 +106,8 @@ impl Default for L2ClientArgs {
 /// L2 derivation delegate connection arguments.
 #[derive(Clone, Debug, Default, clap::Args)]
 pub struct DerivationDelegateArgs {
-    /// The source must be an OP Stack L2 CL RPC exposing `optimism_syncStatus`.
+    /// The source must be an OP Stack L2 CL RPC exposing `optimism_syncStatus` and
+    /// `optimism_outputAtBlock`.
     ///
     /// Its local-safe and cross-safe heads become this node's local-safe and safe labels. Under
     /// interop this node verifies no cross-chain dependencies itself, so the source must.

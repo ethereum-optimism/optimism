@@ -256,7 +256,7 @@ flag group. `--interop.dependency-set` is the node's only interop flag.
 
 | Flag | Env | Description | Default |
 |------|-----|-------------|---------|
-| `--l2-follow-source <URL>` (alias `--l2.follow.source`) | `KONA_NODE_L2_FOLLOW_SOURCE` | RPC URL of an OP Stack consensus client exposing `optimism_syncStatus`. When set, `kona-node` derives nothing itself and follows that client's safe and finalized heads instead. Cannot be combined with `--safedb.path`. | - |
+| `--l2-follow-source <URL>` (alias `--l2.follow.source`) | `KONA_NODE_L2_FOLLOW_SOURCE` | RPC URL of an OP Stack consensus client exposing `optimism_syncStatus` and `optimism_outputAtBlock`. When set, `kona-node` derives nothing itself and follows that client's safe and finalized heads instead. Cannot be combined with `--safedb.path`. | - |
 
 Like op-node's follow-source mode, `kona-node` imports the source's local-safe and cross-safe
 heads separately. The local-safe head is the block the execution client must have, or sync to,
@@ -271,6 +271,15 @@ moves the safe label only forward.
 Before interop both heads are the same block.
 Under interop, `kona-node` verifies no cross-chain dependencies itself, so its safe label is only
 as safe as the source's cross-safe head: the source must verify them.
+
+When the source's finalized block is above the node's, `kona-node` asks the source for its block
+at the node's finalized height with `optimism_outputAtBlock`. If that block is not the node's
+finalized block, the source's chain does not descend from it, and `kona-node` ignores the source's
+heads until it does. If the source cannot serve that block, for example behind a proxy that does
+not allow the method, its heads are sent to the execution client anyway. If the execution client
+rejects a forkchoice update for the source's heads, `kona-node` resets. A reset that finds the
+execution client on a chain without its finalized block first restores a forkchoice on that
+block's chain.
 
 ## RPC Trust Flag
 

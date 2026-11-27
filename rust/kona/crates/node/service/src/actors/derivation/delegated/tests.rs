@@ -215,6 +215,9 @@ async fn first_poll_rejects_status_behind_engine_finality(
 
     assert_eq!(harness.forwarded(), forwarded_if(accepted, &status));
     assert_eq!(harness.current_l1.borrow().is_some(), accepted);
+    // Only a finalized block above the engine's needs the delegate's block at that height.
+    let expected_lookups = u32::from(finalized_l2.block_info.number > 15);
+    assert_eq!(harness.delegate.block_lookups(), expected_lookups);
 }
 
 /// Once the engine applies a forwarded finalized block, a status whose finalized block is behind
@@ -264,6 +267,74 @@ async fn poll_accepts_status_after_engine_skipped_forwarded_finality(
     harness.actor.step().await.unwrap();
 
     assert_eq!(harness.forwarded(), forwarded_for(&canonical_status));
+}
+
+/// A delegate whose finalized block is above the engine's is asked for its block at the engine's
+/// finalized height. With the engine's finalized block there, its status is forwarded. With
+/// another block there, its chain forked below the engine's finality, and its status is rejected
+/// whole before the execution layer can make its head canonical. When it cannot serve the block,
+/// its status is forwarded for the execution layer to judge.
+#[rstest]
+#[case::on_the_engine_chain(Some(l2_block(15, FINALIZED_ORIGIN)), true)]
+#[case::forked_below_engine_finality(Some(conflicting(l2_block(15, FINALIZED_ORIGIN))), false)]
+#[case::lookup_failed(None, true)]
+#[tokio::test(start_paused = true)]
+async fn poll_checks_the_delegate_chain_at_the_engine_finalized_height(
+    #[case] delegate_block_at_engine_finality: Option<L2BlockInfo>,
+    #[case] accepted: bool,
+) {
+    let status = with_finalized_l2(l2_block(16, FINALIZED_ORIGIN));
+    let mut harness = Harness::new([Ok(status.clone())]);
+    if let Some(block) = delegate_block_at_engine_finality {
+        harness.delegate.has_block(block.block_info.id());
+    }
+    harness.complete_engine_sync_with(engine_finalized_at(l2_block(15, FINALIZED_ORIGIN))).await;
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_if(accepted, &status));
+    assert_eq!(harness.current_l1.borrow().is_some(), accepted);
+    assert_eq!(harness.delegate.block_lookups(), 1);
+}
+
+/// A block's ancestors never change, so a delegate is asked once for each finalized block it
+/// reports above the engine's finalized head, not on every poll.
+#[tokio::test(start_paused = true)]
+async fn delegate_is_asked_once_for_each_finalized_block() {
+    let status = with_finalized_l2(l2_block(16, FINALIZED_ORIGIN));
+    let next_status = with_finalized_l2(l2_block(17, FINALIZED_ORIGIN));
+    let mut harness =
+        Harness::new([Ok(status.clone()), Ok(status.clone()), Ok(next_status.clone())]);
+    harness.delegate.has_block(l2_block(15, FINALIZED_ORIGIN).block_info.id());
+    harness.complete_engine_sync_with(engine_finalized_at(l2_block(15, FINALIZED_ORIGIN))).await;
+
+    for _ in 0..2 {
+        harness.actor.step().await.unwrap();
+        assert_eq!(harness.forwarded(), forwarded_for(&status));
+        assert_eq!(harness.delegate.block_lookups(), 1);
+    }
+
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_for(&next_status));
+    assert_eq!(harness.delegate.block_lookups(), 2);
+}
+
+/// A delegate on a chain without the engine's finalized block is asked again on every poll, so
+/// its status is forwarded as soon as it is back on the engine's chain.
+#[tokio::test(start_paused = true)]
+async fn delegate_back_on_the_engine_chain_is_forwarded_again() {
+    let status = with_finalized_l2(l2_block(16, FINALIZED_ORIGIN));
+    let mut harness = Harness::new([Ok(status.clone()), Ok(status.clone())]);
+    harness.delegate.has_block(conflicting(l2_block(15, FINALIZED_ORIGIN)).block_info.id());
+    harness.complete_engine_sync_with(engine_finalized_at(l2_block(15, FINALIZED_ORIGIN))).await;
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), Vec::new());
+
+    harness.delegate.has_block(l2_block(15, FINALIZED_ORIGIN).block_info.id());
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_for(&status));
+    assert_eq!(harness.delegate.block_lookups(), 2);
 }
 
 #[derive(Clone, Copy, Debug)]

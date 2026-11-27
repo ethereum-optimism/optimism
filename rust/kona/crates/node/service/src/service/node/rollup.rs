@@ -46,7 +46,7 @@ use tokio_util::sync::CancellationToken;
 use url::Url;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
-/// Timeout for each `optimism_syncStatus` request to the derivation delegate.
+/// Timeout for each request to the derivation delegate.
 const DERIVATION_DELEGATE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 /// How many recently imported blocks to keep for the local L2 lookups.
 ///
@@ -89,7 +89,8 @@ pub struct RollupNode {
     pub(crate) p2p_config: NetworkConfig,
     /// The [`SequencerConfig`] for the node.
     pub(crate) sequencer_config: SequencerConfig,
-    /// The L2 CL RPC to delegate derivation to. It must expose `optimism_syncStatus`.
+    /// The L2 CL RPC to delegate derivation to. It must expose `optimism_syncStatus` and
+    /// `optimism_outputAtBlock`.
     pub(crate) derivation_delegate_url: Option<Url>,
     /// Blocks the engine has imported, shared with the derivation providers so they can be read
     /// locally instead of fetched back from the execution layer.

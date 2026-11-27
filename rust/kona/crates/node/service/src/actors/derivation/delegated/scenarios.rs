@@ -216,6 +216,9 @@ impl DelegatedNode {
             canonical_l1.insert_block(number, l1_block(number));
         }
         let delegate = ScriptedDelegate::lenient();
+        for block in &chain.infos {
+            delegate.has_block(block.block_info.id());
+        }
         let (derivation_origin_tx, derivation_origin) = watch::channel(None);
         let delegate_actor = DelegateDerivationActor::new(
             QueuedDerivationEngineClient::new(engine_requests.clone()),
@@ -419,6 +422,25 @@ async fn safe_and_finalized_progress_by_hash_with_unsafe_production_paused() {
     for (safe, finalized) in [(20, 10), (25, 20), (30, 25)] {
         labels = node.poll_applies_safe_and_finalized(&chain, labels, safe, finalized).await;
     }
+}
+
+/// A delegate whose chain forked below the engine's finalized block is rejected before its heads
+/// reach the EL, which would make them canonical before rejecting them. Once the delegate is back
+/// on the engine's chain, its heads apply.
+#[tokio::test(start_paused = true)]
+async fn delegate_forked_below_engine_finality_never_reaches_the_el() {
+    let chain = TestChain::new();
+    let initial = synced_engine(chain.block(10), chain.block(15), chain.block(30));
+    let mut node = DelegatedNode::start(&chain, initial);
+
+    node.delegate.has_block(chain.fork_block(10).block_info.id());
+    node.delegate_reports(chain.fork_block(25), chain.fork_block(20));
+    node.next_poll().await;
+    node.assert_labels(initial.sync_state).await;
+    node.assert_origin(None);
+
+    node.delegate.has_block(chain.block(10).block_info.id());
+    node.poll_applies_safe_and_finalized(&chain, initial.sync_state, 20, 15).await;
 }
 
 /// A delegated safe head on another branch reorgs the EL onto it: the EL syncs the branch while

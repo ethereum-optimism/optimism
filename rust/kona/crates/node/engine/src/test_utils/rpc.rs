@@ -1,8 +1,12 @@
 //! Scripted RPC expectations over Alloy's mock transport.
 
-use crate::{EngineClient, test_utils::TestRpcBlock};
+use crate::{
+    EngineClient,
+    test_utils::{TestRpcBlock, test_rpc_block},
+};
 use alloy_json_rpc::{ErrorPayload, RequestPacket, ResponsePacket};
 use alloy_network::Network;
+use alloy_primitives::B256;
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use alloy_rpc_types_engine::{
@@ -15,6 +19,7 @@ use alloy_transport::{
 };
 use kona_genesis::RollupConfig;
 use kona_providers_alloy::AlloyChainProvider;
+use op_alloy_consensus::OpBlock;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
@@ -251,4 +256,40 @@ pub fn expect_sync_start(
         l1.expect_params("eth_getBlockByNumber", serde_json::json!([number, false]), &l1_genesis);
     }
     l2.expect_forkchoice_updated(forkchoice, PayloadStatusEnum::Valid);
+}
+
+/// Expects a sync-start walk: the execution layer answering `finalized` for its finalized block
+/// and `latest` for its safe and latest blocks, then the L1 head and the canonical L1 block at the
+/// height of `latest`'s L1 origin, and the parent lookups of the walk answered by `parents` in
+/// order. The L1 head is at that origin. The canonical L1 block is `latest`'s L1 origin when
+/// `l1_origin_is_canonical`, and another block otherwise, which the walk only tolerates when it
+/// stops at `latest`, as at the finalized height.
+pub fn expect_sync_start_walk(
+    l1: &RpcMock,
+    l2: &RpcMock,
+    finalized: &OpBlock,
+    latest: &OpBlock,
+    l1_origin_is_canonical: bool,
+    parents: &[&OpBlock],
+) {
+    for (label, block) in [("finalized", finalized), ("safe", latest), ("latest", latest)] {
+        l2.expect_params(
+            "eth_getBlockByNumber",
+            serde_json::json!([label, true]),
+            test_rpc_block(block),
+        );
+    }
+    let l1_origin = kona_protocol::L2BlockInfo::from_block_and_genesis(latest, &Default::default())
+        .expect("test block carries an L1-info deposit")
+        .l1_origin;
+    let mut l1_block = EthBlock::<EthTransaction>::default();
+    l1_block.header.inner.number = l1_origin.number;
+    l1_block.header.hash =
+        if l1_origin_is_canonical { l1_origin.hash } else { B256::repeat_byte(0x11) };
+    for number in ["latest".to_string(), format!("{:#x}", l1_origin.number)] {
+        l1.expect_params("eth_getBlockByNumber", serde_json::json!([number, false]), &l1_block);
+    }
+    for parent in parents {
+        l2.expect("eth_getBlockByHash", test_rpc_block(parent));
+    }
 }

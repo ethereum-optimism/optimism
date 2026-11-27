@@ -3,8 +3,17 @@
 use crate::{
     EngineClient, EngineState, EngineSyncState, SynchronizeTaskError, state::EngineSyncStateUpdate,
 };
-use alloy_rpc_types_engine::{INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
+use alloy_rpc_types_engine::{ForkchoiceState, INVALID_FORK_CHOICE_STATE_ERROR, PayloadStatusEnum};
 use op_alloy_provider::ext::engine::OpEngineApi;
+
+/// How the execution layer answered a forkchoice update it accepted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::task_queue) enum ForkchoiceReply {
+    /// The execution layer does not have the head block yet and is syncing toward it.
+    Syncing,
+    /// The execution layer applied the forkchoice.
+    Valid,
+}
 
 /// Applies `state_update` to the engine's sync state and synchronizes the execution layer's
 /// forkchoice with it, using an `engine_forkchoiceUpdated` call without payload attributes. An
@@ -38,7 +47,7 @@ pub(in crate::task_queue) async fn synchronize(
         return Ok(());
     }
 
-    send_forkchoice(client, state, new_sync_state).await
+    send_and_apply_forkchoice(client, state, new_sync_state).await
 }
 
 /// Like [`synchronize`], but sends the forkchoice update even when it leaves the labels unchanged.
@@ -58,12 +67,12 @@ pub(in crate::task_queue) async fn synchronize_unconditionally(
     state_update: EngineSyncStateUpdate,
 ) -> Result<(), SynchronizeTaskError> {
     let new_sync_state = state.sync_state.apply_update(state_update);
-    send_forkchoice(client, state, new_sync_state).await
+    send_and_apply_forkchoice(client, state, new_sync_state).await
 }
 
 /// Sends the forkchoice of `new_sync_state` and, once the execution layer accepts it, makes it the
 /// engine's sync state.
-async fn send_forkchoice(
+async fn send_and_apply_forkchoice(
     client: &EngineClient,
     state: &mut EngineState,
     new_sync_state: EngineSyncState,
@@ -78,11 +87,52 @@ async fn send_forkchoice(
         ));
     }
 
+    // Neither safe label may sit below the finalized head.
+    for safe_label in [new_sync_state.local_safe_head(), new_sync_state.safe_head()] {
+        new_sync_state
+            .ensure_not_behind_finality(safe_label.block_info.number)
+            .map_err(SynchronizeTaskError::FinalizedAheadOfSafe)?;
+    }
+
     // Send the forkchoice update through the input.
     let forkchoice = new_sync_state.create_forkchoice_state();
     tracing::Span::current().record("forkchoice", tracing::field::debug(forkchoice));
+    let reply = send_forkchoice(client, forkchoice).await?;
 
-    // Handle the forkchoice update result.
+    // Record whether the execution layer applied the forkchoice, and whether its sync has
+    // finished, which only a `VALID` answer marks and nothing clears.
+    state.el_applied_last_forkchoice = reply == ForkchoiceReply::Valid;
+    if reply == ForkchoiceReply::Valid && !state.el_sync_finished {
+        info!(target: "engine", "Finished execution layer sync.");
+        state.el_sync_finished = true;
+    }
+
+    // Apply the new sync state to the engine state.
+    state.sync_state = new_sync_state;
+
+    Ok(())
+}
+
+/// Sends `forkchoice` to undo a forkchoice update that the execution layer made canonical before
+/// rejecting it. Neither the engine state nor its record of the execution layer's sync changes.
+pub(in crate::task_queue) async fn restore_forkchoice(
+    client: &EngineClient,
+    forkchoice: ForkchoiceState,
+) -> Result<ForkchoiceReply, SynchronizeTaskError> {
+    warn!(target: "engine", ?forkchoice, "Restoring a forkchoice on the execution layer");
+    let reply = send_forkchoice(client, forkchoice).await.inspect_err(|err| {
+        warn!(target: "engine", ?err, "Restoring a forkchoice failed");
+    })?;
+    info!(target: "engine", ?reply, "Restored a forkchoice on the execution layer");
+    Ok(reply)
+}
+
+/// Sends `forkchoice` to the execution layer, with no payload attributes, and returns whether it
+/// applied the forkchoice or is still syncing toward its head.
+async fn send_forkchoice(
+    client: &EngineClient,
+    forkchoice: ForkchoiceState,
+) -> Result<ForkchoiceReply, SynchronizeTaskError> {
     // NOTE: it doesn't matter which version we use here, because we're not sending any payload
     // attributes. The forkchoice updated call is version agnostic if no payload attributes are
     // provided.
@@ -99,24 +149,13 @@ async fn send_forkchoice(
     })?;
 
     match &valid_response.payload_status.status {
-        PayloadStatusEnum::Valid => {
-            state.el_applied_last_forkchoice = true;
-            if !state.el_sync_finished {
-                info!(target: "engine", "Finished execution layer sync.");
-                state.el_sync_finished = true;
-            }
-        }
+        PayloadStatusEnum::Valid => Ok(ForkchoiceReply::Valid),
         // If we're not building a new payload, we're driving EL sync.
         PayloadStatusEnum::Syncing => {
-            state.el_applied_last_forkchoice = false;
-            debug!(target: "engine", "Attempting to update forkchoice state while EL syncing")
+            debug!(target: "engine", "Attempting to update forkchoice state while EL syncing");
+            Ok(ForkchoiceReply::Syncing)
         }
         // Other codes are not expected.
-        status => return Err(SynchronizeTaskError::UnexpectedPayloadStatus(status.clone())),
+        status => Err(SynchronizeTaskError::UnexpectedPayloadStatus(status.clone())),
     }
-
-    // Apply the new sync state to the engine state.
-    state.sync_state = new_sync_state;
-
-    Ok(())
 }

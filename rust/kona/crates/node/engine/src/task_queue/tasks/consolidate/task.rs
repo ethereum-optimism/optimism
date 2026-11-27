@@ -170,6 +170,12 @@ impl ConsolidateTask {
     /// The safe label for delegated safe heads whose local-safe head is on the engine's chain: the
     /// cross-safe head when it advances the label, or when it replaces, at the label's height, a
     /// safe label that a reorg left on abandoned blocks, and `None`, which keeps the label.
+    ///
+    /// A cross-safe head below the safe label never replaces it. The execution layer answered
+    /// `VALID` to a forkchoice update carrying the label only if the label was a canonical
+    /// ancestor of the head, and a label it has not applied cannot be judged against its chain, so
+    /// no lookup can show such a label abandoned. A stale label instead makes the execution layer
+    /// reject the next forkchoice update, which resets the engine.
     async fn safe_label_on_engine_chain(
         &self,
         state: &EngineState,
@@ -181,7 +187,6 @@ impl ConsolidateTask {
         }
         let safe = state.sync_state.safe_head();
         let cross_safe = heads.safe_head();
-        // Below the safe label the cross-safe head can neither advance nor replace it.
         if cross_safe.block_info.number < safe.block_info.number {
             return Ok(None);
         }
@@ -200,7 +205,7 @@ impl ConsolidateTask {
         }
         let is_proven_on_engine_chain = chain_hash.is_some();
         let replaces_stale_safe_label = is_proven_on_engine_chain &&
-            cross_safe.block_info.number == safe.block_info.number &&
+            cross_safe.block_info.number <= safe.block_info.number &&
             cross_safe.block_info.hash != safe.block_info.hash;
         Ok(if replaces_stale_safe_label {
             Some(cross_safe)
@@ -1226,8 +1231,8 @@ mod tests {
         l2.expect_block_by_number(10, ElHas::EngineChain.block(10));
     }
 
-    /// A cross-safe head behind the safe label can neither advance nor replace it, so it is not
-    /// looked up.
+    /// A cross-safe head behind the safe label cannot advance it, so neither it nor the safe label
+    /// is looked up.
     fn cross_safe_behind_safe_label(l2: &RpcMock) {
         l2.expect_block_by_number(10, ElHas::EngineChain.block(10));
     }
@@ -1420,13 +1425,17 @@ mod tests {
         assert_eq!(state, state_before);
     }
 
-    /// A lagging delegate is not judged against an execution layer that has not applied the
-    /// engine's last forkchoice, even after its first sync finished: its canonical block at the
-    /// local-safe height may predate the engine's labels, so no lookup is made and a delegate on
-    /// another chain reorgs nothing.
+    /// A lagging delegate is not judged against an execution layer that did not apply the last
+    /// forkchoice update, during its first sync or after a later `SYNCING` answer: its canonical
+    /// block at the local-safe height may predate the engine's labels, so no lookup is made and a
+    /// delegate on another chain reorgs nothing.
+    #[rstest::rstest]
+    #[case::first_sync(false)]
+    #[case::syncing_after_first_sync(true)]
     #[tokio::test]
-    async fn lagging_delegate_is_not_judged_against_a_syncing_el() {
+    async fn lagging_delegate_is_not_judged_against_a_syncing_el(#[case] el_sync_finished: bool) {
         let mut state = engine_state_with_safe_labels(12, 12);
+        state.el_sync_finished = el_sync_finished;
         state.el_applied_last_forkchoice = false;
         let state_before = state;
 
@@ -1545,17 +1554,21 @@ mod tests {
         assert_eq!(state.sync_state, expected);
     }
 
-    /// While the execution layer has not finished syncing, its canonical blocks may be from before
-    /// the sync, so the cross-safe head is not checked against them and only advances the safe
-    /// label.
+    /// While the execution layer has not applied the last forkchoice update, during its first sync
+    /// or after a later `SYNCING` answer, its canonical blocks may be from before the sync, so the
+    /// cross-safe head is not checked against them and only advances the safe label.
+    #[rstest::rstest]
+    #[case::first_sync(false)]
+    #[case::syncing_after_first_sync(true)]
     #[tokio::test]
-    async fn cross_safe_head_is_not_judged_against_a_syncing_el() {
+    async fn cross_safe_head_is_not_judged_against_a_syncing_el(#[case] el_sync_finished: bool) {
         let (local_safe, cross_safe) = (engine_chain_block(20), engine_chain_block(17));
         let mut state = TestEngineStateBuilder::new()
             .with_unsafe_head(engine_chain_block(20))
             .with_safe_head(engine_chain_block(15))
             .with_finalized_head(engine_chain_block(5))
-            .with_el_sync_finished(false)
+            .with_el_sync_finished(el_sync_finished)
+            .with_el_applied_last_forkchoice(false)
             .build();
         let expected = labels_after_reorg(&state, local_safe, cross_safe);
 
@@ -1627,15 +1640,14 @@ mod tests {
     }
 
     /// Delegated heads at the unsafe head on the engine's chain, as when the engine has no unsafe
-    /// gossip, keep the safe label for a cross-safe head at or below it, so a lagging backend
-    /// behind a load balancer does not move safe back.
+    /// gossip, keep the safe label for a cross-safe head at or below it without a lookup, so a
+    /// lagging backend behind a load balancer does not move safe back.
     #[rstest::rstest]
-    #[case::at_safe_label(15, no_lookup)]
-    #[case::behind_safe_label(12, no_lookup)]
+    #[case::at_safe_label(15)]
+    #[case::behind_safe_label(12)]
     #[tokio::test]
     async fn delegated_heads_at_the_unsafe_head_keep_the_safe_label(
         #[case] cross_safe_number: u64,
-        #[case] expect_cross_safe_lookup: fn(&RpcMock),
     ) {
         let local_safe = engine_chain_block(20);
         let mut state = engine_state_with_safe_labels(15, 15);
@@ -1646,7 +1658,6 @@ mod tests {
         });
 
         run_delegated(&mut state, local_safe, engine_chain_block(cross_safe_number), |l2| {
-            expect_cross_safe_lookup(l2);
             l2.expect_forkchoice_updated(
                 expected.create_forkchoice_state(),
                 PayloadStatusEnum::Valid,
@@ -1657,9 +1668,6 @@ mod tests {
 
         assert_eq!(state.sync_state, expected);
     }
-
-    /// A cross-safe head at one of the engine's labels is not looked up.
-    const fn no_lookup(_: &RpcMock) {}
 
     /// The execution layer has the engine chain's block at 15, which the safe label alone cannot
     /// prove, since it can stay on blocks a reorg abandoned.
@@ -1693,6 +1701,65 @@ mod tests {
 
         assert_eq!(err.severity(), EngineTaskErrorSeverity::Reset, "got {err:?}");
         assert_eq!(state, state_before);
+    }
+
+    /// A cross-safe head below the safe label keeps the label without a lookup at the label's
+    /// height: a label the execution layer applied is on its canonical chain, so no lookup there
+    /// can show it abandoned.
+    #[tokio::test]
+    async fn cross_safe_head_below_the_safe_label_keeps_it_without_a_lookup() {
+        let (local_safe, cross_safe) = (engine_chain_block(20), engine_chain_block(12));
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(engine_chain_block(20))
+            .with_local_safe_head(engine_chain_block(15))
+            .with_safe_head(engine_chain_block(15))
+            .with_finalized_head(engine_chain_block(5))
+            .build();
+        let expected = state.sync_state.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(local_safe),
+            ..Default::default()
+        });
+
+        run_delegated(&mut state, local_safe, cross_safe, |l2| {
+            l2.expect_forkchoice_updated(
+                expected.create_forkchoice_state(),
+                PayloadStatusEnum::Valid,
+            );
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(state.sync_state, expected);
+    }
+
+    /// After a `SYNCING` answer the execution layer's canonical blocks may predate its sync, even
+    /// though its sync finished once, so a different block at the safe label's height does not
+    /// replace the label: nothing is looked up there.
+    #[tokio::test]
+    async fn safe_label_is_kept_while_the_el_did_not_apply_the_last_forkchoice() {
+        let (local_safe, cross_safe) = (engine_chain_block(20), engine_chain_block(12));
+        let mut state = TestEngineStateBuilder::new()
+            .with_unsafe_head(engine_chain_block(20))
+            .with_local_safe_head(other_chain_block(15))
+            .with_safe_head(other_chain_block(15))
+            .with_finalized_head(engine_chain_block(5))
+            .with_el_applied_last_forkchoice(false)
+            .build();
+        let expected = state.sync_state.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(local_safe),
+            ..Default::default()
+        });
+
+        run_delegated(&mut state, local_safe, cross_safe, |l2| {
+            l2.expect_forkchoice_updated(
+                expected.create_forkchoice_state(),
+                PayloadStatusEnum::Valid,
+            );
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(state.sync_state, expected);
     }
 
     /// A reorg whose cross-safe head breaks finality is skipped before the execution layer is
@@ -1739,6 +1806,9 @@ mod tests {
 
         assert_eq!(state.sync_state, expected);
     }
+
+    /// A cross-safe head at one of the engine's labels is not looked up.
+    const fn no_lookup(_: &RpcMock) {}
 
     /// A cross-safe head that is the engine's safe label leaves it in place without asking the
     /// execution layer. One that differs from the safe label at its height is checked against the

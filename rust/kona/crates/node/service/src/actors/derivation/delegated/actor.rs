@@ -2,7 +2,7 @@ use crate::{
     DerivationActorRequest, DerivationEngineClient, NodeActor, actors::derivation::DerivationError,
 };
 use alloy_eips::BlockNumHash;
-use alloy_primitives::BlockHash;
+use alloy_primitives::{B256, BlockHash};
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
 use kona_derive::{ChainProvider, Signal};
@@ -21,23 +21,32 @@ use tokio::{
 /// How often the derivation delegate is polled for its sync status.
 pub(super) const DERIVATION_DELEGATE_POLL_INTERVAL: time::Duration = time::Duration::from_secs(4);
 
-/// Supplies the sync status of the external OP Stack CL node that derivation is delegated to.
+/// Supplies the sync status, and the L2 block hashes, of the external OP Stack CL node that
+/// derivation is delegated to.
 #[async_trait]
 pub trait SyncStatusSource: Send + Sync {
-    /// The error returned when the sync status cannot be fetched.
+    /// The error returned when the delegate cannot be queried.
     type Error: core::fmt::Display + Send;
 
     /// Fetches the delegate's current sync status.
     async fn sync_status(&self) -> Result<SyncStatus, Self::Error>;
+
+    /// Fetches the hash of the delegate's L2 block at `number`.
+    async fn block_hash_at(&self, number: u64) -> Result<B256, Self::Error>;
 }
 
-/// Any jsonrpsee client can serve the delegate's `optimism_syncStatus`.
+/// Any jsonrpsee client can serve the delegate's `optimism_syncStatus`, and its block hashes
+/// through `optimism_outputAtBlock`.
 #[async_trait]
 impl<C: RollupNodeApiClient + Send + Sync> SyncStatusSource for C {
     type Error = ClientError;
 
     async fn sync_status(&self) -> Result<SyncStatus, ClientError> {
         self.op_sync_status().await
+    }
+
+    async fn block_hash_at(&self, number: u64) -> Result<B256, ClientError> {
+        Ok(self.op_output_at_block(number.into()).await?.block_ref.block_info.hash)
     }
 }
 
@@ -93,6 +102,13 @@ where
     /// checks such heads against its execution layer once; until either side changes, sending
     /// them again repeats that lookup to the same answer.
     forwarded_lagging_safe_heads: Option<(DelegatedSafeHeads, BlockNumHash, BlockNumHash)>,
+    /// The engine's finalized head and the hash of a delegate's finalized block above it whose
+    /// chain was checked to contain that head. A block's ancestors never change, so the delegate
+    /// is asked once for each pair.
+    checked_finality: Option<(BlockNumHash, B256)>,
+    /// Whether the delegate failed to serve its block at the engine's finalized height when last
+    /// asked, so a delegate that cannot serve it is warned about once rather than on every poll.
+    has_finality_lookup_failed: bool,
     /// The last rejection of a delegate status, so a delegate stuck on one inconsistency is
     /// warned about once rather than on every poll.
     last_rejection: Option<String>,
@@ -127,6 +143,8 @@ where
             has_engine_sync_completed: false,
             delegated_derivation_ticker,
             forwarded_lagging_safe_heads: None,
+            checked_finality: None,
+            has_finality_lookup_failed: false,
             last_rejection: None,
         }
     }
@@ -221,13 +239,56 @@ where
         Ok(DelegatedSafeHeads::try_new(Self::reported_local_safe_head(status), status.safe_l2)?)
     }
 
-    /// Verifies that the labels reported by the derivation delegate are in order, that its
-    /// finalized L2 block does not move back from the engine's, and that its L1 info is consistent
-    /// with the canonical L1 chain. Returns its safe heads when it passes.
+    /// Rejects a delegate whose finalized block is above the engine's on a chain that does not
+    /// contain the engine's finalized block, by asking the delegate for its block at that height.
+    /// The execution layer makes a forkchoice update's head canonical before it rejects the
+    /// update, so heads on such a chain must not reach it.
     ///
-    /// Only a fork at the engine's finalized height is caught here. A chain that forked below it
-    /// and reports a higher finalized block passes, and the execution layer rejects the forkchoice
-    /// update that would move onto it.
+    /// A failed lookup does not hold the status back, since a delegate that cannot serve the
+    /// block would otherwise stall the node: the execution layer then judges the heads, and the
+    /// engine resets if it rejects them.
+    async fn ensure_on_engine_finalized_chain(
+        &mut self,
+        delegate_finalized: BlockNumHash,
+    ) -> Result<(), DerivationDelegationError> {
+        let engine_finalized =
+            self.engine_state_rx.borrow().sync_state.established_finalized_head();
+        let Some(engine_finalized) = engine_finalized else { return Ok(()) };
+        let checked = (engine_finalized, delegate_finalized.hash);
+        if delegate_finalized.number <= engine_finalized.number ||
+            self.checked_finality == Some(checked)
+        {
+            return Ok(());
+        }
+
+        let delegate_hash = match self.delegate.block_hash_at(engine_finalized.number).await {
+            Ok(hash) => hash,
+            Err(err) => {
+                let number = engine_finalized.number;
+                if self.has_finality_lookup_failed {
+                    debug!(target: "derivation", error = %err, number, "Failed again to fetch the delegate's block at the engine's finalized height");
+                } else {
+                    warn!(target: "derivation", error = %err, number, "Failed to fetch the delegate's block at the engine's finalized height; forwarding its status unchecked");
+                    self.has_finality_lookup_failed = true;
+                }
+                return Ok(());
+            }
+        };
+        self.has_finality_lookup_failed = false;
+        if delegate_hash != engine_finalized.hash {
+            return Err(DerivationDelegationError::OffFinalizedChain {
+                finalized: engine_finalized,
+                delegate_hash,
+            });
+        }
+        self.checked_finality = Some(checked);
+        Ok(())
+    }
+
+    /// Verifies that the labels reported by the derivation delegate are in order, that its
+    /// finalized L2 block neither moves back from the engine's nor sits on a chain without it, and
+    /// that its L1 info is consistent with the canonical L1 chain. Returns its safe heads when it
+    /// passes.
     async fn validate_sync_status(
         &mut self,
         v: &SyncStatus,
@@ -258,6 +319,8 @@ where
             self.validate_l1_block(context, number, hash).await?;
             validated_l1_blocks.push((number, hash));
         }
+        // Last, so the delegate is not asked about a status that is rejected anyway.
+        self.ensure_on_engine_finalized_chain(v.finalized_l2.block_info.id()).await?;
         Ok(safe_heads)
     }
 
@@ -398,6 +461,12 @@ enum DerivationDelegationError {
     /// The delegate's safe heads are inconsistent with each other.
     #[error(transparent)]
     InconsistentSafeHeads(#[from] InconsistentSafeHeadsError),
+
+    /// The delegate's chain has another block at the height of the engine's finalized block.
+    #[error(
+        "Chain does not contain the engine's finalized L2 {finalized:?}: it has {delegate_hash} at that height"
+    )]
+    OffFinalizedChain { finalized: BlockNumHash, delegate_hash: B256 },
 
     /// The L1 provider returned an error (network, RPC, etc.)
     #[error("L1 provider error: {0}")]

@@ -1,6 +1,6 @@
 //! Contains the error types used for finding the starting forkchoice state.
 
-use alloy_eips::BlockId;
+use alloy_eips::{BlockId, BlockNumHash};
 use alloy_primitives::B256;
 use alloy_transport::{RpcError, TransportErrorKind};
 use kona_protocol::FromBlockError;
@@ -30,9 +30,21 @@ pub enum SyncStartError {
     /// Invalid L2 genesis hash.
     #[error("Invalid L2 genesis hash. Expected {0}, Got {1}")]
     InvalidL2GenesisHash(B256, B256),
-    /// Finalized block mismatch
-    #[error("Finalized block mismatch. Expected {0}, Got {1}")]
-    MismatchedFinalizedBlock(B256, B256),
+    /// The execution layer returned no block at its finalized height, although its canonical chain
+    /// extends above it, as a briefly inconsistent execution layer does.
+    #[error("Execution layer has no block at finalized height {0}")]
+    FinalizedHeightUnavailable(u64),
+    /// The chain walked from the execution layer's unsafe head does not contain its finalized
+    /// block.
+    #[error(
+        "Walked chain reached finalized height on {walked:?}, not finalized block {finalized:?}"
+    )]
+    MismatchedFinalizedBlock {
+        /// The execution layer's finalized block.
+        finalized: BlockNumHash,
+        /// The walked block at or below the finalized height.
+        walked: BlockNumHash,
+    },
     /// The L1 RPC reported a head at or above a height, then served no block there.
     #[error("L1 block {number} is missing below the L1 head {l1_head}")]
     L1BlockMissing {
