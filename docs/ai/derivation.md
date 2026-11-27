@@ -120,6 +120,34 @@ identical L1 data.
 - **Pin every decision in both suites.** When changing either decoder, add the same byte vector to
   the kona and op-node tests so the pair stays locked together.
 
+### The derivation parity suite
+
+The suite runs both clients on the same inputs and lists every place they differ. It has three
+layers:
+
+- **Vectors.** `TestParityVectors` (`op-node/rollup/derive/parity_vectors_test.go`) writes inputs
+  to the channel reader, the L1-info deposit, deposit and `ConfigUpdate` logs and the system config
+  rebuilt from an L2 block, together with op-node's outputs, to
+  `rust/kona/crates/protocol/derive/testdata/parity_vectors.json`.
+  `rust/kona/crates/protocol/derive/tests/parity.rs` runs kona on the same inputs. A difference
+  kona is known to have is listed in `KNOWN_DIFFERENCES` with a description, and kona's output on
+  it is pinned in `testdata/parity_kona_differences.json`.
+- **Proof.** The `TestDerivationParity*` action tests in `rust/kona/tests/proofs` post crafted
+  batches. op-node derives them, and kona-client must prove op-node's safe head.
+- **Node.** `op-acceptance-tests/tests/derivation_parity` runs op-node and kona-node side by side
+  on crafted batches. It covers kona-node's engine, which kona-client does not run.
+
+To add or change a vector, edit the case in the Go test, regenerate the file with
+`UPDATE_PARITY_VECTORS=1 go test ./op-node/rollup/derive -run TestParityVectors`, and run the Rust
+test with `cargo test -p kona-derive --features serde,test-utils --test parity` from `rust/`. A
+plain `cargo test -p kona-derive` skips it, because the test needs those features; CI runs it with
+`--all-features`. A fix that removes a difference makes its case fail until you remove it from the
+list. A change in how kona differs makes it fail until you update the description and rewrite the
+pinned outputs with `UPDATE_PARITY_KONA_DIFFERENCES=1`. Run `just derivation-parity-report` in
+`rust/kona/tests` to see how many cases each layer runs and every difference that remains. CI runs
+the proof layer only when `rust/` or `op-e2e/` changes, so check a change to op-node's side of a
+difference with that recipe too.
+
 ## Testing Requirements
 
 - Unit tests for every pipeline stage.

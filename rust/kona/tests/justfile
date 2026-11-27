@@ -214,6 +214,28 @@ action-tests-single-run test_name='.*' parallel="0" *args='':
     --jsonfile=./tmp/testlogs/log.json \
     -- -count=1 -parallel=$PARALLEL -timeout=60m -run "{{test_name}}"
 
+# Run the derivation parity suite and print how kona compares with op-node: the cases each layer
+# runs, how many agree, and every difference. The vector cases compare kona's derivation crates
+# with op-node's outputs; the proof cases make kona-client prove chains op-node derived from
+# crafted batches. With node="true", op-node and kona-node also derive crafted batches side by side
+# in devstack. The report is printed even when a layer fails, and the recipe then fails too.
+derivation-parity-report node="false": action-tests-build
+  #!/bin/bash
+  set -uo pipefail
+  REPO="{{SOURCE}}/../../.."
+  export DERIVATION_PARITY_REPORT_DIR="$(mktemp -d)"
+  trap 'rm -rf "$DERIVATION_PARITY_REPORT_DIR"' EXIT
+  status=0
+
+  (cd "$REPO/rust" && cargo test --locked -p kona-derive --features serde,test-utils --test parity) || status=1
+  just --justfile "{{SOURCE}}/justfile" action-tests-single-run '^TestDerivationParity' || status=1
+  if [ "{{node}}" = "true" ]; then
+    (cd "$REPO/op-acceptance-tests" &&
+      RUST_JIT_BUILD=1 just test -run '^TestDerivationParity' ./op-acceptance-tests/tests/derivation_parity/...) || status=1
+  fi
+  (cd "$REPO" && go run ./op-service/testutils/parityreport/cmd "$DERIVATION_PARITY_REPORT_DIR") || status=1
+  exit "$status"
+
 # Run the kona-sp1 super-range guest in SP1 execute mode against the action-test chain.
 #
 # Builds the guest ELFs (Dockerized SP1 toolchain), the super-range-executor binary and
