@@ -324,8 +324,29 @@ async fn local_override_retries_the_same_block_without_another_conductor_commit(
     assert!(actor.admin_state_receiver().borrow().conductor_enabled);
 }
 
+fn temporary_fcu_failure() -> EngineClientError {
+    EngineClientError::CanonicalizeError(CanonicalizeTaskError::PayloadInsertionFailed(Box::new(
+        InsertTaskError::ForkchoiceUpdateFailed(SynchronizeTaskError::ForkchoiceUpdateFailed(
+            RpcError::local_usage_str("temporary FCU failure"),
+        )),
+    )))
+}
+
+/// An engine reset clears a queued canonicalization before it runs, which closes its response
+/// channel. Like a temporary insertion failure, the sequencer retries the exact payload.
+fn cleared_by_engine_reset() -> EngineClientError {
+    EngineClientError::ResponseError("response channel closed.".to_string())
+}
+
+#[rstest]
+#[case::temporary_failure(temporary_fcu_failure(), true)]
+#[case::cleared_by_engine_reset(cleared_by_engine_reset(), true)]
+#[case::cleared_by_engine_reset_without_conductor(cleared_by_engine_reset(), false)]
 #[tokio::test]
-async fn canonicalization_retry_keeps_the_committed_payload() {
+async fn canonicalization_retry_keeps_the_committed_payload(
+    #[case] error: EngineClientError,
+    #[case] with_conductor: bool,
+) {
     let mut actor = actor_with_pending_handle();
     let payload = sealed_payload(2);
     let mut sequence = Sequence::new();
@@ -336,13 +357,15 @@ async fn canonicalization_retry_keeps_the_committed_payload() {
         .times(1)
         .in_sequence(&mut sequence)
         .return_once(move |_, _| Ok(sealed));
-    let mut conductor = MockConductor::new();
-    conductor
-        .expect_commit_unsafe_payload()
-        .times(1)
-        .in_sequence(&mut sequence)
-        .return_once(|_| Ok(()));
-    actor.conductor = Some(conductor);
+    if with_conductor {
+        let mut conductor = MockConductor::new();
+        conductor
+            .expect_commit_unsafe_payload()
+            .times(1)
+            .in_sequence(&mut sequence)
+            .return_once(|_| Ok(()));
+        actor.conductor = Some(conductor);
+    }
     let expected = payload.clone();
     actor
         .engine_client
@@ -350,17 +373,7 @@ async fn canonicalization_retry_keeps_the_committed_payload() {
         .withf(move |p, _| p == &expected)
         .times(1)
         .in_sequence(&mut sequence)
-        .return_once(|_, _| {
-            Err(EngineClientError::CanonicalizeError(
-                CanonicalizeTaskError::PayloadInsertionFailed(Box::new(
-                    InsertTaskError::ForkchoiceUpdateFailed(
-                        SynchronizeTaskError::ForkchoiceUpdateFailed(RpcError::local_usage_str(
-                            "temporary FCU failure",
-                        )),
-                    ),
-                )),
-            ))
-        });
+        .return_once(move |_, _| Err(error));
     let expected = payload.clone();
     actor
         .engine_client
@@ -473,6 +486,53 @@ async fn failed_payload_fetch_drops_the_expired_build_job() {
     actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
     actor.step().await.unwrap();
     assert!(actor.in_flight.is_none());
+}
+
+/// An engine reset clears a queued seal, so the sequencer gets no answer for it (see the engine
+/// actor test `reset_during_backoff_drops_a_queued_seal`). As for a build request that a reset
+/// clears, the sequencer must keep running: it drops the build job and rebuilds on the next tick.
+#[tokio::test]
+async fn seal_cleared_by_an_engine_reset_drops_the_build_job() {
+    let mut actor = test_actor();
+    actor.started = true;
+    actor.in_flight = Some(InFlightBlock::Building(pending_handle()));
+    actor.engine_client.expect_seal_block().times(1).return_once(|_, _| {
+        Err(EngineClientError::ResponseError("response channel closed.".to_string()))
+    });
+    actor.engine_client.expect_canonicalize_block().times(0);
+    actor.engine_client.expect_start_build_block().times(0);
+    actor.unsafe_payload_gossip_client.expect_schedule_execution_payload_gossip().times(0);
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    actor.step().await.unwrap();
+    assert!(actor.in_flight.is_none());
+}
+
+/// A closed request channel means the engine actor stopped, so sequencing must stop too.
+#[rstest]
+#[case::seal(true)]
+#[case::canonicalize(false)]
+#[tokio::test]
+async fn lost_engine_stops_sequencing(#[case] fail_seal: bool) {
+    let mut actor = test_actor();
+    actor.started = true;
+    actor.unsafe_payload_gossip_client.expect_has_capacity().return_const(true);
+    let engine_stopped = || EngineClientError::RequestError("request channel closed.".to_string());
+    if fail_seal {
+        actor.in_flight = Some(InFlightBlock::Building(pending_handle()));
+        actor
+            .engine_client
+            .expect_seal_block()
+            .times(1)
+            .return_once(move |_, _| Err(engine_stopped()));
+    } else {
+        actor.in_flight = Some(InFlightBlock::Committed(pending_sealed_block()));
+        actor
+            .engine_client
+            .expect_canonicalize_block()
+            .times(1)
+            .return_once(move |_, _| Err(engine_stopped()));
+    }
+    assert!(actor.step().await.is_err());
 }
 
 /// Reset must retain the exact conductor-committed envelope for another canonicalization attempt.

@@ -1,15 +1,18 @@
 use super::*;
-use crate::QueuedEngineDerivationClient;
+use crate::{
+    DerivationEngineClient, EngineClientError, QueuedDerivationEngineClient,
+    QueuedEngineDerivationClient, QueuedSequencerEngineClient, SequencerEngineClient,
+};
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::{
-    ExecutionPayloadV1, ForkchoiceState, PayloadStatus, PayloadStatusEnum,
+    ExecutionPayloadV1, ForkchoiceState, PayloadId, PayloadStatus, PayloadStatusEnum,
 };
 use kona_engine::{
     ConsolidateInput, EngineState, EngineSyncStateUpdate, FinalizeBlockId, NoopBlockSink,
     ResetRequest,
     test_utils::{
-        RpcMock, TestEngineStateBuilder, TestRpcBlock, expect_sync_start, test_block_info,
-        test_engine_client, test_l2_block, test_rpc_block,
+        RpcMock, TestAttributesBuilder, TestEngineStateBuilder, TestRpcBlock, expect_sync_start,
+        test_block_info, test_engine_client, test_l2_block, test_rpc_block,
     },
 };
 use op_alloy_consensus::{OpBlock, OpTxEnvelope};
@@ -343,6 +346,68 @@ async fn finalization_target_survives_resets_below_it(#[case] target_kind: Targe
     assert!(time::timeout(Duration::from_secs(60), actor.step()).await.is_err());
     assert_eq!(state_rx.borrow().sync_state.finalized_head(), target);
     assert!(actor.engine.is_empty());
+    l1.assert_finished();
+    l2.assert_finished();
+}
+
+/// An engine reset drops a seal that waits in the queue, and the sequencer gets no answer for it.
+///
+/// Each step uses a production path. L1 finality advances, so derivation asks the engine to
+/// finalize a safe block. The EL fails the block lookup, for example while it restarts, and the
+/// finalization backs off as a temporary error. The actor accepts requests during the backoff, so
+/// the sequencer's seal waits in the queue. Derivation then finds an L1 reorg and resets the
+/// engine. The reset clears the queue and with it the seal's reply channel.
+#[tokio::test(start_paused = true)]
+async fn reset_during_backoff_drops_a_queued_seal() {
+    let config = Arc::new(RollupConfig::default());
+    let (client, l1, l2) = test_engine_client(config.clone());
+    let unsafe_head = test_block_info(30);
+    let state = TestEngineStateBuilder::new()
+        .with_unsafe_head(unsafe_head)
+        .with_safe_head(test_block_info(20))
+        .with_finalized_head(test_block_info(10))
+        .build();
+    let (state_tx, _state_rx) = watch::channel(state);
+    let (requests, request_rx) = mpsc::channel(8);
+    let (derivation_tx, _derivation_rx) = mpsc::channel(8);
+    let mut actor = EngineActor::new(
+        Arc::new(client),
+        config,
+        QueuedEngineDerivationClient { derivation_actor_request_tx: derivation_tx },
+        Engine::new(state, state_tx),
+        None,
+        request_rx,
+        Arc::new(NoopBlockSink),
+    );
+    let derivation = QueuedDerivationEngineClient::new(requests.clone());
+    let (_unsafe_head_tx, unsafe_head_rx) = watch::channel(unsafe_head);
+    let sequencer = QueuedSequencerEngineClient::new(requests, unsafe_head_rx);
+
+    // L1 finality advances, and the EL fails the lookup of the block to finalize.
+    derivation.send_finalized_l2_block(FinalizeBlockId::ByNumber(15)).await.unwrap();
+    time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
+    l2.expect_transport_error("eth_getBlockByNumber");
+
+    // The sequencer seals its build while the finalization backs off.
+    let seal = tokio::spawn(async move {
+        sequencer.seal_block(PayloadId::new([1; 8]), TestAttributesBuilder::new().build()).await
+    });
+    tokio::task::yield_now().await;
+    time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
+    assert!(Instant::now() < actor.retry_at, "the finalization is in backoff");
+    assert_eq!(actor.engine.len(), 2, "the seal waits behind the backoff");
+
+    // Derivation finds an L1 reorg and resets the engine before the backoff ends.
+    let reset = tokio::spawn(async move { derivation.reset_engine_forkchoice().await });
+    tokio::task::yield_now().await;
+    time::timeout(Duration::from_secs(1), actor.step()).await.unwrap().unwrap();
+
+    let seal_result = seal.await.unwrap();
+    assert!(
+        matches!(seal_result, Err(EngineClientError::ResponseError(_))),
+        "the sequencer gets no answer for its seal: {seal_result:?}"
+    );
+    reset.abort();
     l1.assert_finished();
     l2.assert_finished();
 }
