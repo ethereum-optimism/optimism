@@ -2,6 +2,7 @@ package derive
 
 import (
 	crand "crypto/rand"
+	"math"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
 	opfees "github.com/ethereum-optimism/optimism/op-core/fees"
@@ -87,6 +89,54 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 			assert.Equal(t, res.L1FeeScalar, l1Cfg.Scalar)
 		})
 	}
+	t.Run("excess blob gas before the blob fork", func(t *testing.T) {
+		rollupCfg := rollup.Config{EcotoneTime: new(uint64)}
+		// L1 mainnet has no blob schedule at this time.
+		info := eth.HeaderBlockInfo(&types.Header{
+			Number: big.NewInt(100), Time: 1_700_000_000, BaseFee: big.NewInt(7), ExcessBlobGas: new(uint64),
+		})
+		_, err := L1InfoDeposit(&rollupCfg, params.MainnetChainConfig, eth.SystemConfig{}, 0, info, info.Time())
+		require.ErrorContains(t, err, "L1 source returned an invalid block "+eth.ToBlockID(info).String())
+		require.ErrorContains(t, err, "no blob schedule")
+	})
+	t.Run("blob base fee overflow", func(t *testing.T) {
+		const l1Time = 1_750_000_000 // L1 mainnet is on the Prague blob schedule
+		cancunFraction := params.DefaultCancunBlobConfig.UpdateFraction
+		pragueFraction := params.DefaultPragueBlobConfig.UpdateFraction
+		deposit := func(pectraBlobScheduleTime *uint64, excessBlobGas uint64) (*L1BlockInfo, error) {
+			rollupCfg := rollup.Config{EcotoneTime: new(uint64), PectraBlobScheduleTime: pectraBlobScheduleTime}
+			info := eth.HeaderBlockInfo(&types.Header{
+				Number: big.NewInt(100), Time: l1Time, BaseFee: big.NewInt(7), ExcessBlobGas: &excessBlobGas,
+			})
+			depTx, err := L1InfoDeposit(&rollupCfg, params.MainnetChainConfig, eth.SystemConfig{}, 0, info, l1Time)
+			if err != nil {
+				return nil, err
+			}
+			return L1BlockInfoFromBytes(&rollupCfg, l1Time, depTx.Data)
+		}
+		requireInvalid := func(pectraBlobScheduleTime *uint64, excessBlobGas uint64, reason string) {
+			_, err := deposit(pectraBlobScheduleTime, excessBlobGas)
+			require.ErrorContains(t, err, "L1 source returned an invalid block")
+			require.ErrorContains(t, err, reason)
+		}
+
+		// The blob base fee is about e^(excess blob gas / update fraction), and e^177.445 is 2^256.
+		_, err := deposit(nil, 177*pragueFraction)
+		require.NoError(t, err)
+		requireInvalid(nil, 177*pragueFraction+pragueFraction/2, "exceeds 256 bits")
+		// Computing this fee would not complete.
+		requireInvalid(nil, math.MaxUint64, "too large for update fraction")
+
+		// Before the Pectra blob schedule fix, the fee follows the Cancun schedule.
+		pectraBlobScheduleTime := uint64(l1Time + 1)
+		l1Info, err := deposit(&pectraBlobScheduleTime, 177*cancunFraction)
+		require.NoError(t, err)
+		require.Equal(t, eth.CalcBlobFeeCancun(177*cancunFraction), l1Info.BlobBaseFee)
+		requireInvalid(&pectraBlobScheduleTime, 177*cancunFraction+cancunFraction/2, "exceeds 256 bits")
+		requireInvalid(&pectraBlobScheduleTime, math.MaxUint64, "too large for update fraction")
+		_, err = deposit(nil, 177*cancunFraction+cancunFraction/2)
+		require.NoError(t, err, "the same excess blob gas is valid under the Prague schedule")
+	})
 	t.Run("no basefee", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(func(l *testutils.MockBlockInfo) {

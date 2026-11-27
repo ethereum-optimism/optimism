@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -105,6 +106,28 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
 		require.ErrorIs(t, err, ErrTemporary, "rpc errors should not be critical, it is not necessary to reorg")
+	})
+	t.Run("invalid L1 block", func(t *testing.T) {
+		const l1Time = 1_700_000_000 // before Cancun on L1 mainnet
+		rng := rand.New(rand.NewSource(1234))
+		cfg := mkCfg()
+		cfg.EcotoneTime = new(uint64)
+		l1Info := eth.HeaderBlockInfo(&types.Header{
+			Number: big.NewInt(100), Time: l1Time, BaseFee: big.NewInt(7), ExcessBlobGas: new(uint64),
+		})
+		l2Parent := testutils.RandomL2BlockRef(rng)
+		l2Parent.L1Origin = eth.ToBlockID(l1Info)
+		l2Parent.Time = l1Time
+		l1Fetcher := &testutils.MockL1Source{}
+		defer l1Fetcher.AssertExpectations(t)
+		l1Fetcher.ExpectInfoByHash(l1Info.Hash(), l1Info, nil)
+		l1CfgFetcher := &testutils.MockL2Client{}
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
+		defer l1CfgFetcher.AssertExpectations(t)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, params.MainnetChainConfig, nil, l1Fetcher, l1CfgFetcher)
+		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, l2Parent.L1Origin)
+		require.ErrorIs(t, err, ErrCritical, "the node must stop on an L1 block that the L1 chain cannot contain")
+		require.ErrorContains(t, err, "L1 source returned an invalid block")
 	})
 	t.Run("next origin without deposits", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
