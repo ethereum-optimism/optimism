@@ -99,8 +99,9 @@ impl MdbxProofsStorage {
     }
 
     /// Reads the pages pruning `blocks` reads: their changesets, and the first history shard of
-    /// each key they changed, which the prune edits. Up to `threads` readers each take a
-    /// contiguous share of `blocks`. Returns the number of changeset entries.
+    /// each key they changed, which the prune edits unless it sweeps the history. Up to
+    /// `threads` readers each take a contiguous share of `blocks`. Returns the number of
+    /// changeset entries.
     pub(super) fn warm_prune(
         &self,
         blocks: RangeInclusive<BlockNumber>,
@@ -119,12 +120,15 @@ impl MdbxProofsStorage {
     }
 
     /// Reads the changesets of `blocks` and, for each entry, the part of its key's history the
-    /// prune reads. Returns the number of entries, and the number of history seeks that found a
-    /// row: the key's first shard, or a later key's when the key has no history.
+    /// prune reads. A prune that sweeps the history reads none of it by key: it reads a run of
+    /// neighbouring rows, which is not warmed. Returns the number of entries, and the number of
+    /// history seeks that found a row: the key's first shard, or a later key's when the key has
+    /// no history.
     fn warm_prune_blocks(
         &self,
         blocks: RangeInclusive<BlockNumber>,
     ) -> OpProofsStorageResult<(usize, usize)> {
+        let per_key = !self.sweep_history;
         let tx = self.env.tx()?;
         // The storage changesets of every address in `blocks`.
         let storages = BlockNumberHashedAddress((*blocks.start(), B256::ZERO))..=
@@ -134,8 +138,10 @@ impl MdbxProofsStorage {
         let mut history = tx.cursor_read::<V2AccountsTrieHistory>()?;
         for change in tx.cursor_dup_read::<V2AccountTrieChangeSets>()?.walk_range(blocks.clone())? {
             let path = StoredNibbles(change?.1.nibbles.0);
-            let first = AccountTrieShardedKey::new(path, 0);
-            shards += usize::from(read_first_shard(&mut history, first)?);
+            if per_key {
+                let first = AccountTrieShardedKey::new(path, 0);
+                shards += usize::from(read_first_shard(&mut history, first)?);
+            }
             keys += 1;
         }
 
@@ -145,16 +151,20 @@ impl MdbxProofsStorage {
         {
             let (key, change) = change?;
             let path = StoredNibbles(change.nibbles.0);
-            let first = StorageTrieShardedKey::new(key.0.1, path, 0);
-            shards += usize::from(read_first_shard(&mut history, first)?);
+            if per_key {
+                let first = StorageTrieShardedKey::new(key.0.1, path, 0);
+                shards += usize::from(read_first_shard(&mut history, first)?);
+            }
             keys += 1;
         }
 
         let mut history = tx.cursor_read::<V2HashedAccountsHistory>()?;
         for change in tx.cursor_dup_read::<V2HashedAccountChangeSets>()?.walk_range(blocks)? {
             let address = change?.1.hashed_address;
-            let first = HashedAccountShardedKey::new(address, 0);
-            shards += usize::from(read_first_shard(&mut history, first)?);
+            if per_key {
+                let first = HashedAccountShardedKey::new(address, 0);
+                shards += usize::from(read_first_shard(&mut history, first)?);
+            }
             keys += 1;
         }
 
@@ -165,7 +175,9 @@ impl MdbxProofsStorage {
                 hashed_address: key.0.1,
                 sharded_key: ShardedKey::new(change.key, 0),
             };
-            shards += usize::from(read_first_shard(&mut history, first)?);
+            if per_key {
+                shards += usize::from(read_first_shard(&mut history, first)?);
+            }
             keys += 1;
         }
 
@@ -396,6 +408,17 @@ mod tests {
         assert_eq!(store.warm_write_share(&new_account, 0, 1).unwrap(), (1, 0));
         // Blocks 1 and 2 left 8 and 16 changeset entries, and the history seek of each found a row.
         assert_eq!(store.warm_prune_blocks(1..=2).unwrap(), (24, 24));
+    }
+
+    // A prune that sweeps the history looks up none of it by key, so warming such a prune reads
+    // the changesets and no history.
+    #[test]
+    fn warming_reads_no_history_for_a_prune_that_sweeps_it() {
+        let (a, b) = (B256::repeat_byte(0xa), B256::repeat_byte(0xb));
+        let (_dir, store) = store_with_blocks([diff(&[a]), diff(&[b, a])]);
+        let store = store.with_history_sweep(true);
+
+        assert_eq!(store.warm_prune_blocks(1..=2).unwrap(), (24, 0));
     }
 
     // The node warms through `OpProofsStorage`: an `Arc` of the store, inside a metrics wrapper

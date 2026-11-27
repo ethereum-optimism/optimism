@@ -100,6 +100,37 @@ Like the rest of the page cache, they count toward the container's memory usage,
   <Tab title="Accepted values">`0` to `64`</Tab>
 </Tabs>
 
+### proofs-history.sweep-prune
+
+<Unreleased component="op-reth" />
+
+Prune the history index with a rolling sweep instead of one lookup per pruned key.
+Off by default.
+
+The history index records, for each account, storage slot and trie node, the blocks that changed it.
+By default, a prune looks up every key that the pruned blocks changed and removes those blocks from the key's entry.
+With this flag, a prune only deletes the changesets of the pruned blocks.
+Their block numbers stay in the history index, where reads ignore them.
+Each prune instead cleans a share of the index in key order, in proportion to the blocks it prunes, so that a full pass takes about one proof window of blocks.
+
+Enable it together with `--proofs-history.prefetch-threads` when the proofs storage is on a network-attached disk and proofs should follow the chain tip more closely, or the node should write less to its disk.
+On an OP Mainnet node with warming, over 94 hours, it cut the time to persist a block from 216 ms to 85 ms, and the node's disk write operations by about 42%.
+It has not been measured without warming, or on local NVMe disks.
+
+The history index grows, because a block number stays in it for up to one more proof window.
+On the same node its tables were 25% larger (34 GiB against 27 GiB, in a proofs DB of about 1,020 GiB) after 25% of the first pass, and were still growing.
+Their size after a full pass has not been measured.
+
+A proofs DB that has been pruned with this flag cannot be backfilled: `op-reth proofs backfill` refuses it, also after the flag has been turned off again.
+If the proof window still has to be extended backwards, run the backfill first and enable the flag afterwards.
+Do not backfill such a DB with an `op-reth` version that predates this flag either: those versions do not check for it.
+Turning the flag off also stops the sweep, so the block numbers it had not removed yet stay in the index.
+
+<Tabs>
+  <Tab title="Syntax">`--proofs-history.sweep-prune`</Tab>
+  <Tab title="Default">`false`</Tab>
+</Tabs>
+
 
 ## Lifecycle and management commands
 
