@@ -16,8 +16,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-service/jsonrpc"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum"
@@ -111,6 +114,71 @@ func (e *sealingEngine) GetPayload(context.Context, eth.PayloadInfo) (*eth.Execu
 func (e *sealingEngine) NewPayload(context.Context, *eth.ExecutionPayload, *common.Hash) (*eth.PayloadStatusV1, error) {
 	e.newPayloads++
 	return &eth.PayloadStatusV1{Status: eth.ExecutionValid}, nil
+}
+
+// TestResetStopsOnInvalidEngineBlock checks that the node stops when the engine returns a
+// parent block that cannot precede its child, instead of retrying the reset.
+func TestResetStopsOnInvalidEngineBlock(t *testing.T) {
+	l1Origin := eth.L1BlockRef{Hash: common.Hash{0xa1}, Number: 10}
+	finalized := eth.L2BlockRef{Hash: common.Hash{0x01}, Number: 1, L1Origin: l1Origin.ID()}
+	head := eth.L2BlockRef{Hash: common.Hash{0x03}, Number: 3, ParentHash: common.Hash{0x02}, L1Origin: l1Origin.ID(), SequenceNumber: 2}
+	// The parent of block 3 claims to be block 3 as well.
+	parent := eth.L2BlockRef{Hash: common.Hash{0x02}, Number: 3, ParentHash: common.Hash{0x01}, L1Origin: l1Origin.ID(), SequenceNumber: 1}
+
+	engine := &testutils.MockEngine{}
+	engine.ExpectL2BlockRefByLabel(eth.Finalized, finalized, nil)
+	engine.ExpectL2BlockRefByLabel(eth.Safe, finalized, nil)
+	engine.ExpectL2BlockRefByLabel(eth.Unsafe, head, nil)
+	engine.ExpectL2BlockRefByHash(head.ParentHash, parent, nil)
+	l1 := &testutils.MockL1Source{}
+	l1.ExpectL1BlockRefByNumber(l1Origin.Number, l1Origin, nil)
+
+	var emitted []event.Event
+	emitter := event.EmitterFunc(func(_ context.Context, ev event.Event) { emitted = append(emitted, ev) })
+	ec := NewEngineController(context.Background(), engine, testlog.Logger(t, 0), metrics.NoopMetrics, &rollup.Config{}, &sync.Config{}, l1, emitter, nil)
+
+	ec.OnEvent(context.Background(), ResetEngineRequestEvent{})
+	engine.AssertExpectations(t)
+	l1.AssertExpectations(t)
+	require.Len(t, emitted, 1)
+	require.IsType(t, rollup.CriticalErrorEvent{}, emitted[0])
+	require.ErrorIs(t, emitted[0].(rollup.CriticalErrorEvent).Err, sync.InvalidL2BlockErr)
+}
+
+type newPayloadStatusEngine struct {
+	testutils.MockEngine
+	status eth.ExecutePayloadStatus
+}
+
+func (e *newPayloadStatusEngine) NewPayload(context.Context, *eth.ExecutionPayload, *common.Hash) (*eth.PayloadStatusV1, error) {
+	return &eth.PayloadStatusV1{Status: e.status}, nil
+}
+
+// TestCommitBlockRequiresValidPayload checks that only a block the engine reports as valid
+// becomes the unsafe head.
+func TestCommitBlockRequiresValidPayload(t *testing.T) {
+	cases := map[eth.ExecutePayloadStatus]int{
+		eth.ExecutionInvalid:          apis.BuildErrCodeInvalidInput,
+		eth.ExecutionInvalidBlockHash: apis.BuildErrCodeInvalidInput,
+		eth.ExecutionSyncing:          apis.BuildErrCodeTemporary,
+		eth.ExecutionAccepted:         apis.BuildErrCodeTemporary,
+		"UNKNOWN":                     apis.BuildErrCodeOther,
+	}
+	for status, code := range cases {
+		t.Run(string(status), func(t *testing.T) {
+			cfg, parent, _, envelope := buildSimpleCfgAndPayload(t)
+			emitter := event.EmitterFunc(func(context.Context, event.Event) {})
+			engine := &newPayloadStatusEngine{status: status}
+			ec := NewEngineController(context.Background(), engine, testlog.Logger(t, 0), metrics.NoopMetrics, cfg, &sync.Config{}, &testutils.MockL1Source{}, emitter, nil)
+			ec.SetUnsafeHead(parent)
+
+			err := ec.CommitBlock(context.Background(), &opsigner.SignedExecutionPayloadEnvelope{Envelope: envelope})
+			var rpcErr *jsonrpc.Error
+			require.ErrorAs(t, err, &rpcErr)
+			require.Equal(t, code, rpcErr.Code)
+			require.Equal(t, parent, ec.UnsafeL2Head())
+		})
+	}
 }
 
 // TestSealBuildRejectsStaleParent covers the direct-call guard: a block sealed

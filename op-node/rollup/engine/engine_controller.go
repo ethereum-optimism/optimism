@@ -1431,7 +1431,13 @@ func (e *EngineController) AddUnsafePayload(ctx context.Context, envelope *eth.E
 // onResetEngineRequest handles the ResetEngineRequestEvent by finding L2 heads and performing a force reset
 func (e *EngineController) onResetEngineRequest(ctx context.Context) {
 	result, err := sync.FindL2Heads(e.ctx, e.rollupCfg, e.l1, e.engine, e.log, e.syncCfg)
-	if err != nil {
+	if errors.Is(err, sync.InvalidL2BlockErr) {
+		// Another reset would read the same block. The engine needs attention.
+		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+			Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err),
+		})
+		return
+	} else if err != nil {
 		e.emitter.Emit(ctx, rollup.ResetEvent{
 			Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err),
 		})
@@ -1452,7 +1458,12 @@ func (e *EngineController) TryInitialResetEngineForSequencer(ctx context.Context
 	}
 	e.log.Info("EngineController Unsafe head was not initialized at the start of the reset")
 	result, err := sync.FindL2Heads(e.ctx, e.rollupCfg, e.l1, e.engine, e.log, e.syncCfg)
-	if err != nil {
+	if errors.Is(err, sync.InvalidL2BlockErr) {
+		e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+			Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err),
+		})
+		return
+	} else if err != nil {
 		e.log.Warn("Failed to find L2 Heads to start from while initial reset: %w", err)
 		// Do not emit ResetEvent because it will end propagating ForkchoiceUpdateEvent
 		// Because the engine controller failed to initialize, the next SyncStep will retry this method

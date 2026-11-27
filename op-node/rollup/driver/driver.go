@@ -402,9 +402,10 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 	wait := make(chan struct{})
 	select {
 	case s.stateReq <- wait:
+		// Deferred, so that a panic in the lookup does not leave the event loop blocked.
+		defer func() { <-wait }()
 		resp := s.StatusTracker.SyncStatus()
 		ref, err := s.SyncDeriver.L2.L2BlockRefByNumber(ctx, num)
-		<-wait
 		return ref, resp, err
 	case <-ctx.Done():
 		return eth.L2BlockRef{}, nil, ctx.Err()

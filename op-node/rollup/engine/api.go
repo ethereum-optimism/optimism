@@ -128,13 +128,23 @@ func (e *EngineController) CommitBlock(ctx context.Context, signed *opsigner.Sig
 	}
 
 	switch status.Status {
+	case eth.ExecutionValid:
 	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
 		return &jsonrpc.Error{
 			Code:    apis.BuildErrCodeInvalidInput,
-			Message: fmt.Sprintf("execution invalid: %v", err),
+			Message: eth.NewPayloadErr(envelope.ExecutionPayload, status).Error(),
 		}
-	case eth.ExecutionValid:
-		break
+	case eth.ExecutionSyncing, eth.ExecutionAccepted:
+		// The engine did not validate the block yet, so it cannot become the unsafe head.
+		return &jsonrpc.Error{
+			Code:    apis.BuildErrCodeTemporary,
+			Message: eth.NewPayloadErr(envelope.ExecutionPayload, status).Error(),
+		}
+	default:
+		return &jsonrpc.Error{
+			Code:    apis.BuildErrCodeOther,
+			Message: eth.NewPayloadErr(envelope.ExecutionPayload, status).Error(),
+		}
 	}
 
 	e.SetUnsafeHead(ref)
