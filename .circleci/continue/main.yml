@@ -1978,8 +1978,11 @@ jobs:
             # needs libclang, absent from this image) or a stray local binary.
             echo "export RUST_BINARY_PATH_OP_RETH_TEST_ENGINE=$ROOT_DIR/rust/target/release/op-reth-test-engine" >> "$BASH_ENV"
             echo "export REQUIRE_RUST_ENGINE=1" >> "$BASH_ENV"
+      # Each parallel node keeps its own build cache. With one shared key, only
+      # the first node to finish can save (keys are immutable), so the other
+      # nodes' new compiles are discarded and rebuilt on the next push.
       - go-restore-cache:
-          namespace: go-tests
+          namespace: "go-tests-node-{{ .Environment.CIRCLE_NODE_INDEX }}"
       - run:
           name: Run Go tests
           no_output_timeout: <<parameters.no_output_timeout>>
@@ -1988,7 +1991,7 @@ jobs:
             export TEST_TIMEOUT=<<parameters.test_timeout>>
             just <<parameters.rule>>
       - go-save-cache:
-          namespace: go-tests
+          namespace: "go-tests-node-{{ .Environment.CIRCLE_NODE_INDEX }}"
       - store_test_results:
           path: ./tmp/test-results
       - run:
