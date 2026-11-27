@@ -263,13 +263,19 @@ impl NodeCommand {
         Self::is_jwt_signature_error(error.as_ref() as &dyn std::error::Error)
     }
 
+    /// Builds the node's one authenticated engine connection, bounding each request by
+    /// `--l2-engine-timeout`.
+    fn engine_connection(&self) -> anyhow::Result<RootProvider<Optimism>> {
+        let jwt_secret = self.l2_jwt_secret()?;
+        let timeout = Duration::from_millis(self.l2_client_args.l2_engine_timeout);
+        Ok(rpc::engine(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret, timeout))
+    }
+
     /// Builds the node's one authenticated engine connection and validates the JWT secret by
     /// exchanging capabilities over it. Since the engine rejects a request signed with the wrong
     /// secret, this ensures that the secret passed as a cli arg is correct before the node starts.
     pub async fn connect_engine(&self) -> anyhow::Result<RootProvider<Optimism>> {
-        let jwt_secret = self.l2_jwt_secret()?;
-
-        let engine = rpc::engine(self.l2_client_args.l2_engine_rpc.clone(), jwt_secret);
+        let engine = self.engine_connection()?;
 
         let exchange = || async {
             match engine.exchange_capabilities(vec![]).await {
@@ -524,6 +530,7 @@ impl NodeCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_provider::Provider;
     use kona_providers_alloy::BlockLabel;
     use std::net::TcpListener;
     use tokio::time::{self, Instant};
@@ -550,5 +557,33 @@ mod tests {
             waited >= rpc::TIMEOUT && waited <= rpc::TIMEOUT + Duration::from_millis(1),
             "{waited:?}"
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn engine_requests_to_a_stalled_endpoint_fail_at_the_configured_deadline() {
+        // Nothing ever answers, as in the L1 test above. The configured deadline exceeds
+        // `rpc::TIMEOUT`, so the test also fails if that constant still caps engine requests.
+        let deadline = Duration::from_secs(30);
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let command = NodeCommand::parse_from([
+            "node",
+            "--l1=http://localhost:8545",
+            "--l1.beacon=http://localhost:5052",
+            &format!("--l2=http://{}", listener.local_addr().unwrap()),
+            &format!("--l2.jwt-secret-encoded={}", "11".repeat(32)),
+            "--l2.timeout=30000",
+        ]);
+        let engine = command.engine_connection().unwrap();
+
+        let started = Instant::now();
+        let result = time::timeout(deadline * 2, engine.get_block_number())
+            .await
+            .expect("engine request did not fail within twice its deadline");
+
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("deadline has elapsed"), "{error}");
+        // Timers round up to the next millisecond.
+        let waited = started.elapsed();
+        assert!(waited >= deadline && waited <= deadline + Duration::from_millis(1), "{waited:?}");
     }
 }

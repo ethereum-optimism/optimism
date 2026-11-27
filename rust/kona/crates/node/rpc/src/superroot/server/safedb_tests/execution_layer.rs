@@ -184,6 +184,7 @@ where
         kona_sources::rpc::engine(
             format!("http://{address}").parse().unwrap(),
             JwtSecret::from_hex("00".repeat(32)).unwrap(),
+            kona_sources::rpc::TIMEOUT,
         ),
         config,
     );

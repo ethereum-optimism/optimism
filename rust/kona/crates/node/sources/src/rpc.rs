@@ -1,8 +1,9 @@
 //! The transport under the node's outgoing JSON-RPC clients.
 //!
-//! [`l1`] and [`engine`] build the node's two clients. Each bounds every request by [`TIMEOUT`]
-//! and records it, under the client's label, in the [`REQUEST_DURATION`] histogram and a
-//! completion log. A failed request's error carries no URL.
+//! [`l1`] and [`engine`] build the node's two clients. Each bounds every request by a deadline,
+//! [`TIMEOUT`] for L1 and the one it is given for the engine, and records it, under the client's
+//! label, in the [`REQUEST_DURATION`] histogram and a completion log. A failed request's error
+//! carries no URL.
 
 use alloy_json_rpc::{RequestPacket, ResponsePacket, RpcError};
 use alloy_primitives::Bytes;
@@ -34,7 +35,7 @@ use tower::{
 };
 use url::Url;
 
-/// Deadline for each request the node sends to an execution-layer RPC, on L1 or to the Engine API.
+/// Deadline for each request the node sends to L1. [`engine`] takes its deadline as an argument.
 ///
 /// It bounds one request, never an operation made of many requests, such as the block traversal
 /// of a reset, so a long but healthy operation is not cut off.
@@ -55,32 +56,35 @@ pub fn describe() {
 
 /// Builds the node's L1 client for the HTTP endpoint at `url`, recorded as `l1`.
 pub fn l1(url: Url) -> RootProvider {
-    RootProvider::new(layered("l1").http(url))
+    RootProvider::new(layered("l1", TIMEOUT).http(url))
 }
 
 /// Builds the node's L2 engine connection to the HTTP endpoint at `url`, signing each request
-/// with `jwt`, recorded as `engine`. It carries L2 `eth_` reads, from derivation's providers and
-/// the engine's own block lookups, as well as the Engine API calls.
-pub fn engine(url: Url, jwt: JwtSecret) -> RootProvider<Optimism> {
+/// with `jwt` and bounding it by `timeout`, recorded as `engine`. It carries L2 `eth_` reads, from
+/// derivation's providers and the engine's own block lookups, as well as the Engine API calls.
+pub fn engine(url: Url, jwt: JwtSecret, timeout: Duration) -> RootProvider<Optimism> {
     let hyper = Client::builder(TokioExecutor::new()).build_http::<Full<Bytes>>();
     let service = ServiceBuilder::new().layer(AuthLayer::new(jwt)).service(hyper);
     let transport = Http::with_client(HyperClient::with_service(service), url);
-    RootProvider::new(layered("engine").transport(transport, false))
+    RootProvider::new(layered("engine", timeout).transport(transport, false))
 }
 
-/// The layers under every client. [`Observe`] wraps the deadline, so a timeout is recorded as a
-/// transport error; tower's [`Stack`] names the inner layer first.
-type Layers = Stack<
-    MapFutureLayer<fn(TransportFut<'static>) -> TransportFut<'static>>,
-    Stack<Observe, Identity>,
->;
+/// The layers under every client, where `F` applies the deadline. [`Observe`] wraps the deadline,
+/// so a timeout is recorded as a transport error; tower's [`Stack`] names the inner layer first.
+type Layers<F> = Stack<MapFutureLayer<F>, Stack<Observe, Identity>>;
 
-/// A client builder with [`Layers`] applied, recording as `client`.
-fn layered(client: &'static str) -> ClientBuilder<Layers> {
-    ClientBuilder::default().layer(Observe::new(client)).layer(MapFutureLayer::new(with_deadline))
+/// A client builder with [`Layers`] applied, recording as `client` and bounding each request by
+/// `timeout`.
+fn layered(
+    client: &'static str,
+    timeout: Duration,
+) -> ClientBuilder<Layers<impl Fn(TransportFut<'static>) -> TransportFut<'static> + Clone>> {
+    ClientBuilder::default()
+        .layer(Observe::new(client))
+        .layer(MapFutureLayer::new(move |request| with_deadline(timeout, request)))
 }
 
-/// Bounds one request on an alloy transport by [`TIMEOUT`].
+/// Bounds one request on an alloy transport by `timeout`.
 ///
 /// This wraps the transport's future rather than the HTTP client below it, because the HTTP
 /// client's future completes when the response headers arrive and the transport reads the body
@@ -88,9 +92,9 @@ fn layered(client: &'static str) -> ClientBuilder<Layers> {
 ///
 /// A request that runs out of time fails with a [`TransportErrorKind::Custom`] holding a
 /// [`tokio::time::error::Elapsed`], so outer layers can tell a timeout from other failures.
-pub fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
+pub fn with_deadline(timeout: Duration, request: TransportFut<'static>) -> TransportFut<'static> {
     Box::pin(async move {
-        tokio::time::timeout(TIMEOUT, request).await.map_err(TransportErrorKind::custom)?
+        tokio::time::timeout(timeout, request).await.map_err(TransportErrorKind::custom)?
     })
 }
 
@@ -372,16 +376,37 @@ mod tests {
         RpcClient::new(l1(url).client().transport().clone(), false)
     }
 
+    /// The deadline of the engine connection in these tests. It exceeds [`TIMEOUT`], so the
+    /// deadline tests show that [`engine`] applies the one it is given and is not capped by
+    /// [`TIMEOUT`].
+    const ENGINE_TIMEOUT: Duration = Duration::from_secs(30);
+
     /// A JSON-RPC client over the transport of the node's engine connection for `url`.
     fn engine_rpc(url: Url) -> RpcClient {
-        RpcClient::new(engine(url, JwtSecret::random()).client().transport().clone(), false)
+        RpcClient::new(
+            engine(url, JwtSecret::random(), ENGINE_TIMEOUT).client().transport().clone(),
+            false,
+        )
     }
 
     /// Builds one of the node's clients against a URL.
     type Build = fn(Url) -> RpcClient;
 
-    /// The node's clients, by label.
-    const CLIENTS: [(&str, Build); 2] = [("l1", l1_rpc), ("engine", engine_rpc)];
+    /// One of the node's clients.
+    #[derive(Clone, Copy)]
+    struct Client {
+        /// The `client` label it records as.
+        label: &'static str,
+        build: Build,
+        /// The deadline it applies to each request.
+        deadline: Duration,
+    }
+
+    /// The node's clients.
+    const CLIENTS: [Client; 2] = [
+        Client { label: "l1", build: l1_rpc, deadline: TIMEOUT },
+        Client { label: "engine", build: engine_rpc, deadline: ENGINE_TIMEOUT },
+    ];
 
     #[test]
     fn records_each_request_by_client_method_outcome_and_error() {
@@ -552,9 +577,9 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn the_request_deadline_is_classified_as_a_timeout() {
         // A transport that never answers.
-        let mut service = MapFutureLayer::new(with_deadline).layer(tower::service_fn(
-            |_| -> TransportFut<'static> { Box::pin(std::future::pending()) },
-        ));
+        let mut service = MapFutureLayer::new(|request| with_deadline(TIMEOUT, request)).layer(
+            tower::service_fn(|_| -> TransportFut<'static> { Box::pin(std::future::pending()) }),
+        );
 
         let response = service.call(request("eth_blockNumber")).await;
 
@@ -564,13 +589,12 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn a_refused_connection_is_classified_as_a_connect_error(
-        #[values(CLIENTS[0], CLIENTS[1])] client: (&str, Build),
+        #[values(CLIENTS[0], CLIENTS[1])] client: Client,
     ) {
-        let (_, build) = client;
         // Port 1 is reserved and nothing listens on it, so the connection is refused. This goes
         // through alloy's real transports, so it also checks that the `reqwest` and `hyper_util`
         // errors we downcast to are the ones alloy raises.
-        let client = build("http://127.0.0.1:1".parse().unwrap());
+        let client = (client.build)("http://127.0.0.1:1".parse().unwrap());
 
         let response = client.transport().clone().call(request("eth_blockNumber")).await;
 
@@ -580,13 +604,12 @@ mod tests {
     #[rstest]
     #[tokio::test]
     async fn a_failed_request_does_not_reveal_the_url(
-        #[values(CLIENTS[0], CLIENTS[1])] client: (&str, Build),
+        #[values(CLIENTS[0], CLIENTS[1])] client: Client,
     ) {
-        let (_, build) = client;
         let (logs, _guard) = capture_logs(Level::WARN);
         // Nothing listens on port 1, so the request fails in the transport; reqwest's errors name
         // the URL they were sending to.
-        let client = build("http://127.0.0.1:1/secret-api-key".parse().unwrap());
+        let client = (client.build)("http://127.0.0.1:1/secret-api-key".parse().unwrap());
 
         let response = client.transport().clone().call(request("eth_blockNumber")).await;
 
@@ -620,22 +643,25 @@ mod tests {
     }
 
     /// Runs `call` in real time until the endpoint has answered, so whatever it sent is already in
-    /// the socket buffer, then pauses the clock and expects `call` to fail at its deadline.
+    /// the socket buffer, then pauses the clock and expects `call` to fail at `deadline`.
     async fn fails_at_deadline(
         call: impl Future<Output = bool> + Send + 'static,
         answered: &mut mpsc::UnboundedReceiver<()>,
+        deadline: Duration,
     ) {
         let call = tokio::spawn(call);
         answered.recv().await.unwrap();
         time::pause();
         let paused_at = time::Instant::now();
-        let failed = time::timeout(TIMEOUT * 2, call).await.expect("request has no deadline");
+        let failed = time::timeout(deadline * 2, call)
+            .await
+            .expect("request did not fail within twice its deadline");
         assert!(failed.unwrap());
         // The deadline started before the clock was paused, and only the clock moved since. Timers
         // round up to the next millisecond.
         let waited = paused_at.elapsed();
-        assert!(waited > TIMEOUT - Duration::from_secs(1));
-        assert!(waited <= TIMEOUT + Duration::from_millis(1));
+        assert!(waited > deadline - Duration::from_secs(1), "{waited:?}");
+        assert!(waited <= deadline + Duration::from_millis(1), "{waited:?}");
         time::resume();
     }
 
@@ -647,18 +673,19 @@ mod tests {
     #[tokio::test]
     async fn stalled_requests_have_a_deadline_and_record_a_timeout(
         #[case] response: &'static [u8],
-        #[values(CLIENTS[0], CLIENTS[1])] client: (&str, Build),
+        #[values(CLIENTS[0], CLIENTS[1])] client: Client,
     ) {
-        let (label, build) = client;
         let recorder = PrometheusBuilder::new().build_recorder();
         let metrics = recorder.handle();
         let _recorder = metrics::set_default_local_recorder(&recorder);
         let (answered_tx, mut answered) = mpsc::unbounded_channel();
+        let Client { label, build, deadline } = client;
         let client = build(stalled_endpoint(response, answered_tx).await);
 
         fails_at_deadline(
             async move { client.request::<_, U64>("eth_blockNumber", ()).await.is_err() },
             &mut answered,
+            deadline,
         )
         .await;
 
@@ -689,10 +716,9 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn large_responses_arrive_whole(#[values(CLIENTS[0], CLIENTS[1])] client: (&str, Build)) {
-        let (_, build) = client;
+    async fn large_responses_arrive_whole(#[values(CLIENTS[0], CLIENTS[1])] client: Client) {
         let (url, _server) = large_response_endpoint(LARGE_RESPONSE).await;
-        let client = build(url);
+        let client = (client.build)(url);
         let result: Bytes = client.request("test_large", ()).await.unwrap();
         assert_eq!(result.len(), LARGE_RESPONSE / 2);
     }
