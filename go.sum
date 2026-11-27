@@ -435,8 +435,8 @@ github.com/libp2p/go-libp2p-asn-util v0.4.1 h1:xqL7++IKD9TBFMgnLPZR6/6iYhawHKHl9
 github.com/libp2p/go-libp2p-asn-util v0.4.1/go.mod h1:d/NI6XZ9qxw67b4e+NgpQexCIiFYJjErASrYW4PFDN8=
 github.com/libp2p/go-libp2p-mplex v0.11.0 h1:0vwpLXRSfkTzshEjETIEgJaVxXvg+orbxYoIb3Ty5qM=
 github.com/libp2p/go-libp2p-mplex v0.11.0/go.mod h1:QrsdNY3lzjpdo9V1goJfPb0O65Nms0sUR8CDAO18f6k=
-github.com/libp2p/go-libp2p-pubsub v0.18.0 h1:xTIqlwk0okgZxHrPjtht8RvzknYQ4CeqGawKm7arYbM=
-github.com/libp2p/go-libp2p-pubsub v0.18.0/go.mod h1:F0oKCGLFJNy9b0TyRi04b+LchEzq0t2eZyJuxwAIyDE=
+github.com/libp2p/go-libp2p-pubsub v0.19.0 h1:9eyitBeXjW09XyDQF+EYL6RGRJ50Df1G9aTjB3XOMQQ=
+github.com/libp2p/go-libp2p-pubsub v0.19.0/go.mod h1:BfhG/m4TM39nKlcW6myqsoUjsJhOPpSLBCo4OtHLweI=
 github.com/libp2p/go-libp2p-testing v0.12.0 h1:EPvBb4kKMWO29qP4mZGyhVzUyR25dvfUIK5WDu6iPUA=
 github.com/libp2p/go-libp2p-testing v0.12.0/go.mod h1:KcGDRXyN7sQCllucn1cOOS+Dmm7ujhfEyXQL5lvkcPg=
 github.com/libp2p/go-mplex v0.7.0 h1:BDhFZdlk5tbr0oyFq/xv/NPGfjbnrsDam1EvutpBDbY=
