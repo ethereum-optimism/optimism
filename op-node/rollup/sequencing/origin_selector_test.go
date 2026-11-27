@@ -549,7 +549,7 @@ func TestOriginSelectorRespectsConfDepth(t *testing.T) {
 		Time:     27,
 	}
 
-	confDepthL1 := confdepth.NewConfDepth(10, func() eth.L1BlockRef { return b }, l1)
+	confDepthL1 := confdepth.NewConfDepth(10, eth.Unsafe, func() eth.L1BlockRef { return b }, l1)
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 	s.currentOrigin = a
 
@@ -596,7 +596,7 @@ func TestOriginSelectorStrictConfDepth(t *testing.T) {
 	}
 
 	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
-	confDepthL1 := confdepth.NewConfDepth(10, func() eth.L1BlockRef { return b }, l1)
+	confDepthL1 := confdepth.NewConfDepth(10, eth.Unsafe, func() eth.L1BlockRef { return b }, l1)
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
@@ -782,7 +782,7 @@ func TestOriginSelectorHandlesLateL1Blocks(t *testing.T) {
 	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
 
 	l1Head := b
-	confDepthL1 := confdepth.NewConfDepth(2, func() eth.L1BlockRef { return l1Head }, l1)
+	confDepthL1 := confdepth.NewConfDepth(2, eth.Unsafe, func() eth.L1BlockRef { return l1Head }, l1)
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
