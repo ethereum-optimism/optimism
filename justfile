@@ -88,9 +88,24 @@ build-customlint:
   cd linter && just build
 
 # Lints Go code with specific linters.
-lint-go: build-customlint build-superchain-go
+lint-go: check-no-op-geth build-customlint build-superchain-go
   ./linter/bin/op-golangci-lint run ./...
   go mod tidy -diff
+
+# Fails if any go.mod depends on op-geth. Go imports look the same on the fork
+# and on upstream go-ethereum, so only go.mod can show it.
+[script('bash')]
+check-no-op-geth:
+  set -euo pipefail
+  # Submodules (e.g. superchain-registry/ops) have their own go.mod and aren't part of this build.
+  rc=0
+  git grep --no-recurse-submodules -n 'ethereum-optimism/op-geth' -- ':(glob)**/go.mod' || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    echo "error: depends on github.com/ethereum-optimism/op-geth; build against upstream go-ethereum instead." >&2
+    exit 1
+  fi
+  # git grep exits 1 for no match; anything higher is a git error, not a pass.
+  [ "$rc" -eq 1 ] || exit "$rc"
 
 # Lints Go code with specific linters and fixes reported issues.
 lint-go-fix: build-customlint build-superchain-go
