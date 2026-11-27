@@ -247,6 +247,11 @@ func (d *SafeDB) SafeHeadAtL1(ctx context.Context, l1BlockNum uint64) (l1Block e
 // head reached at least targetL2Num, along with the L2 safe head recorded at
 // that L1. Each SafeDB entry records a real deriver-emitted transition, so
 // the answer is exact when target is within recorded history.
+//
+// Recorded safe heads never decrease as the L1 number increases: SafeHeadUpdated
+// only records forward progress and SafeHeadReset truncates every entry from the
+// first one at or above the new safe head. The lookup relies on that order to
+// binary search the L1 number range instead of scanning back from the latest entry.
 func (d *SafeDB) L1AtSafeHead(ctx context.Context, targetL2Num uint64) (l1 eth.BlockID, safeHead eth.BlockID, err error) {
 	d.m.RLock()
 	defer d.m.RUnlock()
@@ -264,30 +269,55 @@ func (d *SafeDB) L1AtSafeHead(ctx context.Context, targetL2Num uint64) (l1 eth.B
 		err = ErrL1AtSafeHeadNotFound
 		return
 	}
-	cursorL1, cursorL2, err := decodeEntry(iter)
+	// hiL1/hiL2 is always an entry whose safe head is at or above the target.
+	hiL1, hiL2, err := decodeEntry(iter)
 	if err != nil {
 		return
 	}
-	if targetL2Num > cursorL2.Number {
+	if targetL2Num > hiL2.Number {
 		err = ErrL1AtSafeHeadNotFound
 		return
 	}
-	for iter.Prev() {
-		prevL1, prevL2, derr := decodeEntry(iter)
+	if valid := iter.First(); !valid {
+		err = ErrL1AtSafeHeadNotFound
+		return
+	}
+	firstL1, firstL2, err := decodeEntry(iter)
+	if err != nil {
+		return
+	}
+	if firstL2.Number >= targetL2Num {
+		// No earlier entry shows the safe head below the target, so the first entry
+		// is only the answer when it records the target itself.
+		if firstL2.Number == targetL2Num {
+			return firstL1, firstL2, nil
+		}
+		err = ErrL1AtSafeHeadUnavailable
+		return
+	}
+	// Every entry with an L1 number below lo has a safe head below the target.
+	lo := firstL1.Number + 1
+	for lo < hiL1.Number {
+		mid := lo + (hiL1.Number-lo)/2
+		// Latest entry at or before mid. The first entry is below lo, so one always exists.
+		if valid := iter.SeekLT(safeByL1BlockNumKey.Of(mid + 1)); !valid {
+			if err = iter.Error(); err == nil {
+				err = ErrInvalidEntry
+			}
+			return
+		}
+		entryL1, entryL2, derr := decodeEntry(iter)
 		if derr != nil {
 			err = derr
 			return
 		}
-		if prevL2.Number < targetL2Num {
-			return cursorL1, cursorL2, nil
+		if entryL2.Number >= targetL2Num {
+			hiL1, hiL2 = entryL1, entryL2
+		} else {
+			lo = mid + 1
 		}
-		cursorL1, cursorL2 = prevL1, prevL2
 	}
-	if cursorL2.Number == targetL2Num {
-		return cursorL1, cursorL2, nil
-	}
-	err = ErrL1AtSafeHeadUnavailable
-	return
+	return hiL1, hiL2, nil
 }
 
 func decodeEntry(iter *pebble.Iterator) (eth.BlockID, eth.BlockID, error) {
