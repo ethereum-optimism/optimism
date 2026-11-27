@@ -12,8 +12,15 @@ use tracing::*;
 /// The size of the broadcast channel for completed flashblock sequences.
 const FLASHBLOCK_SEQUENCE_CHANNEL_SIZE: usize = 128;
 
+/// Highest flashblock index accepted into a pending sequence.
+///
+/// Well above the number of flashblocks per block on any chain, it bounds how many flashblocks a
+/// source can make one pending sequence hold.
+pub(crate) const MAX_FLASHBLOCK_INDEX: u64 = 255;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FollowupRejectionReason {
+    IndexTooHigh,
     BlockNumber,
     PayloadId,
     BlockAndPayload,
@@ -22,6 +29,7 @@ enum FollowupRejectionReason {
 impl FollowupRejectionReason {
     const fn as_str(self) -> &'static str {
         match self {
+            Self::IndexTooHigh => "index_too_high",
             Self::BlockNumber => "block_number_mismatch",
             Self::PayloadId => "payload_id_mismatch",
             Self::BlockAndPayload => "block_and_payload_mismatch",
@@ -103,6 +111,10 @@ impl FlashBlockPendingSequence {
         &self,
         flashblock: &FlashBlock,
     ) -> Option<FollowupRejectionReason> {
+        if flashblock.index > MAX_FLASHBLOCK_INDEX {
+            return Some(FollowupRejectionReason::IndexTooHigh);
+        }
+
         // only insert if we previously received the same block and payload, assume we received
         // index 0
         let same_block = self.block_number() == Some(flashblock.block_number());
@@ -392,6 +404,24 @@ mod tests {
 
             assert_eq!(sequence.count(), 1);
             assert_eq!(sequence.payload_id(), Some(payload_id1));
+        }
+
+        #[test]
+        fn test_insert_ignores_index_above_max() {
+            let mut sequence = FlashBlockPendingSequence::new();
+            let factory = TestFlashBlockFactory::new();
+
+            let fb0 = factory.flashblock_at(0).build();
+            sequence.insert(fb0.clone());
+
+            let last = factory.flashblock_after(&fb0).index(MAX_FLASHBLOCK_INDEX).build();
+            sequence.insert(last);
+            let beyond = factory.flashblock_after(&fb0).index(MAX_FLASHBLOCK_INDEX + 1).build();
+            assert!(!sequence.can_accept(&beyond));
+            sequence.insert(beyond);
+
+            assert_eq!(sequence.count(), 2);
+            assert_eq!(sequence.index(), Some(MAX_FLASHBLOCK_INDEX));
         }
 
         #[test]
