@@ -159,6 +159,17 @@ func (v *LockstepCrossValidator) ResetCrossValidatedTimestamp(timestamp uint64) 
 	v.log.Info("Reset cross-validated timestamp", "timestamp", timestamp)
 }
 
+// validateInitBeforeInclusion enforces Rule 1: the initiating message must be strictly
+// before the inclusion timestamp. It needs no ingested data, so callers can run it before
+// any availability gate to keep the verdict definitive.
+func validateInitBeforeInclusion(initTimestamp, inclusionTimestamp uint64) error {
+	if initTimestamp >= inclusionTimestamp {
+		return fmt.Errorf("initiating message timestamp %d not before inclusion timestamp %d: %w",
+			initTimestamp, inclusionTimestamp, interop.ErrConflict)
+	}
+	return nil
+}
+
 // validateMessageTiming validates temporal constraints for cross-chain messages.
 func validateMessageTiming(
 	ingester ChainIngester,
@@ -169,10 +180,8 @@ func validateMessageTiming(
 		return fmt.Errorf("initiating message on chain %s at timestamp %d is not after the Lagoon activation block: %w",
 			chainID, initTimestamp, interop.ErrConflict)
 	}
-	// Rule 1: init must be strictly before inclusion
-	if initTimestamp >= inclusionTimestamp {
-		return fmt.Errorf("initiating message timestamp %d not before inclusion timestamp %d: %w",
-			initTimestamp, inclusionTimestamp, interop.ErrConflict)
+	if err := validateInitBeforeInclusion(initTimestamp, inclusionTimestamp); err != nil {
+		return err
 	}
 
 	// Rule 2: message must not be expired at inclusion
@@ -205,6 +214,14 @@ func (v *LockstepCrossValidator) ValidateAccessEntry(
 	minSafety safety.Level,
 	execDescriptor messages.ExecutingDescriptor,
 ) error {
+	// Rule 1 does not depend on how far the filter has ingested, so it runs before the
+	// availability gates below. A message whose initiating timestamp is at or after the
+	// executing timestamp is invalid no matter what, and must stay a definitive ErrConflict
+	// instead of the ErrOutOfScope those gates return.
+	if err := validateInitBeforeInclusion(access.Timestamp, execDescriptor.Timestamp); err != nil {
+		return err
+	}
+
 	// Check that we have ingested data for the requested timestamp
 	minIngestedTs, ok := v.getMinIngestedTimestamp()
 	if !ok || access.Timestamp > minIngestedTs {
