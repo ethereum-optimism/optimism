@@ -25,6 +25,7 @@ interface IVisionPolicyV1 is IPolicy {
 
     function version() external view returns (string memory);
     function module() external view returns (IComplianceModule module_);
+    function startBlock() external view returns (uint256 startBlock_);
     function verdictWriter() external view returns (address);
     function maxVerdictValidity() external view returns (uint64);
     function holdDelay() external view returns (uint64);

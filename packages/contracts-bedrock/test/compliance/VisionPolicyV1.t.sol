@@ -110,6 +110,7 @@ contract VisionPolicyV1_Constructor_Test is VisionPolicyV1_TestInit {
 
         assertEq(address(deployed), expected);
         assertEq(address(deployed.module()), module);
+        assertEq(deployed.startBlock(), block.number);
         assertEq(deployed.owner(), owner);
         assertEq(deployed.verdictWriter(), verdictWriter);
         assertEq(deployed.maxVerdictValidity(), 3 days);
@@ -175,6 +176,57 @@ contract VisionPolicyV1_Constructor_Test is VisionPolicyV1_TestInit {
                 )
             });
         }
+    }
+}
+
+/// @title VisionPolicyV1_StartBlock_Test
+/// @notice Tests the `startBlock` function of the `VisionPolicyV1` contract.
+contract VisionPolicyV1_StartBlock_Test is VisionPolicyV1_TestInit {
+    /// @notice Tests that startBlock returns the block the policy was deployed in when read in a
+    ///         later block.
+    function testFuzz_startBlock_deploymentBlock_succeeds(uint256 _blockNumber, uint256 _blocksLater) external {
+        _blockNumber = bound(_blockNumber, 0, type(uint64).max);
+        _blocksLater = bound(_blocksLater, 1, type(uint32).max);
+        vm.roll(_blockNumber);
+
+        IVisionPolicyV1 deployed = IVisionPolicyV1(
+            DeployUtils.create1({
+                _name: "VisionPolicyV1",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IVisionPolicyV1.__constructor__,
+                        (
+                            IComplianceModule(module),
+                            owner,
+                            verdictWriter,
+                            3 days,
+                            1 hours,
+                            new address[](0),
+                            new address[](0)
+                        )
+                    )
+                )
+            })
+        );
+
+        vm.roll(_blockNumber + _blocksLater);
+        assertEq(deployed.startBlock(), _blockNumber);
+    }
+
+    /// @notice Tests that startBlock does not change in later blocks or after owner calls.
+    function test_startBlock_laterCalls_succeeds() external {
+        uint256 deploymentBlock = block.number;
+        assertEq(policy.startBlock(), deploymentBlock);
+
+        vm.roll(deploymentBlock + 100);
+        address[] memory accounts = new address[](1);
+        accounts[0] = sender;
+        vm.startPrank(owner);
+        policy.addToAllowlist(accounts);
+        policy.setHoldDelay(0);
+        vm.stopPrank();
+
+        assertEq(policy.startBlock(), deploymentBlock);
     }
 }
 
