@@ -43,12 +43,24 @@ func newVCLI(t *testing.T, args []string) *flags.VirtualCLI {
 	return flags.NewVirtualCLI(newCtx(t, portFlags(), args), testChainID)
 }
 
-func TestWithNamespacedP2P_DefaultsListenPortsToZero(t *testing.T) {
+// Unset listen ports are pinned to a concrete free port, so the virtual node
+// that replaces this one after a rewind listens on the same port.
+func TestWithNamespacedP2P_PinsUnsetListenPorts(t *testing.T) {
 	vcli := newVCLI(t, nil)
 	require.NoError(t, withNamespacedP2P(vcli, t.TempDir(), fmt.Sprintf("%d", testChainID)))
 
-	require.Equal(t, uint(0), vcli.Uint(opnodeflags.ListenTCPPortName))
-	require.Equal(t, uint(0), vcli.Uint(opnodeflags.ListenUDPPortName))
+	require.NotZero(t, vcli.Uint(opnodeflags.ListenTCPPortName))
+	require.NotZero(t, vcli.Uint(opnodeflags.ListenUDPPortName))
+}
+
+// Each chain gets its own pinned port.
+func TestWithNamespacedP2P_PinnedPortsAreDistinct(t *testing.T) {
+	a := newVCLI(t, nil)
+	b := newVCLI(t, nil)
+	require.NoError(t, withNamespacedP2P(a, t.TempDir(), "a"))
+	require.NoError(t, withNamespacedP2P(b, t.TempDir(), "b"))
+	require.NotEqual(t, a.Uint(opnodeflags.ListenTCPPortName), b.Uint(opnodeflags.ListenTCPPortName))
+	require.NotEqual(t, a.Uint(opnodeflags.ListenUDPPortName), b.Uint(opnodeflags.ListenUDPPortName))
 }
 
 func TestWithNamespacedP2P_ErrorsOnNonZeroGlobalListenPorts(t *testing.T) {
@@ -62,15 +74,16 @@ func TestWithNamespacedP2P_ErrorsOnNonZeroGlobalListenPorts(t *testing.T) {
 	require.ErrorContains(t, err, "vn.<chainID>.p2p.listen.tcp")
 }
 
-func TestWithNamespacedP2P_HonoursZeroGlobalListenPorts(t *testing.T) {
+// An explicit global 0 means "dynamic"; it is pinned like an unset port.
+func TestWithNamespacedP2P_PinsZeroGlobalListenPorts(t *testing.T) {
 	vcli := newVCLI(t, []string{
 		"--" + flags.VNFlagGlobalPrefix + opnodeflags.ListenTCPPortName + "=0",
 		"--" + flags.VNFlagGlobalPrefix + opnodeflags.ListenUDPPortName + "=0",
 	})
 	require.NoError(t, withNamespacedP2P(vcli, t.TempDir(), fmt.Sprintf("%d", testChainID)))
 
-	require.Equal(t, uint(0), vcli.Uint(opnodeflags.ListenTCPPortName))
-	require.Equal(t, uint(0), vcli.Uint(opnodeflags.ListenUDPPortName))
+	require.NotZero(t, vcli.Uint(opnodeflags.ListenTCPPortName))
+	require.NotZero(t, vcli.Uint(opnodeflags.ListenUDPPortName))
 }
 
 func TestWithNamespacedP2P_HonoursPerChainListenPorts(t *testing.T) {
@@ -106,8 +119,8 @@ func TestWithNamespacedP2P_PerChainOverridesGlobalZero(t *testing.T) {
 	require.NoError(t, withNamespacedP2P(vcli, t.TempDir(), fmt.Sprintf("%d", testChainID)))
 
 	require.Equal(t, uint(9000), vcli.Uint(opnodeflags.ListenTCPPortName))
-	// UDP fell through to the default-zero override.
-	require.Equal(t, uint(0), vcli.Uint(opnodeflags.ListenUDPPortName))
+	// UDP fell through to the dynamic default and was pinned.
+	require.NotZero(t, vcli.Uint(opnodeflags.ListenUDPPortName))
 }
 
 func TestWithNamespacedP2P_CreatesP2PDir(t *testing.T) {
