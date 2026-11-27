@@ -27,6 +27,7 @@ import { Unreleased } from "/ko/snippets/unreleased.mdx"
 | `--l1-beacon <URL>` | `KONA_NODE_L1_BEACON` | L1 beacon API의 URL | 예 | - |
 | `--l2-engine-rpc <URL>` | `KONA_NODE_L2_ENGINE_RPC` | L2 실행 클라이언트의 engine API 엔드포인트 URL | 예 | - |
 | `--l2-engine-jwt-secret <PATH>` | `KONA_NODE_L2_ENGINE_AUTH` | 실행 클라이언트용 16진수 인코딩 JWT 시크릿이 담긴 파일의 경로 | 아니요 | - |
+| `--l2-engine-timeout <MILLISECONDS>` | `KONA_NODE_L2_ENGINE_TIMEOUT` | L2 실행 클라이언트로 보내는 각 요청의 제한 시간(밀리초)으로, Engine API 호출과 노드의 L2 읽기에 적용됩니다. 별칭: `--l2.timeout` | 아니요 | `10000` |
 | `--l2-config-file <PATH>` | `KONA_NODE_ROLLUP_CONFIG` | 사용자 지정 L2 rollup 구성 파일의 경로 | 아니요 | - |
 
 ## 전역 인수 {#global-arguments}

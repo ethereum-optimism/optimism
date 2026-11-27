@@ -310,7 +310,11 @@ mod deadline_tests {
     async fn stalled_derivation_reads_have_a_deadline(#[case] response: &'static [u8]) {
         let (answered_tx, mut answered) = mpsc::unbounded_channel();
         let mut provider = AlloyL2ChainProvider::new(
-            rpc::engine(stalled_endpoint(response, answered_tx).await, JwtSecret::random()),
+            rpc::engine(
+                stalled_endpoint(response, answered_tx).await,
+                JwtSecret::random(),
+                rpc::TIMEOUT,
+            ),
             Arc::new(RollupConfig::default()),
             8,
         );

@@ -86,7 +86,9 @@ fn provider(state: Arc<RpcState>) -> AlloyChainProvider {
     // Bound requests as production's L1 transport does, so a stalled read fails and is retried.
     let rpc = RootProvider::new(
         ClientBuilder::default()
-            .layer(tower::util::MapFutureLayer::new(kona_sources::rpc::with_deadline))
+            .layer(tower::util::MapFutureLayer::new(|request| {
+                kona_sources::rpc::with_deadline(kona_sources::rpc::TIMEOUT, request)
+            }))
             .transport(transport, false),
     );
     kona_engine::test_utils::trusted_l1_provider(rpc)

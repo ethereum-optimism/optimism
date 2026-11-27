@@ -56,7 +56,9 @@ impl MemoryL1 {
 /// A stalled request fails once the L1 transport's per-request deadline expires, with the error
 /// that deadline produces.
 async fn stall() -> Result<(), TransportError> {
-    kona_sources::rpc::with_deadline(Box::pin(std::future::pending())).await.map(|_| ())
+    kona_sources::rpc::with_deadline(kona_sources::rpc::TIMEOUT, Box::pin(std::future::pending()))
+        .await
+        .map(|_| ())
 }
 
 fn transport_failure(error: TransportError) -> PipelineErrorKind {

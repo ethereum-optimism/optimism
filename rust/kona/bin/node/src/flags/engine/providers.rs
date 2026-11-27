@@ -2,7 +2,8 @@ use alloy_rpc_types_engine::JwtSecret;
 use std::path::PathBuf;
 use url::Url;
 
-const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 30_000;
+/// op-node's `--l2.engine-rpc-timeout` default.
+const DEFAULT_L2_ENGINE_TIMEOUT: u64 = 10_000;
 const DEFAULT_L1_TRUST_RPC: bool = false;
 /// One L1 epoch (32 slots of 12 seconds), op-node's default. Mainnet finality advances once per
 /// epoch, so polling more often barely shortens the L2 finality lag.
@@ -82,12 +83,14 @@ pub struct L2ClientArgs {
     /// This MUST be a valid hex-encoded JWT secret of 64 digits.
     #[arg(long, visible_alias = "l2.jwt-secret-encoded", env = "KONA_NODE_L2_ENGINE_AUTH_ENCODED")]
     pub l2_engine_jwt_encoded: Option<JwtSecret>,
-    /// Timeout for http calls in milliseconds.
+    /// Deadline in milliseconds for each request to the L2 execution client: Engine API calls and
+    /// the node's L2 reads.
     #[arg(
         long,
         visible_alias = "l2.timeout",
         env = "KONA_NODE_L2_ENGINE_TIMEOUT",
-        default_value_t = DEFAULT_L2_ENGINE_TIMEOUT
+        default_value_t = DEFAULT_L2_ENGINE_TIMEOUT,
+        value_parser = clap::value_parser!(u64).range(1..)
     )]
     pub l2_engine_timeout: u64,
 }
@@ -225,6 +228,29 @@ mod tests {
         let arg =
             command.get_arguments().find(|arg| arg.get_id() == "l1_epoch_poll_interval").unwrap();
         assert_eq!(arg.get_env(), Some(std::ffi::OsStr::new("KONA_NODE_L1_EPOCH_POLL_INTERVAL")));
+    }
+
+    #[rstest]
+    #[case::default(&[], 10_000)]
+    #[case::flag(&["--l2-engine-timeout=2000"], 2000)]
+    #[case::alias(&["--l2.timeout", "2000"], 2000)]
+    fn test_parse_l2_engine_timeout(#[case] flags: &[&str], #[case] millis: u64) {
+        let command =
+            ClientArgs::command().mut_arg("l2_engine_timeout", |arg| arg.env(None::<&str>));
+        let matches = command.try_get_matches_from([CLIENT_ARGS, flags].concat()).unwrap();
+        let parsed = ClientArgs::from_arg_matches(&matches).unwrap();
+        assert_eq!(parsed.l2.l2_engine_timeout, millis);
+    }
+
+    /// A zero deadline would fail every request.
+    #[test]
+    fn test_reject_zero_l2_engine_timeout() {
+        let command =
+            ClientArgs::command().mut_arg("l2_engine_timeout", |arg| arg.env(None::<&str>));
+        let err = command
+            .try_get_matches_from(CLIENT_ARGS.iter().copied().chain(["--l2.timeout=0"]))
+            .unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
     }
 
     #[test]
