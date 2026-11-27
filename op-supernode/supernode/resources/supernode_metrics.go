@@ -1,6 +1,10 @@
 package resources
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+)
 
 // SupernodeMetrics holds supernode-level metrics that outlive individual
 // virtual node restarts. Created once in supernode.New() and shared with
@@ -26,6 +30,8 @@ type SupernodeMetrics struct {
 	// InteropActivityState tracks the interop activity lifecycle:
 	// 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.
 	InteropActivityState prometheus.Gauge
+	// L1SourceCache meters the caches of the L1 client shared by all virtual nodes.
+	L1SourceCache *opmetrics.CacheMetrics
 
 	registry *prometheus.Registry
 }
@@ -117,7 +123,8 @@ func NewSupernodeMetrics() *SupernodeMetrics {
 			Name:      "interop_activity_state",
 			Help:      "Interop activity lifecycle state: 0=not_started, 1=cold_start_waiting, 2=running, 3=halted.",
 		}),
-		registry: reg,
+		L1SourceCache: opmetrics.NewCacheMetrics(opmetrics.With(reg), "supernode", "l1_source_cache", "L1 Source cache"),
+		registry:      reg,
 	}
 	reg.MustRegister(
 		m.Info,
