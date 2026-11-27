@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	optypes "github.com/ethereum-optimism/optimism/op-core/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -99,6 +100,16 @@ func (e *EngineController) processNewPayload(ctx context.Context, envelope *eth.
 		// Depending on execution engine, not all block-validity checks run immediately on build-start
 		// at the time of the forkchoiceUpdated engine-API call, nor during getPayload.
 		if derivedFrom != (eth.L1BlockRef{}) && e.rollupCfg.IsHolocene(derivedFrom.Time) {
+			if isDepositsOnlyPayload(envelope.ExecutionPayload) {
+				// The deposits-only replacement of this block is the same block, which the EL
+				// rejects again: requesting it would loop forever. Same policy as onBuildInvalid.
+				e.log.Error("deposit only block was invalid", "block", ref, "status", status.Status)
+				e.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+					Err: fmt.Errorf("failed to process block with only deposit transactions: %w",
+						eth.NewPayloadErr(envelope.ExecutionPayload, status)),
+				})
+				return time.Time{}, time.Time{}, ErrPayloadInvalid
+			}
 			e.emitDepositsOnlyPayloadAttributesRequest(ctx, ref.ParentID(), derivedFrom)
 			return time.Time{}, time.Time{}, ErrPayloadInvalid
 		}
@@ -151,4 +162,14 @@ func (e *EngineController) ProcessPayload(ctx context.Context, envelope *eth.Exe
 	e.metrics.RecordSequencerInsertTime("forkchoice", time.Since(newPayloadDone))
 	e.metrics.RecordSequencerInsertTime("total", time.Since(insertStarted))
 	return nil
+}
+
+// isDepositsOnlyPayload reports whether every transaction in the payload is a deposit.
+func isDepositsOnlyPayload(payload *eth.ExecutionPayload) bool {
+	for _, tx := range payload.Transactions {
+		if len(tx) == 0 || tx[0] != optypes.DepositTxType {
+			return false
+		}
+	}
+	return true
 }
