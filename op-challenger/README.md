@@ -155,6 +155,29 @@ Performs a move to either attack or defend the latest claim in the specified gam
 * `CLAIM` - the state hash to include in the counter-claim you are posting.
 * `SIGNER_ARGS` arguments to specify the key to sign transactions with (e.g `--private-key`)
 
+### challenge-latest-zk-game
+
+```shell
+./bin/op-challenger challenge-latest-zk-game \
+  --l1-eth-rpc <L1_ETH_RPC> \
+  --game-factory-address <GAME_FACTORY_ADDRESS> \
+  --game-creators <GAME_CREATORS> \
+  [--dry-run] \
+  <SIGNER_ARGS>
+```
+
+Challenges the newest unchallenged ZK game created by one of `GAME_CREATORS`, skipping games whose challenge deadline
+is less than 10 minutes away. Run it on a schedule to check that op-zk-proposer defends its valid games: it must prove
+the challenged game before the prove deadline, or the game resolves Challenger Won.
+
+* `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `GAME_FACTORY_ADDRESS` - the address of the dispute game factory contract on L1.
+* `GAME_CREATORS` - comma-separated addresses whose games may be challenged.
+* `SIGNER_ARGS` arguments to specify the key to sign transactions with (e.g `--private-key`). Use a dedicated key, not
+  one of `GAME_CREATORS`, funded with the challenger bond plus gas.
+
+`--dry-run` logs the game that would be challenged without sending anything.
+
 ### resolve-claim
 
 ```shell

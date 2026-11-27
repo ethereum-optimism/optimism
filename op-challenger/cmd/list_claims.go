@@ -98,6 +98,7 @@ type zkGameReport struct {
 	RootClaim             string `json:"rootClaim"`
 	L2StartSequenceNumber uint64 `json:"l2StartSequenceNumber"`
 	L2EndSequenceNumber   uint64 `json:"l2EndSequenceNumber"`
+	GameCreator           string `json:"gameCreator"`
 	Challenger            string `json:"challenger"`
 	Prover                string `json:"prover"`
 	Deadline              string `json:"deadline"` // RFC3339
@@ -296,6 +297,10 @@ func buildZKGameReport(ctx context.Context, game contracts.ZKDisputeGameContract
 	if err != nil {
 		return zkGameReport{}, fmt.Errorf("failed to retrieve challenger metadata: %w", err)
 	}
+	bondMetadata, err := game.GetBondMetadata(ctx, rpcblock.Latest)
+	if err != nil {
+		return zkGameReport{}, fmt.Errorf("failed to retrieve bond metadata: %w", err)
+	}
 	status, err := game.GetStatus(ctx)
 	if err != nil {
 		return zkGameReport{}, fmt.Errorf("failed to retrieve status: %w", err)
@@ -311,6 +316,7 @@ func buildZKGameReport(ctx context.Context, game contracts.ZKDisputeGameContract
 		RootClaim:             metadata.ProposedRoot.Hex(),
 		L2StartSequenceNumber: startTimestamp,
 		L2EndSequenceNumber:   metadata.L2SequenceNumber,
+		GameCreator:           bondMetadata.GameCreator.Hex(),
 		Challenger:            metadata.Challenger.Hex(),
 		Prover:                metadata.Prover.Hex(),
 		Deadline:              metadata.Deadline.Format(time.RFC3339),
@@ -377,11 +383,11 @@ func renderZKText(out io.Writer, report zkGameReport) error {
 	if report.ParentIndex == math.MaxUint32 {
 		parent = "anchor"
 	}
-	_, err := fmt.Fprintf(out, "Status: %v • Proposal Status: %v • Deadline: %v\nParent Index: %v • Root Claim: %v\nL2 Sequence: %v to %v\nChallenger: %v • Prover: %v\n",
+	_, err := fmt.Fprintf(out, "Status: %v • Proposal Status: %v • Deadline: %v\nParent Index: %v • Root Claim: %v\nL2 Sequence: %v to %v\nCreator: %v • Challenger: %v • Prover: %v\n",
 		statusStr, report.ProposalStatus, report.Deadline,
 		parent, report.RootClaim,
 		report.L2StartSequenceNumber, report.L2EndSequenceNumber,
-		report.Challenger, report.Prover)
+		report.GameCreator, report.Challenger, report.Prover)
 	return err
 }
 

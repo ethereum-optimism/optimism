@@ -110,6 +110,7 @@ func TestRenderText(t *testing.T) {
 
 func TestBuildZKGameReport(t *testing.T) {
 	gameAddr := common.Address{0xaa}
+	creator := common.Address{0xb3}
 	challenger := common.Address{0xc1}
 	prover := common.Address{0xd2}
 	rootClaim := common.Hash{0xee}
@@ -125,6 +126,9 @@ func TestBuildZKGameReport(t *testing.T) {
 		stubRPC.SetResponse(gameAddr, "l2SequenceNumber", rpcblock.Latest, nil, []interface{}{big.NewInt(200)})
 		stubRPC.SetResponse(gameAddr, "status", rpcblock.Latest, nil, []interface{}{uint8(status)})
 		stubRPC.SetResponse(gameAddr, "resolvedAt", rpcblock.Latest, nil, []interface{}{uint64(resolvedAt.Unix())})
+		stubRPC.SetResponse(gameAddr, "gameCreator", rpcblock.Latest, nil, []interface{}{creator})
+		stubRPC.SetResponse(gameAddr, "totalBonds", rpcblock.Latest, nil, []interface{}{big.NewInt(100)})
+		stubRPC.SetResponse(gameAddr, "challengerBond", rpcblock.Latest, nil, []interface{}{big.NewInt(10)})
 		contract, err := contracts.NewZKDisputeGameContract(metrics.NoopContractMetrics, gameAddr, batching.NewMultiCaller(stubRPC, batching.DefaultBatchSize))
 		require.NoError(t, err)
 		return contract
@@ -140,6 +144,7 @@ func TestBuildZKGameReport(t *testing.T) {
 			RootClaim:             rootClaim.Hex(),
 			L2StartSequenceNumber: 100,
 			L2EndSequenceNumber:   200,
+			GameCreator:           creator.Hex(),
 			Challenger:            challenger.Hex(),
 			Prover:                prover.Hex(),
 			Deadline:              deadline.Format(time.RFC3339),
@@ -157,9 +162,20 @@ func TestBuildZKGameReport(t *testing.T) {
 			RootClaim:             rootClaim.Hex(),
 			L2StartSequenceNumber: 100,
 			L2EndSequenceNumber:   200,
+			GameCreator:           creator.Hex(),
 			Challenger:            challenger.Hex(),
 			Prover:                prover.Hex(),
 			Deadline:              deadline.Format(time.RFC3339),
 		}, report)
 	})
+}
+
+func TestRenderZKJSONIncludesGameCreator(t *testing.T) {
+	creator := common.Address{0xb3}
+	var buf bytes.Buffer
+	require.NoError(t, renderJSON(&buf, zkGameReport{GameCreator: creator.Hex()}))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &got))
+	require.Equal(t, creator.Hex(), got["gameCreator"])
 }
