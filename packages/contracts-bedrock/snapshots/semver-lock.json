@@ -159,6 +159,10 @@
     "initCodeHash": "0x1486cd02fb30dbcb63267b2e5b023b4d4acb9707d4d3fb7fb074242d74d07ff8",
     "sourceCodeHash": "0x241bc9b4a0dd72dbdd1434185153962860bdca767584c22f146ade9c66002126"
   },
+  "src/compliance/VisionPolicyV1.sol:VisionPolicyV1": {
+    "initCodeHash": "0xfb6858759637cbcddc671bc2b9b5fd1cd72623f2680502b8332417ec97c9a028",
+    "sourceCodeHash": "0x7d479a5328a63dca8c24fee61ff9a375b26ae5809cdd757244fb4486b5e1f766"
+  },
   "src/dispute/AnchorStateRegistry.sol:AnchorStateRegistry": {
     "initCodeHash": "0x18d8dfc7dde36b3778514aa0e7b93148d0a89a461621d6aede07e8cf2d540166",
     "sourceCodeHash": "0xa13e520e2f0f7f6fda7bea42d0ecf22445ca5fbec1670f192c74236e6ff88d3c"

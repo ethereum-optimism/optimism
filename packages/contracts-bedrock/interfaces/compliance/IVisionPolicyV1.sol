@@ -23,6 +23,7 @@ interface IVisionPolicyV1 is IPolicy {
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
+    function version() external view returns (string memory);
     function module() external view returns (IComplianceModule module_);
     function verdictWriter() external view returns (address);
     function maxVerdictValidity() external view returns (uint64);
