@@ -10,6 +10,11 @@ diataxis: explanation
 
 For messages using [`L2ToL2CrossDomainMessenger`](/app-developers/guides/interoperability/message-passing), a message that expires before being relayed can never be relayed. Its source chain can learn this and report it, so applications can undo the send.
 
+<Warning>
+  **Expiry is hard.** After the 7-day window, `relayMessage` cannot succeed for that initiating log — there is no extension and no deposit-path workaround.
+  Deposit transactions also cannot execute interop relays (they cannot carry the access list `CrossL2Inbox.validateMessage` requires). Plan autorelayers and refunds so messages are relayed as ordinary L2 transactions inside the window.
+</Warning>
+
 ## The expiry window
 
 The expiry window is an offchain constant that defines how long a cross-chain message or event emitted remains valid. For any chain in the [Superchain interop cluster](/interop/explainer#superchain-interop-cluster), messages must be referenced within 7 days (604,800 seconds) of the log being created.
