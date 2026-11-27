@@ -2,6 +2,7 @@ package eth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -15,6 +16,12 @@ type L1Client interface {
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
 }
 
+// checkRecentTxsAttempts bounds how often CheckRecentTxs restarts its search after observing a
+// reorg.
+const checkRecentTxsAttempts = 3
+
+var errNonceReorg = errors.New("nonce inconsistent with the head nonce, likely due to a reorg")
+
 // CheckRecentTxs checks the depth recent blocks for txs from the account with address addr
 // and returns either:
 //   - blockNum containing the last tx and true if any was found
@@ -25,42 +32,62 @@ func CheckRecentTxs(
 	depth int,
 	addr common.Address,
 ) (blockNum uint64, found bool, err error) {
+	for range checkRecentTxsAttempts {
+		blockNum, found, err = checkRecentTxs(ctx, l1, depth, addr)
+		if !errors.Is(err, errNonceReorg) {
+			return blockNum, found, err
+		}
+	}
+	return 0, false, err
+}
+
+func checkRecentTxs(
+	ctx context.Context,
+	l1 L1Client,
+	depth int,
+	addr common.Address,
+) (blockNum uint64, found bool, err error) {
 	blockHeader, err := l1.HeaderByNumber(ctx, nil)
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to retrieve current block header: %w", err)
 	}
+	if err := CheckHeader(blockHeader); err != nil {
+		return 0, false, fmt.Errorf("invalid current block header: %w", err)
+	}
 
-	currentBlock := blockHeader.Number
-	currentNonce, err := l1.NonceAt(ctx, addr, currentBlock)
+	currentBlock := bigs.Uint64Strict(blockHeader.Number)
+	currentNonce, err := l1.NonceAt(ctx, addr, new(big.Int).SetUint64(currentBlock))
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to retrieve current nonce: %w", err)
 	}
 
-	oldestBlock := new(big.Int).Sub(currentBlock, big.NewInt(int64(depth)))
-	previousNonce, err := l1.NonceAt(ctx, addr, oldestBlock)
+	var oldestBlock uint64
+	if d := uint64(depth); currentBlock > d {
+		oldestBlock = currentBlock - d
+	}
+	previousNonce, err := l1.NonceAt(ctx, addr, new(big.Int).SetUint64(oldestBlock))
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to retrieve previous nonce: %w", err)
 	}
 
 	if currentNonce == previousNonce {
 		// Most recent tx is older than the given depth
-		return bigs.Uint64Strict(oldestBlock), false, nil
+		return oldestBlock, false, nil
 	}
 
 	// Use binary search to find the block where the nonce changed
-	low := bigs.Uint64Strict(oldestBlock)
-	high := bigs.Uint64Strict(currentBlock)
+	low := oldestBlock
+	high := currentBlock
 
 	for low < high {
-		mid := (low + high) / 2
+		mid := low + (high-low)/2
 		midNonce, err := l1.NonceAt(ctx, addr, new(big.Int).SetUint64(mid))
 		if err != nil {
 			return 0, false, fmt.Errorf("failed to retrieve nonce at block %d: %w", mid, err)
 		}
 
 		if midNonce > currentNonce {
-			// Catch a reorg that causes inconsistent nonce
-			return CheckRecentTxs(ctx, l1, depth, addr)
+			return 0, false, fmt.Errorf("nonce %d at block %d above head nonce %d: %w", midNonce, mid, currentNonce, errNonceReorg)
 		} else if midNonce == currentNonce {
 			high = mid
 		} else {
@@ -78,5 +105,5 @@ func CheckRecentTxs(
 			low = mid + 1
 		}
 	}
-	return bigs.Uint64Strict(oldestBlock), false, nil
+	return oldestBlock, false, nil
 }

@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
@@ -151,7 +151,7 @@ func (o *BlobTipOracle) pollLoop() {
 			header, err := func() (*types.Header, error) {
 				ctx, cancel := context.WithTimeout(o.ctx, o.config.NetworkTimeout)
 				defer cancel()
-				return o.backend.HeaderByNumber(ctx, big.NewInt(int64(nextBlock)))
+				return o.backend.HeaderByNumber(ctx, new(big.Int).SetUint64(nextBlock))
 			}()
 			if errors.Is(err, ethereum.NotFound) {
 				continue // Block not yet available
@@ -160,7 +160,7 @@ func (o *BlobTipOracle) pollLoop() {
 				o.log.Warn("Failed to get header", "err", err, "block", nextBlock)
 				continue
 			}
-			if err := o.processHeader(header); err != nil {
+			if err := o.processHeader(nextBlock, header); err != nil {
 				o.log.Error("Error processing header", "err", err, "block", nextBlock)
 			}
 		}
@@ -190,16 +190,16 @@ func (o *BlobTipOracle) prePopulateCache() error {
 	o.log.Debug("Pre-populating cache", "from", startBlock, "to", latest, "blocks", latest-startBlock+1)
 
 	// Fetch and process each block
-	for blockNum := startBlock; blockNum <= latest; blockNum++ {
-		// Fetch header
-		header, err := o.backend.HeaderByNumber(ctx, big.NewInt(int64(blockNum)))
+	for i := range latest - startBlock + 1 {
+		blockNum := startBlock + i
+		header, err := o.backend.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNum))
 		if err != nil {
 			o.log.Debug("Failed to fetch header for pre-population", "block", blockNum, "err", err)
 			continue
 		}
 
 		// Process header (this will also trigger blob fee cap fetching)
-		if err := o.processHeader(header); err != nil {
+		if err := o.processHeader(blockNum, header); err != nil {
 			o.log.Debug("Failed to process header for pre-population", "block", blockNum, "err", err)
 			continue
 		}
@@ -209,25 +209,29 @@ func (o *BlobTipOracle) prePopulateCache() error {
 	return nil
 }
 
-// processHeader calculates and stores the blob base fee for the given header.
+// processHeader calculates and stores the blob base fee for the given header of block blockNum.
 // It also triggers an asynchronous fetch of the full block to extract blob fee caps.
-func (o *BlobTipOracle) processHeader(header *types.Header) error {
+func (o *BlobTipOracle) processHeader(blockNum uint64, header *types.Header) error {
+	if err := eth.CheckHeader(header); err != nil {
+		return err
+	}
+	if n := bigs.Uint64Strict(header.Number); n != blockNum {
+		return fmt.Errorf("requested header %d, got %d", blockNum, n)
+	}
 	defer func(start time.Time) {
-		o.log.Debug("Processed header", "block", bigs.Uint64Strict(header.Number), "time", time.Since(start))
+		o.log.Debug("Processed header", "block", blockNum, "time", time.Since(start))
 	}(time.Now())
 
 	o.Lock()
 	defer o.Unlock()
 
-	blockNum := bigs.Uint64Strict(header.Number)
-
 	// Calculate blob base fee from the header
 	if _, ok := o.baseFees.Get(blockNum); ok {
 		o.log.Debug("Skipping blob base fee calculation, already processed", "block", blockNum, "latestBlock", o.latestBlock)
 	} else {
-		var blobBaseFee *big.Int
-		if header.ExcessBlobGas != nil {
-			blobBaseFee = eip4844.CalcBlobFee(o.chainConfig, header)
+		blobBaseFee, err := eth.HeaderBlobBaseFee(o.chainConfig, header)
+		if err != nil {
+			return err
 		}
 
 		if blobBaseFee != nil {
@@ -261,7 +265,7 @@ func (o *BlobTipOracle) fetchBlockBlobFeeCaps(blockNum uint64, baseFee *big.Int)
 	defer cancel()
 
 	// Fetch the block
-	block, err := o.backend.BlockByNumber(ctx, big.NewInt(int64(blockNum)))
+	block, err := o.backend.BlockByNumber(ctx, new(big.Int).SetUint64(blockNum))
 	if err != nil {
 		o.log.Warn("Failed to fetch block for blob fee caps", "block", blockNum, "err", err)
 		return
@@ -332,9 +336,9 @@ func (o *BlobTipOracle) SuggestBlobTipCap(ctx context.Context, maxBlocks int, pe
 		startBlock = latestBlockNum - uint64(maxBlocks) + 1
 	}
 
-	for blockNum := startBlock; blockNum <= latestBlockNum; blockNum++ {
+	for i := range latestBlockNum - startBlock + 1 {
 		// Only read from cache - no RPC calls
-		if t, ok := o.priorityFees.Get(blockNum); ok {
+		if t, ok := o.priorityFees.Get(startBlock + i); ok {
 			tips = append(tips, t...)
 		}
 	}

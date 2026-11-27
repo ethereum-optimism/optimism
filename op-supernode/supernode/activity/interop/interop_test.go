@@ -1804,24 +1804,24 @@ type mockBlockInfo struct {
 	timestamp  uint64
 }
 
-func (m *mockBlockInfo) Hash() common.Hash                                    { return m.hash }
-func (m *mockBlockInfo) ParentHash() common.Hash                              { return m.parentHash }
-func (m *mockBlockInfo) Coinbase() common.Address                             { return common.Address{} }
-func (m *mockBlockInfo) Root() common.Hash                                    { return common.Hash{} }
-func (m *mockBlockInfo) NumberU64() uint64                                    { return m.number }
-func (m *mockBlockInfo) Time() uint64                                         { return m.timestamp }
-func (m *mockBlockInfo) MixDigest() common.Hash                               { return common.Hash{} }
-func (m *mockBlockInfo) BaseFee() *big.Int                                    { return big.NewInt(1) }
-func (m *mockBlockInfo) BlobBaseFee(chainConfig *params.ChainConfig) *big.Int { return big.NewInt(1) }
-func (m *mockBlockInfo) ExcessBlobGas() *uint64                               { return nil }
-func (m *mockBlockInfo) ReceiptHash() common.Hash                             { return common.Hash{} }
-func (m *mockBlockInfo) GasUsed() uint64                                      { return 0 }
-func (m *mockBlockInfo) GasLimit() uint64                                     { return 30000000 }
-func (m *mockBlockInfo) BlobGasUsed() *uint64                                 { return nil }
-func (m *mockBlockInfo) ParentBeaconRoot() *common.Hash                       { return nil }
-func (m *mockBlockInfo) WithdrawalsRoot() *common.Hash                        { return nil }
-func (m *mockBlockInfo) Extra() []byte                                        { return nil }
-func (m *mockBlockInfo) ID() eth.BlockID                                      { return eth.BlockID{Hash: m.hash, Number: m.number} }
+func (m *mockBlockInfo) Hash() common.Hash                                 { return m.hash }
+func (m *mockBlockInfo) ParentHash() common.Hash                           { return m.parentHash }
+func (m *mockBlockInfo) Coinbase() common.Address                          { return common.Address{} }
+func (m *mockBlockInfo) Root() common.Hash                                 { return common.Hash{} }
+func (m *mockBlockInfo) NumberU64() uint64                                 { return m.number }
+func (m *mockBlockInfo) Time() uint64                                      { return m.timestamp }
+func (m *mockBlockInfo) MixDigest() common.Hash                            { return common.Hash{} }
+func (m *mockBlockInfo) BaseFee() *big.Int                                 { return big.NewInt(1) }
+func (m *mockBlockInfo) BlobBaseFee(*params.ChainConfig) (*big.Int, error) { return big.NewInt(1), nil }
+func (m *mockBlockInfo) ExcessBlobGas() *uint64                            { return nil }
+func (m *mockBlockInfo) ReceiptHash() common.Hash                          { return common.Hash{} }
+func (m *mockBlockInfo) GasUsed() uint64                                   { return 0 }
+func (m *mockBlockInfo) GasLimit() uint64                                  { return 30000000 }
+func (m *mockBlockInfo) BlobGasUsed() *uint64                              { return nil }
+func (m *mockBlockInfo) ParentBeaconRoot() *common.Hash                    { return nil }
+func (m *mockBlockInfo) WithdrawalsRoot() *common.Hash                     { return nil }
+func (m *mockBlockInfo) Extra() []byte                                     { return nil }
+func (m *mockBlockInfo) ID() eth.BlockID                                   { return eth.BlockID{Hash: m.hash, Number: m.number} }
 
 var _ eth.BlockInfo = (*mockBlockInfo)(nil)
 

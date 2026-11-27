@@ -2,9 +2,9 @@ package eth
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -44,12 +44,10 @@ func WatchHeadChanges(ctx context.Context, src NewHeadSource, fn HeadSignalFn) (
 		for {
 			select {
 			case header := <-headChanges:
-				fn(eventsCtx, L1BlockRef{
-					Hash:       header.Hash(),
-					Number:     bigs.Uint64Strict(header.Number),
-					ParentHash: header.ParentHash,
-					Time:       header.Time,
-				})
+				if err := CheckHeader(header); err != nil {
+					return fmt.Errorf("invalid new head: %w", err)
+				}
+				fn(eventsCtx, *BlockRefFromHeader(header))
 			case <-eventsCtx.Done():
 				return nil
 			case err := <-sub.Err(): // if the underlying subscription fails, stop

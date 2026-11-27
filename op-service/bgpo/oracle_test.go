@@ -2,6 +2,7 @@ package bgpo
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -147,7 +149,7 @@ func TestProcessHeader(t *testing.T) {
 		emptyBlock := createBlock(100, header.BaseFee, []*types.Transaction{})
 		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(100)).Return(emptyBlock, nil).Once()
 
-		err := oracle.processHeader(header)
+		err := oracle.processHeader(bigs.Uint64Strict(header.Number), header)
 		require.NoError(t, err)
 
 		// Check latest block
@@ -163,7 +165,7 @@ func TestProcessHeader(t *testing.T) {
 		emptyBlock := createBlock(101, header.BaseFee, []*types.Transaction{})
 		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(101)).Return(emptyBlock, nil).Once()
 
-		err := oracle.processHeader(header)
+		err := oracle.processHeader(bigs.Uint64Strict(header.Number), header)
 		require.NoError(t, err)
 
 		// Latest block should be updated
@@ -201,10 +203,10 @@ func TestGetLatestBlobBaseFee(t *testing.T) {
 		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(300)).Return(emptyBlock1, nil).Once()
 		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(301)).Return(emptyBlock2, nil).Once()
 
-		err := oracle.processHeader(header1)
+		err := oracle.processHeader(bigs.Uint64Strict(header1.Number), header1)
 		require.NoError(t, err)
 
-		err = oracle.processHeader(header2)
+		err = oracle.processHeader(bigs.Uint64Strict(header2.Number), header2)
 		require.NoError(t, err)
 
 		block, fee := oracle.GetLatestBlobBaseFee()
@@ -250,7 +252,7 @@ func TestSuggestBlobTipCap(t *testing.T) {
 			block := createBlock(i, header.BaseFee, []*types.Transaction{blobTx})
 			mbackend.On("BlockByNumber", mock.Anything, big.NewInt(int64(i))).Return(block, nil).Once()
 
-			err := oracle.processHeader(header)
+			err := oracle.processHeader(bigs.Uint64Strict(header.Number), header)
 			require.NoError(t, err)
 		}
 
@@ -284,7 +286,7 @@ func TestSuggestBlobTipCap(t *testing.T) {
 		emptyBlock := createBlock(500, header.BaseFee, []*types.Transaction{})
 		mbackend.On("BlockByNumber", mock.Anything, big.NewInt(500)).Return(emptyBlock, nil).Once()
 
-		err := oracle2.processHeader(header)
+		err := oracle2.processHeader(bigs.Uint64Strict(header.Number), header)
 		require.NoError(t, err)
 
 		suggested, err := oracle2.SuggestBlobTipCap(ctx, 0, 0)
@@ -508,5 +510,66 @@ func TestOracleLifecycle(t *testing.T) {
 
 		// Should not panic
 		oracle2.Close()
+	})
+}
+
+func TestPrePopulateCacheRejectsInvalidHeaders(t *testing.T) {
+	excessBlobGas := uint64(1000000)
+	preCancun := createHeader(100, &excessBlobGas)
+	preCancun.Time = *params.MainnetChainConfig.CancunTime - 1
+	numberAboveU64 := createHeader(100, nil)
+	numberAboveU64.Number = new(big.Int).Lsh(big.NewInt(1), 64)
+
+	for name, header := range map[string]*types.Header{
+		"nil number":                       {Time: uint64(time.Now().Unix())},
+		"number above u64":                 numberAboveU64,
+		"other number than requested":      createHeader(99, nil),
+		"excess blob gas before blob fork": preCancun,
+	} {
+		t.Run(name, func(t *testing.T) {
+			mbackend := new(mockBTOBackend)
+			oracle := NewBlobTipOracle(mbackend, params.MainnetChainConfig, testlog.Logger(t, log.LevelError), &BlobTipOracleConfig{MaxBlocks: 1})
+			mbackend.On("BlockNumber", mock.Anything).Return(uint64(100), nil).Once()
+			mbackend.On("HeaderByNumber", mock.Anything, big.NewInt(100)).Return(header, nil).Once()
+
+			require.NotPanics(t, func() { require.NoError(t, oracle.prePopulateCache()) })
+			latest, fee := oracle.GetLatestBlobBaseFee()
+			require.Zero(t, latest)
+			require.Nil(t, fee)
+			mbackend.AssertExpectations(t)
+		})
+	}
+}
+
+func TestBlockRangeLoopsTerminateAtMaxUint64(t *testing.T) {
+	requireReturns := func(t *testing.T, f func()) {
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			f()
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("did not return")
+		}
+	}
+	newOracle := func(t *testing.T, mbackend *mockBTOBackend) *BlobTipOracle {
+		return NewBlobTipOracle(mbackend, params.MainnetChainConfig, testlog.Logger(t, log.LevelCrit), &BlobTipOracleConfig{MaxBlocks: 3, DefaultPriorityFee: big.NewInt(1)})
+	}
+
+	t.Run("prePopulateCache", func(t *testing.T) {
+		mbackend := new(mockBTOBackend)
+		mbackend.On("BlockNumber", mock.Anything).Return(uint64(math.MaxUint64), nil).Once()
+		mbackend.On("HeaderByNumber", mock.Anything, mock.Anything).Return(nil, ethereum.NotFound)
+		oracle := newOracle(t, mbackend)
+		requireReturns(t, func() { _ = oracle.prePopulateCache() })
+		mbackend.AssertNumberOfCalls(t, "HeaderByNumber", 3)
+	})
+
+	t.Run("SuggestBlobTipCap", func(t *testing.T) {
+		oracle := newOracle(t, new(mockBTOBackend))
+		oracle.latestBlock = math.MaxUint64
+		requireReturns(t, func() { _, _ = oracle.SuggestBlobTipCap(context.Background(), 0, 0) })
 	})
 }
