@@ -173,7 +173,7 @@ struct PendingSequence<T: SignedTransaction> {
     sequence: FlashBlockPendingSequence,
     recovered_transactions_by_index: BTreeMap<u64, RecoveredFlashblock<T>>,
     revision: u64,
-    applied_revision: Option<u64>,
+    attempted_revision: Option<u64>,
 }
 
 impl<T: SignedTransaction> PendingSequence<T> {
@@ -182,7 +182,7 @@ impl<T: SignedTransaction> PendingSequence<T> {
             sequence: FlashBlockPendingSequence::new(),
             recovered_transactions_by_index: BTreeMap::new(),
             revision: 0,
-            applied_revision: None,
+            attempted_revision: None,
         }
     }
 
@@ -201,19 +201,19 @@ impl<T: SignedTransaction> PendingSequence<T> {
     fn clear(&mut self) {
         self.sequence = FlashBlockPendingSequence::new();
         self.recovered_transactions_by_index.clear();
-        self.applied_revision = None;
+        self.attempted_revision = None;
     }
 
     const fn bump_revision(&mut self) {
         self.revision = self.revision.wrapping_add(1);
     }
 
-    fn is_revision_applied(&self, revision: u64) -> bool {
-        self.applied_revision == Some(revision)
+    fn is_revision_attempted(&self, revision: u64) -> bool {
+        self.attempted_revision == Some(revision)
     }
 
-    const fn mark_revision_applied(&mut self, revision: u64) {
-        self.applied_revision = Some(revision);
+    const fn mark_revision_attempted(&mut self, revision: u64) {
+        self.attempted_revision = Some(revision);
     }
 
     fn insert_flashblock(&mut self, flashblock: FlashBlock) -> eyre::Result<()> {
@@ -279,8 +279,8 @@ pub(crate) struct SequenceManager<T: SignedTransaction> {
     /// Ring buffer of recently completed sequences bundled with their decoded transactions (FIFO,
     /// size 3)
     completed_cache: AllocRingBuffer<(FlashBlockCompleteSequence, Vec<WithEncoded<Recovered<T>>>)>,
-    /// Cached sequence identities that already had a build completion applied.
-    applied_cached_sequences: HashSet<SequenceId>,
+    /// Cached sequence identities whose build already completed or failed.
+    attempted_cached_sequences: HashSet<SequenceId>,
     /// Cached minimum block number currently present in `completed_cache`.
     cached_min_block_number: Option<u64>,
     /// Broadcast channel for completed sequences
@@ -296,7 +296,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
         Self {
             pending: PendingSequence::new(),
             completed_cache: AllocRingBuffer::new(CACHE_SIZE),
-            applied_cached_sequences: HashSet::new(),
+            attempted_cached_sequences: HashSet::new(),
             cached_min_block_number: None,
             block_broadcaster,
             compute_state_root,
@@ -326,32 +326,45 @@ impl<T: SignedTransaction> SequenceManager<T> {
     pub(crate) fn insert_flashblock(&mut self, flashblock: FlashBlock) -> eyre::Result<()> {
         // If this starts a new block, finalize and cache the previous sequence BEFORE inserting
         if flashblock.index == 0 && self.pending.count() > 0 {
-            let (completed, txs) = self.pending.finalize()?;
-            let block_number = completed.block_number();
-            let parent_hash = completed.payload_base().parent_hash;
-
-            trace!(
-                target: "flashblocks",
-                block_number,
-                %parent_hash,
-                cache_size = self.completed_cache.len(),
-                "Caching completed flashblock sequence"
-            );
-
-            // Broadcast immediately to consensus client (even without state_root)
-            // This ensures sequences are forwarded during catch-up even if not buildable on tip.
-            // ConsensusClient checks execution_outcome and skips newPayload if state_root is zero.
-            if self.block_broadcaster.receiver_count() > 0 {
-                let _ = self.block_broadcaster.send(completed.clone());
-            }
-
-            // Bundle completed sequence with its decoded transactions and push to cache
-            // Ring buffer automatically evicts oldest entry when full
-            self.push_completed_sequence(completed, txs);
+            self.cache_pending_sequence();
         }
 
         self.pending.insert_flashblock(flashblock)?;
         Ok(())
+    }
+
+    /// Finalizes the pending sequence, then caches and broadcasts it.
+    ///
+    /// A sequence that cannot be completed, for example because an index is missing, is discarded.
+    fn cache_pending_sequence(&mut self) {
+        let (completed, txs) = match self.pending.finalize() {
+            Ok(finalized) => finalized,
+            Err(err) => {
+                debug!(target: "flashblocks", %err, "Discarding incomplete flashblock sequence");
+                return;
+            }
+        };
+        let block_number = completed.block_number();
+        let parent_hash = completed.payload_base().parent_hash;
+
+        trace!(
+            target: "flashblocks",
+            block_number,
+            %parent_hash,
+            cache_size = self.completed_cache.len(),
+            "Caching completed flashblock sequence"
+        );
+
+        // Broadcast immediately to consensus client (even without state_root)
+        // This ensures sequences are forwarded during catch-up even if not buildable on tip.
+        // ConsensusClient checks execution_outcome and skips newPayload if state_root is zero.
+        if self.block_broadcaster.receiver_count() > 0 {
+            let _ = self.block_broadcaster.send(completed.clone());
+        }
+
+        // Bundle completed sequence with its decoded transactions and push to cache
+        // Ring buffer automatically evicts oldest entry when full
+        self.push_completed_sequence(completed, txs);
     }
 
     /// Pushes a completed sequence into the cache and maintains cached min block-number metadata.
@@ -374,10 +387,10 @@ impl<T: SignedTransaction> SequenceManager<T> {
         };
 
         if let Some(sequence_id) = evicted_sequence_id {
-            self.applied_cached_sequences.remove(&sequence_id);
+            self.attempted_cached_sequences.remove(&sequence_id);
         }
-        // Re-tracking a sequence identity should always start as unapplied.
-        self.applied_cached_sequences.remove(&completed_sequence_id);
+        // Re-tracking a sequence identity should always start as unattempted.
+        self.attempted_cached_sequences.remove(&completed_sequence_id);
 
         self.completed_cache.enqueue((completed, txs));
 
@@ -398,7 +411,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
 
     /// Returns the newest cached sequence that matches `parent_hash` and still needs execution.
     ///
-    /// Cached sequences that already had build completion applied are skipped to avoid redundant
+    /// Cached sequences whose build already completed or failed are skipped to avoid redundant
     /// rebuild loops.
     fn newest_unexecuted_cached_for_parent(
         &self,
@@ -407,7 +420,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
         self.completed_cache.iter().rev().find(|(seq, _)| {
             let sequence_id = SequenceId::from_complete(seq);
             seq.payload_base().parent_hash == parent_hash &&
-                !self.applied_cached_sequences.contains(&sequence_id)
+                !self.attempted_cached_sequences.contains(&sequence_id)
         })
     }
 
@@ -448,13 +461,13 @@ impl<T: SignedTransaction> SequenceManager<T> {
             // Priority 1: Try current pending sequence (canonical mode)
             if let Some(base) = self.pending.sequence.payload_base().filter(|b| b.parent_hash == local_tip_hash) {
                 let revision = self.pending.revision();
-                if self.pending.is_revision_applied(revision) {
+                if self.pending.is_revision_attempted(revision) {
                     trace!(
                         target: "flashblocks",
                         block_number = base.block_number,
                         revision,
                         parent_hash = ?base.parent_hash,
-                        "Skipping rebuild for already-applied pending revision"
+                        "Skipping rebuild for already-attempted pending revision"
                     );
                     return None;
                 }
@@ -480,13 +493,13 @@ impl<T: SignedTransaction> SequenceManager<T> {
                 // Check if pending sequence's parent matches the pending state's block
                 if let Some(base) = self.pending.sequence.payload_base().filter(|b| b.parent_hash == pending_state.block_hash) {
                     let revision = self.pending.revision();
-                    if self.pending.is_revision_applied(revision) {
+                    if self.pending.is_revision_attempted(revision) {
                         trace!(
                             target: "flashblocks",
                             block_number = base.block_number,
                             revision,
                             speculative_parent = ?pending_state.block_hash,
-                            "Skipping speculative rebuild for already-applied pending revision"
+                            "Skipping speculative rebuild for already-attempted pending revision"
                         );
                         return None;
                     }
@@ -666,6 +679,30 @@ impl<T: SignedTransaction> SequenceManager<T> {
         outcome
     }
 
+    /// Records that the build of `ticket` failed, so the same snapshot is not selected again.
+    ///
+    /// A pending sequence becomes buildable again once a new flashblock advances its revision.
+    pub(crate) fn on_build_failed(&mut self, ticket: BuildTicket) {
+        match ticket.snapshot {
+            SequenceSnapshot::Pending { revision } => {
+                if SequenceId::from_pending(self.pending.sequence()) == Some(ticket.sequence_id) &&
+                    self.pending.revision() == revision
+                {
+                    self.pending.mark_revision_attempted(revision);
+                }
+            }
+            SequenceSnapshot::Cached => {
+                if self
+                    .completed_cache
+                    .iter()
+                    .any(|(seq, _)| SequenceId::from_complete(seq) == ticket.sequence_id)
+                {
+                    self.attempted_cached_sequences.insert(ticket.sequence_id);
+                }
+            }
+        }
+    }
+
     /// Applies build output to the exact sequence targeted by the build job.
     ///
     /// Returns the apply outcome with explicit rejection reasons for observability.
@@ -697,7 +734,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
                 {
                     self.pending.sequence.set_execution_outcome(execution_outcome);
                     self.pending.sequence.set_cached_reads(cached_reads);
-                    self.pending.mark_revision_applied(current_revision);
+                    self.pending.mark_revision_attempted(current_revision);
                     trace!(
                         target: "flashblocks",
                         block_number = self.pending.sequence.block_number(),
@@ -723,7 +760,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
                         let rebroadcast_sequence = needs_rebroadcast.then_some(cached.clone());
                         (needs_rebroadcast, rebroadcast_sequence)
                     };
-                    self.applied_cached_sequences.insert(ticket.sequence_id);
+                    self.attempted_cached_sequences.insert(ticket.sequence_id);
 
                     if let Some(sequence) = rebroadcast_sequence &&
                         self.block_broadcaster.receiver_count() > 0
@@ -889,7 +926,7 @@ impl<T: SignedTransaction> SequenceManager<T> {
     fn clear_all(&mut self) {
         self.pending.clear();
         self.completed_cache.clear();
-        self.applied_cached_sequences.clear();
+        self.attempted_cached_sequences.clear();
         self.cached_min_block_number = None;
     }
 
@@ -1204,6 +1241,72 @@ mod tests {
             repeated.is_none(),
             "cached sequence with provided state root must not be reselected after apply"
         );
+    }
+
+    #[test]
+    fn test_failed_pending_build_not_retried_until_sequence_advances() {
+        let mut manager: SequenceManager<OpTxEnvelope> = SequenceManager::new(true);
+        let factory = TestFlashBlockFactory::new();
+
+        let fb0 = factory.flashblock_at(0).build();
+        let parent_hash = fb0.base.as_ref().unwrap().parent_hash;
+        manager.insert_flashblock(fb0.clone()).unwrap();
+
+        let candidate = manager
+            .next_buildable_args::<OpPrimitives>(parent_hash, 1_000_000, None)
+            .expect("pending sequence should be buildable");
+        manager.on_build_failed(candidate.ticket);
+
+        assert!(
+            manager.next_buildable_args::<OpPrimitives>(parent_hash, 1_000_000, None).is_none(),
+            "failed pending revision must not be rebuilt"
+        );
+
+        manager.insert_flashblock(factory.flashblock_after(&fb0).build()).unwrap();
+        assert!(
+            manager.next_buildable_args::<OpPrimitives>(parent_hash, 1_000_000, None).is_some(),
+            "next pending revision should be buildable"
+        );
+    }
+
+    #[test]
+    fn test_failed_cached_build_not_retried() {
+        let mut manager: SequenceManager<OpTxEnvelope> = SequenceManager::new(true);
+        let factory = TestFlashBlockFactory::new();
+
+        let fb100 = factory.flashblock_at(0).build();
+        let local_tip_hash = fb100.base.as_ref().unwrap().parent_hash;
+        manager.insert_flashblock(fb100.clone()).unwrap();
+        manager.insert_flashblock(factory.flashblock_for_next_block(&fb100).build()).unwrap();
+
+        let candidate = manager
+            .next_buildable_args::<OpPrimitives>(local_tip_hash, 1_000_000, None)
+            .expect("cached sequence should be buildable");
+        assert!(matches!(candidate.ticket.snapshot, SequenceSnapshot::Cached));
+        manager.on_build_failed(candidate.ticket);
+
+        assert!(
+            manager.next_buildable_args::<OpPrimitives>(local_tip_hash, 1_000_000, None).is_none(),
+            "failed cached sequence must not be rebuilt"
+        );
+    }
+
+    #[test]
+    fn test_incomplete_sequence_does_not_drop_next_block() {
+        let mut manager: SequenceManager<OpTxEnvelope> = SequenceManager::new(true);
+        let factory = TestFlashBlockFactory::new();
+
+        let fb0 = factory.flashblock_at(0).build();
+        manager.insert_flashblock(fb0.clone()).unwrap();
+        // Index 1 never arrives, so this sequence cannot be completed.
+        manager.insert_flashblock(factory.flashblock_after(&fb0).index(2).build()).unwrap();
+
+        let next = factory.flashblock_for_next_block(&fb0).build();
+        manager.insert_flashblock(next.clone()).unwrap();
+
+        assert_eq!(manager.pending().block_number(), Some(next.block_number()));
+        assert_eq!(manager.pending().count(), 1);
+        assert!(manager.completed_cache.is_empty());
     }
 
     #[test]

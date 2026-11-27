@@ -17,12 +17,13 @@ use reth_primitives_traits::{AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives
 use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
 use reth_tasks::TaskExecutor;
 use std::{
+    pin::Pin,
     sync::Arc,
     time::{Duration, Instant},
 };
 use tokio::{
     sync::{mpsc, oneshot, watch},
-    time::sleep,
+    time::{Sleep, sleep},
 };
 use tracing::*;
 
@@ -195,6 +196,9 @@ where
     ///
     /// Note: this should be spawned
     pub async fn run(mut self, tx: watch::Sender<Option<PendingFlashBlock<N>>>) {
+        // Armed after a stream error. The stream is not read until it fires, while build results
+        // and canonical block notifications are still handled.
+        let mut stream_backoff: Option<Pin<Box<Sleep>>> = None;
         loop {
             tokio::select! {
                 // Event 1: job exists, listen to job results
@@ -216,6 +220,7 @@ where
                         );
                         // Re-initialize transaction cache since we lost the one sent to the task
                         self.tx_cache = TransactionCache::new();
+                        self.sequences.on_build_failed(job.ticket);
                         self.schedule_followup_build();
                         continue;
                     };
@@ -291,6 +296,7 @@ where
                         }
                         Err(err) => {
                             warn!(target: "flashblocks", %err, "Build job failed");
+                            self.sequences.on_build_failed(job.ticket);
                         }
                     }
 
@@ -300,7 +306,7 @@ where
                 }
 
                 // Event 2: New flashblock arrives (batch process all ready flashblocks)
-                result = self.incoming_flashblock_rx.next() => {
+                result = self.incoming_flashblock_rx.next(), if stream_backoff.is_none() => {
                     match result {
                         Some(Ok(flashblock)) => {
                             // Process first flashblock
@@ -329,7 +335,7 @@ where
                             // Schedules the flashblocks already received before backing off.
                             self.try_start_build_job();
                             if stream_error {
-                                sleep(CONNECTION_BACKOUT_PERIOD).await;
+                                stream_backoff = Some(Box::pin(sleep(CONNECTION_BACKOUT_PERIOD)));
                             }
                         }
                         Some(Err(err)) => {
@@ -340,7 +346,7 @@ where
                                 retry_period = CONNECTION_BACKOUT_PERIOD.as_secs(),
                                 "Error receiving flashblock"
                             );
-                            sleep(CONNECTION_BACKOUT_PERIOD).await;
+                            stream_backoff = Some(Box::pin(sleep(CONNECTION_BACKOUT_PERIOD)));
                         }
                         None => {
                             warn!(target: "flashblocks", "Flashblock stream ended");
@@ -359,6 +365,13 @@ where
                     self.process_canonical_block(notification);
                     // Try to build after reconciliation in case we can now build
                     self.try_start_build_job();
+                }
+
+                // Event 4: Stream backoff elapsed
+                () = async { stream_backoff.as_mut().expect("guarded by precondition").await },
+                    if stream_backoff.is_some() =>
+                {
+                    stream_backoff = None;
                 }
             }
         }
