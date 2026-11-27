@@ -1959,6 +1959,17 @@ func TestTxMgr_BlobTipCapDynamic(t *testing.T) {
 	})
 }
 
+// TestSuggestGasPriceCapsDynamicBlobTipWithoutOracle checks that a Config with
+// BlobTipCapDynamic set but no blob tip oracle returns an error instead of panicking.
+func TestSuggestGasPriceCapsDynamicBlobTipWithoutOracle(t *testing.T) {
+	conf := configWithNumConfs(1)
+	conf.BlobTipCapDynamic.Store(true)
+	h := newTestHarnessWithConfig(t, conf)
+
+	_, _, _, _, err := h.mgr.SuggestGasPriceCaps(context.Background())
+	require.ErrorIs(t, err, ErrNoBlobTipOracle)
+}
+
 // malformedReceiptBackend serves a fixed receipt and tip header, which may lack fields an
 // honest RPC always sets.
 type malformedReceiptBackend struct {
