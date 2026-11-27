@@ -36,6 +36,10 @@ uint256 constant EXPECTED_MIN_DISPUTE_GAME_FINALITY_DELAY_SECONDS = 43200;
 uint256 constant EXPECTED_MAX_DISPUTE_GAME_FINALITY_DELAY_SECONDS = 302400;
 uint256 constant EXPECTED_MIN_WITHDRAWAL_DELAY_SECONDS = 43200;
 uint256 constant EXPECTED_MAX_WITHDRAWAL_DELAY_SECONDS = 604800;
+// The two ZK durations must sum to less than the L1 blob retention window (about 18 days).
+// Past it, the blobs a proof needs can be pruned before the prove deadline.
+uint256 constant EXPECTED_ZK_MAX_CHALLENGE_DURATION = 345600;
+uint256 constant EXPECTED_ZK_MAX_PROVE_DURATION = 259200;
 
 /// @notice Struct containing the unified game args for a dispute game implementation.
 struct DisputeGameImplementation {

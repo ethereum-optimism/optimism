@@ -1129,7 +1129,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                maxChallengeDuration: Duration.wrap(uint64(7 days)),
+                maxChallengeDuration: Duration.wrap(uint64(4 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
             })
@@ -1154,7 +1154,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                maxChallengeDuration: Duration.wrap(uint64(7 days)),
+                maxChallengeDuration: Duration.wrap(uint64(4 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
             })
@@ -1263,7 +1263,9 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
     function test_upgrade_enableZKGameMaxDurations_succeeds() public {
         _setZKUpgradeConfig(type(uint32).max, type(uint32).max, 1);
 
-        runCurrentUpgradeV2(chainPAO);
+        // The standard validator reports both durations because they differ from the standard
+        // values, which the OPCM does not enforce.
+        runCurrentUpgradeV2(chainPAO, bytes(""), "ZKDG-90,ZKDG-100");
 
         LibGameArgs.ZKGameArgs memory args =
             LibGameArgs.decodeZK(disputeGameFactory.gameArgs(GameTypes.ZK_DISPUTE_GAME));
@@ -1280,7 +1282,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v1"))),
-                maxChallengeDuration: Duration.wrap(uint64(7 days)),
+                maxChallengeDuration: Duration.wrap(uint64(4 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
             })
@@ -1295,7 +1297,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate v2"))),
-                maxChallengeDuration: Duration.wrap(uint64(7 days)),
+                maxChallengeDuration: Duration.wrap(uint64(4 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
             })
@@ -1315,7 +1317,7 @@ contract OPContractsManagerV2_Upgrade_Test is OPContractsManagerV2_Upgrade_TestI
         v2UpgradeInput.disputeGameConfigs[5].gameArgs = abi.encode(
             IOPContractsManagerUtils.ZKDisputeGameConfig({
                 absolutePrestate: Claim.wrap(bytes32(keccak256("zk prestate"))),
-                maxChallengeDuration: Duration.wrap(uint64(7 days)),
+                maxChallengeDuration: Duration.wrap(uint64(4 days)),
                 maxProveDuration: Duration.wrap(uint64(3 days)),
                 challengerBond: 1 ether
             })
