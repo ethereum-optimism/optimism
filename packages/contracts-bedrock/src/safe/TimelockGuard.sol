@@ -153,6 +153,9 @@ abstract contract TimelockGuard is BaseGuard {
     /// @notice Error for invalid timelock delay
     error TimelockGuard_InvalidTimelockDelay();
 
+    /// @notice Error for when a transaction nonce is below the Safe's current nonce.
+    error TimelockGuard_InvalidNonce();
+
     /// @notice Error for when a transaction is already scheduled
     error TimelockGuard_TransactionAlreadyScheduled();
 
@@ -516,7 +519,7 @@ abstract contract TimelockGuard is BaseGuard {
     ///      recommended that the safe nonce is manually incremented when a scheduled transaction
     ///      is cancelled.
     /// @param _safe The Safe address to schedule the transaction for.
-    /// @param _nonce The nonce of the Safe for the transaction being scheduled.
+    /// @param _nonce The transaction nonce, which must be at least the Safe's current nonce.
     /// @param _params The parameters of the transaction being scheduled.
     /// @param _signatures The signatures of the owners who are scheduling the transaction.
     function scheduleTransaction(
@@ -577,6 +580,11 @@ abstract contract TimelockGuard is BaseGuard {
         //    extending the delay for the original transaction.
         if (_currentSafeState(_safe).scheduledTransactions[txHash].executionTime != 0) {
             revert TimelockGuard_TransactionAlreadyScheduled();
+        }
+
+        // Only transactions with the current or a future Safe nonce can be scheduled.
+        if (_nonce < _safe.nonce()) {
+            revert TimelockGuard_InvalidNonce();
         }
 
         // Verify signatures using the Safe's signature checking logic

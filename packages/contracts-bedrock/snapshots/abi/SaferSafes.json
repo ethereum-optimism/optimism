@@ -926,6 +926,11 @@
   },
   {
     "inputs": [],
+    "name": "TimelockGuard_InvalidNonce",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TimelockGuard_InvalidTimelockDelay",
     "type": "error"
   },
