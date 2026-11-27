@@ -436,6 +436,16 @@ contract TimelockGuard_ScheduleTransaction_Test is TimelockGuard_TestInit {
         dummyTx.scheduleTransaction(timelockGuard);
     }
 
+    /// @notice Ensures past nonces are rejected before signature validation.
+    function test_scheduleTransaction_pastNonce_reverts() external {
+        uint256 currentNonce = safe.nonce();
+        assertGt(currentNonce, 0);
+        TimelockGuard.ExecTransactionParams memory params;
+
+        vm.expectRevert(TimelockGuard.TimelockGuard_InvalidNonce.selector);
+        timelockGuard.scheduleTransaction(safe, currentNonce - 1, params, "");
+    }
+
     // A test which demonstrates that if the guard is enabled but not explicitly configured,
     // the timelock delay is set to 0.
     /// @notice Checks scheduling reverts if the guard lacks configuration.

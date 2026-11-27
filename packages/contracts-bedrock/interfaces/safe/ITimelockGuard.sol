@@ -41,6 +41,7 @@ interface ITimelockGuard {
     error TimelockGuard_GuardNotConfigured();
     error TimelockGuard_GuardNotEnabled();
     error TimelockGuard_GuardStillEnabled();
+    error TimelockGuard_InvalidNonce();
     error TimelockGuard_InvalidTimelockDelay();
     error TimelockGuard_NotOwner();
     error TimelockGuard_TransactionAlreadyCancelled();

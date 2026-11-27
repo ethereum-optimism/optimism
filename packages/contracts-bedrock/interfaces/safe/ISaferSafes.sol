@@ -37,6 +37,7 @@ interface ISaferSafes is ISemver {
     error TimelockGuard_GuardNotConfigured();
     error TimelockGuard_GuardNotEnabled();
     error TimelockGuard_GuardStillEnabled();
+    error TimelockGuard_InvalidNonce();
     error TimelockGuard_InvalidTimelockDelay();
     error TimelockGuard_InvalidVersion();
     error TimelockGuard_NotOwner();
