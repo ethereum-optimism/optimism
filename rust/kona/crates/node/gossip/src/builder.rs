@@ -17,7 +17,7 @@ use tokio::sync::watch;
 
 use crate::{
     Behaviour, BlockHandler, ConnectionGate, GaterConfig, GossipDriverBuilderError,
-    GossipDriverConfig, GossipDriverStarter, PeerAddr,
+    GossipDriverConfig, GossipDriverStarter, Handler, PeerAddr,
 };
 
 /// How long a connection with no open streams stays open, unless set with
@@ -222,6 +222,7 @@ impl GossipDriverBuilder {
 
         // Block Handler setup
         let handler = BlockHandler::new(rollup_config, signer_rx);
+        crate::Metrics::zero_topics(&handler.topics());
 
         // Construct the gossip behaviour
         info!(
@@ -250,7 +251,6 @@ impl GossipDriverBuilder {
                 info!(target: "scoring", level = ?PeerScoreLevel::Off, "Peer scoring explicitly disabled")
             }
             Some(level) => {
-                use crate::handler::Handler;
                 let params = level
                     .to_params(handler.topics(), topic_scoring, block_time)
                     .unwrap_or_default();
