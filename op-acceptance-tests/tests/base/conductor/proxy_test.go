@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	safety "github.com/ethereum-optimism/optimism/op-service/eth/safety"
@@ -93,4 +95,12 @@ func TestConductorProxyServesOnlyLeader(gt *testing.T) {
 		t.Require().ErrorContainsf(err, "refusing to proxy request to non-leader sequencer",
 			"expected conductor %s to refuse proxying %s", follower, probe.method)
 	}
+
+	// A follower whose sequencer lags the leader cannot serve the leader's
+	// newest blocks. Ask for a block no sequencer has produced, so the
+	// follower's sequencer always fails, and require the refusal anyway.
+	var output json.RawMessage
+	err := follower.CallProxy(&output, "optimism_outputAtBlock", hexutil.Uint64(1_000_000))
+	t.Require().ErrorContainsf(err, "refusing to proxy request to non-leader sequencer",
+		"expected conductor %s to refuse proxying optimism_outputAtBlock for a block its sequencer lacks", follower)
 }

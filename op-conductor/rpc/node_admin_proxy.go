@@ -9,7 +9,7 @@ import (
 
 var NodeAdminRPCNamespace = "admin"
 
-// NodeAdminProxyAPI implements a node admin rpc proxy with a leadership check to make sure only leader returns the result.
+// NodeAdminProxyBackend implements a node admin rpc proxy that only returns results while this conductor is the leader.
 type NodeAdminProxyBackend struct {
 	log    log.Logger
 	con    conductor
@@ -29,9 +29,6 @@ func NewNodeAdminProxyBackend(log log.Logger, con conductor, client *sources.Rol
 
 func (api *NodeAdminProxyBackend) SequencerActive(ctx context.Context) (bool, error) {
 	active, err := api.client.SequencerActive(ctx)
-	if err != nil {
-		return false, err
-	}
 	if !api.con.Leader(ctx) {
 		return false, ErrNotLeader
 	}
