@@ -14,6 +14,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 // Interfaces
 import { IComplianceModule } from "interfaces/compliance/IComplianceModule.sol";
 import { IPolicy } from "interfaces/compliance/IPolicy.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title VisionPolicyV1
 /// @notice A ComplianceModule policy that screens items against a deny list, an allowlist, a
@@ -21,7 +22,11 @@ import { IPolicy } from "interfaces/compliance/IPolicy.sol";
 ///         rules and their order are fixed. To change a rule, deploy a new policy.
 ///         multicall preserves msg.sender and applies access checks per call.
 ///         Any failed call reverts the entire batch.
-contract VisionPolicyV1 is Ownable2Step, Multicallable {
+contract VisionPolicyV1 is Ownable2Step, Multicallable, ISemver {
+    /// @notice Semantic version.
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
+
     /// @notice The highest value of maxVerdictValidity.
     uint64 internal constant MAX_VERDICT_VALIDITY_CAP = 5 days;
 
