@@ -2,6 +2,8 @@ package interop
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -23,7 +25,7 @@ const (
 
 // l1ByNumberSource provides L1 block lookups by number for consistency checking.
 type l1ByNumberSource interface {
-	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
+	L1BlockRefsByNumbers(ctx context.Context, nums []uint64) ([]eth.L1BlockRef, error)
 }
 
 // l1FinalizedSource is optionally implemented by an l1ByNumberSource. When it
@@ -74,7 +76,10 @@ func newL1ConsistencyChecker(l1 l1ByNumberSource) l1ConsistencyChecker {
 }
 
 // SameL1Chain returns true if all non-zero heads belong to the same canonical L1 chain.
+// It fetches the heads that are not in the finalized cache in one batch request.
 func (c *l1ByNumberChecker) SameL1Chain(ctx context.Context, heads []eth.BlockID) (bool, error) {
+	var toFetch []eth.BlockID
+	var nums []uint64
 	checked := make(map[eth.BlockID]struct{}, len(heads))
 	for _, head := range heads {
 		if head == (eth.BlockID{}) {
@@ -84,58 +89,66 @@ func (c *l1ByNumberChecker) SameL1Chain(ctx context.Context, heads []eth.BlockID
 			continue
 		}
 		checked[head] = struct{}{}
-		canonical, err := c.canonicalHash(ctx, head.Number)
-		if err != nil {
-			return false, err
+		if hash, ok := c.cachedCanonicalHash(head.Number); ok {
+			if hash != head.Hash {
+				return false, nil
+			}
+			continue
 		}
-		if canonical != head.Hash {
+		toFetch = append(toFetch, head)
+		nums = append(nums, head.Number)
+	}
+	if len(toFetch) == 0 {
+		return true, nil
+	}
+
+	// Read finality before fetching: a hash fetched while its number was above
+	// finality must not be cached, even if finality passes it meanwhile.
+	finalized, canCache := c.finalizedNumber(ctx, slices.Max(nums))
+	refs, err := c.l1.L1BlockRefsByNumbers(ctx, nums)
+	if err != nil {
+		return false, err
+	}
+	if len(refs) != len(nums) {
+		return false, fmt.Errorf("expected %d L1 block refs, got %d", len(nums), len(refs))
+	}
+	for i, head := range toFetch {
+		if canCache && head.Number <= finalized {
+			c.canonical.Add(head.Number, refs[i].Hash)
+		}
+		if refs[i].Hash != head.Hash {
 			return false, nil
 		}
 	}
 	return true, nil
 }
 
-// canonicalHash returns the canonical L1 hash at num, from the cache when num
-// is known to be finalized.
-func (c *l1ByNumberChecker) canonicalHash(ctx context.Context, num uint64) (common.Hash, error) {
-	if c.canonical != nil {
-		if hash, ok := c.canonical.Get(num); ok {
-			return hash, nil
-		}
+func (c *l1ByNumberChecker) cachedCanonicalHash(num uint64) (common.Hash, bool) {
+	if c.canonical == nil {
+		return common.Hash{}, false
 	}
-	// Check finality before fetching: a hash fetched while num was above
-	// finality must not be cached, even if finality passes num meanwhile.
-	final := c.canonical != nil && c.isFinalized(ctx, num)
-	ref, err := c.l1.L1BlockRefByNumber(ctx, num)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	if final {
-		c.canonical.Add(num, ref.Hash)
-	}
-	return ref.Hash, nil
+	return c.canonical.Get(num)
 }
 
-// isFinalized reports whether num is at or below the L1 finalized head. It
-// refreshes the finalized head at most once per finalizedRefreshInterval, and
-// only when num is above the last known value. Errors are treated as "not
-// finalized", which only costs a cache miss.
-func (c *l1ByNumberChecker) isFinalized(ctx context.Context, num uint64) bool {
+// finalizedNumber returns the highest known L1 finalized number, and false when
+// the source cannot report finality. It refreshes the value at most once per
+// finalizedRefreshInterval, and only when num is above it. An error keeps the
+// known value, which only costs cache misses.
+func (c *l1ByNumberChecker) finalizedNumber(ctx context.Context, num uint64) (uint64, bool) {
+	if c.finalized == nil {
+		return 0, false
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if num <= c.finalizedNum {
-		return true
+		return c.finalizedNum, true
 	}
 	if !c.finalizedSeenAt.IsZero() && c.now().Sub(c.finalizedSeenAt) < finalizedRefreshInterval {
-		return false
+		return c.finalizedNum, true
 	}
-	ref, err := c.finalized.L1BlockRefByLabel(ctx, eth.Finalized)
-	if err != nil {
-		return false
+	if ref, err := c.finalized.L1BlockRefByLabel(ctx, eth.Finalized); err == nil {
+		c.finalizedSeenAt = c.now()
+		c.finalizedNum = max(c.finalizedNum, ref.Number)
 	}
-	c.finalizedSeenAt = c.now()
-	if ref.Number > c.finalizedNum {
-		c.finalizedNum = ref.Number
-	}
-	return num <= c.finalizedNum
+	return c.finalizedNum, true
 }

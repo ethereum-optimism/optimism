@@ -2802,8 +2802,8 @@ type errorL1Source struct {
 	err error
 }
 
-func (m *errorL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
-	return eth.L1BlockRef{}, m.err
+func (m *errorL1Source) L1BlockRefsByNumbers(ctx context.Context, nums []uint64) ([]eth.L1BlockRef, error) {
+	return nil, m.err
 }
 
 // progressInteropCompat replicates the old progressInterop() behavior for test compatibility.
