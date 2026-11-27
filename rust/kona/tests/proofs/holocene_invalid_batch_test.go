@@ -259,14 +259,14 @@ func TestHoloceneInvalidBatch(gt *testing.T) {
 		matrix.AddTestCase(
 			fmt.Sprintf("HonestClaim-%s", ordering.name),
 			ordering,
-			helpers.NewForkMatrix(helpers.Granite, helpers.LatestFork),
+			helpers.NewForkMatrix(helpers.Granite, helpers.Karst, helpers.LatestFork),
 			runHoloceneDerivationTest,
 			helpers.ExpectNoError(),
 		)
 		matrix.AddTestCase(
 			fmt.Sprintf("JunkClaim-%s", ordering.name),
 			ordering,
-			helpers.NewForkMatrix(helpers.Granite, helpers.LatestFork),
+			helpers.NewForkMatrix(helpers.Granite, helpers.Karst, helpers.LatestFork),
 			runHoloceneDerivationTest,
 			helpers.ExpectError(helpers.ErrClaimNotValid),
 			helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),

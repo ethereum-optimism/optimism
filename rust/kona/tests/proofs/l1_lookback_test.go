@@ -130,14 +130,14 @@ func TestL1Lookback(gt *testing.T) {
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
-		helpers.LatestForkOnly,
+		helpers.LatestTwoForks,
 		runL1LookbackTest,
 		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim",
 		nil,
-		helpers.LatestForkOnly,
+		helpers.LatestTwoForks,
 		runL1LookbackTest,
 		helpers.ExpectError(helpers.ErrClaimNotValid),
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
@@ -145,14 +145,14 @@ func TestL1Lookback(gt *testing.T) {
 	matrix.AddTestCase(
 		"HonestClaim-ReopenChannel",
 		nil,
-		helpers.LatestForkOnly,
+		helpers.LatestTwoForks,
 		runL1LookbackTest_ReopenChannel,
 		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim-ReopenChannel",
 		nil,
-		helpers.LatestForkOnly,
+		helpers.LatestTwoForks,
 		runL1LookbackTest_ReopenChannel,
 		helpers.ExpectError(helpers.ErrClaimNotValid),
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),

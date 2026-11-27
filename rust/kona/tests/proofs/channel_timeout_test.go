@@ -218,14 +218,14 @@ func TestChannelTimeout(gt *testing.T) {
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
-		helpers.LatestForkOnly,
+		helpers.LatestTwoForks,
 		runChannelTimeoutTest,
 		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim",
 		nil,
-		helpers.LatestForkOnly,
+		helpers.LatestTwoForks,
 		runChannelTimeoutTest,
 		helpers.ExpectError(helpers.ErrClaimNotValid),
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
@@ -233,14 +233,14 @@ func TestChannelTimeout(gt *testing.T) {
 	matrix.AddTestCase(
 		"CloseChannelLate-HonestClaim",
 		nil,
-		helpers.LatestForkOnly,
+		helpers.LatestTwoForks,
 		runChannelTimeoutTest_CloseChannelLate,
 		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"CloseChannelLate-JunkClaim",
 		nil,
-		helpers.LatestForkOnly,
+		helpers.LatestTwoForks,
 		runChannelTimeoutTest_CloseChannelLate,
 		helpers.ExpectError(helpers.ErrClaimNotValid),
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),

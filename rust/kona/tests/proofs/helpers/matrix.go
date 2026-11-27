@@ -133,12 +133,16 @@ var (
 	Isthmus  = &Hardfork{Name: string(forks.Isthmus), Precedence: 8}
 	Jovian   = &Hardfork{Name: string(forks.Jovian), Precedence: 9}
 	Karst    = &Hardfork{Name: string(forks.Karst), Precedence: 10}
+	Lagoon   = &Hardfork{Name: string(forks.Lagoon), Precedence: 11}
 )
 
 var (
-	Hardforks      = ForkMatrix{Bedrock, Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, Karst}
+	Hardforks      = ForkMatrix{Bedrock, Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene, Isthmus, Jovian, Karst, Lagoon}
 	LatestFork     = Hardforks[len(Hardforks)-1]
 	LatestForkOnly = ForkMatrix{LatestFork}
+	// LatestTwoForks is the fork before LatestFork and LatestFork. Derivation tests run on both, so
+	// they keep covering chains that have not activated the latest fork.
+	LatestTwoForks = ForkMatrix{Hardforks[len(Hardforks)-2], LatestFork}
 )
 
 func NewForkMatrix(forks ...*Hardfork) ForkMatrix {
