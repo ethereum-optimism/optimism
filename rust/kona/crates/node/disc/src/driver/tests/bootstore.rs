@@ -12,8 +12,8 @@ use super::*;
 /// At each store interval, every 100 ms here, the driver hands the records to gossip all at once,
 /// without waiting in between, and this node has no bootnodes or peers to find others through.
 /// On this single-threaded runtime, the whole batch is in the channel once the test gets the first
-/// record. So the batch shows whether the loopback record was left out, without waiting to see
-/// that it never comes.
+/// record. A slow run can see more than one batch, so check which records were handed over
+/// instead of counting how many times the public record arrived.
 #[tokio::test]
 async fn test_public_node_leaves_out_saved_loopback_record() {
     let loopback = enr_at_localhost(TEST_CHAIN_ID);
@@ -33,7 +33,10 @@ async fn test_public_node_leaves_out_saved_loopback_record() {
     while let Ok(record) = records.try_recv() {
         batch.push(record);
     }
-    assert_eq!(batch, [public], "a public node dialed a saved loopback record");
+    assert!(
+        batch.iter().all(|record| record == &public),
+        "a public node handed over an unexpected saved record: {batch:?}"
+    );
 }
 
 /// The driver doesn't wait for room in the channel to gossip, so the saved records that don't fit
