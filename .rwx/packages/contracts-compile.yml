@@ -1,0 +1,35 @@
+# One `forge build` for the standard contract suites and the upgrade variants of a commit.
+# CircleCI builds in each of those jobs. The builds are the same: the compiler reads the
+# Foundry profile, and the tests read the feature flags and the fork variables.
+package:
+  parameters:
+    branch:
+      required: true
+    cache-epoch:
+      required: true
+tasks:
+  - key: build
+    use: package.use
+    # What the build reads: the contracts, the Go module and the Go sources of the FFI helper,
+    # and its scripts. A commit that changes none of these keeps the cache key. The list names
+    # what to include: with a list of exclusions only, RWX gives each commit a new key.
+    filter: [mise.toml, go.mod, go.sum, cannon, 'op-*', packages/contracts-bedrock, ops/ci/runtime/ci-report.py, ops/ci/runtime/contract-upgrades.py, .ci/go-cache/pr-checks/modules, .ci/go-cache/contracts-compile/build]
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/contracts-compile/build"
+      python3 ops/ci/runtime/contract-upgrades.py compile
+    env:
+      CI_BRANCH: ${{ params.branch }}
+    tool-cache: contracts-compile-${{ params.cache-epoch }}
+    timeout: 40m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [packages/contracts-bedrock/forge-artifacts, packages/contracts-bedrock/cache/solidity-files-cache.json, packages/contracts-bedrock/artifacts/build-info, packages/contracts-bedrock/scripts/go-ffi/go-ffi, .ci/go-cache/contracts-compile/build]
+          system: []
+      artifacts:
+        - key: reports
+          path: .ci/contracts-compile

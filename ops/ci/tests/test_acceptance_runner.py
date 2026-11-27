@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""Execute the unchanged Just entrypoint through the RWX wrapper and its circleci shim."""
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[3]
+PACKAGE = 'github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base'
+
+
+@unittest.skipUnless(shutil.which('just'), 'Just required')
+class AcceptanceRunnerTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        for directory in ['op-acceptance-tests/tests', 'ops/ci/runtime', 'ops/scripts', 'bin']:
+            (self.root / directory).mkdir(parents=True)
+        justfile = (ROOT / 'op-acceptance-tests/justfile').read_text().splitlines()
+        justfile[0] = 'REPO_ROOT := "' + str(self.root) + '"'
+        (self.root / 'op-acceptance-tests/justfile').write_text('\n'.join(justfile) + '\n')
+        shutil.copyfile(ROOT / 'ops/ci/runtime/acceptance-tests.sh', self.root / 'ops/ci/runtime/acceptance-tests.sh')
+        shutil.copytree(ROOT / 'ops/ci/runtime/acceptance-circleci', self.root / 'ops/ci/runtime/acceptance-circleci')
+        for name in ['gotestsum-split.sh', 'shard-tests.sh']:
+            shutil.copy2(ROOT / 'ops/scripts' / name, self.root / 'ops/scripts' / name)
+        # The real split-test-logs.sh runs `python3 - <file>`. An endpoint security
+        # tool can treat that file as a script, so a laptop run uses a stand-in.
+        # No assertion below reads the per-test logs.
+        stand_in = self.root / 'ops/scripts/split-test-logs.sh'
+        stand_in.write_text('#!/bin/sh\nexit 0\n'); stand_in.chmod(0o755)
+        for binary in ['rust/target/release/' + name for name in ['kona-host', 'kona-client', 'kona-node', 'op-zk-proposer', 'op-reth']] \
+                + ['.circleci-cache/rust-binaries/kona-sp1-super-range-executor']:
+            path = self.root / binary
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('#!/bin/sh\nexit 0\n'); path.chmod(0o755)
+        # The recipe lists plain test names with `go test -list`.
+        self.script('go', '''import os, sys
+p, names = os.environ['FIXTURE_PACKAGE'], os.environ.get('FIXTURE_TESTS', 'TestOne TestTwo').split()
+if sys.argv[1] == 'env': print('/fixture/go')
+elif os.environ.get('LISTING_FAIL'): sys.exit(2)
+else: print('\\n'.join(names) + '\\nok  \\t' + p + '\\t0.01s')
+''')
+        self.script('gotestsum', '''import json, os, re, sys
+from pathlib import Path
+a=sys.argv[1:]
+def value(key):
+ for i,s in enumerate(a):
+  if s.startswith(key+'='): return s.split('=',1)[1]
+  if s == key: return a[i+1]
+p, status = os.environ['FIXTURE_PACKAGE'], int(os.environ.get('VERDICT_STATUS','0'))
+# The recipe runs one test per call and checks the events as go test writes them.
+pattern, verdict = value('-run'), 'fail' if status else 'pass'
+events = []
+for n in os.environ.get('FIXTURE_TESTS', 'TestOne TestTwo').split():
+ if re.search(pattern, n): events += [{'Action':'run','Package':p,'Test':n}, {'Action':'output','Package':p,'Test':n,'Output':'--- '+verdict.upper()+': '+n+' (0.00s)\\n'}, {'Action':verdict,'Package':p,'Test':n}]
+j=Path(value('--jsonfile')); j.parent.mkdir(parents=True,exist_ok=True); j.write_text(''.join(json.dumps(e,separators=(',',':'))+'\\n' for e in events))
+x=Path(value('--junitfile')); x.parent.mkdir(parents=True,exist_ok=True); x.write_text('<testsuite/>')
+Path(os.environ['FIXTURE_ARGS']).write_text(json.dumps(a))
+sys.exit(status)
+''')
+        self.script('geth', "print('Geth fixture pinned version')")
+        self.script('mise', "import os; print(os.environ['FIXTURE_GETH'])")
+        self.env = {**os.environ, 'PATH': str(self.root / 'bin') + ':' + os.environ['PATH'],
+                    'CI_SHARD_INDEX': '0', 'FIXTURE_PACKAGE': PACKAGE,
+                    'FIXTURE_ARGS': str(self.root / 'args.json'), 'FIXTURE_GETH': str(self.root / 'bin/geth')}
+
+    def script(self, name, body):
+        path = self.root / 'bin' / name
+        path.write_text('#!' + shutil.which('python3') + '\n' + body)
+        path.chmod(0o755)
+
+    def wrapper(self, **env):
+        return subprocess.run(['bash', str(self.root / 'ops/ci/runtime/acceptance-tests.sh')],
+                              env={**self.env, **env}, text=True, capture_output=True)
+
+    def split(self, listed, index, total):
+        shim = self.root / 'ops/ci/runtime/acceptance-circleci/circleci'
+        result = subprocess.run([str(shim), 'tests', 'split', '--split-by=timings', '--timings-type=testname', '--time-default=1m', str(listed)],
+                                env={**self.env, 'CIRCLE_NODE_INDEX': str(index), 'CIRCLE_NODE_TOTAL': str(total)},
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout.splitlines()
+
+    def test_runtime_supplies_verified_rust_paths_and_pinned_geth(self):
+        self.script('just', "import json, os; from pathlib import Path; Path(os.environ['FIXTURE_ARGS']).write_text(json.dumps({k:v for k,v in os.environ.items() if k.startswith('RUST_BINARY_PATH_')}))")
+        result = self.wrapper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        paths = json.loads((self.root / 'args.json').read_text())
+        self.assertEqual(len(paths), 6)
+        self.assertTrue(all(Path(value).is_file() for value in paths.values()))
+        (self.root / 'args.json').unlink()
+        (self.root / 'bin/geth').unlink()
+        missing = self.wrapper()
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertFalse((self.root / 'args.json').exists())
+
+    def test_verdict_runs_only_its_shard_and_writes_the_reports_that_rwx_collects(self):
+        result = self.wrapper()
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        # CircleCI's memory-all jobs run 16 tests at once on each of 4 nodes.
+        self.assertIn('TEST JOBS: 16\n', result.stdout)
+        self.assertIn('Node 0/4 running 1 tests', result.stdout)
+        args = json.loads((self.root / 'args.json').read_text())
+        self.assertIn('-count=1', args)
+        self.assertEqual(args[args.index('-run') + 1:], ['^TestOne$', PACKAGE])
+        # The verdict task's outputs name the files that the recipe writes.
+        definition = json.loads(subprocess.check_output(
+            ['yq', '-o=json', '.', str(ROOT / '.rwx/packages/acceptance-verdict.yml')], text=True))
+        outputs = definition['tasks'][0]['outputs']
+        junit = list(self.root.glob(outputs['test-results'][0]['path']))
+        self.assertEqual([path.name for path in junit], ['results-0-' + PACKAGE.replace('/', '.') + '.TestOne.xml'])
+        self.assertTrue(list((self.root / outputs['artifacts'][0]['path']).glob('testrun-*/all.log')))
+
+    def test_failing_verdict_fails_the_wrapper(self):
+        result = self.wrapper(VERDICT_STATUS='1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue((self.root / 'args.json').exists())
+
+    def test_shim_gives_every_listed_name_to_exactly_one_shard(self):
+        listed = self.root / 'listed.txt'
+        for count in (1, 4, 7):
+            names = ['Test%02d' % number for number in range(count)]
+            listed.write_text(''.join(name + '\n' for name in names))
+            for total in (2, 4):
+                with self.subTest(count=count, total=total):
+                    shards = [self.split(listed, index, total) for index in range(total)]
+                    self.assertEqual(sorted(name for shard in shards for name in shard), names)
+
+    def test_empty_shard_fails_without_running_tests(self):
+        # The recipe treats an empty shard as a failed split.
+        result = self.wrapper(CI_SHARD_INDEX='3')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('no tests assigned', result.stdout + result.stderr)
+        self.assertFalse((self.root / 'args.json').exists())
+
+    def test_listing_failure_never_runs_verdict(self):
+        result = self.wrapper(LISTING_FAIL='1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.root / 'args.json').exists())
+
+    def test_shim_rejects_every_other_circleci_invocation(self):
+        shim, listed = self.root / 'ops/ci/runtime/acceptance-circleci/circleci', self.root / 'listed.txt'
+        listed.write_text('TestOne\nTestTwo\n')
+        for argv in (['tests', 'glob', 'op-acceptance-tests/**'], ['tests', 'split'], ['tests', 'split', '--split-by=timings'],
+                     ['tests', 'split', '--index=1', str(listed)], ['tests', 'split', str(listed), str(listed)], ['step', 'halt']):
+            with self.subTest(argv=argv):
+                result = subprocess.run([str(shim), *argv], env=self.env, text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('does not support', result.stderr)
+
+
+if __name__ == '__main__': unittest.main()

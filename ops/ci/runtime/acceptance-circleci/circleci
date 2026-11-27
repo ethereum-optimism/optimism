@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# CircleCI CLI stand-in. acceptance-tests.sh puts it first on PATH for RWX
+# verdicts. It serves only the `circleci tests split <placement options> <file>`
+# call in ops/scripts/shard-tests.sh; <file> holds every test name that the
+# recipe listed, one per line. Every shard lists the same names in the same
+# order. The shim prints each line whose zero-based position, modulo
+# CIRCLE_NODE_TOTAL, is CIRCLE_NODE_INDEX, so each name goes to exactly one
+# shard and placement options have no effect. It fails for every other invocation.
+set -euo pipefail
+unsupported() {
+  echo "circleci: the RWX acceptance shim does not support: circleci $*" >&2
+  exit 1
+}
+[[ $# -ge 3 && $1 == tests && $2 == split && ${!#} != -* ]] || unsupported "$@"
+for option in "${@:3:$#-3}"; do
+  case "$option" in
+    --split-by=* | --timings-type=* | --time-default=*) ;;
+    *) unsupported "$@" ;;
+  esac
+done
+exec awk -v shard="$CIRCLE_NODE_INDEX" -v shards="$CIRCLE_NODE_TOTAL" \
+  '(NR - 1) % shards == shard' "${!#}"

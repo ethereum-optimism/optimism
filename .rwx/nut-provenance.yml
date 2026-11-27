@@ -1,0 +1,167 @@
+# Full recorded-source NUT provenance regeneration; Circle still owns its required gate.
+on:
+  cache-rebuild:
+    if: ${{ event.git.branch == 'develop' }}
+    target: [modules, historical-tools]
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      cache-warm: "true"
+      cache-epoch: v1
+  cli:
+    init:
+      commit-sha: ${{ event.git.sha }}
+      branch: ${{ event.git.branch }}
+      cache-warm: "false"
+      cache-epoch: v1
+
+tool-cache:
+  vault: optimism-op-reth-shadow
+
+base:
+  image: ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
+  config: rwx/base 1.2.0
+  arch: x86_64
+
+defaults:
+  runner:
+    cpus: 2
+    memory: 8gb
+
+tasks:
+  - key: code
+    call: git/clone 2.2.0
+    with:
+      repository: https://github.com/ethereum-optimism/optimism.git
+      ref: ${{ init.commit-sha }}
+      preserve-git-dir: true
+      fetch-full-depth: true
+      submodules: false
+
+  - key: bootstrap-inputs
+    use: code
+    run: 'true'
+    filter: [mise.toml, ops/ci/runtime]
+    outputs:
+      filesystem:
+        filter:
+          workspace: [mise.toml, ops/ci/runtime/apt-install.sh, ops/ci/runtime/rwx-prepare.sh, ops/ci/runtime/rwx-contracts-prepare.sh, ops/ci/runtime/rwx-rust-prepare.sh, ops/ci/runtime/op-reth-shadow.sh, ops/ci/runtime/op-reth-report.py, ops/ci/runtime/rust-target-cache.py]
+          system: []
+
+  - key: mise
+    call: mise/install 1.1.0
+    with:
+      mise-version: "2026.2.2"
+      install: "false"
+
+  - key: tools
+    use: [mise, bootstrap-inputs]
+    call: ${{ run.dir }}/packages/toolchain-common.yml
+
+  - key: route
+    use: [code, tools]
+    run: bash ops/ci/runtime/rwx-metadata.sh
+    env:
+      CI_CACHE_WARM: ${{ init.cache-warm }}
+      CI_BRANCH: ${{ init.branch }}
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+
+  - key: go-tools
+    use: tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-go.yml
+    with:
+      mode: go
+
+  # A dependency build checks out the commit that last changed its build inputs, so it
+  # is a cache hit for later commits and for the other workloads of the run.
+  - key: dependency-plan
+    use: code
+    run: python3 ops/ci/runtime/go-dependency-source.py plan
+    outputs:
+      filesystem: false
+
+  - key: modules
+    use: go-tools
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/go-modules.yml
+    with:
+      commit-sha: ${{ tasks.dependency-plan.values.go-modules }}
+      branch: ${{ init.branch }}
+      cache-epoch: ${{ init.cache-epoch }}
+
+  # The contract tool layer has the Solidity compilers that CircleCI installs.
+  - key: contract-tools
+    use: [bootstrap-inputs, tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    call: ${{ run.dir }}/packages/toolchain-foundry.yml
+    with:
+      mode: compiler
+
+  # Install the Forge and Just versions pinned at each locked bundle's recorded
+  # commit. mise auto-install is off in RWX, so the verdict task cannot.
+  - key: historical-tools
+    use: [code, contract-tools]
+    if: ${{ init.cache-warm == 'true' || tasks.route.values.run-main == 'true' }}
+    run: python3 ops/ci/runtime/nut-provenance.py --install-tools
+    tool-cache: nut-provenance-historical-tools-${{ init.cache-epoch }}
+    timeout: 30m
+
+  - key: helper-tests
+    use: [code, tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: python3 -m unittest discover -s ops/ci/tests -p 'test_nut_provenance.py' -v
+    cache: false
+    timeout: 15m
+    outputs:
+      filesystem: false
+
+  # CircleCI's nut-provenance-verify, for every locked fork instead of the
+  # changed ones. The verifier's exit status is the verdict.
+  - key: verify
+    use: [code, historical-tools, go-tools]
+    if: ${{ init.cache-warm != 'true' && tasks.route.values.run-main == 'true' }}
+    run: |
+      export GOMODCACHE="$PWD/.ci/go-cache/pr-checks/modules"
+      export GOCACHE="$PWD/.ci/go-cache/nut-provenance/build"
+      mkdir -p "$GOCACHE"
+      python3 ops/ci/runtime/go-artifacts.py restore go-modules "$MODULE_ARTIFACT"
+      python3 ops/ci/runtime/nut-provenance.py
+    env:
+      CI: "true"
+      CI_COMMIT_SHA: ${{ init.commit-sha }}
+      MODULE_ARTIFACT: ${{ tasks.modules.tasks.build.artifacts.dependency }}
+    cache: false
+    tool-cache: nut-provenance-go-compiler-${{ init.cache-epoch }}
+    timeout: 45m
+    runner:
+      cpus: 16
+      memory: 32gb
+    outputs:
+      filesystem:
+        filter:
+          workspace: [.ci/go-cache/nut-provenance/build]
+          system: []
+
+  # Exact Main dependency states; unrelated workload failures stay outside this gate.
+  - key: main-gate-receipt
+    use: [code, tools]
+    after: ${{ (verify.succeeded || verify.failed || verify.skipped) }}
+    if: ${{ init.cache-warm != 'true' }}
+    run: python3 ops/ci/runtime/pr-gate.py receipt main-nut-provenance
+    env:
+      GROUP_SELECTED: ${{ tasks.route.values.run-main }}
+      TASK_VERIFY_SUCCEEDED: ${{ tasks.verify.succeeded }}
+      TASK_VERIFY_FAILED: ${{ tasks.verify.failed }}
+      TASK_VERIFY_SKIPPED: ${{ tasks.verify.skipped }}
+    cache: false
+    timeout: 10m
+    outputs:
+      filesystem: false
+      artifacts:
+        - key: receipt
+          path: .ci/pr-gates/groups/main-nut-provenance

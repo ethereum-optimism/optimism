@@ -1,0 +1,90 @@
+{
+  "gates": {
+    "required-rust-ci": {
+      "dependencies": [
+        {"name": "rust-fmt", "group": "rust-workspace", "tasks": ["rust-fmt"]},
+        {"name": "rust-reth-tag-pin", "group": "rust-workspace", "tasks": ["rust-reth-tag-pin"]},
+        {"name": "rust-clippy", "group": "rust-workspace", "tasks": ["clippy"]},
+        {"name": "rust-deny", "group": "rust-workspace", "tasks": ["deny"]},
+        {"name": "rust-typos", "group": "rust-workspace", "tasks": ["typos"]},
+        {"name": "rust-zepter", "group": "rust-workspace", "tasks": ["zepter"]},
+        {"name": "rust-tests", "group": "rust-workspace", "tasks": ["tests-unit", "tests-compiler"]},
+        {"name": "interop-deposits-diff", "group": "rust-workspace", "tasks": ["interop"]},
+        {"name": "rust-docs", "group": "rust-workspace", "tasks": ["docs"]},
+        {"name": "rust-udeps", "group": "rust-workspace", "tasks": ["udeps"]},
+        {"name": "rust-cargo-hack", "group": "rust-workspace", "tasks": ["features-0", "features-1", "features-2", "features-3", "features-4", "features-5", "features-6", "features-7", "features-8", "features-9"]},
+        {"name": "rust-build", "group": "rust-workspace", "tasks": ["build"]},
+        {"name": "rust-check-no-std", "group": "rust-workspace", "tasks": ["no-std"]},
+        {"name": "rust-wasm-unknown", "group": "rust-workspace", "tasks": ["wasm-unknown"]},
+        {"name": "rust-wasm-wasi", "group": "rust-workspace", "tasks": ["wasm-wasi"]},
+        {"name": "op-reth-compact-codec", "group": "op-reth-rust", "tasks": ["codec"]},
+        {"name": "op-reth-integration-tests", "group": "op-reth-rust", "tasks": ["integration"]},
+        {"name": "kona-lint-cannon", "group": "rust-workspace", "tasks": ["cannon-lint"]},
+        {"name": "kona-build-fpvm-cannon-client", "group": "rust-workspace", "tasks": ["cannon-build"]},
+        {"name": "kona-host-client-offline-cannon", "group": "rust-workspace", "tasks": ["cannon-offline"]},
+        {"name": "kona-registry-snapshot-check", "group": "rust-workspace", "tasks": ["registry"]},
+        {"name": "op-reth-superchain-snapshot-check", "group": "op-reth-rust", "tasks": ["snapshot"]}
+      ]
+    },
+    "ci-gate": {
+      "dependencies": [
+        {"name": "check-kontrol-build", "group": "main-kontrol", "tasks": ["check"]},
+        {"name": "shell-check", "group": "main-checks", "tasks": ["shell-check"]},
+        {"name": "shfmt-check", "group": "main-checks", "tasks": ["shfmt-check"]},
+        {"name": "go-lint", "group": "main-checks", "tasks": ["go-lint"]},
+        {"name": "semgrep-scan-local", "group": "main-checks", "tasks": ["semgrep-scan-local"]},
+        {"name": "semgrep-test", "group": "main-checks", "tasks": ["semgrep-test"]},
+        {"name": "go-tests", "group": "main-go", "tasks": ["verdict-0", "verdict-1", "verdict-2", "verdict-3", "verdict-4", "verdict-5", "verdict-6", "verdict-7", "verdict-8", "verdict-9", "verdict-10", "verdict-11"]},
+        {"name": "go-actions-tests", "group": "main-go", "tasks": ["actions-verdict"]},
+        {"name": "memory-all-opn-op-reth-fusaka", "group": "main-acceptance", "tasks": ["verdict-opn-0", "verdict-opn-1", "verdict-opn-2", "verdict-opn-3"]},
+        {"name": "memory-all-kona-op-reth-fusaka", "group": "main-acceptance", "tasks": ["verdict-kona-0", "verdict-kona-1", "verdict-kona-2", "verdict-kona-3"]},
+        {"name": "kona-build-sp1-elfs", "group": "main-sp1", "tasks": ["check"]},
+        {"name": "cannon-go-lint-and-test", "group": "main-cannon", "tasks": ["tests"]},
+        {"name": "check-generated-mocks-op-node", "group": "main-checks", "tasks": ["check-generated-mocks-op-node"]},
+        {"name": "check-generated-mocks-op-service", "group": "main-checks", "tasks": ["check-generated-mocks-op-service"]},
+        {"name": "check-nut-locks", "group": "main-checks", "tasks": ["check-nut-locks"]},
+        {"name": "check-nut-prefork-states", "group": "main-nut-prefork", "tasks": ["tests"]},
+        {"name": "check-op-geth-version", "group": "main-checks", "tasks": ["check-op-geth-version"]},
+        {"name": "opgeth-ratchet", "group": "main-checks", "tasks": ["opgeth-ratchet"]},
+        {"name": "op-deployer-forge-version", "group": "main-checks", "tasks": ["op-deployer-forge-version"]},
+        {"name": "l2-chains-sync-check", "group": "main-checks", "tasks": ["l2-chains-sync-check"]},
+        {"name": "nut-provenance-verify", "group": "main-nut-provenance", "tasks": ["verify"]}
+      ]
+    },
+    "required-contracts-ci": {
+      "dependencies": [
+        {"name": "contracts-bedrock-tests main", "group": "contracts-suites", "tasks": ["verdict-standard-main"]},
+        {"name": "contracts-bedrock-tests CUSTOM_GAS_TOKEN", "group": "contracts-suites", "tasks": ["verdict-standard-CUSTOM_GAS_TOKEN"]},
+        {"name": "contracts-bedrock-tests INTEROP", "group": "contracts-suites", "tasks": ["verdict-standard-INTEROP"]},
+        {"name": "contracts-bedrock-tests BRIDGE_HOOK", "group": "contracts-suites", "tasks": ["verdict-standard-BRIDGE_HOOK"]},
+        {"name": "contracts-bedrock-tests OP_PRIVATE", "group": "contracts-suites", "tasks": ["verdict-standard-OP_PRIVATE"]},
+        {"name": "contracts-bedrock-tests-heavy-fuzz-modified main", "group": "contracts-suites", "tasks": ["verdict-modified-main"]},
+        {"name": "contracts-bedrock-tests-heavy-fuzz-modified CUSTOM_GAS_TOKEN", "group": "contracts-suites", "tasks": ["verdict-modified-CUSTOM_GAS_TOKEN"]},
+        {"name": "contracts-bedrock-tests-heavy-fuzz-modified INTEROP", "group": "contracts-suites", "tasks": ["verdict-modified-INTEROP"]},
+        {"name": "contracts-bedrock-tests-heavy-fuzz-modified BRIDGE_HOOK", "group": "contracts-suites", "tasks": ["verdict-modified-BRIDGE_HOOK"]},
+        {"name": "contracts-bedrock-tests-heavy-fuzz-modified OP_PRIVATE", "group": "contracts-suites", "tasks": ["verdict-modified-OP_PRIVATE"]},
+        {"name": "contracts-bedrock-tests-upgrade op-mainnet main", "group": "contracts-upgrades", "tasks": ["verdict-feature-main"]},
+        {"name": "contracts-bedrock-tests-upgrade op-mainnet CUSTOM_GAS_TOKEN", "group": "contracts-upgrades", "tasks": ["verdict-feature-CUSTOM_GAS_TOKEN"]},
+        {"name": "contracts-bedrock-tests-upgrade op-mainnet INTEROP", "group": "contracts-upgrades", "tasks": ["verdict-feature-INTEROP"]},
+        {"name": "contracts-bedrock-tests-upgrade op-mainnet BRIDGE_HOOK", "group": "contracts-upgrades", "tasks": ["verdict-feature-BRIDGE_HOOK"]},
+        {"name": "contracts-bedrock-tests-upgrade op-mainnet OP_PRIVATE", "group": "contracts-upgrades", "tasks": ["verdict-feature-OP_PRIVATE"]},
+        {"name": "contracts-bedrock-tests-upgrade op-mainnet", "group": "contracts-upgrades", "tasks": ["verdict-chain-op"]},
+        {"name": "contracts-bedrock-tests-upgrade ink-mainnet", "group": "contracts-upgrades", "tasks": ["verdict-chain-ink"]},
+        {"name": "contracts-bedrock-tests-upgrade unichain-mainnet", "group": "contracts-upgrades", "tasks": ["verdict-chain-unichain"]},
+        {"name": "contracts-bedrock-tests-l2-fork op-mainnet", "group": "contracts-l2-fork", "tasks": ["verdict"]},
+        {"name": "contracts-bedrock-checks-fast-feature-tests", "group": "contracts-checks", "tasks": ["contracts-fast"]}
+      ]
+    },
+    "required-rust-e2e": {
+      "dependencies": [
+        {"name": "rust-e2e-binaries", "group": "rust-e2e", "tasks": ["binaries"]},
+        {"name": "rust-workspace-release", "group": "rust-e2e", "tasks": ["release"]},
+        {"name": "rust-e2e-simple-kona", "group": "rust-e2e", "tasks": ["verdict-simple-kona-0"]},
+        {"name": "rust-e2e-simple-kona-sequencer", "group": "rust-e2e", "tasks": ["verdict-simple-kona-sequencer-0"]},
+        {"name": "rust-e2e-restart", "group": "rust-e2e", "tasks": ["verdict-restart-0", "verdict-restart-1", "verdict-restart-2"]},
+        {"name": "op-reth-e2e-sysgo-tests", "group": "rust-e2e", "tasks": ["verdict-op-reth-0"]},
+        {"name": "kona-proof-action-single", "group": "rust-e2e", "tasks": ["verdict-proof-0", "verdict-proof-1", "verdict-proof-2", "verdict-proof-3", "verdict-proof-4", "verdict-proof-5", "verdict-proof-6", "verdict-proof-7"]}
+      ]
+    }
+  }
+}
