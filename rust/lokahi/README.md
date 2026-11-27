@@ -30,7 +30,7 @@ Hello Lokahi
 docker pull us-docker.pkg.dev/oplabs-tools-artifacts/images/lokahi:develop
 ```
 
-`build-images.apko` publishes the image for amd64 and arm64 on every `develop` push, and under the
+`build-images.yaml` publishes the image for amd64 and arm64 on every `develop` push, and under the
 release version for a `lokahi/vX.Y.Z` tag. The build has two stages, the same as every other
 Rust image:
 
