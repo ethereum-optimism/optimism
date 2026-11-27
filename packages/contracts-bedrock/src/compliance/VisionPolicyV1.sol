@@ -24,8 +24,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         Any failed call reverts the entire batch.
 contract VisionPolicyV1 is Ownable2Step, Multicallable, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice The highest value of maxVerdictValidity.
     uint64 internal constant MAX_VERDICT_VALIDITY_CAP = 5 days;
@@ -37,6 +37,10 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable, ISemver {
     /// @notice The module this policy screens for and records verdicts in.
     // nosemgrep: sol-safety-no-immutable-variables
     IComplianceModule internal immutable MODULE;
+
+    /// @notice The L1 block this policy was deployed in.
+    // nosemgrep: sol-safety-no-immutable-variables
+    uint256 internal immutable START_BLOCK;
 
     /// @notice The only address that can record and revoke verdicts.
     address public verdictWriter;
@@ -119,6 +123,7 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable, ISemver {
         if (address(_module) == address(0)) revert VisionPolicyV1_ZeroAddress();
 
         MODULE = _module;
+        START_BLOCK = block.number;
         _setVerdictWriter(_verdictWriter);
         _setMaxVerdictValidity(_maxVerdictValidity);
         _setHoldDelay(_holdDelay);
@@ -129,6 +134,13 @@ contract VisionPolicyV1 is Ownable2Step, Multicallable, ISemver {
     /// @notice Returns the module this policy serves.
     function module() external view returns (IComplianceModule module_) {
         module_ = MODULE;
+    }
+
+    /// @notice Returns the L1 block this policy was deployed in. A reader searching for this
+    ///         policy's events starts at this block, which holds the constructor's events,
+    ///         including the initial allowlist and deny list.
+    function startBlock() external view returns (uint256 startBlock_) {
+        startBlock_ = START_BLOCK;
     }
 
     /// @notice Screens a deposit at submission. Only the module can call.
