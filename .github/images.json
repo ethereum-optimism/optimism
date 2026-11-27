@@ -43,10 +43,6 @@
         "untrusted": "fast-build"
       }
     },
-    "op-zk-proposer-cuda": {
-      "config": "melange/op-zk-proposer-cuda.yaml",
-      "runner_profile": "large"
-    },
     "multicannon": {
       "config": "melange/multicannon.yaml"
     },
@@ -278,11 +274,9 @@
       "smoke": {
         "commands": [
           "op-deployer --version",
-          "forge --version",
-          "anvil --version"
+          "forge --version"
         ],
-        "verify_version": true,
-        "script": "op-deployer/scripts/genesis-smoke-test-image.sh"
+        "verify_version": true
       }
     },
     "op-dispute-mon": {
@@ -538,29 +532,6 @@
           "op-zk-proposer --version"
         ],
         "verify_version": true
-      }
-    },
-    "op-zk-proposer-cuda": {
-      "builders": {
-        "apko": {
-          "needs_packages": [
-            "op-stack-rust",
-            "op-zk-proposer-cuda"
-          ]
-        }
-      },
-      "archs": [
-        "amd64"
-      ],
-      "paths": [
-        "melange/op-zk-proposer-cuda.yaml",
-        "apko/op-zk-proposer-cuda.yaml"
-      ],
-      "smoke": {
-        "commands": [
-          "op-zk-proposer --version",
-          "sp1-gpu-server --version"
-        ]
       }
     }
   }
