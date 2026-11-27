@@ -47,8 +47,7 @@ func init() {
 // The base directory must be a built forge project. The tarball is its bundle, as
 // bundle.Write writes it.
 //
-// Do not confuse this script with the ops/publish-artifacts.sh script, which is
-// used to publish the tarball to GCS.
+// It only writes the tarball. It does not publish it anywhere.
 func main() {
 	flag.Parse()
 

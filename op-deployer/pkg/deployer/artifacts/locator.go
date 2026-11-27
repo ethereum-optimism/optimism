@@ -15,10 +15,6 @@ var schemeUnmarshalerDispatch = map[string]schemeUnmarshaler{
 	"https": unmarshalURL,
 }
 
-func CreateHttpLocator(contentHash string) string {
-	return fmt.Sprintf("https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-%s.tar.gz", contentHash)
-}
-
 const EmbeddedLocatorString = "embedded"
 
 var embeddedURL = &url.URL{

@@ -172,14 +172,14 @@ run_scenario \
   "After merge (develop), empty change set (production reality)" \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": false, "c-contracts_changed": false, "c-circleci_changed": false, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
-  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
+  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
   --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
 
 run_scenario \
   "After merge (develop), change detection must not alter routing" \
   "webhook" "develop" "" "" \
   '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": true, "c-only_docs_changes": true}' \
-  main release publish_contract_artifacts develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
+  main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci kona_publish_prestates circleci_schedule_trigger_check \
   --not rust_ci_gate_short rust_e2e_gate_skip ci_gate_skip contracts_feature_tests_short
 
 # Other repos sharing this config run the same post-merge set minus the
@@ -189,7 +189,7 @@ REPO="ethereum-optimism/other" run_scenario \
   "webhook" "develop" "" "" \
   '{}' \
   main release develop_fault_proofs develop_kontrol_tests contracts_feature_tests rust_ci rust_e2e_ci \
-  --not publish_contract_artifacts kona_publish_prestates circleci_schedule_trigger_check
+  --not kona_publish_prestates circleci_schedule_trigger_check
 
 REPO="ethereum-optimism/other" run_scenario \
   "PR (feature branch), CircleCI changed, outside the public repo" \
@@ -197,13 +197,6 @@ REPO="ethereum-optimism/other" run_scenario \
   '{"c-rust_changes_detected": true, "c-contracts_changed": true, "c-circleci_changed": true, "c-docs_changes_detected": false, "c-only_docs_changes": false}' \
   main release contracts_feature_tests rust_ci rust_e2e_ci \
   --not circleci_schedule_trigger_check
-
-REPO="ethereum-optimism/other" run_scenario \
-  "API: publish_contract_artifacts_dispatch, outside the public repo" \
-  "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true}' \
-  release \
-  --not publish_contract_artifacts
 
 run_scenario \
   "Scheduled: build_four_hours" \
@@ -253,12 +246,6 @@ run_scenario \
   "api" "" "" "" \
   '{"c-main_dispatch": false, "c-rust_advisories_dispatch": true}' \
   release scheduled_rust_advisories
-
-run_scenario \
-  "API: publish_contract_artifacts_dispatch" \
-  "api" "" "" "" \
-  '{"c-main_dispatch": false, "c-publish_contract_artifacts_dispatch": true}' \
-  release publish_contract_artifacts
 
 # --- Summary ---
 echo ""
