@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -27,7 +28,14 @@ func NewRollupClient(rpc client.RPC) *RollupClient {
 }
 
 func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
-	return callNonNull[eth.OutputResponse](ctx, r.rpc, "optimism_outputAtBlock", hexutil.Uint64(blockNum))
+	output, err := callNonNull[eth.OutputResponse](ctx, r.rpc, "optimism_outputAtBlock", hexutil.Uint64(blockNum))
+	if err != nil {
+		return nil, err
+	}
+	if output.Status == nil {
+		return nil, errors.New("optimism_outputAtBlock returned no syncStatus")
+	}
+	return output, nil
 }
 
 func (r *RollupClient) SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (*eth.SafeHeadResponse, error) {
