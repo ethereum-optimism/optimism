@@ -107,6 +107,8 @@ reth-ethereum-primitives.workspace = true
 reth-execution-types.workspace = true
 reth-provider = { workspace = true, features = ["test-utils"] }
 rstest.workspace = true
+# `start_paused` test runtimes, for the sequencer request timeout test.
+tokio = { workspace = true, features = ["test-util"] }
 
 [features]
 client = [

@@ -17,7 +17,7 @@ use reth_rpc_eth_types::{
 };
 use reth_rpc_server_types::result::{internal_rpc_err, rpc_err};
 use revm::context_interface::result::{EVMError, InvalidTransaction};
-use std::{convert::Infallible, fmt::Display};
+use std::{convert::Infallible, fmt::Display, time::Duration};
 
 /// Optimism specific errors, that extend [`EthApiError`].
 #[derive(Debug, thiserror::Error)]
@@ -158,6 +158,9 @@ pub enum SequencerClientError {
     /// Wrapper around an [`RpcError<TransportErrorKind>`].
     #[error(transparent)]
     HttpError(#[from] RpcError<TransportErrorKind>),
+    /// The sequencer did not answer within the request timeout.
+    #[error("sequencer request timed out after {0:?}")]
+    Timeout(Duration),
 }
 
 impl From<SequencerClientError> for jsonrpsee_types::error::ErrorObject<'static> {
