@@ -10,24 +10,30 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 type receiptsBatchCall = batching.IterativeBatchCall[common.Hash, *optypes.Receipt]
+
+// maxPendingReceiptsCalls bounds the uncompleted batch calls kept for a retry, so that blocks whose
+// receipts fail and are never requested again don't accumulate.
+const maxPendingReceiptsCalls = 16
 
 type BasicRPCReceiptsFetcher struct {
 	client       rpcClient
 	maxBatchSize int
 
 	// calls caches uncompleted batch calls
-	calls   map[common.Hash]*receiptsBatchCall
+	calls   *lru.Cache[common.Hash, *receiptsBatchCall]
 	callsMu sync.Mutex
 }
 
 func NewBasicRPCReceiptsFetcher(client rpcClient, maxBatchSize int) *BasicRPCReceiptsFetcher {
+	calls, _ := lru.New[common.Hash, *receiptsBatchCall](maxPendingReceiptsCalls)
 	return &BasicRPCReceiptsFetcher{
 		client:       client,
 		maxBatchSize: maxBatchSize,
-		calls:        make(map[common.Hash]*receiptsBatchCall),
+		calls:        calls,
 	}
 }
 
@@ -57,7 +63,7 @@ func (f *BasicRPCReceiptsFetcher) FetchReceipts(ctx context.Context, blockInfo e
 func (f *BasicRPCReceiptsFetcher) getOrCreateBatchCall(blockHash common.Hash, txHashes []common.Hash) *receiptsBatchCall {
 	f.callsMu.Lock()
 	defer f.callsMu.Unlock()
-	if call, ok := f.calls[blockHash]; ok {
+	if call, ok := f.calls.Get(blockHash); ok {
 		return call
 	}
 	call := batching.NewIterativeBatchCall[common.Hash, *optypes.Receipt](
@@ -67,14 +73,14 @@ func (f *BasicRPCReceiptsFetcher) getOrCreateBatchCall(blockHash common.Hash, tx
 		f.client.CallContext,
 		f.maxBatchSize,
 	)
-	f.calls[blockHash] = call
+	f.calls.Add(blockHash, call)
 	return call
 }
 
 func (f *BasicRPCReceiptsFetcher) deleteBatchCall(blockHash common.Hash) {
 	f.callsMu.Lock()
 	defer f.callsMu.Unlock()
-	delete(f.calls, blockHash)
+	f.calls.Remove(blockHash)
 }
 
 func makeReceiptRequest(txHash common.Hash) (*optypes.Receipt, rpc.BatchElem) {
