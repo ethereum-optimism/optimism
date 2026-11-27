@@ -108,3 +108,52 @@ func TestHandlerAuthentication(t *testing.T) {
 		require.Equal(t, 12, res)
 	})
 }
+
+// TestHandlerWithHTTPBodyLimit tests that the HTTP body limit option is correctly applied
+func TestHandlerWithHTTPBodyLimit(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+
+	tests := []struct {
+		name              string
+		bodyLimit         int
+		expectedBodyLimit int
+	}{
+		{
+			name:              "with 10MB limit",
+			bodyLimit:         10 * 1024 * 1024,
+			expectedBodyLimit: 10 * 1024 * 1024,
+		},
+		{
+			name:              "with 64MB limit",
+			bodyLimit:         64 * 1024 * 1024,
+			expectedBodyLimit: 64 * 1024 * 1024,
+		},
+		{
+			name:              "with 5MB limit (default)",
+			bodyLimit:         5 * 1024 * 1024,
+			expectedBodyLimit: 5 * 1024 * 1024,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := NewHandler("v1.2.3", WithLogger(logger), WithHTTPBodyLimit(tt.bodyLimit))
+			t.Cleanup(h.Stop)
+
+			// Verify the HTTP body limit is set correctly
+			require.Equal(t, tt.expectedBodyLimit, h.httpBodyLimit,
+				"HTTP body limit should be %d bytes", tt.expectedBodyLimit)
+		})
+	}
+}
+
+// TestHandlerWithoutHTTPBodyLimit tests that handler works without body limit configured
+func TestHandlerWithoutHTTPBodyLimit(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+	h := NewHandler("v1.2.3", WithLogger(logger))
+	t.Cleanup(h.Stop)
+
+	// Verify the HTTP body limit is not set (0 means not configured)
+	require.Equal(t, 0, h.httpBodyLimit,
+		"HTTP body limit should be 0 when not configured")
+}

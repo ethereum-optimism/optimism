@@ -103,6 +103,8 @@ type Config struct {
 
 	// RoundRobinLeaderTransfer enables deterministic round-robin leader transfer.
 	RoundRobinLeaderTransfer bool
+
+	HTTPBodyLimitMB int
 }
 
 // Check validates the CLIConfig.
@@ -145,6 +147,9 @@ func (c *Config) Check() error {
 	}
 	if err := c.RPC.Check(); err != nil {
 		return fmt.Errorf("invalid rpc config: %w", err)
+	}
+	if c.HTTPBodyLimitMB <= 0 {
+		return fmt.Errorf("HTTP body limit must be greater than 0, got %dMB", c.HTTPBodyLimitMB)
 	}
 	return nil
 }
@@ -209,6 +214,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RPC:                 oprpc.ReadCLIConfig(ctx),
 		// RoundRobinLeaderTransfer enables deterministic round-robin leader transfer.
 		RoundRobinLeaderTransfer: ctx.Bool(flags.RoundRobinLeaderTransfer.Name),
+		HTTPBodyLimitMB:          ctx.Int(flags.HTTPBodyLimitMB.Name),
 	}, nil
 }
 

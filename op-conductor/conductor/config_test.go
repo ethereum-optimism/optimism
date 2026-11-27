@@ -94,3 +94,93 @@ func TestConfigCheckRollupBoostAndNextMutuallyExclusive(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "only one of rollup-boost or rollup-boost next healthchecks can be enabled")
 }
+
+// TestConfigCheck_HTTPBodyLimit tests the HTTP body limit validation in Config.Check()
+func TestConfigCheck_HTTPBodyLimit(t *testing.T) {
+	tests := []struct {
+		name          string
+		bodyLimitMB   int
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "valid: default 5MB",
+			bodyLimitMB: 5,
+			expectError: false,
+		},
+		{
+			name:        "valid: 64MB (recommended)",
+			bodyLimitMB: 64,
+			expectError: false,
+		},
+		{
+			name:        "valid: 128MB (large)",
+			bodyLimitMB: 128,
+			expectError: false,
+		},
+		{
+			name:        "valid: 10MB",
+			bodyLimitMB: 10,
+			expectError: false,
+		},
+		{
+			name:        "valid: 4MB",
+			bodyLimitMB: 4,
+			expectError: false,
+		},
+		{
+			name:        "valid: 1MB",
+			bodyLimitMB: 1,
+			expectError: false,
+		},
+		{
+			name:          "invalid: 0MB",
+			bodyLimitMB:   0,
+			expectError:   true,
+			errorContains: "HTTP body limit must be greater than 0, got 0MB",
+		},
+		{
+			name:          "invalid: -1MB (negative)",
+			bodyLimitMB:   -1,
+			expectError:   true,
+			errorContains: "HTTP body limit must be greater than 0, got -1MB",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newValidConfig(t)
+			cfg.HTTPBodyLimitMB = tt.bodyLimitMB
+
+			err := cfg.Check()
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// newValidConfig creates a valid Config for testing
+func newValidConfig(t *testing.T) Config {
+	return Config{
+		ConsensusAddr:   "127.0.0.1",
+		ConsensusPort:   50050,
+		RaftServerID:    "test-node",
+		RaftStorageDir:  t.TempDir(),
+		RaftBootstrap:   true,
+		NodeRPC:         "http://localhost:8545",
+		ExecutionRPC:    "http://localhost:8551",
+		Paused:          false,
+		HTTPBodyLimitMB: 5, // Default valid value
+		HealthCheck: HealthCheckConfig{
+			Interval:       1,
+			UnsafeInterval: 3,
+			SafeInterval:   5,
+			MinPeerCount:   1,
+		},
+	}
+}

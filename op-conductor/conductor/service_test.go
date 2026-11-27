@@ -45,7 +45,8 @@ func mockConfig() Config {
 			SafeInterval:   5,
 			MinPeerCount:   1,
 		},
-		RPCEnableProxy: false,
+		RPCEnableProxy:  false,
+		HTTPBodyLimitMB: 5,
 	}
 }
 

@@ -40,6 +40,7 @@ type Handler struct {
 	jwtSecret      []byte
 	wsEnabled      bool
 	httpRecorder   opmetrics.HTTPRecorder
+	httpBodyLimit  int
 
 	log         log.Logger
 	middlewares []Middleware
@@ -158,6 +159,14 @@ func (b *Handler) AddRPCWithAuthentication(route string, isAuthenticated *bool) 
 	}
 
 	srv := rpc.NewServer()
+
+	// Set HTTP body limit if configured
+	if b.httpBodyLimit > 0 {
+		srv.SetHTTPBodyLimit(b.httpBodyLimit)
+		b.log.Info("RPC server HTTP body limit configured",
+			"route", route,
+			"limit_mb", b.httpBodyLimit/(1024*1024))
+	}
 
 	if err := srv.RegisterName("health", &healthzAPI{
 		appVersion: b.appVersion,

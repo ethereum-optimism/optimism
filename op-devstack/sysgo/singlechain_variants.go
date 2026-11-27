@@ -414,6 +414,7 @@ func startConductorNode(
 		Paused:                  paused,
 		HealthCheck:             healthCheck,
 		RPCEnableProxy:          true,
+		HTTPBodyLimitMB:         5,
 		LogConfig: logcli.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: log.FormatText,

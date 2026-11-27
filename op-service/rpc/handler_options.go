@@ -64,3 +64,10 @@ func WithMiddleware(middleware func(http.Handler) (hdlr http.Handler)) Option {
 		b.middlewares = append(b.middlewares, middleware)
 	}
 }
+
+// WithHTTPBodyLimit sets the maximum size of HTTP request bodies.
+func WithHTTPBodyLimit(limit int) Option {
+	return func(b *Handler) {
+		b.httpBodyLimit = limit
+	}
+}

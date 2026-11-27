@@ -231,7 +231,8 @@ func setupConductor(
 			UnsafeInterval: 30,
 			SafeInterval:   30,
 		},
-		RPCEnableProxy: true,
+		RPCEnableProxy:  true,
+		HTTPBodyLimitMB: 5,
 		LogConfig: logcli.CLIConfig{
 			Level: log.LevelDebug,
 			Color: false,

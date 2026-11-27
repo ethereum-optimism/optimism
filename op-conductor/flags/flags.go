@@ -218,6 +218,12 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RAFT_ROUND_ROBIN_LEADER_TRANSFER"),
 		Value:   false,
 	}
+	HTTPBodyLimitMB = &cli.IntFlag{
+		Name:    "rpc.http-body-limit-mb",
+		Usage:   "HTTP request body size limit in MB for RPC server (default: 5MB, recommended: 64MB for high throughput)",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RPC_HTTP_BODY_LIMIT_MB"),
+		Value:   5,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -256,6 +262,7 @@ var optionalFlags = []cli.Flag{
 	HealthCheckRollupBoostPartialHealthinessToleranceLimit,
 	HealthCheckRollupBoostPartialHealthinessToleranceIntervalSeconds,
 	RoundRobinLeaderTransfer,
+	HTTPBodyLimitMB,
 }
 
 func init() {
