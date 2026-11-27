@@ -108,7 +108,7 @@ type Finalizer struct {
 
 	engineController EngineController
 
-	// finalizedL1 is the currently perceived finalized L1 block.
+	// finalizedL1 is the latest L1 finality signal.
 	// This may be ahead of the current traversed origin when syncing.
 	finalizedL1 eth.L1BlockRef
 
@@ -192,11 +192,12 @@ func (fi *Finalizer) OnEvent(ctx context.Context, ev event.Event) bool {
 func (fi *Finalizer) OnL1Finalized(l1Origin eth.L1BlockRef) {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
-	prevFinalizedL1 := fi.finalizedL1
 	if l1Origin.Number < fi.finalizedL1.Number {
-		fi.log.Error("ignoring old L1 finalized block signal! Is the L1 provider corrupted?",
-			"prev_finalized_l1", prevFinalizedL1, "signaled_finalized_l1", l1Origin)
-		return
+		// The signal is followed anyway: a previous signal for a block that the L1 chain does
+		// not have would otherwise block finalization for as long as the node runs.
+		// Finalized L2 blocks stay finalized.
+		fi.log.Warn("L1 finalized block signal moved back, is the L1 provider inconsistent?",
+			"prev_finalized_l1", fi.finalizedL1, "signaled_finalized_l1", l1Origin)
 	}
 
 	if fi.finalizedL1 != l1Origin {
