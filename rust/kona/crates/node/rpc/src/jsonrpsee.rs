@@ -1,18 +1,19 @@
 //! The Optimism RPC API using `jsonrpsee`
 
 use crate::{
-    OutputResponse, SafeHeadResponse, health::HealthzResponse,
-    superroot::SuperRootAtTimestampResponse,
+    OutputResponse, PayloadInfo, SafeHeadResponse, SignedExecutionPayloadEnvelope,
+    health::HealthzResponse, superroot::SuperRootAtTimestampResponse,
 };
-use alloy_eips::BlockNumberOrTag;
+use alloy_eips::{BlockNumHash, BlockNumberOrTag};
 use alloy_primitives::{B256, U64};
 use core::net::IpAddr;
 use ipnet::IpNet;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use kona_engine::VerifierStatus;
 use kona_genesis::{DependencySet, RollupConfig};
 use kona_gossip::{PeerCount, PeerDump, PeerInfo, PeerStats};
 use kona_protocol::SyncStatus;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadAttributes};
 
 #[cfg_attr(all(target_arch = "wasm32", target_os = "unknown"), allow(unused_imports))]
 use getrandom as _; // required for compiling wasm32-unknown-unknown
@@ -65,6 +66,31 @@ pub trait SuperRootApi {
         &self,
         timestamp: U64,
     ) -> RpcResult<SuperRootAtTimestampResponse>;
+}
+
+/// The cross-chain verification authority a node follows for its safe and finalized labels.
+///
+/// A node polls [`Self::chain_status`]: the safe label follows its verified head, finality its
+/// finalized head, derivation replaces its denied blocks, and a change of its epoch makes the node
+/// derive again from its finalized head. The authority serves any number of nodes per chain and
+/// knows none of them.
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "interop"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "interop"))]
+pub trait InteropAuthorityApi {
+    /// The authority's epoch, the verified and finalized heads of `chain_id`, and its blocks at or
+    /// above `denied_from` that verification rejected, ascending, all from one snapshot.
+    #[method(name = "chainStatus")]
+    async fn chain_status(&self, chain_id: u64, denied_from: u64) -> RpcResult<VerifierStatus>;
+}
+
+/// What a node following a cross-chain verification authority serves the authority.
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "interop"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "interop"))]
+pub trait InteropNodeApi {
+    /// The authority epoch the node derives under: it derived again from its finalized head when
+    /// it took this epoch on. `None` until it did, and on a node that follows no authority.
+    #[method(name = "appliedEpoch")]
+    async fn applied_epoch(&self) -> RpcResult<Option<B256>>;
 }
 
 /// The opp2p namespace handles peer interactions.
@@ -205,6 +231,39 @@ pub trait AdminApi {
     /// Resets the derivation pipeline.
     #[method(name = "resetDerivationPipeline")]
     async fn admin_reset_derivation_pipeline(&self) -> RpcResult<()>;
+}
+
+/// The experimental block-building namespace of op-node, through which a sequencer outside the
+/// node, such as op-test-sequencer, builds, commits and publishes blocks on it. Each method has
+/// the name, parameters and results of op-node's, and fails with op-node's error codes.
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "opstack"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "opstack"))]
+pub trait OpStackApi {
+    /// Starts building a block with `attributes` on `parent`, which can be any block the
+    /// execution layer has, and returns the build's identifier.
+    #[method(name = "openBlockV1")]
+    async fn open_block_v1(
+        &self,
+        parent: BlockNumHash,
+        attributes: OpPayloadAttributes,
+    ) -> RpcResult<PayloadInfo>;
+
+    /// Cancels a build. The execution layer has no cancellation, so this fetches and drops the
+    /// payload, as op-node does.
+    #[method(name = "cancelBlockV1")]
+    async fn cancel_block_v1(&self, id: PayloadInfo) -> RpcResult<()>;
+
+    /// Completes a build and returns its payload, without importing it.
+    #[method(name = "sealBlockV1")]
+    async fn seal_block_v1(&self, id: PayloadInfo) -> RpcResult<OpExecutionPayloadEnvelope>;
+
+    /// Imports the payload and makes it the unsafe head. The signature is not checked.
+    #[method(name = "commitBlockV1")]
+    async fn commit_block_v1(&self, envelope: SignedExecutionPayloadEnvelope) -> RpcResult<()>;
+
+    /// Gossips the payload with its signature, as the node gossips its own sequenced blocks.
+    #[method(name = "publishBlockV1")]
+    async fn publish_block_v1(&self, signed: SignedExecutionPayloadEnvelope) -> RpcResult<()>;
 }
 
 /// The admin namespace for the consensus node.

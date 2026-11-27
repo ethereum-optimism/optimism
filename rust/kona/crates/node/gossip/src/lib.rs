@@ -75,6 +75,9 @@ pub use peer_addr::PeerAddr;
 
 mod payload;
 
+mod signed_payload;
+pub use signed_payload::SignedPayload;
+
 mod signer;
 pub use signer::{SIGNER_GRACE_PERIOD, UnsafeBlockSigner};
 

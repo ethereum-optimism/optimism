@@ -121,6 +121,9 @@ func startSupernodeEL(t devtest.T, l2Net *L2Network, jwtPath string, jwtSecret [
 }
 
 func newSingleChainSupernodeRuntimeWithConfig(t devtest.T, lagoonAtGenesis bool, cfg PresetConfig) *MultiChainRuntime {
+	if cfg.InteropVerifier == SupernodeLokahi {
+		return newSingleChainLokahiRuntime(t, lagoonAtGenesis, cfg)
+	}
 	require := t.Require()
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
@@ -212,6 +215,20 @@ func newMultiL2SupernodeRuntimeWithConfigAndSequencerMode(
 ) (*MultiChainRuntime, uint64) {
 	require := t.Require()
 	require.NotEmpty(chainSpecs, "multi-chain runtime needs at least one L2 chain")
+	if cfg.InteropVerifier == SupernodeLokahi {
+		require.Zero(cfg.InteropLogBackfillDepth, "the log backfill depth configures op-supernode")
+		runtime := newMultiL2LokahiRuntime(t, enableInterop, delaySeconds, cfg, lokahiChainsConfig{
+			testControl:        true,
+			perChainProposer:   true,
+			lightSequencer:     !supernodeSequencerEnabled,
+			bootstrapSequencer: cfg.SupernodeVNSequencerForBootstrap,
+		}, chainSpecs)
+		var activationTime uint64
+		if enableInterop {
+			activationTime = runtime.Chains[chainSpecs[0].Name].Network.rollupCfg.Genesis.L2Time + delaySeconds
+		}
+		return runtime, activationTime
+	}
 
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(err, "failed to derive dev keys from mnemonic")
@@ -453,15 +470,26 @@ func addMultiChainFollowL2Node(t devtest.T, runtime *MultiChainRuntime, chainKey
 	jwtPath := chain.EL.JWTPath()
 	jwtSecret := readJWTSecretFromPath(t, jwtPath)
 	l2EL := startMixedOpRethNode(t, chain.Network, name, jwtPath, jwtSecret, nil)
-	l2CL := startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
-		Key:            name,
-		IsSequencer:    false,
-		NoDiscovery:    true,
-		L2FollowSource: chain.CL.UserRPC(),
-		DependencySet:  runtime.DependencySet,
-		// Follow nodes catch up to their follow source via EL sync.
-		SyncMode: nodeSync.ELSync,
-	})
+	var l2CL L2CLNode
+	if runtime.Lokahi != nil {
+		// The lokahi backend runs kona-nodes only: the follower is a light kona-node.
+		l2CL = startMixedKonaNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, l2EL,
+			name, name, konaNodeStartConfig{
+				InOpReth:      ResolveMixedL2CLKind(t) == MixedL2CLOpReth,
+				DependencySet: runtime.DependencySet,
+				L2CLConfig:    resolveKonaL2CLConfig(t, name, chain.Network.ChainID(), false, chain.CL.UserRPC(), nil),
+			})
+	} else {
+		l2CL = startL2CLNode(t, runtime.Keys, runtime.L1Network, chain.Network, runtime.L1EL, runtime.L1CL, l2EL, jwtSecret, l2CLNodeStartConfig{
+			Key:            name,
+			IsSequencer:    false,
+			NoDiscovery:    true,
+			L2FollowSource: chain.CL.UserRPC(),
+			DependencySet:  runtime.DependencySet,
+			// Follow nodes catch up to their follow source via EL sync.
+			SyncMode: nodeSync.ELSync,
+		})
+	}
 
 	connectL2ELPeers(t, t.Logger(), chain.EL.UserRPC(), l2EL.UserRPC())
 	connectL2CLPeers(t, t.Logger(), chain.CL, l2CL)
@@ -772,8 +800,6 @@ func startTestSequencerForL2Chains(
 ) *testSequencer {
 	require := t.Require()
 	logger := t.Logger().New("component", "test-sequencer")
-
-	require.NotEmpty(targets, "at least one L2 target is required")
 
 	l1ELClient, err := ethclient.DialContext(t.Ctx(), l1EL.UserRPC())
 	require.NoError(err, "failed to dial L1 EL RPC for test-sequencer")

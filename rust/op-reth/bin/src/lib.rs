@@ -69,3 +69,6 @@ pub mod primitives {
 pub mod rpc {
     pub use reth_optimism_rpc::*;
 }
+
+/// Arguments and runner for the optional embedded Kona rollup node.
+pub mod rollup_consensus;

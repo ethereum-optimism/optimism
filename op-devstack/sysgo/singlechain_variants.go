@@ -60,7 +60,7 @@ func NewSingleChainTwoVerifiersRuntimeWithConfig(t devtest.T, cfg PresetConfig) 
 	followerKind := ResolveMixedL2CLKind(t)
 	sourceKind := followerKind
 	if cfg.FollowSourceCLKind != "" {
-		t.Require().Contains([]MixedL2CLKind{MixedL2CLOpNode, MixedL2CLKona}, cfg.FollowSourceCLKind,
+		t.Require().Contains([]MixedL2CLKind{MixedL2CLOpNode, MixedL2CLKona, MixedL2CLOpReth}, cfg.FollowSourceCLKind,
 			"unsupported follow-source CL kind")
 		sourceKind = cfg.FollowSourceCLKind
 	}

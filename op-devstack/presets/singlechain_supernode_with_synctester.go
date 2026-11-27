@@ -23,13 +23,14 @@ type SingleSupernodeWithSyncTester struct {
 }
 
 func NewSingleSupernodeWithSyncTester(t devtest.T, opts ...Option) *SingleSupernodeWithSyncTester {
-	skipOpNodeOnlyPresetOnKonaNode(t)
 	presetCfg, presetOpts := collectSupportedPresetConfig(
 		t,
 		"NewSingleSupernodeWithSyncTester",
 		opts,
 		singleSupernodeWithSyncTesterPresetSupportedOptionKinds,
 	)
+	selectInteropVerifier(t, &presetCfg,
+		"the lokahi backend runs one node per chain, not a separate verifier on a sync-tester EL")
 	out := singleSupernodeWithSyncTesterFromRuntime(t, sysgo.NewSingleSupernodeWithSyncTesterRuntimeWithConfig(t, presetCfg))
 	presetOpts.applyPreset(out)
 	return out

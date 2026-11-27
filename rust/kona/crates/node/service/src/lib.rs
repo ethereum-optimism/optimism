@@ -14,6 +14,7 @@ pub use service::{L1Config, L1ConfigBuilder, NodeMode, RollupNode, RollupNodeBui
 
 mod actors;
 pub use actors::{
+    AUTHORITY_POLL_INTERVAL, AppliedEpoch, AppliedEpochRpc, AuthorityActor, AuthorityActorError,
     BlockStream, BuildRequest, CanonicalizeRequest, Clock, Conductor, ConductorClient,
     ConductorError, DelayedL1OriginSelectorProvider, DelegateDerivationActor, DerivationActor,
     DerivationActorRequest, DerivationClientError, DerivationClientResult, DerivationEngineClient,

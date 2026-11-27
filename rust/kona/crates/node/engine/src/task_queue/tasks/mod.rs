@@ -10,8 +10,8 @@ pub use synchronize::SynchronizeTaskError;
 pub(super) use synchronize::{synchronize, synchronize_unconditionally};
 
 mod insert;
-pub(super) use insert::insert_payload;
 pub use insert::{InsertTask, InsertTaskError};
+pub(super) use insert::{insert_payload, new_payload};
 
 mod build;
 pub(super) use build::start_build;
@@ -24,11 +24,30 @@ pub use seal::{SealTask, SealTaskError};
 mod canonicalize;
 pub use canonicalize::{CanonicalizeTask, CanonicalizeTaskError};
 
+mod opstack;
+pub use opstack::{OpStackTask, OpenBlockError};
+
 mod consolidate;
-pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError};
+pub use consolidate::{ConsolidateInput, ConsolidateTask, ConsolidateTaskError, DelegatedHeads};
 
 mod finalize;
 pub use finalize::{FinalizeBlockId, FinalizeTask, FinalizeTaskError};
+
+mod promote;
+pub use promote::{
+    PromoteTask, PromoteTaskError, VerifierFinality, VerifierHead, VerifierStatus,
+    l1_block_is_canonical, verifier_activation_timestamp,
+};
+
+mod replace;
+pub use replace::ReplaceDeniedError;
+pub(super) use replace::replace_denied;
+
+mod deny;
+pub use deny::{DenyTask, DenyTaskError};
+
+mod undo;
+pub use undo::{UndoTask, UndoTaskError};
 
 mod util;
 pub(super) use util::{BuildAndImportError, build_and_import};

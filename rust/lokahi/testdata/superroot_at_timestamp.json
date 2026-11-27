@@ -1,0 +1,59 @@
+{
+  "current_l1": {
+    "hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+    "number": 7
+  },
+  "safe_timestamp": 1002,
+  "local_safe_timestamp": 1004,
+  "finalized_timestamp": 1000,
+  "optimistic_at_timestamp": {
+    "901": {
+      "output": {
+        "stateRoot": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "messagePasserStorageRoot": "0xa2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+        "blockHash": "0xa3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+      },
+      "output_root": "0x97e9a66a195ae9329271874f35685fa67dbd9c09714809bfc7dbb3f1f0ef1241",
+      "required_l1": {
+        "hash": "0x2121212121212121212121212121212121212121212121212121212121212121",
+        "number": 5
+      }
+    },
+    "902": {
+      "output": {
+        "stateRoot": "0xb1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+        "messagePasserStorageRoot": "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "blockHash": "0xb3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3"
+      },
+      "output_root": "0x79530114b3a0a77cd5be5289f88f1a29a4233fe20ee59bf8c9cb4b09fa15c5eb",
+      "required_l1": {
+        "hash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "number": 6
+      }
+    }
+  },
+  "chain_ids": [
+    "901",
+    "902"
+  ],
+  "data": {
+    "verified_required_l1": {
+      "hash": "0x2222222222222222222222222222222222222222222222222222222222222222",
+      "number": 6
+    },
+    "super": {
+      "timestamp": "0x3eb",
+      "chains": [
+        {
+          "ChainID": "901",
+          "Output": "0x97e9a66a195ae9329271874f35685fa67dbd9c09714809bfc7dbb3f1f0ef1241"
+        },
+        {
+          "ChainID": "902",
+          "Output": "0x6c409eb910e3e8139b2a02abe8f6022a1536e265397ef132f3fe51ae65bcca4f"
+        }
+      ]
+    },
+    "super_root": "0x893ea67c42ed1c54ec8244cab861454142177cb7631aa110f1e31d367d81e271"
+  }
+}

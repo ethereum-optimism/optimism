@@ -1,8 +1,8 @@
 //! A task to insert an unsafe payload into the execution engine.
 
 use crate::{
-    EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink, InsertTaskError,
-    state::EngineSyncStateUpdate, task_queue::synchronize,
+    DeniedBlocks, EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink,
+    InsertTaskError, state::EngineSyncStateUpdate, task_queue::synchronize,
 };
 use alloy_rpc_types_engine::{ExecutionPayloadInputV2, PayloadStatusEnum};
 use async_trait::async_trait;
@@ -27,18 +27,35 @@ pub struct InsertTask {
     is_payload_safe: bool,
     /// Where to hand the decoded block once the engine has canonicalized it.
     block_sink: Arc<dyn ImportedBlockSink>,
+    /// The blocks a cross-chain verifier denied, which hold off unsafe imports.
+    denied: DeniedBlocks,
 }
 
 impl InsertTask {
     /// Creates a new insert task.
-    pub const fn new(
+    pub fn new(
         client: Arc<EngineClient>,
         rollup_config: Arc<RollupConfig>,
         payload: OpExecutionPayloadEnvelope,
         is_attributes_derived: bool,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, rollup_config, payload, is_payload_safe: is_attributes_derived, block_sink }
+        Self {
+            client,
+            rollup_config,
+            payload,
+            is_payload_safe: is_attributes_derived,
+            block_sink,
+            denied: DeniedBlocks::none(),
+        }
+    }
+
+    /// Holds off the import of an unsafe payload while `denied` has a block above the finalized
+    /// head, as op-node gates unsafe payloads on its super authority's deny list: until finality
+    /// passes the highest denied block, an unsafe payload could bring back the denied chain, and
+    /// derivation alone moves the chain. A verifier that has not answered yet holds off nothing.
+    pub fn with_denied_blocks(self, denied: DeniedBlocks) -> Self {
+        Self { denied, ..self }
     }
 }
 
@@ -49,6 +66,26 @@ impl ExecutableEngineTask for InsertTask {
     type Error = InsertTaskError;
 
     async fn execute(&self, state: &mut EngineState) -> Result<L2BlockInfo, InsertTaskError> {
+        if !self.is_payload_safe {
+            // As op-node drops an unsafe payload at or below its safe head, which it could only
+            // import by failing the forkchoice update or moving the unsafe head below local-safe.
+            let number = self.payload.block_number();
+            let local_safe = state.sync_state.local_safe_head().block_info.number;
+            if number <= local_safe {
+                return Err(InsertTaskError::AtOrBelowLocalSafe { number, local_safe });
+            }
+            // Like op-node on a failed deny-list read, a node that has not heard the denied
+            // blocks yet imports the payload.
+            if self.denied.ensure_known(self.payload.timestamp()).is_err() {
+                debug!(target: "engine", "The denied blocks are not known yet; importing the unsafe payload");
+            }
+            let finalized = state.sync_state.finalized_head().block_info.number;
+            if let Some(highest_denied) = self.denied.highest() &&
+                highest_denied > finalized
+            {
+                return Err(InsertTaskError::DeniedChainRecovery { highest_denied, finalized });
+            }
+        }
         insert_payload(
             self.client.as_ref(),
             &self.rollup_config,
@@ -61,8 +98,39 @@ impl ExecutableEngineTask for InsertTask {
     }
 }
 
+/// Sends `payload` to the execution engine with `engine_newPayload` and returns the status the
+/// engine answered.
+pub(in crate::task_queue) async fn new_payload(
+    client: &EngineClient,
+    payload: OpExecutionPayloadEnvelope,
+) -> Result<PayloadStatusEnum, InsertTaskError> {
+    let response = match payload {
+        // A V1 envelope has no withdrawals, so it is a pre-Canyon payload. It goes through
+        // engine_newPayloadV2, which accepts a V1 payload; op-reth serves no engine_newPayloadV1.
+        OpExecutionPayloadEnvelope::V1(payload) => {
+            let payload_input =
+                ExecutionPayloadInputV2 { execution_payload: payload, withdrawals: None };
+            client.new_payload_v2(payload_input).await
+        }
+        OpExecutionPayloadEnvelope::V2(payload) => {
+            let payload_input = ExecutionPayloadInputV2 {
+                execution_payload: payload.payload_inner,
+                withdrawals: Some(payload.withdrawals),
+            };
+            client.new_payload_v2(payload_input).await
+        }
+        OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
+            client.new_payload_v3(payload, parent_beacon_block_root).await
+        }
+        OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
+            client.new_payload_v4(payload, parent_beacon_block_root).await
+        }
+    };
+    Ok(response.map_err(InsertTaskError::InsertFailed)?.status)
+}
+
 /// Inserts `payload` into the execution engine with `engine_newPayload`, then makes it the unsafe
-/// head, and the safe head too if `is_payload_safe`, with a forkchoice update. Returns the
+/// head, and the local-safe head too if `is_payload_safe`, with a forkchoice update. Returns the
 /// inserted block's [`L2BlockInfo`].
 ///
 /// Once the block is canonical it is handed to `block_sink`.
@@ -86,35 +154,9 @@ pub(in crate::task_queue) async fn insert_payload(
     is_payload_safe: bool,
     block_sink: &dyn ImportedBlockSink,
 ) -> Result<L2BlockInfo, InsertTaskError> {
-    // Insert the new payload.
-    // Form the new unsafe block ref from the execution payload.
-    let response = match payload.clone() {
-        // A V1 envelope has no withdrawals, so it is a pre-Canyon payload. It goes through
-        // engine_newPayloadV2, which accepts a V1 payload; op-reth serves no engine_newPayloadV1.
-        OpExecutionPayloadEnvelope::V1(payload) => {
-            let payload_input =
-                ExecutionPayloadInputV2 { execution_payload: payload, withdrawals: None };
-            client.new_payload_v2(payload_input).await
-        }
-        OpExecutionPayloadEnvelope::V2(payload) => {
-            let payload_input = ExecutionPayloadInputV2 {
-                execution_payload: payload.payload_inner,
-                withdrawals: Some(payload.withdrawals),
-            };
-            client.new_payload_v2(payload_input).await
-        }
-        OpExecutionPayloadEnvelope::V3 { payload, parent_beacon_block_root } => {
-            client.new_payload_v3(payload, parent_beacon_block_root).await
-        }
-        OpExecutionPayloadEnvelope::V4 { payload, parent_beacon_block_root } => {
-            client.new_payload_v4(payload, parent_beacon_block_root).await
-        }
-    };
-
-    // Check the `engine_newPayload` response.
-    let response = response.map_err(InsertTaskError::InsertFailed)?;
-    if !matches!(response.status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing) {
-        return Err(InsertTaskError::UnexpectedPayloadStatus(response.status));
+    let status = new_payload(client, payload.clone()).await?;
+    if !matches!(status, PayloadStatusEnum::Valid | PayloadStatusEnum::Syncing) {
+        return Err(InsertTaskError::UnexpectedPayloadStatus(status));
     }
 
     let block: OpBlock = payload.try_into_block().map_err(InsertTaskError::FromBlockError)?;
@@ -128,7 +170,6 @@ pub(in crate::task_queue) async fn insert_payload(
         EngineSyncStateUpdate {
             unsafe_head: Some(new_unsafe_ref),
             local_safe_head: is_payload_safe.then_some(new_unsafe_ref),
-            safe_head: is_payload_safe.then_some(new_unsafe_ref),
             ..Default::default()
         },
     )

@@ -460,7 +460,16 @@ where
                 self.build_ticker.reset_after(Duration::from_secs(1));
                 Ok(())
             }
-            // An invalid conductor-committed payload cannot be safely replaced at this height.
+            // An invalid or denied conductor-committed payload cannot be safely replaced at this
+            // height. Otherwise the payload is dropped and the next block built.
+            CanonicalizeTaskError::Denied(_) => {
+                if block.committed {
+                    error!(target: "sequencer", ?err, "The cross-chain verifier denied a conductor-committed payload");
+                    return Err(err.into());
+                }
+                self.build_ticker.reset_immediately();
+                Ok(())
+            }
             CanonicalizeTaskError::PayloadInsertionFailed(insert_err)
                 if matches!(
                     **insert_err,
@@ -857,7 +866,10 @@ const fn is_insert_task_err_fatal(err: &InsertTaskError) -> bool {
             SynchronizeTaskError::UnexpectedPayloadStatus(_) => false,
         },
         InsertTaskError::FromBlockError(_) | InsertTaskError::L2BlockInfoConstruction(_) => true,
-        InsertTaskError::InsertFailed(_) | InsertTaskError::UnexpectedPayloadStatus(_) => false,
+        InsertTaskError::InsertFailed(_) |
+        InsertTaskError::UnexpectedPayloadStatus(_) |
+        InsertTaskError::AtOrBelowLocalSafe { .. } |
+        InsertTaskError::DeniedChainRecovery { .. } => false,
     }
 }
 

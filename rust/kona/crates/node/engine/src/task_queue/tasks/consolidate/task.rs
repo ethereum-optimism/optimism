@@ -1,10 +1,12 @@
 //! A task to consolidate the engine state.
 
 use crate::{
-    ConsolidateTaskError, EngineClient, EngineState, ExecutableEngineTask, ImportedBlockSink,
+    ConsolidateTaskError, DeniedBlocks, EngineClient, EngineState, ExecutableEngineTask,
+    ImportedBlockSink, ReplaceDeniedError,
     state::EngineSyncStateUpdate,
-    task_queue::{build_and_import, synchronize, synchronize_unconditionally},
+    task_queue::{build_and_import, replace_denied, synchronize, synchronize_unconditionally},
 };
+use alloy_eips::BlockNumHash;
 use alloy_rpc_types_eth::Block;
 use async_trait::async_trait;
 use kona_genesis::RollupConfig;
@@ -12,18 +14,55 @@ use kona_protocol::{L2BlockInfo, OpAttributesWithParent};
 use op_alloy_rpc_types::Transaction;
 use std::sync::Arc;
 
-/// Input for consolidation - either derived attributes or safe L2 block
+/// Input for consolidation - either derived attributes or a derivation delegate's heads.
 #[derive(Debug, Clone)]
 pub enum ConsolidateInput {
     /// Consolidate based on derived attributes.
     Attributes(Box<OpAttributesWithParent>),
-    /// Derivation Delegation: consolidate based on safe L2 block info.
-    BlockInfo(L2BlockInfo),
+    /// Derivation delegation: follow the delegate's heads.
+    Delegated(Box<DelegatedHeads>),
+}
+
+/// The heads of a derivation delegate, which a delegating node follows as op-node's follow-source
+/// mode does: the delegate's local-safe head is the node's local-safe head, and the block it
+/// reorgs onto, and its safe head moves the node's safe label, see [`crate::SafeLabel::Delegated`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DelegatedHeads {
+    /// The delegate's local-safe head.
+    pub local_safe: L2BlockInfo,
+    /// The delegate's safe head, at or below `local_safe`.
+    pub safe: L2BlockInfo,
+}
+
+impl DelegatedHeads {
+    /// The labels the heads set: local-safe, the safe label, and the unsafe head with
+    /// `move_unsafe`.
+    const fn update(&self, move_unsafe: bool) -> EngineSyncStateUpdate {
+        EngineSyncStateUpdate {
+            unsafe_head: if move_unsafe { Some(self.local_safe) } else { None },
+            local_safe_head: Some(self.local_safe),
+            safe_head: Some(self.safe),
+            finalized_head: None,
+        }
+    }
+}
+
+/// The heads of a delegate whose safe head is also its local-safe head.
+impl From<L2BlockInfo> for DelegatedHeads {
+    fn from(safe: L2BlockInfo) -> Self {
+        Self { local_safe: safe, safe }
+    }
+}
+
+impl From<DelegatedHeads> for ConsolidateInput {
+    fn from(heads: DelegatedHeads) -> Self {
+        Self::Delegated(Box::new(heads))
+    }
 }
 
 impl From<L2BlockInfo> for ConsolidateInput {
-    fn from(v: L2BlockInfo) -> Self {
-        Self::BlockInfo(v)
+    fn from(safe: L2BlockInfo) -> Self {
+        DelegatedHeads::from(safe).into()
     }
 }
 
@@ -38,7 +77,7 @@ impl ConsolidateInput {
     const fn l2_block_number(&self) -> u64 {
         match self {
             Self::Attributes(attributes) => attributes.block_number(),
-            Self::BlockInfo(info) => info.block_info.number,
+            Self::Delegated(heads) => heads.local_safe.block_info.number,
         }
     }
 
@@ -48,7 +87,7 @@ impl ConsolidateInput {
             Self::Attributes(attributes) => {
                 crate::AttributesMatch::check(cfg, attributes, block).is_match()
             }
-            Self::BlockInfo(info) => block.header.hash == info.block_info.hash,
+            Self::Delegated(heads) => block.header.hash == heads.local_safe.block_info.hash,
         }
     }
 
@@ -70,17 +109,25 @@ pub struct ConsolidateTask {
     pub input: ConsolidateInput,
     /// Where to hand the decoded block once the engine has canonicalized it.
     pub block_sink: Arc<dyn ImportedBlockSink>,
+    /// The blocks a cross-chain verifier denied, which derived attributes never import.
+    pub denied: DeniedBlocks,
 }
 
 impl ConsolidateTask {
-    /// Creates a new [`ConsolidateTask`] with the specified input
-    pub const fn new(
+    /// Creates a new [`ConsolidateTask`] with the specified input, for a node that follows no
+    /// cross-chain verifier.
+    pub fn new(
         client: Arc<EngineClient>,
         cfg: Arc<RollupConfig>,
         input: ConsolidateInput,
         block_sink: Arc<dyn ImportedBlockSink>,
     ) -> Self {
-        Self { client, cfg, input, block_sink }
+        Self { client, cfg, input, block_sink, denied: DeniedBlocks::none() }
+    }
+
+    /// Consults `denied` before importing a block from derived attributes.
+    pub fn with_denied_blocks(self, denied: DeniedBlocks) -> Self {
+        Self { denied, ..self }
     }
 
     /// This is used when the [`ConsolidateTask`] fails to consolidate the engine state
@@ -94,6 +141,7 @@ impl ConsolidateTask {
             &self.cfg,
             state,
             attributes.clone(),
+            &self.denied,
             self.block_sink.as_ref(),
         )
         .await?;
@@ -104,27 +152,23 @@ impl ConsolidateTask {
     async fn reconcile_to_safe_head(
         &self,
         state: &mut EngineState,
-        safe_l2: &L2BlockInfo,
+        heads: &DelegatedHeads,
     ) -> Result<(), ConsolidateTaskError> {
         warn!(
             target: "engine",
-            safe_l2 = %safe_l2,
-            "Apply safe head"
+            local_safe = %heads.local_safe,
+            safe = %heads.safe,
+            "Apply delegated heads"
         );
 
-        // We intentionally set the unsafe head to safe_l2 to ensure the engine observes a
-        // self-consistent head state. This is required to correctly handle reorgs (where unsafe
-        // may be ahead on a non-canonical fork) and to trigger EL sync when the local unsafe head
-        // lags behind the safe head.
+        // We intentionally set the unsafe head to the delegate's local-safe head to ensure the
+        // engine observes a self-consistent head state. This is required to correctly handle
+        // reorgs (where unsafe may be ahead on a non-canonical fork) and to trigger EL sync when
+        // the local unsafe head lags behind it.
         self.apply_delegated_safe_head(
             state,
-            safe_l2,
-            EngineSyncStateUpdate {
-                local_safe_head: Some(*safe_l2),
-                safe_head: Some(*safe_l2),
-                unsafe_head: Some(*safe_l2),
-                ..Default::default()
-            },
+            heads,
+            heads.update(true),
             "Updated safe head via follow safe",
         )
         .await
@@ -141,112 +185,124 @@ impl ConsolidateTask {
     async fn follow_safe_head_during_el_sync(
         &self,
         state: &mut EngineState,
-        safe_l2: &L2BlockInfo,
+        heads: &DelegatedHeads,
     ) -> Result<(), ConsolidateTaskError> {
         warn!(
             target: "engine",
-            safe_l2 = %safe_l2,
+            local_safe = %heads.local_safe,
             unsafe_number = state.sync_state.unsafe_head().block_info.number,
-            "Execution layer does not have the delegated safe head yet; keeping its sync target"
+            "Execution layer does not have the delegated local-safe head yet; keeping its sync target"
         );
 
         self.apply_delegated_safe_head(
             state,
-            safe_l2,
-            EngineSyncStateUpdate {
-                local_safe_head: Some(*safe_l2),
-                safe_head: Some(*safe_l2),
-                ..Default::default()
-            },
+            heads,
+            heads.update(false),
             "Updated safe head while the execution layer syncs",
         )
         .await
     }
 
-    /// Applies `update`, whose labels follow the delegated `safe_l2`, and always sends its
+    /// Applies `update`, whose labels follow the delegated `heads`, and always sends its
     /// forkchoice update: the execution layer may have answered `SYNCING` to the same labels
     /// before, or lost them in a restart.
     async fn apply_delegated_safe_head(
         &self,
         state: &mut EngineState,
-        safe_l2: &L2BlockInfo,
+        heads: &DelegatedHeads,
         update: EngineSyncStateUpdate,
         outcome: &'static str,
     ) -> Result<(), ConsolidateTaskError> {
         synchronize_unconditionally(self.client.as_ref(), state, update)
             .await
             .map_err(|e| {
-                warn!(target: "engine", ?e, safe_l2 = %safe_l2, "Applying the delegated safe head failed");
+                warn!(target: "engine", ?e, local_safe = %heads.local_safe, "Applying the delegated heads failed");
                 e
             })?;
 
         info!(
             target: "engine",
-            hash = %safe_l2.block_info.hash,
-            number = safe_l2.block_info.number,
+            hash = %heads.local_safe.block_info.hash,
+            number = heads.local_safe.block_info.number,
+            safe = heads.safe.block_info.number,
             "{outcome}"
         );
 
         Ok(())
     }
 
-    /// Follows a delegated safe head below the safe head. Only a different block at its height in
-    /// a synced execution layer proves the delegate diverged and reorgs the engine onto it; the
-    /// same block (a lagging delegate) or a missing one leaves the labels. After a delegate L1
-    /// reorg whose fork point is above the head it reports, the labels stay on the abandoned
-    /// blocks until it reports a head above that point.
+    /// Follows a delegated local-safe head below the local-safe head. Only a different block at
+    /// its height in a synced execution layer proves the delegate diverged and reorgs the engine
+    /// onto it; the same block (a lagging delegate) or a missing one leaves local-safe, and only a
+    /// delegated safe head above the safe label moves that label. After a delegate L1 reorg whose
+    /// fork point is above the head it reports, the labels stay on the abandoned blocks until it
+    /// reports a head above that point.
     async fn follow_delegated_safe_head_behind_safe_head(
         &self,
         state: &mut EngineState,
-        safe_l2: &L2BlockInfo,
+        heads: &DelegatedHeads,
     ) -> Result<(), ConsolidateTaskError> {
+        let local_safe = &heads.local_safe;
         // Until the execution layer applies the engine's forkchoice, its canonical block at that
         // height may predate the engine's own labels, so it proves nothing about the delegate.
         if !state.el_applied_last_forkchoice {
             debug!(
                 target: "engine",
-                safe_l2 = %safe_l2,
-                "Ignoring a delegated safe head behind the safe head while the execution layer syncs"
+                local_safe = %local_safe,
+                "Ignoring a delegated local-safe head behind the local-safe head while the execution layer syncs"
             );
             return Ok(());
         }
         debug!(
             target: "engine",
-            safe_l2 = %safe_l2,
-            "Looking up the execution layer's block at a delegated safe head behind the safe head"
+            local_safe = %local_safe,
+            "Looking up the execution layer's block at a delegated local-safe head behind the local-safe head"
         );
         let el_block =
-            self.client.get_l2_block(safe_l2.block_info.number.into()).await.map_err(|err| {
+            self.client.get_l2_block(local_safe.block_info.number.into()).await.map_err(|err| {
                 warn!(
                     target: "engine",
                     ?err,
-                    safe_l2 = %safe_l2,
-                    "Failed to look up the execution layer's block at a delegated safe head"
+                    local_safe = %local_safe,
+                    "Failed to look up the execution layer's block at a delegated local-safe head"
                 );
-                ConsolidateTaskError::FailedToFetchDelegatedSafeBlock(safe_l2.block_info.number)
+                ConsolidateTaskError::FailedToFetchDelegatedSafeBlock(local_safe.block_info.number)
             })?;
         debug!(
             target: "engine",
-            safe_l2 = %safe_l2,
+            local_safe = %local_safe,
             el_hash = ?el_block.as_ref().map(|block| block.header.hash),
-            "Looked up the execution layer's block at a delegated safe head"
+            "Looked up the execution layer's block at a delegated local-safe head"
         );
         match el_block {
-            Some(el_block) if el_block.header.hash != safe_l2.block_info.hash => {
+            Some(el_block) if el_block.header.hash != local_safe.block_info.hash => {
                 debug!(
                     target: "engine",
-                    safe_l2 = %safe_l2,
+                    local_safe = %local_safe,
                     el_hash = %el_block.header.hash,
-                    "Delegated safe head behind the safe head diverges from the execution layer"
+                    "Delegated local-safe head behind the local-safe head diverges from the execution layer"
                 );
-                self.reconcile_to_safe_head(state, safe_l2).await
+                self.reconcile_to_safe_head(state, heads).await
+            }
+            Some(_)
+                if heads.safe.block_info.number >
+                    state.sync_state.safe_head().block_info.number =>
+            {
+                synchronize(
+                    self.client.as_ref(),
+                    state,
+                    EngineSyncStateUpdate { safe_head: Some(heads.safe), ..Default::default() },
+                )
+                .await?;
+                info!(target: "engine", safe = %heads.safe, "Updated the safe label behind a lagging delegate");
+                Ok(())
             }
             _ => {
                 debug!(
                     target: "engine",
-                    safe_l2 = %safe_l2,
-                    safe_number = state.sync_state.safe_head().block_info.number,
-                    "Ignoring a delegated safe head behind the safe head"
+                    local_safe = %local_safe,
+                    local_safe_number = state.sync_state.local_safe_head().block_info.number,
+                    "Ignoring a delegated local-safe head behind the local-safe head"
                 );
                 Ok(())
             }
@@ -262,9 +318,7 @@ impl ConsolidateTask {
             ConsolidateInput::Attributes(attributes) => {
                 self.build_and_import_attributes(state, attributes).await
             }
-            ConsolidateInput::BlockInfo(safe_l2) => {
-                self.reconcile_to_safe_head(state, safe_l2).await
-            }
+            ConsolidateInput::Delegated(heads) => self.reconcile_to_safe_head(state, heads).await,
         }
     }
 
@@ -282,8 +336,8 @@ impl ConsolidateTask {
         let block = match self.client.l2_block_by_label(block_num.into()).await {
             Ok(Some(block)) => block,
             Ok(None) => {
-                if let ConsolidateInput::BlockInfo(safe_l2) = &self.input {
-                    return self.follow_safe_head_during_el_sync(state, safe_l2).await;
+                if let ConsolidateInput::Delegated(heads) = &self.input {
+                    return self.follow_safe_head_during_el_sync(state, heads).await;
                 }
                 warn!(target: "engine", "Received `None` block for {}", block_num);
                 return Err(ConsolidateTaskError::MissingUnsafeL2Block(block_num));
@@ -295,6 +349,27 @@ impl ConsolidateTask {
         let block_hash = block.header.hash;
 
         if self.input.is_consistent_with_block(&self.cfg, &block) {
+            // The block derived attributes produce is never adopted once denied, whether the node
+            // still has it or re-derives it.
+            if let ConsolidateInput::Attributes(attributes) = &self.input {
+                let block_id = BlockNumHash { number: block_num, hash: block_hash };
+                if self
+                    .denied
+                    .contains(block_id, block.header.timestamp)
+                    .map_err(ReplaceDeniedError::from)?
+                {
+                    return Err(replace_denied(
+                        self.client.as_ref(),
+                        &self.cfg,
+                        state,
+                        attributes,
+                        block_id,
+                        self.block_sink.as_ref(),
+                    )
+                    .await
+                    .into());
+                }
+            }
             trace!(
                 target: "engine",
                 input = ?self.input,
@@ -313,7 +388,6 @@ impl ConsolidateTask {
 
                     // Apply a transient update to the safe head.
                     state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
-                        safe_head: Some(block_info),
                         local_safe_head: Some(block_info),
                         ..Default::default()
                     });
@@ -331,20 +405,23 @@ impl ConsolidateTask {
                     // The next attributes built are this block's child, and ask for its config.
                     self.block_sink.block_imported(consensus_block, block_info);
 
-                    let update = EngineSyncStateUpdate {
-                        safe_head: Some(block_info),
-                        local_safe_head: Some(block_info),
-                        ..Default::default()
-                    };
                     let synchronized = match &self.input {
                         // Derived attributes move the safe head on every consolidation, so an
                         // unchanged forkchoice was already sent.
                         ConsolidateInput::Attributes(_) => {
+                            let update = EngineSyncStateUpdate {
+                                local_safe_head: Some(block_info),
+                                ..Default::default()
+                            };
                             synchronize(self.client.as_ref(), state, update).await
                         }
-                        // A delegated safe head can repeat a forkchoice the execution layer
-                        // answered `SYNCING` or lost, so it is always sent.
-                        ConsolidateInput::BlockInfo(_) => {
+                        // Delegated heads can repeat a forkchoice the execution layer answered
+                        // `SYNCING` or lost, so they are always sent.
+                        ConsolidateInput::Delegated(heads) => {
+                            let update = EngineSyncStateUpdate {
+                                local_safe_head: Some(block_info),
+                                ..heads.update(false)
+                            };
                             synchronize_unconditionally(self.client.as_ref(), state, update).await
                         }
                     };
@@ -371,10 +448,10 @@ impl ConsolidateTask {
 
         // A different block from an execution layer that has not applied the engine's forkchoice
         // may be from before its sync, so it does not prove the delegate diverged.
-        if let ConsolidateInput::BlockInfo(safe_l2) = &self.input &&
+        if let ConsolidateInput::Delegated(heads) = &self.input &&
             !state.el_applied_last_forkchoice
         {
-            return self.follow_safe_head_during_el_sync(state, safe_l2).await;
+            return self.follow_safe_head_during_el_sync(state, heads).await;
         }
 
         debug!(
@@ -406,22 +483,34 @@ impl ExecutableEngineTask for ConsolidateTask {
     //   injected safe head is ahead of the EngineActor's unsafe head, we reconcile the unsafe chain
     //   up to the safe head instead of consolidating.
     async fn execute(&self, state: &mut EngineState) -> Result<(), ConsolidateTaskError> {
-        if let ConsolidateInput::BlockInfo(safe_l2) = &self.input {
-            state.sync_state.ensure_respects_finality(safe_l2.block_info.id())?;
+        // Derivation builds on the local-safe head. Attributes on another block were derived
+        // before a reset or a denied block moved the local-safe head, and derivation restarts.
+        if let ConsolidateInput::Attributes(attributes) = &self.input {
+            let local_safe = state.sync_state.local_safe_head().block_info.id();
+            let parent = attributes.parent.block_info.id();
+            if parent != local_safe {
+                return Err(ConsolidateTaskError::StaleAttributes { parent, local_safe });
+            }
+        }
+        if let ConsolidateInput::Delegated(heads) = &self.input {
+            state.sync_state.ensure_respects_finality(heads.local_safe.block_info.id())?;
             // Labels with the unsafe head below the safe head take the paths below, which move the
             // labels back to a consistent state; ignoring a lagging delegate would keep them broken
             // until a finalization above the unsafe head fails.
             let are_labels_consistent = state.sync_state.unsafe_head().block_info.number >=
-                state.sync_state.safe_head().block_info.number;
+                state.sync_state.local_safe_head().block_info.number;
             if are_labels_consistent &&
-                safe_l2.block_info.number < state.sync_state.safe_head().block_info.number
+                heads.local_safe.block_info.number <
+                    state.sync_state.local_safe_head().block_info.number
             {
-                return self.follow_delegated_safe_head_behind_safe_head(state, safe_l2).await;
+                return self.follow_delegated_safe_head_behind_safe_head(state, heads).await;
             }
         }
         let safe_head_number = match &self.input {
-            ConsolidateInput::Attributes { .. } => state.sync_state.safe_head().block_info.number,
-            ConsolidateInput::BlockInfo(safe_block_info) => safe_block_info.block_info.number,
+            ConsolidateInput::Attributes { .. } => {
+                state.sync_state.local_safe_head().block_info.number
+            }
+            ConsolidateInput::Delegated(heads) => heads.local_safe.block_info.number,
         };
         if safe_head_number < state.sync_state.unsafe_head().block_info.number {
             self.consolidate(state).await
@@ -480,8 +569,7 @@ mod tests {
             ..Default::default()
         };
         let sink = Arc::new(RecordingSink::default());
-        let task =
-            ConsolidateTask::new(client, cfg, ConsolidateInput::BlockInfo(safe_l2), sink.clone());
+        let task = ConsolidateTask::new(client, cfg, ConsolidateInput::from(safe_l2), sink.clone());
 
         task.consolidate(&mut EngineState::default()).await.unwrap();
 
@@ -698,7 +786,7 @@ mod tests {
         let task = ConsolidateTask::new(
             Arc::new(client),
             cfg,
-            ConsolidateInput::BlockInfo(delegated_safe_head),
+            ConsolidateInput::from(delegated_safe_head),
             sink.clone(),
         );
 
@@ -874,7 +962,7 @@ mod tests {
         let task = ConsolidateTask::new(
             Arc::new(client),
             cfg,
-            ConsolidateInput::BlockInfo(delegated_safe_head),
+            ConsolidateInput::from(delegated_safe_head),
             Arc::new(NoopBlockSink),
         );
 
@@ -913,7 +1001,7 @@ mod tests {
         let task = ConsolidateTask::new(
             Arc::new(client),
             cfg,
-            ConsolidateInput::BlockInfo(delegated_safe_head),
+            ConsolidateInput::from(delegated_safe_head),
             sink.clone(),
         );
 
@@ -949,7 +1037,7 @@ mod tests {
         let task = ConsolidateTask::new(
             Arc::new(client),
             cfg,
-            ConsolidateInput::BlockInfo(delegated_safe_head),
+            ConsolidateInput::from(delegated_safe_head),
             Arc::new(NoopBlockSink),
         );
 
@@ -957,6 +1045,120 @@ mod tests {
 
         assert_eq!(state.sync_state, expected_sync_state);
         assert_eq!(state.sync_state.finalized_head(), finalized_before);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// Heads of a delegate whose safe head, at 7, is behind its local-safe head `local_safe`, as
+    /// with interop paused.
+    fn split_heads(local_safe: L2BlockInfo) -> DelegatedHeads {
+        DelegatedHeads { local_safe, safe: test_block_info(7) }
+    }
+
+    /// A delegating engine with the unsafe head at 20, local-safe at `local_safe`, and the safe
+    /// label and finalized head at 5.
+    fn delegating_engine_state(local_safe: L2BlockInfo) -> EngineState {
+        TestEngineStateBuilder::new()
+            .with_unsafe_head(test_block_info(20))
+            .with_local_safe_head(local_safe)
+            .with_safe_head(test_block_info(5))
+            .with_finalized_head(test_block_info(5))
+            .with_safe_label(crate::SafeLabel::Delegated)
+            .build()
+    }
+
+    /// A delegate's local-safe head moves the local-safe head, and its safe head, behind it, the
+    /// safe label: the labels follow the delegate's separately.
+    #[tokio::test]
+    async fn delegated_local_safe_ahead_of_safe_moves_each_label() {
+        let (block, cfg) = genesis_pinned_block(10);
+        let heads = split_heads(block_info_of(&cfg, &block));
+        let mut state = delegating_engine_state(test_block_info(6));
+        let unsafe_before = state.sync_state.unsafe_head();
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_params("eth_getBlockByNumber", serde_json::json!(["0xa", true]), Some(block));
+        let mut expected = state.sync_state;
+        expected = expected.apply_update(EngineSyncStateUpdate {
+            local_safe_head: Some(heads.local_safe),
+            safe_head: Some(heads.safe),
+            ..Default::default()
+        });
+        l2.expect_forkchoice_updated(expected.create_forkchoice_state(), PayloadStatusEnum::Valid);
+        let task =
+            ConsolidateTask::new(Arc::new(client), cfg, heads.into(), Arc::new(NoopBlockSink));
+
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(state.sync_state.local_safe_head(), heads.local_safe);
+        assert_eq!(state.sync_state.safe_head(), heads.safe);
+        assert_eq!(state.sync_state.unsafe_head(), unsafe_before);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A delegate whose local-safe head is another block at its height reorgs the engine onto that
+    /// head, unsafe head included, while the safe label takes the delegate's safe head behind it.
+    #[tokio::test]
+    async fn diverged_delegated_local_safe_head_reorgs_the_engine_onto_it() {
+        let (block, cfg) = genesis_pinned_block(10);
+        let heads = split_heads(block_info_of(&cfg, &block));
+        let mut state = delegating_engine_state(test_block_info(12));
+        let expected = state.sync_state.apply_update(EngineSyncStateUpdate {
+            unsafe_head: Some(heads.local_safe),
+            local_safe_head: Some(heads.local_safe),
+            safe_head: Some(heads.safe),
+            ..Default::default()
+        });
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_block_header_by_number(10, Some(other_chain_block(10)));
+        l2.expect_forkchoice_updated(expected.create_forkchoice_state(), PayloadStatusEnum::Valid);
+        let task =
+            ConsolidateTask::new(Arc::new(client), cfg, heads.into(), Arc::new(NoopBlockSink));
+
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(state.sync_state, expected);
+        assert_eq!(state.sync_state.unsafe_head(), heads.local_safe);
+        assert_eq!(state.sync_state.safe_head(), heads.safe);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// Behind a lagging delegate, whose local-safe head is the engine's block at its height, the
+    /// local-safe head stays and only a delegated safe head above the safe label moves it.
+    #[rstest::rstest]
+    #[case::safe_advances(9, true)]
+    #[case::safe_lags(4, false)]
+    #[tokio::test]
+    async fn lagging_delegate_moves_only_the_safe_label(
+        #[case] safe: u64,
+        #[case] moves_safe: bool,
+    ) {
+        let (block, cfg) = genesis_pinned_block(10);
+        let heads =
+            DelegatedHeads { local_safe: block_info_of(&cfg, &block), safe: test_block_info(safe) };
+        let mut state = delegating_engine_state(test_block_info(12));
+        let before = state.sync_state;
+        let (client, l1, l2) = test_engine_client(cfg.clone());
+        l2.expect_block_header_by_number(10, Some(block));
+        if moves_safe {
+            let expected = state.sync_state.apply_update(EngineSyncStateUpdate {
+                safe_head: Some(heads.safe),
+                ..Default::default()
+            });
+            l2.expect_forkchoice_updated(
+                expected.create_forkchoice_state(),
+                PayloadStatusEnum::Valid,
+            );
+        }
+        let task =
+            ConsolidateTask::new(Arc::new(client), cfg, heads.into(), Arc::new(NoopBlockSink));
+
+        task.execute(&mut state).await.unwrap();
+
+        assert_eq!(state.sync_state.local_safe_head(), before.local_safe_head());
+        let expected_safe = if moves_safe { heads.safe } else { before.safe_head() };
+        assert_eq!(state.sync_state.safe_head(), expected_safe);
         l1.assert_finished();
         l2.assert_finished();
     }
@@ -987,7 +1189,7 @@ mod tests {
         let task = ConsolidateTask::new(
             Arc::new(client),
             cfg,
-            ConsolidateInput::BlockInfo(delegated_safe_head),
+            ConsolidateInput::from(delegated_safe_head),
             Arc::new(NoopBlockSink),
         );
 
@@ -1024,7 +1226,7 @@ mod tests {
         let task = ConsolidateTask::new(
             Arc::new(client),
             cfg,
-            ConsolidateInput::BlockInfo(delegated_safe_head),
+            ConsolidateInput::from(delegated_safe_head),
             Arc::new(NoopBlockSink),
         );
 
@@ -1076,7 +1278,7 @@ mod tests {
         let task = ConsolidateTask::new(
             Arc::new(client),
             cfg,
-            ConsolidateInput::BlockInfo(delegated_safe_head),
+            ConsolidateInput::from(delegated_safe_head),
             Arc::new(NoopBlockSink),
         );
 
@@ -1118,7 +1320,7 @@ mod tests {
         let task = ConsolidateTask::new(
             Arc::new(client),
             cfg,
-            ConsolidateInput::BlockInfo(delegated_safe_head),
+            ConsolidateInput::from(delegated_safe_head),
             Arc::new(NoopBlockSink),
         );
 
@@ -1127,5 +1329,309 @@ mod tests {
         assert_eq!(state.sync_state, expected_sync_state);
         l1.assert_finished();
         l2.assert_finished();
+    }
+
+    /// The denial cases: attributes with a user transaction on block 9, the engine at block 20.
+    mod denied {
+        use super::*;
+        use crate::{
+            DeniedBlocks, EngineClient, EngineSyncStateUpdate, EngineTaskErrorSeverity,
+            ReplaceDeniedError,
+        };
+        use alloy_consensus::{Block, Signed, TxEip1559};
+        use alloy_primitives::Signature;
+        use alloy_rpc_types_engine::{
+            ExecutionPayloadEnvelopeV2, ExecutionPayloadFieldV2, ExecutionPayloadV1, PayloadId,
+        };
+        use op_alloy_consensus::{OpBlock, OpTxEnvelope};
+        use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+
+        fn user_transaction() -> OpTxEnvelope {
+            let tx = TxEip1559 { chain_id: 10, nonce: 1, gas_limit: 21_000, ..Default::default() };
+            OpTxEnvelope::Eip1559(Signed::new_unhashed(tx, Signature::test_signature()))
+        }
+
+        /// Derived attributes on block 9 with the L1 info deposit and a user transaction.
+        fn attributes() -> OpAttributesWithParent {
+            TestAttributesBuilder::new()
+                .with_parent(test_block_info(9))
+                .with_transactions(vec![
+                    l1_info_deposit().encoded_2718().into(),
+                    user_transaction().encoded_2718().into(),
+                ])
+                .build()
+        }
+
+        /// The block `attributes` produce, which a verifier denies.
+        fn denied_block(attributes: &OpAttributesWithParent) -> RpcBlock<Transaction> {
+            let mut block = unsafe_block_matching(attributes);
+            let BlockTransactions::Full(transactions) = &mut block.transactions else {
+                unreachable!()
+            };
+            transactions.push(Transaction::from_transaction(
+                Recovered::new_unchecked(user_transaction(), Address::ZERO),
+                Default::default(),
+            ));
+            block
+        }
+
+        fn id(block: &RpcBlock<Transaction>) -> BlockNumHash {
+            BlockNumHash { number: block.header.number, hash: block.header.hash }
+        }
+
+        /// The engine at block 20, with `attributes`' parent as its local-safe head.
+        fn state(attributes: &OpAttributesWithParent) -> EngineState {
+            TestEngineStateBuilder::new()
+                .with_unsafe_head(test_block_info(20))
+                .with_safe_head(attributes.parent)
+                .with_finalized_head(test_block_info(5))
+                .build()
+        }
+
+        fn denied(blocks: Vec<BlockNumHash>) -> DeniedBlocks {
+            DeniedBlocks::applied(blocks)
+        }
+
+        fn task(
+            client: EngineClient,
+            cfg: Arc<RollupConfig>,
+            attributes: &OpAttributesWithParent,
+            denied: DeniedBlocks,
+        ) -> ConsolidateTask {
+            ConsolidateTask::new(
+                Arc::new(client),
+                cfg,
+                ConsolidateInput::Attributes(Box::new(attributes.clone())),
+                Arc::new(NoopBlockSink),
+            )
+            .with_denied_blocks(denied)
+        }
+
+        /// An empty pre-Canyon payload at block 10 whose advertised hash survives decoding, and the
+        /// config pinning genesis to it so it needs no L1 info deposit.
+        fn payload_at_10(
+            parent: BlockNumHash,
+        ) -> (ExecutionPayloadEnvelopeV2, OpBlock, Arc<RollupConfig>) {
+            let mut block = Block::<OpTxEnvelope>::default();
+            block.header.number = 10;
+            block.header.parent_hash = parent.hash;
+            // V1 round trips restore Some(0); keep the advertised and decoded hashes identical.
+            block.header.base_fee_per_gas = Some(0);
+            let payload = ExecutionPayloadV1::from_block_slow(&block);
+            let decoded: OpBlock =
+                OpExecutionPayloadEnvelope::V1(payload.clone()).try_into_block().unwrap();
+            let mut cfg = RollupConfig::default();
+            cfg.genesis.l2 = BlockNumHash { number: 10, hash: decoded.header.hash_slow() };
+            let envelope = ExecutionPayloadEnvelopeV2 {
+                execution_payload: ExecutionPayloadFieldV2::V1(payload),
+                block_value: Default::default(),
+            };
+            (envelope, decoded, Arc::new(cfg))
+        }
+
+        fn forkchoice_with_payload_id() -> ForkchoiceUpdated {
+            ForkchoiceUpdated {
+                payload_status: PayloadStatus::from_status(PayloadStatusEnum::Valid),
+                payload_id: Some(PayloadId::new([1; 8])),
+            }
+        }
+
+        /// A denied block the engine has is not adopted: the deposits-only block is built on its
+        /// parent, made the head once validated, and read back, and the channel is flushed.
+        #[tokio::test]
+        async fn denied_block_is_replaced_with_the_deposits_only_block() {
+            let attributes = attributes();
+            let denied_block = denied_block(&attributes);
+            let (payload, replacement, cfg) = payload_at_10(attributes.parent.block_info.id());
+            let replacement_info =
+                L2BlockInfo::from_block_and_genesis(&replacement, &cfg.genesis).unwrap();
+            let mut state = state(&attributes);
+            let build_forkchoice = state
+                .sync_state
+                .apply_update(EngineSyncStateUpdate {
+                    unsafe_head: Some(attributes.parent),
+                    ..Default::default()
+                })
+                .create_forkchoice_state();
+            let head_forkchoice = state
+                .sync_state
+                .apply_update(EngineSyncStateUpdate {
+                    unsafe_head: Some(replacement_info),
+                    local_safe_head: Some(replacement_info),
+                    ..Default::default()
+                })
+                .create_forkchoice_state();
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            for _ in 0..2 {
+                l2.expect_block_by_number(10, Some(denied_block.clone()));
+            }
+            l2.expect_params(
+                "engine_forkchoiceUpdatedV2",
+                serde_json::json!([build_forkchoice, attributes.as_deposits_only().attributes]),
+                forkchoice_with_payload_id(),
+            );
+            l2.expect("engine_getPayloadV2", payload);
+            l2.expect("engine_newPayloadV2", PayloadStatus::from_status(PayloadStatusEnum::Valid));
+            l2.expect_forkchoice_updated(head_forkchoice, PayloadStatusEnum::Valid);
+            l2.expect_block_header_by_number(
+                10,
+                Some(crate::test_utils::test_rpc_block(&replacement)),
+            );
+            let task = task(client, cfg, &attributes, denied(vec![id(&denied_block)]));
+
+            let err = task.execute(&mut state).await.unwrap_err();
+
+            assert!(
+                matches!(
+                    err,
+                    ConsolidateTaskError::Denied(ReplaceDeniedError::Replaced { denied, replacement })
+                        if denied == id(&denied_block) && replacement == replacement_info.block_info.id()
+                ),
+                "{err:?}"
+            );
+            assert_eq!(err.severity(), EngineTaskErrorSeverity::Flush);
+            assert_eq!(state.sync_state.unsafe_head(), replacement_info);
+            assert_eq!(state.sync_state.local_safe_head(), replacement_info);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
+
+        /// A replacement the engine does not validate is never made the head.
+        #[tokio::test]
+        async fn unvalidated_replacement_does_not_become_the_head() {
+            let attributes = attributes();
+            let denied_block = denied_block(&attributes);
+            let (payload, _, cfg) = payload_at_10(attributes.parent.block_info.id());
+            let mut state = state(&attributes);
+            let state_before = state;
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            for _ in 0..2 {
+                l2.expect_block_by_number(10, Some(denied_block.clone()));
+            }
+            l2.expect("engine_forkchoiceUpdatedV2", forkchoice_with_payload_id());
+            l2.expect("engine_getPayloadV2", payload);
+            l2.expect(
+                "engine_newPayloadV2",
+                PayloadStatus::from_status(PayloadStatusEnum::Syncing),
+            );
+            let task = task(client, cfg, &attributes, denied(vec![id(&denied_block)]));
+
+            let err = task.execute(&mut state).await.unwrap_err();
+
+            assert!(
+                matches!(err, ConsolidateTaskError::Denied(ReplaceDeniedError::NotValidated(_))),
+                "{err:?}"
+            );
+            assert_eq!(err.severity(), EngineTaskErrorSeverity::Temporary);
+            assert_eq!(state, state_before);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
+
+        /// Re-deriving a replaced block, as after a restart, finds the deposits-only block where
+        /// the attributes produce a denied one: it is adopted as local-safe without a reorg, and
+        /// the channel is flushed.
+        #[tokio::test]
+        async fn rederived_denied_block_adopts_the_existing_replacement() {
+            let attributes = attributes();
+            let replacement = unsafe_block_matching(&attributes.as_deposits_only());
+            let (rebuilt_denied, rebuilt_block, _) =
+                payload_at_10(attributes.parent.block_info.id());
+            let rebuilt_denied_id =
+                BlockNumHash { number: 10, hash: rebuilt_block.header.hash_slow() };
+            let cfg = Arc::new(RollupConfig::default());
+            let replacement_info = block_info_of(&cfg, &replacement);
+            let mut state = state(&attributes);
+            let unsafe_head = state.sync_state.unsafe_head();
+            let expected = state.sync_state.apply_update(EngineSyncStateUpdate {
+                local_safe_head: Some(replacement_info),
+                ..Default::default()
+            });
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            l2.expect_block_by_number(10, Some(replacement.clone()));
+            l2.expect_params(
+                "engine_forkchoiceUpdatedV2",
+                serde_json::json!([
+                    state
+                        .sync_state
+                        .apply_update(EngineSyncStateUpdate {
+                            unsafe_head: Some(attributes.parent),
+                            ..Default::default()
+                        })
+                        .create_forkchoice_state(),
+                    attributes.attributes
+                ]),
+                forkchoice_with_payload_id(),
+            );
+            l2.expect("engine_getPayloadV2", rebuilt_denied);
+            l2.expect_block_by_number(10, Some(replacement.clone()));
+            l2.expect_forkchoice_updated(
+                expected.create_forkchoice_state(),
+                PayloadStatusEnum::Valid,
+            );
+            let task = task(client, cfg, &attributes, denied(vec![rebuilt_denied_id]));
+
+            let err = task.execute(&mut state).await.unwrap_err();
+
+            assert!(
+                matches!(
+                    err,
+                    ConsolidateTaskError::Denied(ReplaceDeniedError::Replaced { replacement, .. })
+                        if replacement == replacement_info.block_info.id()
+                ),
+                "{err:?}"
+            );
+            assert_eq!(state.sync_state, expected);
+            assert_eq!(state.sync_state.unsafe_head(), unsafe_head, "no reorg");
+            l1.assert_finished();
+            l2.assert_finished();
+        }
+
+        /// Until the verifier's denied blocks are known, no derived block is adopted.
+        #[tokio::test]
+        async fn unknown_denied_blocks_hold_derived_attributes() {
+            let attributes = attributes();
+            let cfg = Arc::new(RollupConfig::default());
+            let mut state = state(&attributes);
+            let state_before = state;
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            l2.expect_block_by_number(10, Some(denied_block(&attributes)));
+            let task = task(client, cfg, &attributes, DeniedBlocks::from_verifier(0).1);
+
+            let err = task.execute(&mut state).await.unwrap_err();
+
+            assert!(
+                matches!(err, ConsolidateTaskError::Denied(ReplaceDeniedError::Unknown(_))),
+                "{err:?}"
+            );
+            assert_eq!(err.severity(), EngineTaskErrorSeverity::Waiting);
+            assert_eq!(state, state_before);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
+
+        /// Attributes that do not build on the local-safe head were derived before it moved, and
+        /// are skipped without touching the engine.
+        #[tokio::test]
+        async fn attributes_off_the_local_safe_head_are_skipped() {
+            let attributes = attributes();
+            let cfg = Arc::new(RollupConfig::default());
+            let mut state = TestEngineStateBuilder::new()
+                .with_unsafe_head(test_block_info(20))
+                .with_safe_head(test_block_info(8))
+                .with_finalized_head(test_block_info(5))
+                .build();
+            let state_before = state;
+            let (client, l1, l2) = test_engine_client(cfg.clone());
+            let task = task(client, cfg, &attributes, DeniedBlocks::none());
+
+            let err = task.execute(&mut state).await.unwrap_err();
+
+            assert!(matches!(err, ConsolidateTaskError::StaleAttributes { .. }), "{err:?}");
+            assert_eq!(err.severity(), EngineTaskErrorSeverity::Skip);
+            assert_eq!(state, state_before);
+            l1.assert_finished();
+            l2.assert_finished();
+        }
     }
 }

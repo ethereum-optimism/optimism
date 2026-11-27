@@ -1,11 +1,13 @@
 //! Requests sent to the node engine actor and their replies.
 
 use crate::{
-    BuildTaskError, CanonicalizeTaskError, ConsolidateInput, FinalizeBlockId, SealTaskError,
+    BuildTaskError, CanonicalizeTaskError, ConsolidateInput, FinalizeBlockId, InsertTaskError,
+    OpenBlockError, SealTaskError, VerifierHead,
 };
+use alloy_eips::BlockNumHash;
 use alloy_rpc_types_engine::PayloadId;
 use kona_protocol::OpAttributesWithParent;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelope, OpPayloadAttributes};
 use thiserror::Error;
 use tokio::sync::mpsc;
 
@@ -16,8 +18,19 @@ pub enum EngineActorRequest {
     Build(Box<BuildRequest>),
     /// Request to process derived attributes or delegated safe block information.
     ProcessSafeL2Signal(ConsolidateInput),
-    /// Request to process the finalized L2 block.
+    /// Request to process the finalized L2 block. A node following a cross-chain verifier takes
+    /// it as its own L1 finality, which bounds the verifier's finalized head.
     ProcessFinalizedL2Block(Box<FinalizeBlockId>),
+    /// Request to move the safe label to a cross-chain verifier's head.
+    ProcessVerifiedSafeHead(Box<VerifierHead>),
+    /// Request to process a cross-chain verifier's finalized head, which the node's own L1
+    /// finality bounds.
+    ProcessVerifiedFinalizedHead(Box<VerifierHead>),
+    /// Request to process a cross-chain verifier's denied blocks above the finalized head.
+    ProcessDeniedBlocks(Vec<BlockNumHash>),
+    /// Request to derive again from the finalized head with a cross-chain verifier's new denied
+    /// blocks, because the verifier undid verifications: its epoch changed.
+    UndoVerifications(Box<UndoRequest>),
     /// Request to process a received unsafe L2 block.
     ProcessUnsafeL2Block(Box<OpExecutionPayloadEnvelope>),
     /// Request to reset the forkchoice and signal derivation to reset.
@@ -26,6 +39,8 @@ pub enum EngineActorRequest {
     Seal(Box<SealRequest>),
     /// Request to canonicalize a committed sequenced block.
     Canonicalize(Box<CanonicalizeRequest>),
+    /// Request to run a block-building step of the `opstack` RPC namespace.
+    OpStack(Box<OpStackRequest>),
 }
 
 /// The result of a request to the node engine actor.
@@ -78,6 +93,17 @@ pub struct ResetRequest {
     pub result_tx: mpsc::Sender<EngineRequestResult<()>>,
 }
 
+/// A request to derive again from the finalized head after a cross-chain verifier undid
+/// verifications.
+#[derive(Debug)]
+pub struct UndoRequest {
+    /// The verifier's denied blocks above the finalized head, which the derivation again uses.
+    pub denied: Vec<BlockNumHash>,
+    /// Hears once the local-safe head and the safe label moved back to the finalized head on the
+    /// execution layer. Dropped without a message if the undo did not take effect.
+    pub done: mpsc::Sender<()>,
+}
+
 /// A request to fetch a sealed payload without changing forkchoice.
 /// Contains the `PayloadId`, attributes, and a channel to send back the result.
 #[derive(Debug)]
@@ -99,4 +125,37 @@ pub struct CanonicalizeRequest {
     pub parent: kona_protocol::L2BlockInfo,
     /// The response, including any import error, is relayed to the sequencer.
     pub result_tx: mpsc::Sender<Result<(), CanonicalizeTaskError>>,
+}
+
+/// A block-building step of the `opstack` RPC namespace, through which a sequencer outside the
+/// node, such as op-test-sequencer, builds blocks on it. Each step sends its outcome on its
+/// channel.
+#[derive(Debug, Clone)]
+pub enum OpStackRequest {
+    /// Starts building a block with the attributes on the parent, which can be any block the
+    /// execution layer has.
+    Open {
+        /// The block to build on.
+        parent: BlockNumHash,
+        /// The attributes of the block to build.
+        attributes: Box<OpPayloadAttributes>,
+        /// The channel on which the build's payload ID, or the failure, is sent.
+        result_tx: mpsc::Sender<Result<PayloadId, OpenBlockError>>,
+    },
+    /// Fetches the payload of a build, without importing it.
+    GetPayload {
+        /// The payload ID of the build.
+        payload_id: PayloadId,
+        /// The timestamp of the block being built, which selects the Engine API version.
+        timestamp: u64,
+        /// The channel on which the payload, or the failure, is sent.
+        result_tx: mpsc::Sender<Result<OpExecutionPayloadEnvelope, SealTaskError>>,
+    },
+    /// Imports a payload and makes it the unsafe head.
+    Commit {
+        /// The payload to import.
+        payload: Box<OpExecutionPayloadEnvelope>,
+        /// The channel on which the outcome of the import is sent.
+        result_tx: mpsc::Sender<Result<(), InsertTaskError>>,
+    },
 }

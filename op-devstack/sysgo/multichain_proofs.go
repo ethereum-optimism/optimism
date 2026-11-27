@@ -54,7 +54,7 @@ func orderedRuntimeChains(runtime *MultiChainRuntime) []*MultiChainNodeRuntime {
 func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg PresetConfig) *MultiChainRuntime {
 	chains := orderedRuntimeChains(runtime)
 	t.Require().NotEmpty(chains, "supernode superproofs runtime must contain at least one chain")
-	t.Require().NotNil(runtime.Supernode, "supernode superproofs runtime must provide a supernode")
+	t.Require().NotNil(runtime.InteropVerifier(), "superproofs runtime must run an interop verifier")
 
 	proofChain := chains[0]
 	cls := make([]L2CLNode, 0, len(chains))
@@ -65,7 +65,7 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 
 	superrootTime := awaitSuperrootTime(t, cls...)
 	if cfg.PreGenesisSuperGame == nil {
-		superRoot := getSupernodeSuperRoot(t, runtime.Supernode, superrootTime)
+		superRoot := getSuperRoot(t, runtime.superRootRPC(t), superrootTime)
 		startingAnchor := Proposal{
 			Root:             common.Hash(superRoot),
 			L2SequenceNumber: new(big.Int).SetUint64(superrootTime),
@@ -100,7 +100,7 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 					runtime.L1EL,
 					runtime.L1CL,
 					runtime.DependencySet,
-					runtime.Supernode.UserRPC(),
+					runtime.superRootRPC(t),
 					nets,
 					els,
 					gameTypes.ZKDisputeGameType,
@@ -116,7 +116,7 @@ func attachSupernodeSuperProofs(t devtest.T, runtime *MultiChainRuntime, cfg Pre
 					runtime.L1EL,
 					runtime.L1CL,
 					runtime.DependencySet,
-					runtime.Supernode.UserRPC(),
+					runtime.superRootRPC(t),
 					nets,
 					els,
 					sharedDGF,
@@ -146,7 +146,7 @@ func attachSuperChallengerAndProposer(
 ) {
 	chains := orderedRuntimeChains(runtime)
 	t.Require().NotEmpty(chains, "runtime must contain at least one chain")
-	t.Require().NotNil(runtime.Supernode, "runtime must provide a supernode")
+	t.Require().NotNil(runtime.InteropVerifier(), "runtime must run an interop verifier")
 
 	proofChain := chains[0]
 	nets := make([]*L2Network, 0, len(chains))
@@ -168,7 +168,7 @@ func attachSuperChallengerAndProposer(
 			runtime.L1EL,
 			runtime.L1CL,
 			runtime.DependencySet,
-			runtime.Supernode.UserRPC(),
+			runtime.superRootRPC(t),
 			nets,
 			els,
 			gameTypes.SuperCannonKonaGameType,
@@ -190,7 +190,7 @@ func attachSuperChallengerAndProposer(
 			proofChain.Network.ChainID(),
 			runtime.L1EL,
 			proofChain.Network,
-			runtime.Supernode.UserRPC(),
+			runtime.superRootRPC(t),
 			proposerOpts...,
 		)
 	}

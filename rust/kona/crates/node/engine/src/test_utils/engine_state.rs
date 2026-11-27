@@ -1,4 +1,4 @@
-use crate::{EngineState, EngineSyncStateUpdate};
+use crate::{EngineState, EngineSyncState, EngineSyncStateUpdate, SafeLabel};
 use alloy_eips::BlockNumHash;
 use alloy_primitives::{B256, b256};
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -10,6 +10,7 @@ pub struct TestEngineStateBuilder {
     local_safe_head: Option<L2BlockInfo>,
     safe_head: Option<L2BlockInfo>,
     finalized_head: Option<L2BlockInfo>,
+    safe_label: SafeLabel,
     el_applied_last_forkchoice: bool,
     el_sync_finished: bool,
 }
@@ -34,6 +35,7 @@ impl TestEngineStateBuilder {
             local_safe_head: None,
             safe_head: None,
             finalized_head: None,
+            safe_label: SafeLabel::LocalSafe,
             el_applied_last_forkchoice: true,
             el_sync_finished: true,
         }
@@ -45,9 +47,21 @@ impl TestEngineStateBuilder {
         self
     }
 
+    /// Sets the local-safe head. It defaults to the safe head, or else the unsafe head.
+    pub const fn with_local_safe_head(mut self, block: L2BlockInfo) -> Self {
+        self.local_safe_head = Some(block);
+        self
+    }
+
     /// Sets the safe head
     pub const fn with_safe_head(mut self, block: L2BlockInfo) -> Self {
         self.safe_head = Some(block);
+        self
+    }
+
+    /// Sets what moves the safe label.
+    pub const fn with_safe_label(mut self, safe_label: SafeLabel) -> Self {
+        self.safe_label = safe_label;
         self
     }
 
@@ -75,13 +89,15 @@ impl TestEngineStateBuilder {
 
     /// Builds the `EngineState`
     pub fn build(self) -> EngineState {
-        let mut state = EngineState::default();
+        let mut state =
+            EngineState { sync_state: EngineSyncState::new(self.safe_label), ..Default::default() };
 
         // Set unsafe head (required)
+        let safe_head = self.safe_head.unwrap_or(self.unsafe_head);
         state.sync_state = state.sync_state.apply_update(EngineSyncStateUpdate {
             unsafe_head: Some(self.unsafe_head),
-            local_safe_head: Some(self.local_safe_head.unwrap_or(self.unsafe_head)),
-            safe_head: Some(self.safe_head.unwrap_or(self.unsafe_head)),
+            local_safe_head: Some(self.local_safe_head.unwrap_or(safe_head)),
+            safe_head: Some(safe_head),
             finalized_head: Some(self.finalized_head.unwrap_or(self.unsafe_head)),
         });
 

@@ -1,12 +1,12 @@
 //! Import a sequenced payload after committing it to the conductor.
 
 use crate::{
-    EngineClient, EngineState, EngineTaskError, ExecutableEngineTask, ImportedBlockSink,
-    InsertTaskError,
+    DeniedBlocks, EngineClient, EngineState, EngineTaskError, ExecutableEngineTask,
+    ImportedBlockSink, InsertTaskError,
     task_queue::{insert_payload, tasks::task::EngineTaskErrorSeverity},
 };
+use alloy_eips::BlockNumHash;
 use async_trait::async_trait;
-use derive_more::Constructor;
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -20,6 +20,9 @@ pub enum CanonicalizeTaskError {
     /// The unsafe head changed after the payload was built, so the payload no longer extends it.
     #[error("Unsafe head changed between build and canonicalization")]
     UnsafeHeadChangedSinceBuild,
+    /// A cross-chain verifier denied the payload's block.
+    #[error("The cross-chain verifier denied block {0:?}")]
+    Denied(BlockNumHash),
     /// Impossible to insert the payload into the engine.
     #[error(transparent)]
     PayloadInsertionFailed(#[from] Box<InsertTaskError>),
@@ -32,7 +35,7 @@ impl EngineTaskError for CanonicalizeTaskError {
     fn severity(&self) -> EngineTaskErrorSeverity {
         match self {
             Self::PayloadInsertionFailed(inner) => inner.severity(),
-            Self::UnsafeHeadChangedSinceBuild | Self::MpscSend(_) => {
+            Self::UnsafeHeadChangedSinceBuild | Self::Denied(_) | Self::MpscSend(_) => {
                 EngineTaskErrorSeverity::Critical
             }
         }
@@ -47,7 +50,10 @@ impl EngineTaskError for CanonicalizeTaskError {
 /// block here: that replacement would need its own conductor commit. As in op-node, this also
 /// applies when the rejected payload contains only deposits: the sequencer drops it and rebuilds.
 /// This differs from rejecting deposits-only attributes while starting a build.
-#[derive(Debug, Clone, Constructor)]
+///
+/// As op-node checks its own sealed payloads against its super authority's deny list, a payload
+/// whose block a cross-chain verifier denied is not imported.
+#[derive(Debug, Clone)]
 pub struct CanonicalizeTask {
     /// The engine API client.
     pub engine: Arc<EngineClient>,
@@ -63,6 +69,45 @@ pub struct CanonicalizeTask {
     pub unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
     /// Where to hand the block after canonicalization.
     pub block_sink: Arc<dyn ImportedBlockSink>,
+    /// The blocks a cross-chain verifier denied.
+    pub denied: DeniedBlocks,
+}
+
+impl CanonicalizeTask {
+    /// Creates a task that imports `payload`, built on `parent`, and answers on `result_tx`.
+    pub fn new(
+        engine: Arc<EngineClient>,
+        cfg: Arc<RollupConfig>,
+        payload: OpExecutionPayloadEnvelope,
+        parent: L2BlockInfo,
+        result_tx: mpsc::Sender<Result<(), CanonicalizeTaskError>>,
+        unsafe_head_tx: Option<watch::Sender<L2BlockInfo>>,
+        block_sink: Arc<dyn ImportedBlockSink>,
+    ) -> Self {
+        Self {
+            engine,
+            cfg,
+            payload,
+            parent,
+            result_tx,
+            unsafe_head_tx,
+            block_sink,
+            denied: DeniedBlocks::none(),
+        }
+    }
+
+    /// Refuses a payload whose block `denied` holds. A verifier that has not answered yet
+    /// refuses nothing.
+    pub fn with_denied_blocks(self, denied: DeniedBlocks) -> Self {
+        Self { denied, ..self }
+    }
+
+    /// The payload's block, if the verifier denied it.
+    fn denied_block(&self) -> Option<BlockNumHash> {
+        let block =
+            BlockNumHash { number: self.payload.block_number(), hash: self.payload.block_hash() };
+        self.denied.contains(block, self.payload.timestamp()).unwrap_or(false).then_some(block)
+    }
 }
 
 #[async_trait]
@@ -76,6 +121,9 @@ impl ExecutableEngineTask for CanonicalizeTask {
             head.number != self.parent.block_info.number
         {
             Err(CanonicalizeTaskError::UnsafeHeadChangedSinceBuild)
+        } else if let Some(denied) = self.denied_block() {
+            warn!(target: "engine", ?denied, "Refusing a sequenced payload the cross-chain verifier denied");
+            Err(CanonicalizeTaskError::Denied(denied))
         } else {
             insert_payload(
                 self.engine.as_ref(),

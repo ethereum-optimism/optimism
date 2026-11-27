@@ -88,7 +88,7 @@ impl Cli {
 ///
 /// clap reads an empty variable as one empty entry, which the entry's parser rejects. op-node reads
 /// it as an empty list, so deployments can leave such a variable empty, and so can kona's.
-fn ignore_empty_list_envs(cmd: Command) -> Command {
+pub fn ignore_empty_list_envs(cmd: Command) -> Command {
     cmd.mut_args(|arg| {
         let empty_env = arg.get_value_delimiter().is_some() &&
             arg.get_env().and_then(std::env::var_os).is_some_and(|value| value.is_empty());

@@ -98,6 +98,9 @@ type PresetConfig struct {
 	// verifier "b" on this CL kind. The follow-source verifier "c" always takes the kind
 	// DEVSTACK_L2CL_KIND selects, as the other two do when this is unset.
 	FollowSourceCLKind MixedL2CLKind
+	// InteropVerifier selects the interop verifier of the supernode runtimes: op-supernode when
+	// empty, or lokahi, with a kona-node per chain that follows it.
+	InteropVerifier SupernodeKind
 }
 
 func NewPresetConfig() PresetConfig {

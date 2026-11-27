@@ -31,6 +31,14 @@ type multiL2RuntimePresetComponents struct {
 	chains    map[string]*l2RuntimePresetComponents
 }
 
+// newSupernodeDSL wraps the runtime's interop verifier, op-supernode or lokahi, as the preset's
+// supernode handle: queries over the verifier's RPC, and its lifecycle and test control.
+func newSupernodeDSL(t devtest.T, name string, runtime *sysgo.MultiChainRuntime) *dsl.Supernode {
+	verifier := runtime.InteropVerifier()
+	t.Require().NotNil(verifier, "runtime must run an interop verifier")
+	return dsl.NewSupernodeWithTestControl(newSupernodeFrontend(t, name, verifier.UserRPC(), verifier), verifier)
+}
+
 func twoL2SupernodeFromRuntime(t devtest.T, runtime *sysgo.MultiChainRuntime) *TwoL2 {
 	preset, _ := twoL2FromRuntime(t, runtime)
 	return preset
@@ -136,7 +144,6 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 	t.Require().NotNil(chainA.SupernodeCL, "missing l2a supernode CL")
 	t.Require().NotNil(chainB.SupernodeCL, "missing l2b supernode CL")
 
-	supernode := newSupernodeFrontend(t, "supernode-two-l2-system", runtime.Supernode.UserRPC(), runtime.Supernode)
 	// The supernode VN drives its own EL, distinct from the sequencer's
 	// (joined only by L1 + P2P) in light-sequencer presets. In virtual-sequencer
 	// presets the supernode VN is itself the sequencer, so SupernodeEL == EL and
@@ -174,7 +181,7 @@ func twoL2SupernodeInteropFromRuntime(t devtest.T, runtime *sysgo.MultiChainRunt
 			L2ACL:     twoL2.L2ACL,
 			L2BCL:     twoL2.L2BCL,
 		},
-		Supernode:             dsl.NewSupernodeWithTestControl(supernode, runtime.Supernode),
+		Supernode:             newSupernodeDSL(t, "supernode-two-l2-system", runtime),
 		TestSequencer:         dsl.NewTestSequencer(testSequencer),
 		L2ELA:                 dsl.NewL2ELNode(components.l2AEL),
 		L2ELB:                 dsl.NewL2ELNode(components.l2BEL),

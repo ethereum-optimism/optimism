@@ -144,6 +144,11 @@ pub struct NodeCommand {
     /// by `optimism_safeHeadAtL1Block`. Nothing is recorded when unset.
     #[arg(long = "safedb.path", env = "KONA_NODE_SAFEDB_PATH")]
     pub safedb_path: Option<PathBuf>,
+    /// RPC of the cross-chain verification authority (lokahi) whose `interop_*` heads the safe
+    /// and finalized labels follow. When unset, the safe label is the local-safe head and finality
+    /// follows L1.
+    #[arg(long = "interop.authority-rpc", env = "KONA_NODE_INTEROP_AUTHORITY_RPC")]
+    pub interop_authority_rpc: Option<Url>,
     /// Number of L1 blocks to keep behind the L1 head before deriving L2 data.
     /// Reorgs are supported, but may be slow to recover from.
     #[arg(long = "verifier.l1-confs", env = "KONA_NODE_VERIFIER_L1_CONFS", default_value_t = 0)]
@@ -169,6 +174,7 @@ impl Default for NodeCommand {
             l1_config_file: None,
             interop_dependency_set: None,
             safedb_path: None,
+            interop_authority_rpc: None,
             verifier_l1_confs: 0,
             node_mode: NodeMode::Validator,
             p2p_flags: P2PArgs::default(),
@@ -355,6 +361,13 @@ impl NodeCommand {
             );
         }
 
+        if self.interop_authority_rpc.is_some() && derivation_delegate_url.is_some() {
+            bail!(
+                "--interop.authority-rpc cannot be combined with derivation delegation: the \
+                 authority's heads are bounded by a local-safe head the node derives itself"
+            );
+        }
+
         RollupNodeBuilder::new(
             crate::version::version().to_owned(),
             cfg,
@@ -368,6 +381,7 @@ impl NodeCommand {
         .with_dependency_set(dependency_set)
         .with_safe_db(safe_db)
         .with_verifier_l1_confs(self.verifier_l1_confs)
+        .with_interop_authority_url(self.interop_authority_rpc)
         .build()
         .start()
         .await

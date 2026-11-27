@@ -12,6 +12,7 @@ import (
 	coredepset "github.com/ethereum-optimism/optimism/op-core/interop/depset"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shared/rustbin"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer"
@@ -171,6 +172,7 @@ type MultiChainRuntime struct {
 	DelaySeconds       uint64
 	InteropFilter      *InteropFilter // nil if not using interop filter
 	SyncTester         *SyncTesterRuntime
+	Lokahi             *Lokahi // nil unless the chains follow lokahi
 }
 
 // StartZKProposer starts the configured op-zk-proposer. It is intended for
@@ -193,4 +195,37 @@ func (r *MultiChainRuntime) startZKProposerRuntime() (*ZKProposerRuntime, error)
 	r.startZKProposerFn = nil
 	r.zkProposer = start()
 	return r.zkProposer, nil
+}
+
+// InteropVerifier is the interop verifier of a multi-chain runtime, op-supernode or lokahi, as
+// the presets reach it: over its RPC, with lifecycle and test control.
+type InteropVerifier interface {
+	stack.ControlledLifecycle
+	stack.SupernodeTestControl
+	// UserRPC serves superroot_atTimestamp and supernode_syncStatus.
+	UserRPC() string
+}
+
+var (
+	_ InteropVerifier = (*SuperNode)(nil)
+	_ InteropVerifier = (*Lokahi)(nil)
+)
+
+// InteropVerifier returns the runtime's interop verifier, or nil when it runs none.
+func (r *MultiChainRuntime) InteropVerifier() InteropVerifier {
+	switch {
+	case r.Supernode != nil:
+		return r.Supernode
+	case r.Lokahi != nil:
+		return r.Lokahi
+	default:
+		return nil
+	}
+}
+
+// superRootRPC is the RPC the runtime's super proposer and challenger read super roots from.
+func (r *MultiChainRuntime) superRootRPC(t devtest.T) string {
+	verifier := r.InteropVerifier()
+	t.Require().NotNil(verifier, "runtime must run an interop verifier")
+	return verifier.UserRPC()
 }

@@ -4,4 +4,4 @@ mod error;
 pub use error::ConsolidateTaskError;
 
 mod task;
-pub use task::{ConsolidateInput, ConsolidateTask};
+pub use task::{ConsolidateInput, ConsolidateTask, DelegatedHeads};

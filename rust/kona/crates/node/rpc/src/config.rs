@@ -9,6 +9,9 @@ use std::net::SocketAddr;
 pub struct RpcBuilder {
     /// The RPC socket address.
     pub socket: SocketAddr,
+    /// Whether to serve the experimental `opstack` block-building namespace, see
+    /// [`OpStackApiServer`](crate::OpStackApiServer).
+    pub experimental_sequencer_api: bool,
 }
 
 impl RpcBuilder {
@@ -19,6 +22,6 @@ impl RpcBuilder {
 
     /// Sets the given [`SocketAddr`] on the [`RpcBuilder`].
     pub const fn set_addr(self, addr: SocketAddr) -> Self {
-        Self { socket: addr }
+        Self { socket: addr, ..self }
     }
 }

@@ -3,10 +3,12 @@
 //! [`Engine`]: crate::Engine
 
 use super::{
-    BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, FinalizeTask, InsertTask,
+    BuildTask, CanonicalizeTask, CanonicalizeTaskError, ConsolidateTask, DenyTask, FinalizeTask,
+    InsertTask, OpStackTask, PromoteTask, UndoTask,
 };
 use crate::{
-    BuildTaskError, ConsolidateTaskError, EngineState, FinalizeTaskError, InsertTaskError,
+    BuildTaskError, ConsolidateInput, ConsolidateTaskError, DenyTaskError, EngineState,
+    FinalizeTaskError, InsertTaskError, PromoteTaskError, UndoTaskError,
     task_queue::{SealTask, SealTaskError},
 };
 use alloy_rpc_types_engine::PayloadStatusEnum;
@@ -36,6 +38,16 @@ pub enum EngineTaskErrorSeverity {
     /// the engine keeps running.
     #[display("skip")]
     Skip,
+    /// The task moved the local-safe head back, so derivation restarts from it. The task is done.
+    #[display("rederive")]
+    Rederive,
+    /// The task needs a cross-chain verifier's denied blocks, which the node has not heard yet.
+    /// The queue sets it aside and runs the other tasks, and runs it again once the denied blocks
+    /// arrive, see [`Engine::wake_waiting`].
+    ///
+    /// [`Engine::wake_waiting`]: crate::Engine::wake_waiting
+    #[display("waiting")]
+    Waiting,
 }
 
 /// The interface for an engine task error.
@@ -81,6 +93,15 @@ pub enum EngineTaskErrors {
     /// An error that occurred while finalizing an L2 block.
     #[error(transparent)]
     Finalize(#[from] FinalizeTaskError),
+    /// An error that occurred while moving the safe label to a verifier's head.
+    #[error(transparent)]
+    Promote(#[from] PromoteTaskError),
+    /// An error, or the outcome, of handling a verifier's denied blocks.
+    #[error(transparent)]
+    Deny(#[from] DenyTaskError),
+    /// An error, or the outcome, of deriving again after a verifier undid verifications.
+    #[error(transparent)]
+    Undo(#[from] UndoTaskError),
 }
 
 impl EngineTaskError for EngineTaskErrors {
@@ -92,6 +113,9 @@ impl EngineTaskError for EngineTaskErrors {
             Self::Canonicalize(inner) => inner.severity(),
             Self::Consolidate(inner) => inner.severity(),
             Self::Finalize(inner) => inner.severity(),
+            Self::Promote(inner) => inner.severity(),
+            Self::Deny(inner) => inner.severity(),
+            Self::Undo(inner) => inner.severity(),
         }
     }
 }
@@ -109,14 +133,41 @@ pub enum EngineTask {
     Seal(Box<SealTask>),
     /// Imports a sequenced payload after its conductor commit has succeeded.
     Canonicalize(Box<CanonicalizeTask>),
+    /// Runs a block-building step of the `opstack` RPC namespace and answers its caller.
+    OpStack(Box<OpStackTask>),
     /// Performs consolidation on the engine state. If consolidation fails, a block is built from
     /// the payload attributes and imported instead.
     Consolidate(Box<ConsolidateTask>),
     /// Finalizes an L2 block
     Finalize(Box<FinalizeTask>),
+    /// Moves the safe label to a cross-chain verifier's head.
+    Promote(Box<PromoteTask>),
+    /// Makes derivation replace the local-safe blocks a cross-chain verifier denied.
+    Deny(Box<DenyTask>),
+    /// Makes derivation derive again from the finalized head after a cross-chain verifier undid
+    /// verifications.
+    Undo(Box<UndoTask>),
 }
 
 impl EngineTask {
+    /// Whether this task, carrying the latest value of a polled input, makes the queued task
+    /// redundant: both carry the same input's full value, the denied blocks above the finalized
+    /// head, an undo, a safe or finalized head, or a delegate's safe head. Derived attributes,
+    /// unsafe payloads and block building each carry their own block, and supersede nothing.
+    pub fn supersedes(&self, queued: &Self) -> bool {
+        match (self, queued) {
+            (Self::Deny(_), Self::Deny(_)) |
+            (Self::Undo(_), Self::Undo(_)) |
+            (Self::Promote(_), Self::Promote(_)) |
+            (Self::Finalize(_), Self::Finalize(_)) => true,
+            (Self::Consolidate(task), Self::Consolidate(queued)) => {
+                matches!(task.input, ConsolidateInput::Delegated(_)) &&
+                    matches!(queued.input, ConsolidateInput::Delegated(_))
+            }
+            _ => false,
+        }
+    }
+
     /// Executes the task without consuming it.
     async fn execute_inner(&self, state: &mut EngineState) -> Result<(), EngineTaskErrors> {
         match self {
@@ -128,13 +179,23 @@ impl EngineTask {
                 )) => {
                     warn!(target: "engine", %status, "Dropping invalid unsafe payload");
                 }
+                Err(err @ InsertTaskError::DeniedChainRecovery { .. }) => {
+                    debug!(target: "engine", %err, "Dropping unsafe payload during invalidation recovery");
+                }
+                Err(err @ InsertTaskError::AtOrBelowLocalSafe { .. }) => {
+                    debug!(target: "engine", %err, "Dropping unsafe payload older than the local-safe head");
+                }
                 Err(err) => return Err(err.into()),
                 Ok(_) => {}
             },
             Self::Seal(task) => task.execute(state).await?,
             Self::Canonicalize(task) => task.execute(state).await?,
+            Self::OpStack(task) => task.execute(state).await,
             Self::Consolidate(task) => task.execute(state).await?,
             Self::Finalize(task) => task.execute(state).await?,
+            Self::Promote(task) => task.execute(state).await?,
+            Self::Deny(task) => task.execute(state).await?,
+            Self::Undo(task) => task.execute(state).await?,
             Self::Build(task) => {
                 task.execute(state).await?;
             }
@@ -150,6 +211,9 @@ impl EngineTask {
             Self::Build(_) => crate::Metrics::BUILD_TASK_LABEL,
             Self::Seal(_) => crate::Metrics::SEAL_TASK_LABEL,
             Self::Finalize(_) => crate::Metrics::FINALIZE_TASK_LABEL,
+            Self::Promote(_) => crate::Metrics::PROMOTE_TASK_LABEL,
+            Self::Deny(_) | Self::Undo(_) => crate::Metrics::DENY_TASK_LABEL,
+            Self::OpStack(_) => crate::Metrics::OPSTACK_TASK_LABEL,
         }
     }
 }
@@ -162,8 +226,12 @@ impl PartialEq for EngineTask {
                 (Self::Build(_), Self::Build(_)) |
                 (Self::Seal(_), Self::Seal(_)) |
                 (Self::Canonicalize(_), Self::Canonicalize(_)) |
+                (Self::OpStack(_), Self::OpStack(_)) |
                 (Self::Consolidate(_), Self::Consolidate(_)) |
-                (Self::Finalize(_), Self::Finalize(_))
+                (Self::Finalize(_), Self::Finalize(_)) |
+                (Self::Promote(_), Self::Promote(_)) |
+                (Self::Deny(_), Self::Deny(_)) |
+                (Self::Undo(_), Self::Undo(_))
         )
     }
 }
@@ -183,12 +251,20 @@ impl Ord for EngineTask {
         // https://specs.optimism.io/protocol/derivation.html#forkchoice-synchronization
         //
         // - Block building jobs are prioritized above all other tasks, to give priority to the
-        //   sequencer. BuildTask handles forkchoice updates automatically.
+        //   sequencer. BuildTask handles forkchoice updates automatically. A step of an external
+        //   sequencer over the `opstack` API comes right after the import of a sequenced block,
+        //   before the node's own builds.
         // - InsertUnsafe tasks are prioritized over Consolidate tasks, to ensure that unsafe block
         //   gossip is imported promptly.
-        // - Consolidate tasks are prioritized over Finalize tasks, as they advance the safe chain
-        //   via derivation.
+        // - Consolidate tasks are prioritized over Deny, Promote and Finalize tasks, as they
+        //   advance the local-safe chain via derivation.
+        // - Deny tasks come before Promote tasks, so the safe label never moves onto a block the
+        //   verifier denied after it was promoted.
+        // - Promote tasks come before Finalize tasks, so a verifier's safe head lands before the
+        //   finalized head it bounds.
         // - Finalize tasks have the lowest priority, as they only update finalized status.
+        // - Undo tasks come before all others: every queued task was made for derivation the undo
+        //   abandons.
         match (self, other) {
             // Same variant cases
             (Self::Insert(_), Self::Insert(_)) |
@@ -196,11 +272,21 @@ impl Ord for EngineTask {
             (Self::Build(_), Self::Build(_)) |
             (Self::Seal(_), Self::Seal(_)) |
             (Self::Canonicalize(_), Self::Canonicalize(_)) |
-            (Self::Finalize(_), Self::Finalize(_)) => Ordering::Equal,
+            (Self::OpStack(_), Self::OpStack(_)) |
+            (Self::Deny(_), Self::Deny(_)) |
+            (Self::Promote(_), Self::Promote(_)) |
+            (Self::Finalize(_), Self::Finalize(_)) |
+            (Self::Undo(_), Self::Undo(_)) => Ordering::Equal,
+
+            (Self::Undo(_), _) => Ordering::Greater,
+            (_, Self::Undo(_)) => Ordering::Less,
 
             // Finish importing a sequenced block before starting another build.
             (Self::Canonicalize(_), _) => Ordering::Greater,
             (_, Self::Canonicalize(_)) => Ordering::Less,
+
+            (Self::OpStack(_), _) => Ordering::Greater,
+            (_, Self::OpStack(_)) => Ordering::Less,
 
             // SealBlock tasks are prioritized over all others
             (Self::Seal(_), _) => Ordering::Greater,
@@ -214,9 +300,17 @@ impl Ord for EngineTask {
             (Self::Insert(_), _) => Ordering::Greater,
             (_, Self::Insert(_)) => Ordering::Less,
 
-            // Consolidate tasks are prioritized over Finalize tasks
+            // Consolidate tasks are prioritized over Deny, Promote and Finalize tasks
             (Self::Consolidate(_), _) => Ordering::Greater,
             (_, Self::Consolidate(_)) => Ordering::Less,
+
+            // Deny tasks are prioritized over Promote and Finalize tasks
+            (Self::Deny(_), _) => Ordering::Greater,
+            (_, Self::Deny(_)) => Ordering::Less,
+
+            // Promote tasks are prioritized over Finalize tasks
+            (Self::Promote(_), _) => Ordering::Greater,
+            (_, Self::Promote(_)) => Ordering::Less,
         }
     }
 }
@@ -299,7 +393,10 @@ mod tests {
 
     #[tokio::test]
     async fn imported_blocks_are_handed_to_the_block_sink() {
-        let payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
+        // Above the local-safe head of the default state, which takes no unsafe block below it.
+        let mut block = Block::<OpTxEnvelope>::default();
+        block.header.number = 1;
+        let payload = ExecutionPayloadV1::from_block_slow(&block);
         let envelope = OpExecutionPayloadEnvelope::V1(payload);
         // Pin genesis to this block so the L2BlockInfo can be built without an L1-info deposit.
         // The engine hashes the block it reconstructs from the payload, so key off that.
@@ -308,7 +405,7 @@ mod tests {
         let imported_hash = imported.header.hash_slow();
         let config = Arc::new(RollupConfig {
             genesis: kona_genesis::ChainGenesis {
-                l2: alloy_eips::BlockNumHash { hash: imported_hash, number: 0 },
+                l2: alloy_eips::BlockNumHash { hash: imported_hash, number: 1 },
                 ..Default::default()
             },
             ..Default::default()
@@ -335,7 +432,7 @@ mod tests {
 
         assert_eq!(
             sink.0.lock().unwrap().as_slice(),
-            &[(imported_hash, 0)],
+            &[(imported_hash, 1)],
             "a successfully imported block must reach the sink"
         );
         l1.assert_finished();
@@ -355,6 +452,8 @@ mod tests {
         let client = Arc::new(client);
         let mut payload = ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
         payload.transactions = vec![Bytes::from_static(&[0xff])];
+        // Above the local-safe head of the default state, which takes no unsafe block below it.
+        payload.block_number = 1;
         let task = EngineTask::Insert(Box::new(InsertTask::new(
             client,
             config,
@@ -375,8 +474,12 @@ mod tests {
     async fn canyon_payload_insert_carries_its_withdrawals() {
         let config = Arc::new(RollupConfig::default());
         let (client, l1, l2) = test_engine_client(config.clone());
+        let mut payload_inner =
+            ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default());
+        // Above the local-safe head of the default state, which takes no unsafe block below it.
+        payload_inner.block_number = 1;
         let payload = ExecutionPayloadV2 {
-            payload_inner: ExecutionPayloadV1::from_block_slow(&Block::<OpTxEnvelope>::default()),
+            payload_inner,
             withdrawals: vec![Withdrawal {
                 index: 1,
                 validator_index: 2,

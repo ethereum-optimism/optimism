@@ -1,7 +1,7 @@
 [package]
 name = "lokahi"
 version = "0.1.0"
-description = "Rust implementation of the OP Stack supernode: a multi-chain consensus-layer host"
+description = "Rust implementation of the OP Stack interop verifier"
 
 edition.workspace = true
 authors.workspace = true
@@ -19,6 +19,42 @@ workspace = true
 [dependencies]
 # workspace
 op-version.workspace = true
+kona-engine.workspace = true
+kona-genesis = { workspace = true, features = ["serde", "std"] }
+kona-interop = { workspace = true, features = ["serde", "std"] }
+kona-protocol = { workspace = true, features = ["serde", "std"] }
+kona-rpc = { workspace = true, features = ["client"] }
+kona-sources.workspace = true
+
+# alloy
+alloy-consensus.workspace = true
+alloy-eips = { workspace = true, features = ["serde"] }
+alloy-primitives = { workspace = true, features = ["getrandom", "map", "serde"] }
+alloy-provider = { workspace = true, features = ["reqwest"] }
+alloy-rpc-types-eth.workspace = true
+
+# op-alloy
+op-alloy-consensus.workspace = true
+op-alloy-network.workspace = true
+op-alloy-rpc-types.workspace = true
 
 # general
-clap = { workspace = true, features = ["derive"] }
+async-trait.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
+eyre.workspace = true
+jsonrpsee = { workspace = true, features = ["server", "http-client", "macros"] }
+serde = { workspace = true, features = ["derive", "std"] }
+serde_json = { workspace = true, features = ["std"] }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter", "json"] }
+url = { workspace = true, features = ["serde"] }
+
+# storage
+rocksdb = { workspace = true, features = ["snappy"] }
+
+[dev-dependencies]
+kona-interop = { workspace = true, features = ["serde", "std", "test-utils"] }
+rstest.workspace = true
+tempfile.workspace = true

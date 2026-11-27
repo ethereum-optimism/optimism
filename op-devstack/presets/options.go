@@ -447,6 +447,7 @@ func WithInteropAtGenesis() Option {
 // ELSync sequencers stopped, so the VN can bootstrap the chain the light sequencers
 // EL-sync from. Pair with the system's BootstrapLightSequencersViaVNHandoff method,
 // which drives the bootstrap and hands sequencing off to the light sequencers (#21164).
+// With DEVSTACK_SUPERNODE_KIND=lokahi, each chain's deriving kona-node takes the VN's place.
 func WithSupernodeVNSequencerForBootstrap() Option {
 	return option{
 		kinds: optionKindSupernodeVNSequencerForBootstrap,

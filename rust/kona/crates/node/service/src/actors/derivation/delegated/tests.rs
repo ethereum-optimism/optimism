@@ -5,11 +5,12 @@ use alloy_primitives::B256;
 use async_trait::async_trait;
 use kona_derive::test_utils::TestChainProvider;
 use kona_engine::{
-    ConsolidateInput, EngineState, EngineSyncState, EngineSyncStateUpdate, FinalizeBlockId,
+    ConsolidateInput, DelegatedHeads, EngineState, EngineSyncState, EngineSyncStateUpdate,
+    FinalizeBlockId,
 };
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use rstest::rstest;
-use std::{collections::VecDeque, sync::Mutex};
+use std::{collections::VecDeque, sync::Mutex, time::Duration};
 use tokio::{
     sync::{mpsc, watch},
     time::{self, Instant},
@@ -21,16 +22,19 @@ const CURRENT_L1: u64 = 3;
 
 type SyncStatusReply = Result<SyncStatus, &'static str>;
 
-/// Answers each sync status poll with the next scripted reply.
+/// Answers each sync status poll with the next scripted reply, after its delay.
 #[derive(Debug)]
-struct ScriptedDelegate(Mutex<VecDeque<SyncStatusReply>>);
+struct ScriptedDelegate(Mutex<VecDeque<(Duration, SyncStatusReply)>>);
 
 #[async_trait]
 impl SyncStatusSource for ScriptedDelegate {
     type Error = &'static str;
 
     async fn sync_status(&self) -> SyncStatusReply {
-        self.0.lock().unwrap().pop_front().expect("unexpected sync status poll")
+        let (delay, reply) =
+            self.0.lock().unwrap().pop_front().expect("unexpected sync status poll");
+        time::sleep(delay).await;
+        reply
     }
 }
 
@@ -47,6 +51,13 @@ struct Harness {
 
 impl Harness {
     fn new(replies: impl IntoIterator<Item = SyncStatusReply>) -> Self {
+        Self::with_delayed_replies(replies.into_iter().map(|reply| (Duration::ZERO, reply)))
+    }
+
+    /// A harness whose delegate answers each poll with its reply after the reply's delay.
+    fn with_delayed_replies(
+        replies: impl IntoIterator<Item = (Duration, SyncStatusReply)>,
+    ) -> Self {
         let mut l1 = TestChainProvider::default();
         for number in [SAFE_ORIGIN, FINALIZED_ORIGIN, CURRENT_L1] {
             l1.insert_block(number, canonical_l1_block(number));
@@ -107,26 +118,33 @@ impl Harness {
 #[derive(Debug, PartialEq, Eq)]
 enum Forwarded {
     Finalized(FinalizeBlockId),
+    Heads(Box<DelegatedHeads>),
     Other(String),
-    Safe(L2BlockInfo),
 }
 
 impl From<EngineActorRequest> for Forwarded {
     fn from(request: EngineActorRequest) -> Self {
         match request {
             EngineActorRequest::ProcessFinalizedL2Block(finalized) => Self::Finalized(*finalized),
-            EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::BlockInfo(safe)) => {
-                Self::Safe(safe)
+            EngineActorRequest::ProcessSafeL2Signal(ConsolidateInput::Delegated(heads)) => {
+                Self::Heads(heads)
             }
             other => Self::Other(format!("{other:?}")),
         }
     }
 }
 
-/// What one poll of `status` forwards: the safe head, then the finalized block pinned by hash.
+/// What one poll of `status` forwards: its local-safe and safe heads, with the safe head standing
+/// in for both where the delegate reports no local-safe head, then the finalized block pinned by
+/// hash.
 fn forwarded_for(status: &SyncStatus) -> Vec<Forwarded> {
+    let local_safe = if status.local_safe_l2 == L2BlockInfo::default() {
+        status.safe_l2
+    } else {
+        status.local_safe_l2
+    };
     vec![
-        Forwarded::Safe(status.safe_l2),
+        Forwarded::Heads(Box::new(DelegatedHeads { local_safe, safe: status.safe_l2 })),
         Forwarded::Finalized(FinalizeBlockId::ByHash(status.finalized_l2.block_info.id())),
     ]
 }
@@ -409,7 +427,7 @@ async fn poll_rejects_status_with_labels_out_of_order(
 }
 
 /// A zero local safe head is a label the delegate has not derived or does not report, so it does
-/// not put the safe head out of order and the status is forwarded.
+/// not put the safe head out of order, and the safe head stands in for it.
 #[tokio::test(start_paused = true)]
 async fn unreported_local_safe_head_does_not_order_the_labels() {
     let status = SyncStatus { local_safe_l2: L2BlockInfo::default(), ..delegate_status() };
@@ -418,7 +436,15 @@ async fn unreported_local_safe_head_does_not_order_the_labels() {
 
     harness.actor.step().await.unwrap();
 
-    assert_eq!(harness.forwarded(), forwarded_for(&status));
+    let forwarded = harness.forwarded();
+    assert_eq!(
+        forwarded[0],
+        Forwarded::Heads(Box::new(DelegatedHeads {
+            local_safe: status.safe_l2,
+            safe: status.safe_l2
+        }))
+    );
+    assert_eq!(forwarded, forwarded_for(&status));
 }
 
 /// An engine sync state with consistent labels: unsafe at 30, safe at `safe`, finalized at 15.
@@ -464,4 +490,41 @@ async fn lagging_safe_head_is_forwarded_once_per_engine_view(
     harness.actor.step().await.unwrap();
 
     assert_eq!(harness.forwarded(), second_poll_forwards(&status));
+}
+
+/// Lagging heads are remembered whole: a delegate whose local-safe head stays behind the engine's
+/// but whose safe head moves is forwarded again, so the engine can move its safe label.
+#[tokio::test(start_paused = true)]
+async fn lagging_heads_with_a_moved_safe_head_are_forwarded_again() {
+    let first = SyncStatus { safe_l2: l2_block(18, SAFE_ORIGIN), ..delegate_status() };
+    let second = SyncStatus { safe_l2: l2_block(19, SAFE_ORIGIN), ..delegate_status() };
+    let mut harness = Harness::new([Ok(first.clone()), Ok(second.clone())]);
+    harness.complete_engine_sync_with(engine_safe_at(25)).await;
+    harness.publish_engine_state(engine_safe_at(25), true);
+    harness.actor.step().await.unwrap();
+    assert_eq!(harness.forwarded(), forwarded_for(&first));
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(harness.forwarded(), forwarded_for(&second));
+}
+
+/// A poll whose request hangs past the poll interval and then fails, as a stalled delegate's does
+/// once the request times out, is followed by the next poll a full interval later rather than at
+/// once, so the failed request is closed before the delegate is asked again.
+#[tokio::test(start_paused = true)]
+async fn poll_after_a_failed_fetch_waits_a_full_interval() {
+    let hang = DERIVATION_DELEGATE_POLL_INTERVAL + Duration::from_secs(1);
+    let mut harness = Harness::with_delayed_replies([
+        (hang, Err("request timed out")),
+        (Duration::ZERO, DelegateReply::Valid.sync_status()),
+    ]);
+    harness.complete_engine_sync().await;
+    harness.actor.step().await.unwrap();
+    let failed_at = Instant::now();
+
+    harness.actor.step().await.unwrap();
+
+    assert_eq!(Instant::now() - failed_at, DERIVATION_DELEGATE_POLL_INTERVAL);
+    assert_eq!(harness.forwarded(), forwarded_for(&delegate_status()));
 }

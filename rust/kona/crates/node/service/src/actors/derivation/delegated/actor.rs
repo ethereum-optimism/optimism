@@ -6,7 +6,7 @@ use alloy_primitives::BlockHash;
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
 use kona_derive::{ChainProvider, Signal};
-use kona_engine::{EngineState, FinalityViolation, FinalizeBlockId};
+use kona_engine::{DelegatedHeads, EngineState, FinalityViolation, FinalizeBlockId};
 use kona_protocol::{BlockInfo, L2BlockInfo, SyncStatus};
 use kona_rpc::RollupNodeApiClient;
 use thiserror::Error;
@@ -78,11 +78,11 @@ where
     /// Ticker driving periodic polls of the derivation delegate.
     delegated_derivation_ticker: time::Interval,
 
-    /// A safe head behind the engine's that was forwarded while the execution layer applied the
-    /// engine's forkchoice, with the engine's safe head at the time. The engine checks such a head
-    /// against its execution layer once; until either changes, sending it again repeats that
-    /// lookup to the same answer.
-    forwarded_lagging_safe_head: Option<(BlockNumHash, BlockNumHash)>,
+    /// Heads whose local-safe head is behind the engine's, forwarded while the execution layer
+    /// applied the engine's forkchoice, with the engine's local-safe and safe heads at the time.
+    /// The engine checks such heads against its execution layer once; until any of them changes,
+    /// sending them again repeats that lookup to the same answer.
+    forwarded_lagging_safe_head: Option<(DelegatedHeads, BlockNumHash, BlockNumHash)>,
     /// The last rejection of a delegate status, so a delegate stuck on one inconsistency is
     /// warned about once rather than on every poll.
     last_rejection: Option<String>,
@@ -226,6 +226,11 @@ where
             .ensure_respects_finality(v.finalized_l2.block_info.id())?;
 
         let checks = [
+            (
+                "L1 Origin of Local Safe L2",
+                Self::heads(v).local_safe.l1_origin.number,
+                Self::heads(v).local_safe.l1_origin.hash,
+            ),
             ("L1 Origin of Safe L2", v.safe_l2.l1_origin.number, v.safe_l2.l1_origin.hash),
             (
                 "L1 Origin of Finalized L2",
@@ -258,28 +263,37 @@ where
         }
     }
 
-    /// Whether the delegated safe head is the lagging one already forwarded against the same
-    /// engine safe head, so the engine would repeat its lookup to the same answer.
-    fn is_lagging_safe_head_forwarded(&self, safe_l2: &L2BlockInfo) -> bool {
-        self.lagging_safe_head_to_remember(safe_l2) == self.forwarded_lagging_safe_head &&
+    /// The heads the engine follows from `status`: its local-safe and safe heads, with the safe
+    /// head standing in for both where the delegate reports no local-safe head.
+    fn heads(status: &SyncStatus) -> DelegatedHeads {
+        if status.local_safe_l2 == L2BlockInfo::default() {
+            return status.safe_l2.into();
+        }
+        DelegatedHeads { local_safe: status.local_safe_l2, safe: status.safe_l2 }
+    }
+
+    /// Whether `heads` are the lagging ones already forwarded against the same engine labels, so
+    /// the engine would repeat its lookup to the same answer.
+    fn is_lagging_safe_head_forwarded(&self, heads: &DelegatedHeads) -> bool {
+        self.lagging_safe_head_to_remember(heads) == self.forwarded_lagging_safe_head &&
             self.forwarded_lagging_safe_head.is_some()
     }
 
-    /// The pair to remember for a delegated safe head behind the engine's consistent safe head
-    /// while its execution layer applied the engine's forkchoice, or `None` for any other head,
-    /// which the engine must always see.
+    /// What to remember for heads whose local-safe head is behind the engine's consistent
+    /// local-safe head while its execution layer applied the engine's forkchoice, or `None` for
+    /// any other heads, which the engine must always see.
     fn lagging_safe_head_to_remember(
         &self,
-        safe_l2: &L2BlockInfo,
-    ) -> Option<(BlockNumHash, BlockNumHash)> {
+        heads: &DelegatedHeads,
+    ) -> Option<(DelegatedHeads, BlockNumHash, BlockNumHash)> {
         let engine_state = self.engine_state_rx.borrow();
-        let engine_safe_head = engine_state.sync_state.safe_head().block_info;
-        let is_consistent =
-            engine_state.sync_state.unsafe_head().block_info.number >= engine_safe_head.number;
+        let sync_state = &engine_state.sync_state;
+        let engine_local_safe = sync_state.local_safe_head().block_info;
+        let is_consistent = sync_state.unsafe_head().block_info.number >= engine_local_safe.number;
         (engine_state.el_applied_last_forkchoice &&
             is_consistent &&
-            safe_l2.block_info.number < engine_safe_head.number)
-            .then(|| (safe_l2.block_info.id(), engine_safe_head.id()))
+            heads.local_safe.block_info.number < engine_local_safe.number)
+            .then(|| (*heads, engine_local_safe.id(), sync_state.safe_head().block_info.id()))
     }
 
     /// Fetches, validates, and applies sync status from the derivation delegate.
@@ -292,6 +306,10 @@ where
                     error = %err,
                     "Failed to fetch sync status from delegate"
                 );
+                // The next poll waits a full interval rather than catching up on the ticks the
+                // request missed: a timed-out request may still be open at the delegate, and
+                // asking again at once would put a second request next to it.
+                self.delegated_derivation_ticker.reset();
                 return Ok(());
             }
         };
@@ -306,17 +324,17 @@ where
         self.last_rejection = None;
         self.derivation_origin_tx.send_replace(Some(sync_status.current_l1));
 
-        if self.is_lagging_safe_head_forwarded(&sync_status.safe_l2) {
+        let heads = Self::heads(&sync_status);
+        if self.is_lagging_safe_head_forwarded(&heads) {
             debug!(
                 target: "derivation",
-                safe_l2 = ?sync_status.safe_l2,
-                "Not forwarding a lagging safe head the engine already checked"
+                ?heads,
+                "Not forwarding lagging heads the engine already checked"
             );
         } else {
-            self.forwarded_lagging_safe_head =
-                self.lagging_safe_head_to_remember(&sync_status.safe_l2);
+            self.forwarded_lagging_safe_head = self.lagging_safe_head_to_remember(&heads);
             self.engine_client
-                .send_safe_l2_signal(sync_status.safe_l2.into())
+                .send_safe_l2_signal(heads.into())
                 .await
                 .map_err(|e| DerivationError::Sender(Box::new(e)))?;
         }

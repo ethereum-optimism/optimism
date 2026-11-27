@@ -40,11 +40,17 @@ extern crate tracing;
 mod task_queue;
 pub use task_queue::{
     BuildTask, BuildTaskError, CanonicalizeTask, CanonicalizeTaskError, ConsolidateInput,
-    ConsolidateTask, ConsolidateTaskError, Engine, EngineBuildError, EngineResetError, EngineTask,
-    EngineTaskError, EngineTaskErrorSeverity, EngineTaskErrors, ExecutableEngineTask,
-    FinalizeBlockId, FinalizeTask, FinalizeTaskError, InsertTask, InsertTaskError, SealTask,
-    SealTaskError, SynchronizeTaskError,
+    ConsolidateTask, ConsolidateTaskError, DelegatedHeads, DenyTask, DenyTaskError, Engine,
+    EngineBuildError, EngineResetError, EngineTask, EngineTaskError, EngineTaskErrorSeverity,
+    EngineTaskErrors, ExecutableEngineTask, FinalizeBlockId, FinalizeTask, FinalizeTaskError,
+    InsertTask, InsertTaskError, OpStackTask, OpenBlockError, PromoteTask, PromoteTaskError,
+    ReplaceDeniedError, SealTask, SealTaskError, SynchronizeTaskError, UndoTask, UndoTaskError,
+    VerifierFinality, VerifierHead, VerifierStatus, l1_block_is_canonical,
+    verifier_activation_timestamp,
 };
+
+mod denied;
+pub use denied::{DeniedBlocks, DeniedBlocksSender, DeniedBlocksUnknown};
 
 mod attributes;
 pub use attributes::{AttributesMatch, AttributesMismatch};
@@ -58,14 +64,16 @@ pub use client::{EngineClient, EngineClientError, EngineQueryClient};
 mod request;
 pub use request::{
     BuildRequest, CanonicalizeRequest, EngineActorRequest, EngineRequestError, EngineRequestResult,
-    ResetRequest, SealRequest,
+    OpStackRequest, ResetRequest, SealRequest, UndoRequest,
 };
 
 mod versions;
 pub use versions::{EngineForkchoiceVersion, EngineGetPayloadVersion, EngineNewPayloadVersion};
 
 mod state;
-pub use state::{EngineState, EngineSyncState, EngineSyncStateUpdate, FinalityViolation};
+pub use state::{
+    EngineState, EngineSyncState, EngineSyncStateUpdate, FinalityViolation, SafeLabel,
+};
 
 mod kinds;
 pub use kinds::EngineKind;

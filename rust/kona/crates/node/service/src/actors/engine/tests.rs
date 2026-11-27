@@ -44,10 +44,13 @@ async fn invalid_forkchoice_resets_and_resumes(#[case] rebuild: bool, #[case] ho
             validation_error: "invalid unsafe chain".into(),
         })),
     );
+    // Derived attributes build on the local-safe head, which the rebuild case puts on the
+    // rejected branch.
+    let local_safe = if rebuild { l2_block(9) } else { genesis };
     let state = EngineState {
         sync_state: EngineState::default().sync_state.apply_update(EngineSyncStateUpdate {
             unsafe_head: Some(l2_block(10)),
-            local_safe_head: Some(genesis),
+            local_safe_head: Some(local_safe),
             safe_head: Some(genesis),
             finalized_head: Some(genesis),
         }),

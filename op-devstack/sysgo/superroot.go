@@ -74,10 +74,6 @@ func awaitSuperrootTime(t devtest.T, cls ...L2CLNode) uint64 {
 	return superrootTime
 }
 
-func getSupernodeSuperRoot(t devtest.T, supernode *SuperNode, timestamp uint64) eth.Bytes32 {
-	return getSuperRoot(t, supernode.UserRPC(), timestamp)
-}
-
 func getSuperRoot(t devtest.T, endpoint string, timestamp uint64) eth.Bytes32 {
 	client, err := dial.DialSuperNodeClientWithTimeout(t.Ctx(), t.Logger(), endpoint)
 	t.Require().NoError(err)

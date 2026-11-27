@@ -743,6 +743,8 @@ async fn an_l1_head_update_does_not_finalize_while_attributes_await_confirmation
     );
 }
 
+mod current_l1;
+
 mod database;
 
 mod op_node_parity;

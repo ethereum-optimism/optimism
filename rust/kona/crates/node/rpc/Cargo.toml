@@ -61,6 +61,8 @@ alloy-rpc-client = { workspace = true, features = ["reqwest"], optional = true }
 
 [dev-dependencies]
 alloy-consensus.workspace = true
+alloy-json-rpc.workspace = true
+alloy-transport.workspace = true
 alloy-rpc-types-eth.workspace = true
 kona-engine = { workspace = true, features = ["test-utils"] }
 kona-safedb = { workspace = true, features = ["rocksdb"] }

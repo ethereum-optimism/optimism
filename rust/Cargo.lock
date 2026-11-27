@@ -8026,10 +8026,12 @@ version = "0.3.2"
 dependencies = [
  "alloy-consensus 2.5.0",
  "alloy-eips 2.5.0",
+ "alloy-json-rpc 2.5.0",
  "alloy-primitives",
  "alloy-rpc-client",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth 2.5.0",
+ "alloy-transport",
  "async-trait",
  "derive_more 2.1.1",
  "enr 0.14.0",
@@ -8980,8 +8982,35 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 name = "lokahi"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus 2.5.0",
+ "alloy-eips 2.5.0",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types-eth 2.5.0",
+ "async-trait",
  "clap",
+ "eyre",
+ "jsonrpsee",
+ "kona-engine",
+ "kona-genesis",
+ "kona-interop",
+ "kona-protocol",
+ "kona-rpc",
+ "kona-sources",
+ "op-alloy-consensus",
+ "op-alloy-network",
+ "op-alloy-rpc-types",
  "op-version",
+ "rocksdb",
+ "rstest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -10013,7 +10042,10 @@ dependencies = [
 name = "op-reth"
 version = "2.0.0"
 dependencies = [
+ "alloy-chains",
+ "clap",
  "eyre",
+ "kona-node",
  "op-version",
  "reth-cli-util",
  "reth-db",

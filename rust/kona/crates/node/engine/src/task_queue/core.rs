@@ -2,11 +2,13 @@
 
 use super::ExecutableEngineTask;
 use crate::{
-    EngineClient, EngineState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
-    EngineTaskErrorSeverity, Metrics, SyncStartError, SynchronizeTaskError,
-    find_starting_forkchoice,
+    EngineClient, EngineState, EngineSyncState, EngineSyncStateUpdate, EngineTask, EngineTaskError,
+    EngineTaskErrorSeverity, L2ForkchoiceState, Metrics, SafeLabel, SyncStartError,
+    SynchronizeTaskError, find_starting_forkchoice,
     task_queue::{EngineTaskErrors, synchronize_unconditionally},
 };
+use alloy_eips::BlockId;
+use alloy_transport::{RpcError, TransportErrorKind};
 use kona_genesis::RollupConfig;
 use kona_protocol::L2BlockInfo;
 use std::{cmp::Ordering, collections::BinaryHeap, sync::Arc};
@@ -49,8 +51,13 @@ impl Ord for QueuedTask {
 ///
 /// Tasks within the queue are also considered fallible. If they fail with a temporary error,
 /// they are not popped from the queue, the error is returned, and they are retried on the
-/// next call to [`Engine::drain`]. A task that fails with a flush error has already replaced its
-/// block, so it is popped before the error is returned.
+/// next call to [`Engine::drain`], before any task enqueued meanwhile but an undo. A task that
+/// fails with a flush error has already replaced its block, so it is popped before the error is
+/// returned.
+///
+/// A task that waits for a cross-chain verifier's denied blocks, the derived import of a node
+/// that has not heard them yet, is set aside instead, so it holds up nothing else: sequencing and
+/// unsafe imports go on. It runs again once [`Engine::wake_waiting`] is called.
 #[derive(Debug)]
 pub struct Engine {
     /// The state of the engine.
@@ -61,8 +68,12 @@ pub struct Engine {
     tasks: BinaryHeap<QueuedTask>,
     next_sequence: u64,
     /// Preserve the task being retried ahead of newly enqueued work: it may have already
-    /// performed part of an Engine API operation.
-    active: Option<EngineTask>,
+    /// performed part of an Engine API operation. An undo still goes first: the task may have
+    /// been made for the derivation the undo abandons, and an undo that moves nothing leaves the
+    /// task to its retry.
+    active: Option<QueuedTask>,
+    /// The tasks set aside until the verifier's denied blocks arrive.
+    waiting: Vec<EngineTask>,
 }
 
 impl Engine {
@@ -73,6 +84,7 @@ impl Engine {
             state_sender,
             tasks: BinaryHeap::default(),
             active: None,
+            waiting: Vec::new(),
             next_sequence: 0,
         }
     }
@@ -92,17 +104,46 @@ impl Engine {
         let sequence = self.next_sequence;
         self.next_sequence =
             self.next_sequence.checked_add(1).expect("engine task sequence exhausted");
+        if matches!(task, EngineTask::Undo(_)) &&
+            let Some(active) = self.active.take()
+        {
+            self.tasks.push(active);
+        }
         self.tasks.push(QueuedTask { sequence, task });
     }
 
-    /// Number of queued and active tasks, including work awaiting a retry.
+    /// Enqueues `task` in place of the queued tasks it supersedes, see [`EngineTask::supersedes`],
+    /// for a task that carries the latest value of an input polled again and again, such as a
+    /// verifier's heads: an engine that cannot run them queues one per input, not one per poll. A
+    /// task being retried stays.
+    pub fn enqueue_replacing(&mut self, task: EngineTask) {
+        self.tasks.retain(|queued| !task.supersedes(&queued.task));
+        self.enqueue(task);
+    }
+
+    /// Number of queued and active tasks, including work awaiting a retry, but not the tasks set
+    /// aside until the verifier's denied blocks arrive.
     pub fn len(&self) -> usize {
         self.tasks.len() + usize::from(self.active.is_some())
     }
 
-    /// Whether there is no pending work.
+    /// Whether there is no pending work but, possibly, tasks set aside until the verifier's denied
+    /// blocks arrive.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Number of tasks set aside until the verifier's denied blocks arrive.
+    pub const fn waiting(&self) -> usize {
+        self.waiting.len()
+    }
+
+    /// Queues the tasks set aside until the verifier's denied blocks arrive again, for when the
+    /// node has heard them.
+    pub fn wake_waiting(&mut self) {
+        for task in std::mem::take(&mut self.waiting) {
+            self.enqueue(task);
+        }
     }
 
     /// Resets the engine by finding a plausible sync starting point via
@@ -118,17 +159,8 @@ impl Engine {
         // One attempt. The actor retains the reset request and retries transient failures. The
         // execution layer may have lost or changed its forkchoice, so the reset sends one even when
         // the recovered labels equal the current ones.
-        synchronize_unconditionally(
-            client.as_ref(),
-            &mut self.state,
-            EngineSyncStateUpdate {
-                unsafe_head: Some(start.un_safe),
-                local_safe_head: Some(start.safe),
-                safe_head: Some(start.safe),
-                finalized_head: Some(start.finalized),
-            },
-        )
-        .await?;
+        let update = checked_reset_update(&self.state.sync_state, client.as_ref(), start).await?;
+        synchronize_unconditionally(client.as_ref(), &mut self.state, update).await?;
 
         self.state_sender.send_replace(self.state);
         metrics::counter!(Metrics::ENGINE_RESET_COUNT).increment(1);
@@ -136,10 +168,11 @@ impl Engine {
         Ok(start.safe)
     }
 
-    /// Clears the task queue.
+    /// Clears the task queue, and the tasks set aside.
     pub fn clear(&mut self) {
         self.tasks.clear();
         self.active = None;
+        self.waiting.clear();
     }
 
     /// Attempts to drain the queue by executing all [`EngineTask`]s in-order. If any task returns
@@ -149,18 +182,29 @@ impl Engine {
         // Drain tasks in order of priority, halting on errors for a retry to be attempted.
         loop {
             if self.active.is_none() {
-                self.active = self.tasks.pop().map(|queued| queued.task);
+                self.active = self.tasks.pop();
             }
-            let Some(task) = &self.active else { break };
-            let result = task.execute(&mut self.state).await;
+            let Some(queued) = &self.active else { break };
+            let result = queued.task.execute(&mut self.state).await;
+
+            if let Err(err) = &result &&
+                err.severity() == EngineTaskErrorSeverity::Waiting
+            {
+                debug!(target: "engine", %err, "Setting a task aside until the denied blocks arrive");
+                self.waiting.extend(self.active.take().map(|queued| queued.task));
+                continue;
+            }
 
             // A flush reports that the task replaced its block with a deposits-only block, so the
             // task is done; retrying it would replace that block again. A skip reports a task that
-            // no longer applies, so retrying it cannot succeed either.
+            // no longer applies, so retrying it cannot succeed either. A rederive reports that the
+            // task moved the local-safe head back, which is done too.
             if let Err(err) = &result &&
                 !matches!(
                     err.severity(),
-                    EngineTaskErrorSeverity::Flush | EngineTaskErrorSeverity::Skip
+                    EngineTaskErrorSeverity::Flush |
+                        EngineTaskErrorSeverity::Skip |
+                        EngineTaskErrorSeverity::Rederive
                 )
             {
                 return result;
@@ -175,6 +219,53 @@ impl Engine {
     }
 }
 
+/// The labels a reset recovers from the sync `start`.
+///
+/// Derivation resumes from local-safe, so only local-safe is reset. The safe label is left to the
+/// sync state: it follows local-safe, or, when a verifier or a delegate moves it, it is held and
+/// never raised by a reset, see [`crate::SafeLabel::Verified`].
+const fn reset_update(start: L2ForkchoiceState) -> EngineSyncStateUpdate {
+    EngineSyncStateUpdate {
+        unsafe_head: Some(start.un_safe),
+        local_safe_head: Some(start.safe),
+        safe_head: None,
+        finalized_head: Some(start.finalized),
+    }
+}
+
+/// The labels a reset recovers from the sync `start`, with a verified safe label the reset would
+/// keep checked against the execution layer.
+///
+/// The reset keeps a verified safe label at or below the recovered local-safe head, see
+/// [`reset_update`]. It is the block at its height on the execution layer's chain only if the
+/// execution layer did not move its head to another chain since the label was set, such as by
+/// applying a forkchoice update whose safe block it then rejected. The recovered heads are on the
+/// execution layer's current chain, so the label is looked up there, and falls to the recovered
+/// finalized head if another block is at its height.
+async fn checked_reset_update(
+    sync_state: &EngineSyncState,
+    client: &EngineClient,
+    start: L2ForkchoiceState,
+) -> Result<EngineSyncStateUpdate, EngineResetError> {
+    let update = reset_update(start);
+    if !matches!(sync_state.safe_label(), SafeLabel::Verified { .. } | SafeLabel::Delegated) {
+        return Ok(update);
+    }
+    let kept = sync_state.apply_update(update).safe_head();
+    if kept == start.safe || kept == start.finalized {
+        return Ok(update);
+    }
+    let canonical = client
+        .get_l2_block(BlockId::number(kept.block_info.number))
+        .await
+        .map_err(EngineResetError::SafeLabelLookup)?;
+    if canonical.is_some_and(|block| block.header.hash == kept.block_info.hash) {
+        return Ok(update);
+    }
+    warn!(target: "engine", safe = %kept, finalized = %start.finalized, "The safe label is not on the execution layer's chain; dropping it to the finalized head");
+    Ok(EngineSyncStateUpdate { safe_head: Some(start.finalized), ..update })
+}
+
 /// An error occurred while attempting to reset the [`Engine`].
 #[derive(Debug, Error)]
 pub enum EngineResetError {
@@ -184,6 +275,9 @@ pub enum EngineResetError {
     /// An error occurred while traversing the L1 for the sync starting point.
     #[error(transparent)]
     SyncStart(#[from] SyncStartError),
+    /// The lookup checking that the safe label is on the execution layer's chain failed.
+    #[error("Failed to look up the safe label's block: {0}")]
+    SafeLabelLookup(RpcError<TransportErrorKind>),
 }
 
 impl EngineResetError {
@@ -196,7 +290,8 @@ impl EngineResetError {
                 SyncStartError::RpcError(_) |
                 SyncStartError::L1(_) |
                 SyncStartError::L1BlockMissing { .. },
-            ) => true,
+            ) |
+            Self::SafeLabelLookup(_) => true,
             Self::SyncStart(_) => false,
             Self::Forkchoice(err) => err.severity() != EngineTaskErrorSeverity::Critical,
         }
@@ -222,11 +317,14 @@ mod recovery_tests {
 
     #[tokio::test]
     async fn temporary_failure_returns_with_task_retained_for_recovery() {
-        let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(
-            &alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default(),
-        ));
+        // The blocks are above the local-safe head of the default state, which takes no unsafe
+        // block below it.
+        let mut first = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
+        first.header.number = 1;
+        let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(&first));
         let block: op_alloy_consensus::OpBlock = payload.clone().try_into_block().unwrap();
         let mut config = RollupConfig::default();
+        config.genesis.l2.number = 1;
         config.genesis.l2.hash = block.header.hash_slow();
         let config = Arc::new(config);
         let (client, l1, l2) = test_engine_client(config.clone());
@@ -250,7 +348,7 @@ mod recovery_tests {
         assert_eq!(engine.len(), 1);
         // Accumulate additional unsafe imports during the outage. Equal-priority heap
         // entries must remain FIFO; otherwise the final unsafe head can move backwards.
-        for number in 1..=3 {
+        for number in 2..=4 {
             let mut block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
             block.header.number = number;
             let payload =
@@ -276,7 +374,154 @@ mod recovery_tests {
         }
         engine.drain().await.unwrap();
         assert!(engine.is_empty());
-        assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 3);
+        assert_eq!(engine.state().sync_state.unsafe_head().block_info.number, 4);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    // A derived import that waits for the verifier's denied blocks holds up nothing else: the
+    // sequencer's build runs, and the import is set aside until the denied blocks arrive.
+    #[tokio::test]
+    async fn derived_import_waiting_for_denials_does_not_hold_up_the_queue() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        let head = test_block_info(10);
+        let attributes = TestAttributesBuilder::new().with_parent(head).build();
+        let payload_id = PayloadId::new([3; 8]);
+        l2.expect(
+            "engine_forkchoiceUpdatedV2",
+            ForkchoiceUpdated {
+                payload_status: PayloadStatus::from_status(PayloadStatusEnum::Valid),
+                payload_id: Some(payload_id),
+            },
+        );
+        let (_denials, unknown) = crate::DeniedBlocks::from_verifier(0);
+        let state = TestEngineStateBuilder::new().with_unsafe_head(head).build();
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        engine.enqueue(EngineTask::Consolidate(Box::new(
+            ConsolidateTask::new(
+                client.clone(),
+                config.clone(),
+                ConsolidateInput::Attributes(Box::new(attributes.clone())),
+                Arc::new(NoopBlockSink),
+            )
+            .with_denied_blocks(unknown),
+        )));
+        let (build_tx, mut build_rx) = tokio::sync::mpsc::channel(1);
+        engine.enqueue(EngineTask::Build(Box::new(crate::BuildTask::new(
+            client, config, attributes, build_tx,
+        ))));
+
+        engine.drain().await.unwrap();
+
+        assert_eq!(build_rx.recv().await.unwrap().unwrap(), payload_id);
+        assert!(engine.is_empty());
+        assert_eq!(engine.waiting(), 1);
+        // Woken while the denied blocks are still unknown, it is set aside again.
+        engine.wake_waiting();
+        assert_eq!(engine.len(), 1);
+        engine.drain().await.unwrap();
+        assert_eq!(engine.waiting(), 1);
+        engine.clear();
+        assert_eq!(engine.waiting(), 0);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// The engine state of a node at its finalized head, as right after a start, so an undo
+    /// moves nothing.
+    fn at_the_finalized_head(finalized: L2BlockInfo) -> EngineState {
+        TestEngineStateBuilder::new()
+            .with_safe_label(SafeLabel::Verified { activation_timestamp: 0 })
+            .with_unsafe_head(finalized)
+            .with_local_safe_head(finalized)
+            .with_safe_head(finalized)
+            .with_finalized_head(finalized)
+            .build()
+    }
+
+    /// A queued undo runs before the derived import it woke, which was made for the derivation
+    /// the undo abandons. Moving nothing, as after a start, it leaves the import to run next.
+    #[tokio::test]
+    async fn an_undo_runs_before_the_import_it_woke() {
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        let finalized = test_block_info(10);
+        let attributes = TestAttributesBuilder::new().with_parent(finalized).build();
+        let (denials, unknown) = crate::DeniedBlocks::from_verifier(0);
+        let state = at_the_finalized_head(finalized);
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        engine.enqueue(EngineTask::Consolidate(Box::new(
+            ConsolidateTask::new(
+                client.clone(),
+                config,
+                ConsolidateInput::Attributes(Box::new(attributes)),
+                Arc::new(NoopBlockSink),
+            )
+            .with_denied_blocks(unknown),
+        )));
+        engine.drain().await.unwrap();
+        assert_eq!(engine.waiting(), 1);
+
+        // As the engine actor takes an undo in.
+        denials.publish(vec![]);
+        engine.wake_waiting();
+        let (done, mut heard) = tokio::sync::mpsc::channel(1);
+        engine.enqueue_replacing(EngineTask::Undo(Box::new(crate::UndoTask::new(
+            client.clone(),
+            done,
+        ))));
+        l2.expect_error("engine_forkchoiceUpdatedV2");
+        let error = engine.drain().await.unwrap_err();
+
+        assert_eq!(heard.try_recv(), Ok(()), "the undo ran first");
+        assert_eq!(error.severity(), EngineTaskErrorSeverity::Temporary);
+        assert_eq!(engine.len(), 1, "the import stays queued");
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A queued undo runs before the task being retried, which may have been made for the
+    /// derivation the undo abandons. Moving nothing, it leaves the task to its retry.
+    #[tokio::test]
+    async fn an_undo_runs_before_the_task_being_retried() {
+        let mut block = alloy_consensus::Block::<op_alloy_consensus::OpTxEnvelope>::default();
+        block.header.number = 6;
+        let payload = OpExecutionPayloadEnvelope::V1(ExecutionPayloadV1::from_block_slow(&block));
+        let config = Arc::new(RollupConfig::default());
+        let (client, l1, l2) = test_engine_client(config.clone());
+        let client = Arc::new(client);
+        let state = at_the_finalized_head(test_block_info(5));
+        let (state_tx, _state_rx) = tokio::sync::watch::channel(state);
+        let mut engine = Engine::new(state, state_tx);
+        engine.enqueue(EngineTask::Insert(Box::new(InsertTask::new(
+            client.clone(),
+            config,
+            payload,
+            false,
+            Arc::new(NoopBlockSink),
+        ))));
+        l2.expect_error("engine_newPayloadV2");
+        assert_eq!(
+            engine.drain().await.unwrap_err().severity(),
+            EngineTaskErrorSeverity::Temporary
+        );
+
+        let (done, mut heard) = tokio::sync::mpsc::channel(1);
+        engine.enqueue_replacing(EngineTask::Undo(Box::new(crate::UndoTask::new(
+            client.clone(),
+            done,
+        ))));
+        l2.expect_error("engine_newPayloadV2");
+        let error = engine.drain().await.unwrap_err();
+
+        assert_eq!(heard.try_recv(), Ok(()), "the undo ran first");
+        assert_eq!(error.severity(), EngineTaskErrorSeverity::Temporary);
+        assert_eq!(engine.len(), 1, "the retried task stays queued");
         l1.assert_finished();
         l2.assert_finished();
     }
@@ -383,6 +628,96 @@ mod recovery_tests {
         engine.reset(Arc::new(client), config).await.unwrap();
 
         assert_eq!(engine.state().sync_state, state.sync_state);
+        l1.assert_finished();
+        l2.assert_finished();
+    }
+
+    /// A reset moves local-safe to the sync start and never raises a verified safe label: one
+    /// below the recovered local-safe head is held, and one the recovered local-safe head drops
+    /// below falls to the recovered finalized head. A safe label following local-safe moves with
+    /// it.
+    #[rstest::rstest]
+    #[case::verified_below_start(crate::SafeLabel::Verified { activation_timestamp: 0 }, 12, 10, 10)]
+    #[case::verified_above_start(crate::SafeLabel::Verified { activation_timestamp: 0 }, 8, 10, 5)]
+    #[case::local_safe(crate::SafeLabel::LocalSafe, 12, 10, 12)]
+    fn reset_never_raises_a_verified_safe_label(
+        #[case] safe_label: crate::SafeLabel,
+        #[case] start_safe: u64,
+        #[case] safe_before: u64,
+        #[case] expected_safe: u64,
+    ) {
+        let blocks: Vec<_> = (0..=20).map(test_block_info).collect();
+        let state = TestEngineStateBuilder::new()
+            .with_safe_label(safe_label)
+            .with_unsafe_head(blocks[20])
+            .with_local_safe_head(blocks[15])
+            .with_safe_head(blocks[safe_before as usize])
+            .with_finalized_head(blocks[5])
+            .build();
+        let start = L2ForkchoiceState {
+            un_safe: blocks[18],
+            safe: blocks[start_safe as usize],
+            finalized: blocks[5],
+        };
+
+        let reset = state.sync_state.apply_update(reset_update(start));
+
+        assert_eq!(reset.local_safe_head(), start.safe);
+        assert_eq!(reset.safe_head(), blocks[expected_safe as usize]);
+    }
+
+    /// A verified safe label the reset keeps below the recovered local-safe head is kept only if
+    /// it is the execution layer's block at its height: an execution layer that moved its head
+    /// to another chain leaves it off the chain the reset follows, and it falls to finalized. A
+    /// label the reset sets to a recovered head is not looked up.
+    #[rstest::rstest]
+    #[case::canonical(10, Some(0), 10)]
+    #[case::reorged_out(10, Some(1), 5)]
+    #[case::missing(10, None, 5)]
+    #[case::at_the_recovered_local_safe_head(12, None, 12)]
+    #[tokio::test]
+    async fn reset_keeps_a_verified_safe_label_only_on_the_execution_layers_chain(
+        #[case] safe_before: u64,
+        #[case] served: Option<u8>,
+        #[case] expected_safe: u64,
+    ) {
+        use crate::test_utils::{test_l2_block, test_rpc_block};
+        let mut blocks: Vec<op_alloy_consensus::OpBlock> = Vec::new();
+        for number in 0..=20 {
+            let parent = blocks
+                .last()
+                .map_or(alloy_primitives::B256::ZERO, |block| block.header.hash_slow());
+            blocks.push(test_l2_block(number, parent, 0));
+        }
+        let genesis = kona_genesis::ChainGenesis {
+            l2: alloy_eips::BlockNumHash { number: 0, hash: blocks[0].header.hash_slow() },
+            ..Default::default()
+        };
+        let info = |number: u64| {
+            L2BlockInfo::from_block_and_genesis(&blocks[number as usize], &genesis).unwrap()
+        };
+        let state = TestEngineStateBuilder::new()
+            .with_safe_label(crate::SafeLabel::Verified { activation_timestamp: 0 })
+            .with_unsafe_head(info(20))
+            .with_local_safe_head(info(15))
+            .with_safe_head(info(safe_before))
+            .with_finalized_head(info(5))
+            .build();
+        let start = L2ForkchoiceState { un_safe: info(18), safe: info(12), finalized: info(5) };
+        let (client, l1, l2) = test_engine_client(Arc::new(RollupConfig::default()));
+        if safe_before != 12 {
+            let block = served.map(|fork| {
+                let parent = blocks[safe_before as usize].header.parent_hash;
+                test_rpc_block(&test_l2_block(safe_before, parent, fork))
+            });
+            l2.expect_block_header_by_number(safe_before, block);
+        }
+
+        let update = checked_reset_update(&state.sync_state, &client, start).await.unwrap();
+
+        let reset = state.sync_state.apply_update(update);
+        assert_eq!(reset.local_safe_head(), info(12));
+        assert_eq!(reset.safe_head(), info(expected_safe));
         l1.assert_finished();
         l2.assert_finished();
     }

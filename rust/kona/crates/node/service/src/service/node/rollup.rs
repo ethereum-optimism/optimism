@@ -1,11 +1,12 @@
 //! Contains the [`RollupNode`] implementation.
 use crate::{
-    ConductorClient, DelegateDerivationActor, DerivationActor, DerivationActorRequest,
-    DerivationError, EngineActor, EngineActorRequest, EngineConfig, L1OriginSelector,
-    L1WatcherActor, L1WatcherChain, NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler,
-    NodeActor, NodeMode, QueuedDerivationEngineClient, QueuedEngineDerivationClient,
-    QueuedL1WatcherDerivationClient, QueuedNetworkEngineClient, QueuedSequencerEngineClient,
-    RpcActor, SequencerActor, SequencerConfig, SignedPayload, SignerActor, SystemClock,
+    AUTHORITY_POLL_INTERVAL, AppliedEpoch, AppliedEpochRpc, AuthorityActor, ConductorClient,
+    DelegateDerivationActor, DerivationActor, DerivationActorRequest, DerivationError, EngineActor,
+    EngineActorRequest, EngineConfig, L1OriginSelector, L1WatcherActor, L1WatcherChain,
+    NetworkActor, NetworkBuilder, NetworkConfig, NetworkHandler, NodeActor, NodeMode,
+    QueuedDerivationEngineClient, QueuedEngineDerivationClient, QueuedL1WatcherDerivationClient,
+    QueuedNetworkEngineClient, QueuedSequencerEngineClient, RpcActor, SequencerActor,
+    SequencerConfig, SignedPayload, SignerActor, SystemClock,
     actors::{
         BlockStream, OriginPrefetcher, OriginPreparation, PreparedAttributesProvider,
         PreparedOriginProvider, QueuedUnsafePayloadGossipClient,
@@ -24,7 +25,10 @@ use jsonrpsee::{
     },
 };
 use kona_derive::{BlobProviderError, StatefulAttributesBuilder};
-use kona_engine::{Engine, EngineQueryClient, EngineState};
+use kona_engine::{
+    Engine, EngineQueryClient, EngineState, EngineSyncState, SafeLabel,
+    verifier_activation_timestamp,
+};
 use kona_genesis::{L1ChainConfig, RollupConfig};
 use kona_interop::DependencySet;
 use kona_protocol::{BlockInfo, L2BlockInfo};
@@ -34,9 +38,9 @@ use kona_providers_alloy::{
 };
 use kona_providers_local::BufferedL2Provider;
 use kona_rpc::{
-    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, L1WatcherQueries, OpP2PApiServer,
-    P2pRpc, RollupNodeApiServer, RollupRpc, RpcBuilder, SequencerAdminCommand,
-    SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
+    AdminApiServer, AdminRpc, HealthzApiServer, HealthzRpc, InteropNodeApiServer, L1WatcherQueries,
+    OpP2PApiServer, OpStackApiServer, OpStackRpc, P2pRpc, RollupNodeApiServer, RollupRpc,
+    RpcBuilder, SequencerAdminCommand, SequencerAdminHandle, SuperRootApiServer, SuperRootRpc,
 };
 use kona_safedb::SafeDb;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
@@ -48,6 +52,8 @@ use url::Url;
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
 /// Timeout for each `optimism_syncStatus` request to the derivation delegate.
 const DERIVATION_DELEGATE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
+/// Timeout for each request to the interop authority.
+const INTEROP_AUTHORITY_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 /// How many recently imported blocks to keep for the local L2 lookups.
 ///
 /// Every lookup served from here is for the block being built on top of, which the engine recorded
@@ -102,6 +108,8 @@ pub struct RollupNode {
     pub(crate) safe_db: Option<Arc<dyn SafeDb>>,
     /// L1 confirmation depth for online derivation, independent of sequencing.
     pub(crate) verifier_l1_confs: u64,
+    /// The cross-chain verification authority whose heads the safe and finalized labels follow.
+    pub(crate) interop_authority_url: Option<Url>,
 }
 
 /// A RollupNode-level derivation actor wrapper.
@@ -227,7 +235,17 @@ impl RollupNode {
         unsafe_head_tx: watch::Sender<L2BlockInfo>,
     ) -> (ConfiguredEngineActor, EngineQueryClient, watch::Receiver<EngineState>) {
         // Share engine state with RPC without routing reads through the actor.
-        let engine_state = EngineState::default();
+        let safe_label = if self.interop_authority_url.is_some() {
+            SafeLabel::Verified {
+                activation_timestamp: verifier_activation_timestamp(&self.config),
+            }
+        } else if self.derivation_delegate_url.is_some() {
+            SafeLabel::Delegated
+        } else {
+            SafeLabel::LocalSafe
+        };
+        let engine_state =
+            EngineState { sync_state: EngineSyncState::new(safe_label), ..Default::default() };
         let (engine_state_tx, engine_state_rx) = watch::channel(engine_state);
         let engine = Engine::new(engine_state, engine_state_tx);
 
@@ -247,6 +265,8 @@ impl RollupNode {
             engine_request_rx,
             Arc::new(BufferImportedBlocks::new(self.l2_block_buffer.clone())),
         );
+        let actor =
+            if self.interop_authority_url.is_some() { actor.following_verifier() } else { actor };
 
         (actor, engine_client.query_client(), engine_state_rx)
     }
@@ -310,6 +330,31 @@ impl RollupNode {
         let l1_block_zero = block.id();
         info!(target: "rollup_node", l1_hash = %l1_block_zero.hash, "Anchoring the safe head db at L1 block zero");
         Ok(l1_block_zero)
+    }
+
+    /// Builds the actor following the interop authority when one is configured.
+    fn build_authority_actor(
+        &self,
+        engine_actor_request_tx: mpsc::Sender<EngineActorRequest>,
+        engine_state_rx: watch::Receiver<EngineState>,
+        applied_epoch: Option<AppliedEpoch>,
+    ) -> Result<Option<AuthorityActor<HttpClient>>, String> {
+        let (Some(url), Some(applied_epoch)) = (&self.interop_authority_url, applied_epoch) else {
+            return Ok(None);
+        };
+        let authority = HttpClientBuilder::default()
+            .request_timeout(INTEROP_AUTHORITY_REQUEST_TIMEOUT)
+            .build(url)
+            .map_err(|e| format!("Failed to build interop authority client: {e}"))?;
+        info!(target: "rollup_node", %url, "Following the interop authority for the safe and finalized labels");
+        Ok(Some(AuthorityActor::new(
+            authority,
+            self.config.clone(),
+            engine_actor_request_tx,
+            engine_state_rx,
+            AUTHORITY_POLL_INTERVAL,
+            applied_epoch,
+        )))
     }
 
     /// Builds the L1 watcher actor along with its head and finalized block streams.
@@ -438,15 +483,23 @@ impl RollupNode {
         Ok(Some(ConfiguredSequencer { actor, prefetcher }))
     }
 
+    /// Whether the RPC server serves the experimental `opstack` block-building namespace.
+    fn serves_opstack_api(&self) -> bool {
+        self.rpc_builder.as_ref().is_some_and(|config| config.experimental_sequencer_api)
+    }
+
     /// Assembles the JSON-RPC module set, performs the initial server launch, and returns the
     /// configured [`RpcActor`]. Returns `Ok(None)` when no [`RpcBuilder`] is configured.
+    #[allow(clippy::too_many_arguments)]
     async fn build_rpc_actor(
         &self,
         l2_query_client: EngineQueryClient,
         engine_state_rx: watch::Receiver<EngineState>,
         admin_rpc: AdminRpc,
         p2p_rpc: P2pRpc,
+        opstack_rpc: Option<OpStackRpc>,
         l1_watcher_queries_tx: mpsc::Sender<L1WatcherQueries>,
+        applied_epoch: Option<watch::Receiver<Option<alloy_primitives::B256>>>,
     ) -> Result<Option<RpcActor>, String> {
         let Some(config) = self.rpc_builder() else {
             return Ok(None);
@@ -464,6 +517,12 @@ impl RollupNode {
         modules
             .merge(admin_rpc.into_rpc())
             .map_err(|e| format!("Failed to register admin module: {e:?}"))?;
+        if let Some(opstack_rpc) = opstack_rpc {
+            modules
+                .merge(opstack_rpc.into_rpc())
+                .map_err(|e| format!("Failed to register opstack module: {e:?}"))?;
+            info!(target: "rpc", "Experimental opstack block-building API enabled");
+        }
         modules
             .merge(
                 RollupRpc::new(
@@ -490,6 +549,11 @@ impl RollupNode {
                 .into_rpc(),
             )
             .map_err(|e| format!("Failed to register superroot module: {e:?}"))?;
+        if let Some(applied_epoch) = applied_epoch {
+            modules
+                .merge(AppliedEpochRpc(applied_epoch).into_rpc())
+                .map_err(|e| format!("Failed to register interop module: {e:?}"))?;
+        }
 
         let middleware = tower::ServiceBuilder::new()
             .layer(
@@ -583,6 +647,14 @@ impl RollupNode {
             unsafe_head_tx,
         );
 
+        let applied_epoch = self.interop_authority_url.as_ref().map(|_| AppliedEpoch::default());
+        let applied_epoch_rx = applied_epoch.as_ref().map(AppliedEpoch::watch);
+        let authority = self.build_authority_actor(
+            engine_actor_request_tx.clone(),
+            engine_state_rx.clone(),
+            applied_epoch,
+        )?;
+
         let derivation = self
             .build_derivation_actor(
                 engine_actor_request_tx.clone(),
@@ -592,6 +664,12 @@ impl RollupNode {
                 l1_head_updates_rx.clone(),
             )
             .await?;
+
+        // A sequencer outside the node builds through the engine actor and gossips its signed
+        // blocks through the network actor, like the node's own sequencer.
+        let opstack_rpc = self
+            .serves_opstack_api()
+            .then(|| OpStackRpc::new(engine_actor_request_tx.clone(), signed_payload_tx.clone()));
 
         // Start the block signer before the network, so a misconfigured or unreachable remote
         // signer fails before the node binds its p2p ports.
@@ -652,7 +730,15 @@ impl RollupNode {
 
         let admin_rpc = AdminRpc::new(sequencer_admin, engine_actor_request_tx, admin_payload_tx);
         let rpc = self
-            .build_rpc_actor(l2_query_client, engine_state_rx, admin_rpc, p2p_rpc, l1_query_tx)
+            .build_rpc_actor(
+                l2_query_client,
+                engine_state_rx,
+                admin_rpc,
+                p2p_rpc,
+                opstack_rpc,
+                l1_query_tx,
+                applied_epoch_rx,
+            )
             .await?;
 
         crate::service::spawn_and_wait!(
@@ -666,6 +752,7 @@ impl RollupNode {
                 Some(l1_watcher),
                 Some(derivation),
                 Some(engine_actor),
+                authority,
             ]
         );
         Ok(())
