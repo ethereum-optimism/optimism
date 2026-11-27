@@ -3,47 +3,58 @@ package proofs
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-core/forks"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/rust/kona/tests/proofs/helpers"
-	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-type activationBlockTestCfg struct {
-	fork          forks.Name
-	numUpgradeTxs int
-}
-
-// TestUpgradeBlockTxOmission tests that the sequencer omits user transactions in activation blocks
-// and that batches that contain user transactions in an activation block are dropped.
+// TestActivationBlockTxOmission tests that the sequencer omits user transactions in activation
+// blocks and that batches that contain user transactions in an activation block are dropped.
 func TestActivationBlockTxOmission(gt *testing.T) {
-	matrix := helpers.NewMatrix[activationBlockTestCfg]()
-
-	matrix.AddDefaultTestCasesWithName(
-		string(forks.Jovian),
-		activationBlockTestCfg{fork: forks.Jovian, numUpgradeTxs: 5},
-		helpers.NewForkMatrix(helpers.Isthmus),
-		testActivationBlockTxOmission,
-	)
-	// New forks should be added here in the future.
-
+	matrix := helpers.NewMatrix[forks.Name]()
+	for _, fork := range forks.From(forks.Jovian) {
+		preFork := lookupHardforkHelper(forks.Prev(fork))
+		require.NotNil(gt, preFork, "no hardfork helper for the fork before %s", fork)
+		matrix.AddTestCase(string(fork), fork, helpers.NewForkMatrix(preFork), testActivationBlockTxOmission, helpers.ExpectNoError())
+	}
 	matrix.Run(gt)
 }
 
-func testActivationBlockTxOmission(gt *testing.T, testCfg *helpers.TestCfg[activationBlockTestCfg]) {
-	tcfg := testCfg.Custom
+// activationUpgradeTxs returns the upgrade deposits of fork's activation block on a chain whose
+// dependency set holds only itself.
+func activationUpgradeTxs(t actionsHelpers.Testing, fork forks.Name) []hexutil.Bytes {
+	var (
+		txs []hexutil.Bytes
+		err error
+	)
+	switch fork {
+	case forks.Jovian:
+		txs, err = derive.JovianNetworkUpgradeTransactions()
+	case forks.Lagoon:
+		txs, _, err = derive.LagoonActivationUpgradeTransactions(false)
+	default:
+		txs, _, err = derive.UpgradeTransactions(fork)
+	}
+	require.NoError(t, err, "upgrade transactions of %s", fork)
+	return txs
+}
+
+func testActivationBlockTxOmission(gt *testing.T, testCfg *helpers.TestCfg[forks.Name]) {
+	fork := testCfg.Custom
 	t := actionsHelpers.NewDefaultTesting(gt)
 	offset := uint64(4)
 	testSetup := func(dc *genesis.DeployConfig) {
 		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
 		// activate fork after a few blocks
-		dc.SetForkTimeOffset(tcfg.fork, &offset)
+		dc.SetForkTimeOffset(fork, &offset)
 	}
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
 
@@ -66,11 +77,11 @@ func testActivationBlockTxOmission(gt *testing.T, testCfg *helpers.TestCfg[activ
 	sequencer.ActL2EndBlock(t)
 
 	actHeader := engine.LatestHeader(t)
-	require.Equal(t, tcfg.fork,
+	require.Equal(t, fork,
 		rollupCfg.IsActivationBlock(actHeader.Time-blockTime, actHeader.Time),
 		"this block should be the activation block")
 	deposits, userTxs := engine.BlockTxs(t, actHeader.Hash())
-	require.Len(t, deposits, tcfg.numUpgradeTxs+1, "activation block contains unexpected deposits")
+	require.Len(t, deposits, len(activationUpgradeTxs(t, fork))+1, "activation block contains unexpected deposits")
 	require.Empty(t, userTxs, "activation block contains unexpected user txs")
 
 	batcher := env.Batcher
@@ -101,4 +112,13 @@ func testActivationBlockTxOmission(gt *testing.T, testCfg *helpers.TestCfg[activ
 	require.Equal(t, eth.HeaderBlockID(preActHeader), eth.HeaderBlockID(l2SafeHead), "derivation only reaches pre-upgrade block")
 
 	env.RunFaultProofProgramFromGenesis(t, bigs.Uint64Strict(l2SafeHead.Number), testCfg.CheckResult, testCfg.InputParams...)
+
+	// The L1 chain up to its head holds no batch for the activation block once the batch carrying
+	// the user tx is dropped, and the sequencing window has not expired, so the honest claim for
+	// the activation block is the invalid transition.
+	actNum := bigs.Uint64Strict(actHeader.Number)
+	env.RunFaultProofProgram(t, actNum, helpers.ExpectNoError(), helpers.WithL2Claim(eth.InvalidTransitionHash))
+	// A program that kept the batch would have the engine reject the user tx and replace the block
+	// with the deposits-only block the sequencer built, which the default claim commits to.
+	env.RunFaultProofProgram(t, actNum, helpers.ExpectError(helpers.ErrClaimNotValid))
 }
