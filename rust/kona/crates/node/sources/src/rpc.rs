@@ -9,7 +9,9 @@ use alloy_primitives::Bytes;
 use alloy_provider::RootProvider;
 use alloy_rpc_client::ClientBuilder;
 use alloy_rpc_types_engine::JwtSecret;
-use alloy_transport::{TransportError, TransportErrorKind, TransportFut, TransportResult};
+use alloy_transport::{
+    HttpError, TransportError, TransportErrorKind, TransportFut, TransportResult,
+};
 use alloy_transport_http::{
     AuthLayer, Http, HyperClient, hyper_util,
     hyper_util::{client::legacy::Client, rt::TokioExecutor},
@@ -39,6 +41,9 @@ use url::Url;
 /// It bounds one request, never an operation made of many requests, such as the block traversal
 /// of a reset, so a long but healthy operation is not cut off.
 pub const TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Number of bytes of a response body that a failure keeps, in its error and in the log.
+const MAX_ERROR_BODY_LEN: usize = 1024;
 
 /// Identifier for the histogram of outgoing JSON-RPC request durations, labeled by `client`,
 /// `method`, `outcome` and `error`. Its count also gives the number of requests and errors.
@@ -102,7 +107,8 @@ pub fn with_deadline(request: TransportFut<'static>) -> TransportFut<'static> {
 /// any other successful request at debug: while the node catches up, derivation reads several
 /// L1 and L2 blocks a second.
 ///
-/// Before it logs or returns a failure, it removes the request URL from it.
+/// Before it logs or returns a failure, it removes the request URL from it and cuts any response
+/// body it carries to 1 KiB. It logs at most 1 KiB of a JSON-RPC error message.
 #[derive(Debug, Clone, Copy)]
 pub struct Observe {
     /// The `client` label on the recorded metrics and logs.
@@ -155,7 +161,7 @@ where
         let start = Instant::now();
         let response = self.inner.call(request);
         Box::pin(async move {
-            let response = response.await.map_err(without_url);
+            let response = response.await.map_err(without_url).map_err(with_short_body);
             let duration = start.elapsed();
             let (outcome, kind) = classify(&response);
             // A log level is fixed per call site, so each level gets its own.
@@ -178,7 +184,7 @@ where
                 Ok(packet) if packet.is_error() => completed!(
                     warn,
                     code = packet.first_error_code(),
-                    error = packet.first_error_message(),
+                    error = packet.first_error_message().map(truncated).as_deref(),
                 ),
                 Ok(_) if method.starts_with("engine_") => completed!(info,),
                 Ok(_) => completed!(debug,),
@@ -213,6 +219,38 @@ fn without_url(error: TransportError) -> TransportError {
         }
         error => error,
     }
+}
+
+/// Cuts the response body that a failure to decode a response, or an HTTP error status, carries
+/// to [`MAX_ERROR_BODY_LEN`] bytes.
+///
+/// Callers log these errors, and an endpoint can send a body as large as it can transfer before
+/// [`TIMEOUT`].
+fn with_short_body(error: TransportError) -> TransportError {
+    let short = |text: String| truncated(&text).into_owned();
+    match error {
+        RpcError::DeserError { err, text } => RpcError::DeserError { err, text: short(text) },
+        RpcError::Transport(TransportErrorKind::HttpError(HttpError { status, body })) => {
+            TransportErrorKind::http_error(status, short(body))
+        }
+        RpcError::Transport(TransportErrorKind::HttpErrorWithRetryAfter {
+            error: HttpError { status, body },
+            retry_after,
+        }) => {
+            TransportErrorKind::http_error_with_retry_after(status, short(body), Some(retry_after))
+        }
+        error => error,
+    }
+}
+
+/// Returns `text` cut to at most [`MAX_ERROR_BODY_LEN`] bytes, followed by its full length if it
+/// was cut.
+fn truncated(text: &str) -> Cow<'_, str> {
+    if text.len() <= MAX_ERROR_BODY_LEN {
+        return Cow::Borrowed(text);
+    }
+    let end = text.floor_char_boundary(MAX_ERROR_BODY_LEN);
+    Cow::Owned(format!("{}... ({} bytes)", &text[..end], text.len()))
 }
 
 /// Classifies a transport's result as its `outcome` and `error` labels.
@@ -358,13 +396,23 @@ mod tests {
     /// Sends one request for `method` through `observe` over a transport that answers with
     /// `response`.
     fn send(observe: Observe, method: &'static str, response: TransportResult<ResponsePacket>) {
+        let _ = call(observe, method, response);
+    }
+
+    /// Sends one request for `method` through `observe` over a transport that answers with
+    /// `response`, and returns what the caller receives.
+    fn call(
+        observe: Observe,
+        method: &'static str,
+        response: TransportResult<ResponsePacket>,
+    ) -> TransportResult<ResponsePacket> {
         let mut response = Some(response);
         let mut service = observe.layer(tower::service_fn(move |_| {
             let response = response.take().expect("the transport is called once");
             async move { response }
         }));
         let call = service.call(request(method));
-        let _ = tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(call);
+        tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(call)
     }
 
     /// A JSON-RPC client over the transport of the node's L1 client for `url`.
@@ -382,6 +430,42 @@ mod tests {
 
     /// The node's clients, by label.
     const CLIENTS: [(&str, Build); 2] = [("l1", l1_rpc), ("engine", engine_rpc)];
+
+    /// A response body far longer than a log line should be.
+    fn long_body() -> String {
+        "x".repeat(64 * 1024)
+    }
+
+    #[rstest]
+    #[case::undecodable(Err(RpcError::DeserError {
+        err: serde_json::from_str::<()>("x").unwrap_err(),
+        text: long_body(),
+    }))]
+    #[case::http_error(Err(TransportErrorKind::http_error(500, long_body())))]
+    #[case::http_error_with_retry_after(Err(TransportErrorKind::http_error_with_retry_after(
+        503,
+        long_body(),
+        Some(Duration::from_secs(1)),
+    )))]
+    #[case::error_response(Ok(packet(&format!(
+        r#"{{"jsonrpc":"2.0","id":1,"error":{{"code":-32000,"message":"{}"}}}}"#,
+        long_body()
+    ))))]
+    fn keeps_only_the_start_of_a_long_response_body(
+        #[case] response: TransportResult<ResponsePacket>,
+    ) {
+        let (logs, _guard) = capture_logs(Level::WARN);
+        let response = call(Observe::new("l1"), "eth_getBlockByNumber", response);
+
+        let max_len = MAX_ERROR_BODY_LEN + 256;
+        if let Err(error) = response {
+            let error = error.to_string();
+            assert!(error.len() < max_len, "error is {} bytes long", error.len());
+        }
+        let requests = request_logs(&logs);
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].len() < max_len, "log line is {} bytes long", requests[0].len());
+    }
 
     #[test]
     fn records_each_request_by_client_method_outcome_and_error() {
