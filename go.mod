@@ -33,7 +33,7 @@ require (
 	github.com/holiman/uint256 v1.3.2
 	github.com/ipfs/go-datastore v0.9.2
 	github.com/ipfs/go-ds-leveldb v0.5.0
-	github.com/johannesboyne/gofakes3 v1.2.0
+	github.com/johannesboyne/gofakes3 v1.3.0
 	github.com/klauspost/compress v1.20.5
 	github.com/libp2p/go-libp2p v0.52.0
 	github.com/libp2p/go-libp2p-mplex v0.11.0
