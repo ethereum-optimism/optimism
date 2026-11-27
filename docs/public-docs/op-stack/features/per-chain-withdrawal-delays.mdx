@@ -1,0 +1,194 @@
+---
+title: "Per-chain withdrawal delays"
+description: "Understand how a chain can shorten its withdrawal delays to as little as one day, and the monitoring and incident response it needs before it does."
+diataxis: explanation
+---
+
+import { OpEnterpriseFeature } from "/snippets/op-enterprise-feature.mdx"
+
+<Warning>
+  This feature ships with Upgrade 22.
+  It is non-functional until the upgrade is approved by governance and its applicable Mainnet execution completes.
+  See the [Upgrade 22 notice](/notices/upgrade-22#per-chain-withdrawal-delays).
+</Warning>
+
+{/* TODO(mds1): confirm the page's scope. At the 2026-11-25 protocol office hours the group leaned towards no public docs for this feature beyond the notice. This draft follows the middle path proposed afterwards: describe the feature, make the security bar explicit, and point chains to OP Enterprise. It deliberately has no step-by-step instructions for shortening a delay. */}
+
+Before Upgrade 22, every standard OP Stack chain waited the same fixed time before a withdrawal could finalize on L1.
+The delays that make up that wait were constants in the shared contract implementations.
+Upgrade 22 brings [`op-contracts/v10.0.0`](https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv10.0.0) to production, and that release is what enables this capability: it moves the delays into each chain's own contracts.
+A chain can then set its own delays within bounds that the implementation fixes.
+With every delay at its lower bound, a withdrawal can finalize about one day after it is proven, which is why this feature is often called *1-day withdrawals*.
+
+The upgrade itself does not shorten any delay.
+It carries each chain's current values into the new contracts unchanged.
+Shortening a delay is a separate, deliberate action by the chain's L1 ProxyAdmin owner.
+
+<Warning>
+  The withdrawal delays are the time your chain has to catch and stop an invalid withdrawal before it finalizes.
+  Shortening them can shrink that time to as little as 12 hours.
+  It is strongly discouraged to shorten a chain's delays without redundant security monitoring and 24/7 incident response in place.
+  Read [Before you shorten a chain's delays](#before-you-shorten-a-chains-delays) first.
+</Warning>
+
+## The three delays
+
+| Delay | Contract | What it holds back | Lower bound | Upper bound |
+| --- | --- | --- | --- | --- |
+| Proof maturity delay | `OptimismPortal2` | Finalizing a withdrawal, counted from when it was proven | 1 day | 7 days |
+| Dispute game finality delay | `AnchorStateRegistry` | Treating a resolved dispute game as final, counted from when it resolved | 12 hours | 3.5 days |
+| Bond withdrawal delay | `DelayedWETH` | Withdrawing dispute game bonds, counted from when they were unlocked | 12 hours | 7 days |
+
+For the proof maturity and finality delays, the upper bounds are the standard values from before Upgrade 22, so these delays cannot be made longer than they were.
+The lower bounds are chosen so that a chain using every minimum still has a one-day withdrawal time.
+The bounds are immutables of the contract implementations.
+Moving them requires deploying new implementations, which for a governed chain means a governance-approved upgrade.
+
+{/* TODO(mds1): op-deployer's standard.WithdrawalDelaySeconds (the DelayedWETH delay for a new deployment) is 302400 (3.5 days), while the PRR describes the bond lockup as 7 days today and MaxWithdrawalDelaySeconds is 604800. Confirm the pre-U22 bond delay so the page can say what the 7-day upper bound means for it. */}
+{/* TODO(mds1): should the page say what happens if a chain's current delay is outside the new bounds at upgrade time? initialize() reverts on an out-of-bounds value. Are all governed chains known to be within bounds? */}
+
+The [configurability specification](https://specs.optimism.io/protocol/configurability.html) lists these ranges as the standard values for each parameter.
+
+## How the delays set a withdrawal's wait
+
+A withdrawal proven against a dispute game can finalize only when, among other checks, all of these hold:
+
+* The proof maturity delay has passed since the withdrawal was proven.
+* The dispute game has resolved in favor of the proposal, and the dispute game finality delay has passed since it resolved.
+* The game was of the respected game type when it was created, and the Guardian has not blacklisted or retired it.
+* Withdrawals are not paused.
+
+A shorter proof maturity delay does not make every withdrawal faster.
+A withdrawal also waits for its dispute game to resolve, and for the finality delay after that.
+How long a game takes to resolve depends on the game type, not on these delays.
+
+Lowering the delays is intended for chains whose games resolve on a fixed, short schedule: permissioned chains and chains using the [ZK dispute game](/op-stack/zk-proofs/zk-dispute-game).
+Chains using the permissionless fault dispute game are expected to keep a finality delay of 3.5 days, so that the game clock and the finality delay still total 7 days.
+
+{/* TODO(mds1): confirm the eligible game types. Sources: the PRR ("chains whose games resolve on a fixed schedule (ZK, SuperPermissionedDisputeGame)") and the configurability spec note on FaultDisputeGame. Should the page say anything about how the permissioned game's clock has to be configured for a one-day total? */}
+
+The bond withdrawal delay does not affect user withdrawals.
+It protects dispute game bonds instead: it is the time the L1 ProxyAdmin owner has to recover bonds from `DelayedWETH` if a game paid them to the wrong party.
+A Guardian pause also blocks bond withdrawals in the meantime.
+
+## How a chain changes its delays
+
+Only the chain's L1 ProxyAdmin owner can change a delay.
+Each contract has its own setter, which rejects any value outside the bounds:
+
+| Delay | Setter | Event |
+| --- | --- | --- |
+| Proof maturity delay | `OptimismPortal2.setProofMaturityDelaySeconds` | `ProofMaturityDelaySecondsSet` |
+| Dispute game finality delay | `AnchorStateRegistry.setDisputeGameFinalityDelaySeconds` | `DisputeGameFinalityDelaySecondsSet` |
+| Bond withdrawal delay | `DelayedWETH.setDelay` | `DelaySet` |
+
+A new value takes effect immediately for everything already in flight.
+Lowering the proof maturity delay applies to withdrawals that were proven before the change.
+Lowering the finality delay applies to games that resolved before the change.
+Lowering the bond withdrawal delay applies to bonds that were unlocked before the change.
+This is why the order of operations in [Rules for changing the delays](#rules-for-changing-the-delays) matters.
+
+Chains in an interop set share one `AnchorStateRegistry` and one `DelayedWETH`, so they share one finality delay and one bond withdrawal delay.
+Each chain's `OptimismPortal2` keeps its own proof maturity delay.
+Keep the proof maturity delay the same on every chain in an interop set: the set's pooled ETH can leave through whichever chain has the shortest one.
+
+The `OPContractsManagerStandardValidator` accepts any value within the bounds.
+
+## Before you shorten a chain's delays
+
+The contracts are designed to reject every invalid withdrawal.
+The withdrawal delays exist for the case where that design fails, for example through a contract bug or an invalid dispute game that resolves as valid.
+During the delays, monitoring has time to notice the problem and the Guardian has time to pause withdrawals and blacklist or retire the game.
+Once an invalid withdrawal finalizes, the funds it takes are gone.
+
+With every delay at its lower bound, a withdrawal can finalize one day after it is proven, and as little as 12 hours after its dispute game resolves.
+If the problem only becomes visible when the game resolves, 12 hours is all the time your monitoring has to detect it and your responders have to stop it.
+Run on short delays only if detection and response fit inside that window.
+They must fit at any hour, and with one component failed.
+
+{/* TODO(mds1): confirm the 12-hour framing. Derived from the finality delay lower bound (AnchorStateRegistry.isGameFinalized) and the 1DW detection-and-response FMA's time budget. */}
+
+What follows is the minimum bar.
+What your chain needs depends on its configuration and changes as the protocol evolves.
+
+### A proof system that resolves on a fixed schedule
+
+Shorter delays only make sense when dispute games resolve quickly and predictably.
+See [How the delays set a withdrawal's wait](#how-the-delays-set-a-withdrawals-wait).
+
+### Withdrawal monitoring with redundancy
+
+* **Check every proven withdrawal against L2.**
+  For each withdrawal proven to the `OptimismPortal2` contract, confirm that it was initiated in the `L2ToL1MessagePasser` contract on L2.
+  [`op-dispute-mon`](/chain-operators/tools/chain-monitoring#dispute-mon) does not do this: it checks dispute games, not individual withdrawals.
+* **Run at least two independent monitors for this check.**
+  Use separate code, separate infrastructure, and separate paging paths, so that one bug, outage, or compromised account cannot blind both.
+* **Read from several independent RPC providers.**
+  Use more than one L1 and more than one L2 provider for each monitor, each run by a different operator.
+  Require them to agree, and treat a failed or conflicting read as an alert, never as "withdrawal found."
+  A single provider that returns wrong data can hide an invalid withdrawal.
+* **Cover every withdrawal that can still finalize.**
+  A monitor that restarts must rebuild enough history to see every proof that is still pending.
+* **Alert when a monitor goes quiet.**
+  A monitor that stops checking fails silently. Page on missing heartbeats or stale checks, not only on findings.
+* **Watch the proof system and the configuration.**
+  Run `op-dispute-mon` for dispute games, and alert on every pause and every `ProofMaturityDelaySecondsSet`, `DisputeGameFinalityDelaySecondsSet`, and `DelaySet` event from your chain's contracts.
+
+{/* TODO(mds1): decide whether to publish concrete numbers here (RPC quorum, lookback window, heartbeat interval), or keep the bar qualitative as drafted. */}
+
+### Incident response that fits inside the window
+
+* **Pages reach a responder at any hour.**
+  Alerts page an on-call responder 24/7, and an unacknowledged page escalates to a second responder.
+  Test that a page from each monitor is delivered before you rely on that monitor.
+* **Pause first, investigate second.**
+  A pause stops finalization while you work out what happened.
+  The response policy should require a pause for a critical withdrawal alert, without triage.
+  Expect some pauses to turn out to be false alarms: that is the cost of a short window.
+* **The pause path works when you need it.**
+  Responders can reach the [Guardian](/op-stack/protocol/privileged-roles#guardian) or pause key, the account that sends the pause is funded, and the tooling and runbooks are available even if your usual services are down.
+  Plan for a pause transaction that is slow to land on L1, and know how to resend it.
+* **Drill it on this chain.**
+  Run the full detect, page, and pause sequence on this chain before shortening its delays, and repeat it on a schedule.
+
+### Rules for changing the delays
+
+Because a new value applies to everything already in flight, follow these rules for every change.
+They are the minimum requirements, not an exhaustive list.
+
+* **Do not lower a delay while a security alert is open**, and never while a known-invalid game has resolved.
+  Lowering the delay could make withdrawals proven against that game finalizable at once.
+* **Do not lower a delay while withdrawals are paused.**
+  A shorter delay set during a pause can make waiting withdrawals finalizable the moment the chain unpauses.
+* **Set the proof maturity delay of every chain in an interop set in the same transaction**, to the same value.
+  The finality and bond withdrawal delays are already shared, because the set shares one `AnchorStateRegistry` and one `DelayedWETH`.
+* **Raising a delay is the safe direction.**
+  If anything looks wrong after a change, raise the delays back while you investigate.
+
+Chains governed through `superchain-ops` change their delays with the `SetReviewPeriodDelays` template.
+Before signing, it checks that each value is within bounds, that no portal in the task is paused, and that an interop set keeps one proof maturity delay.
+It cannot check for open security alerts, so that confirmation stays manual.
+
+{/* TODO(mds1): the template rejects any change while a portal is paused, including raising a delay. Is raising during a pause done some other way, or should the bullet above say "pause first, then raise once unpaused"? */}
+{/* TODO(mds1): keep or drop the superchain-ops paragraph. Issue #1974 asks for a how-to for the template; this draft only describes its checks, per the office-hours feedback not to publish instructions for turning the feature on. */}
+
+## OP Enterprise security monitoring
+
+<OpEnterpriseFeature availability="offered" />
+
+OP Labs has done extensive failure mode analysis and threat modeling of the contract changes, the monitoring, and the incident response process for shorter delays.
+That work is what gives OP Labs the confidence to offer shorter withdrawal delays through OP Enterprise.
+OP Enterprise customers who shorten their chain's delays get security monitoring as part of OP Enterprise.
+OP Enterprise security monitoring watches the contracts and accounts your chain depends on, including that every withdrawal proven on L1 was initiated on L2, and runs its critical monitors with redundancy.
+See [OP Enterprise security monitoring](/chain-operators/tools/chain-monitoring#op-enterprise-security-monitoring) for what it covers.
+
+If you are considering shorter withdrawal delays for your chain, [contact OP Enterprise](https://optimism.io/op-enterprise?utm_source=docs&utm_medium=docs&utm_campaign=op-enterprise) before you change anything.
+
+{/* TODO(mds1): confirm the entitlement wording with the OP Enterprise team. The marker uses "offered" (not every tier); the sentence above says customers who shorten their delays get monitoring as part of OP Enterprise. */}
+
+## Next steps
+
+* Read the [Upgrade 22 notice](/notices/upgrade-22#per-chain-withdrawal-delays) for what changes when the upgrade executes.
+* See [Chain monitoring options](/chain-operators/tools/chain-monitoring) for monitoring without OP Enterprise.
+* See [Fault proof security](/op-stack/fault-proofs/fp-security) for how the Guardian's safeguards work.
+* See the [configurability specification](https://specs.optimism.io/protocol/configurability.html) for each delay's standard range.
