@@ -15,6 +15,7 @@ use crate::{
 use alloy_eips::BlockNumHash;
 use alloy_primitives::Address;
 use backon::{ExponentialBuilder, Retryable};
+use http::StatusCode;
 use jsonrpsee::{
     RpcModule,
     http_client::{HttpClient, HttpClientBuilder},
@@ -43,6 +44,11 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelope;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
+use tower::{
+    ServiceBuilder,
+    layer::util::{Identity, Stack},
+};
+use tower_http::timeout::TimeoutLayer;
 use url::Url;
 
 const DERIVATION_PROVIDER_CACHE_SIZE: usize = 1024;
@@ -56,6 +62,10 @@ const DERIVATION_DELEGATE_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 pub(in crate::service) const IMPORTED_BLOCK_BUFFER_SIZE: usize = 32;
 
 const HEAD_STREAM_POLL_INTERVAL: u64 = 4;
+
+/// Per-request limit for the RPC server, matching op-node's HTTP write timeout. Some methods,
+/// such as `superroot_atTimestamp`, wait on the L2 EL and can take several seconds under load.
+const RPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The configuration for the L1 chain.
 #[derive(Debug, Clone)]
@@ -491,12 +501,7 @@ impl RollupNode {
             )
             .map_err(|e| format!("Failed to register superroot module: {e:?}"))?;
 
-        let middleware = tower::ServiceBuilder::new()
-            .layer(
-                ProxyGetRequestLayer::new([("/healthz", "healthz")])
-                    .expect("Critical: Failed to build GET method proxy"),
-            )
-            .timeout(Duration::from_secs(2));
+        let middleware = rpc_http_middleware(RPC_REQUEST_TIMEOUT);
         let max_response_body_size = jsonrpsee::core::TEN_MB_SIZE_BYTES;
         let rpc_middleware = RpcServiceBuilder::new()
             .layer(RpcObservabilityLayer::new(modules.method_names(), max_response_body_size));
@@ -682,10 +687,56 @@ fn build_derivation_delegate_client(url: &Url) -> Result<HttpClient, String> {
         .map_err(|e| format!("Failed to build derivation delegate client: {e}"))
 }
 
+/// HTTP middleware for the RPC server. A request that outlives `timeout` gets a
+/// `408 Request Timeout`: `tower`'s plain timeout makes hyper drop the connection instead, which
+/// clients see as an EOF with no response.
+fn rpc_http_middleware(
+    timeout: Duration,
+) -> ServiceBuilder<Stack<TimeoutLayer, Stack<ProxyGetRequestLayer, Identity>>> {
+    ServiceBuilder::new()
+        .layer(
+            ProxyGetRequestLayer::new([("/healthz", "healthz")])
+                .expect("Critical: Failed to build GET method proxy"),
+        )
+        .layer(TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, timeout))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use jsonrpsee::core::client::ClientT;
     use rstest::rstest;
+
+    #[tokio::test]
+    async fn rpc_timeout_answers_408_and_keeps_serving() {
+        let mut module = RpcModule::new(());
+        module.register_method("test_fast", |_, _, _| 1u64).unwrap();
+        module
+            .register_async_method("test_slow", |_, _, _| async {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                1u64
+            })
+            .unwrap();
+        let server = Server::builder()
+            .set_http_middleware(rpc_http_middleware(Duration::from_millis(100)))
+            .build("127.0.0.1:0")
+            .await
+            .unwrap();
+        let addr = server.local_addr().unwrap();
+        let handle = server.start(module);
+        let client = HttpClientBuilder::default().build(format!("http://{addr}")).unwrap();
+
+        let err = client.request::<u64, _>("test_slow", jsonrpsee::rpc_params![]).await;
+        let err = err.expect_err("slow request should time out").to_string();
+        assert!(err.contains("408"), "expected a 408 response, got: {err}");
+        assert_eq!(
+            client.request::<u64, _>("test_fast", jsonrpsee::rpc_params![]).await.unwrap(),
+            1
+        );
+
+        handle.stop().unwrap();
+        handle.stopped().await;
+    }
 
     #[rstest]
     #[case::http("http://localhost:9545", true)]
